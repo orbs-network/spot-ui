@@ -1,0 +1,19 @@
+{
+  "name": "spot-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm build:spot-sdk && pnpm build:spot-react",
+    "build:spot-sdk": "pnpm --filter @orbs-network/spot-sdk build",
+    "build:spot-react": "pnpm --filter @orbs-network/spot-react build",
+    "build:web": "pnpm --filter web build",
+    "publish:packages": "node scripts/publish.mjs",
+    "login-npm": "npm login --auth-type=web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "pnpm@9.15.1"
+}

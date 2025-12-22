@@ -1,0 +1,92 @@
+import { Address, RePermitOrder, SpotConfig } from "./types";
+import BN from "bignumber.js";
+import { getQueryParam, safeBNString } from "./utils";
+import { EIP712_TYPES, QUERY_PARAMS, REPERMIT_PRIMARY_TYPE } from "./consts";
+
+export const buildRePermitOrderData = ({
+  chainId,
+  srcToken,
+  dstToken,
+  srcAmount,
+  deadlineMillis,
+  fillDelayMillis,
+  slippage,
+  account,
+  srcAmountPerTrade,
+  dstMinAmountPerTrade,
+  triggerAmountPerTrade,
+  config,
+}: {
+  chainId: number;
+  srcToken: string;
+  dstToken: string;
+  srcAmount: string;
+  deadlineMillis: number;
+  fillDelayMillis: number;
+  slippage: number;
+  account: string;
+  srcAmountPerTrade: string;
+  dstMinAmountPerTrade?: string;
+  triggerAmountPerTrade?: string;
+  config: SpotConfig;
+}) => {
+  const nonce = Date.now().toString();
+  const epoch = parseInt((fillDelayMillis / 1000).toFixed(0));
+  const deadline = safeBNString(deadlineMillis / 1000);
+
+  const customFreshness = getQueryParam(QUERY_PARAMS.FRESHNESS);
+  const freshness = customFreshness ? parseInt(customFreshness) : 60;
+
+  const orderData: RePermitOrder = {
+    permitted: {
+      token: srcToken as Address,
+      amount: srcAmount,
+    },
+    spender: config.reactor,
+    nonce,
+    deadline,
+    witness: {
+      reactor: config.reactor,
+      executor: config.executor,
+      exchange: {
+        adapter: config.adapter,
+        ref: config.fee,
+        share: 0,
+        data: "0x",
+      },
+      swapper: account as Address,
+      nonce,
+      deadline,
+      chainid: chainId,
+      exclusivity: 0,
+      epoch,
+      slippage,
+      freshness,
+      input: {
+        token: srcToken as Address,
+        amount: srcAmountPerTrade,
+        maxAmount: srcAmount,
+      },
+      output: {
+        token: dstToken as Address,
+        limit: dstMinAmountPerTrade || "0",
+        stop: !triggerAmountPerTrade || BN(triggerAmountPerTrade || 0).isZero() ? "0" : triggerAmountPerTrade,
+        recipient: account as Address,
+      },
+    },
+  };
+
+  const domain = {
+    name: "RePermit",
+    version: "1",
+    chainId,
+    verifyingContract: config.repermit,
+  };
+
+  return {
+    domain,
+    order: orderData,
+    types: EIP712_TYPES,
+    primaryType: REPERMIT_PRIMARY_TYPE,
+  };
+};
