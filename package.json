@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --filter web dev",
-    "build": "pnpm build:spot-sdk && pnpm build:spot-react",
+    "start": "pnpm --filter web start",
+    "build": "pnpm build:spot-react && pnpm build:spot-sdk && pnpm --filter web build",
     "build:spot-sdk": "pnpm --filter @orbs-network/spot-sdk build",
     "build:spot-react": "pnpm --filter @orbs-network/spot-react build",
     "build:web": "pnpm --filter web build",
