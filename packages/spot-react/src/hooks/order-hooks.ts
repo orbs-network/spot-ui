@@ -156,6 +156,7 @@ const useHandlePersistedCancelledOrders = () => {
 export const useOrdersQuery = () => {
   const { account, config, chainId, callbacks, refetchBalances } =
     useTwapContext();
+    
   const queryKey = useOrdersQueryKey();
   const queryClient = useQueryClient();
   const handlePersistedCancelledOrders = useHandlePersistedCancelledOrders();
@@ -165,7 +166,6 @@ export const useOrdersQuery = () => {
     refetchOnWindowFocus: true,
     retry: false,
     staleTime: Infinity,
-    initialData: [],
     queryKey,
     queryFn: async ({ signal }) => {
       const orders = await getAccountOrders({

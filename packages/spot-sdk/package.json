@@ -27,6 +27,7 @@
   ],
   "license": "MIT",
   "devDependencies": {
+    "dotenv": "^17.2.3",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "vite-plugin-dts": "^4.4.0"
