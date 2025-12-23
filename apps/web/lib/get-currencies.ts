@@ -7,7 +7,6 @@ import axios from "axios";
 import {
   eqCompare,
   getNativeTokenLogoUrl,
-  isNativeAddress,
   sortByBaseAssets,
 } from "./utils";
 
@@ -24,6 +23,7 @@ const coingekoChainToName = {
   [chains.cronoszkEVM.id]: "cronos-zkevm",
   [chains.katana.id]: "katana",
   [chains.sei.id]: "sei-v2",
+  [chains.berachain.id]: "berachain",
 };
 
 export const getCurrencies = async (
@@ -42,7 +42,6 @@ export const getCurrencies = async (
       `https://tokens.coingecko.com/${name}/all.json`,
       { signal }
     );
-    console.log(response.data.tokens);
     
     const safeResponse = response.data.tokens.filter((token: { address: string }) => token.address.startsWith("0x"));
 

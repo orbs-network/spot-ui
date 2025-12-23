@@ -2,12 +2,12 @@ import { HiArrowRight } from "@react-icons/all-files/hi/HiArrowRight";
 import { Order } from "@orbs-network/spot-ui";
 import * as React from "react";
 import { Virtuoso } from "react-virtuoso";
-import TokenLogo from "../../../components/TokenLogo";
-import { useTwapStore } from "../../../useTwapStore";
-import { useOrderName, useOrders, useOrderToDisplay, useSelectedOrderIdsToCancel } from "../../../hooks/order-hooks";
-import { useDateFormat } from "../../../hooks/helper-hooks";
-import { useTranslations } from "../../../hooks/use-translations";
-import { useTwapContext } from "../../../context/twap-context";
+import TokenLogo from "../../components/TokenLogo";
+import { useTwapStore } from "../../useTwapStore";
+import { useOrderName, useOrders, useOrderToDisplay, useSelectedOrderIdsToCancel } from "../../hooks/order-hooks";
+import { useDateFormat } from "../../hooks/helper-hooks";
+import { useTranslations } from "../../hooks/use-translations";
+import { useTwapContext } from "../../spot-context";
 
 const ListLoader = () => {
   return <div className="twap-orders__loader">{<p>Loading...</p>}</div>;

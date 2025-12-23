@@ -26,7 +26,12 @@
     "sdk"
   ],
   "license": "MIT",
+  "peerDependencies": {
+    "bignumber.js": "^9.0.0"
+  },
   "devDependencies": {
+    "@orbs-network/spot": "^1.9.1",
+    "bignumber.js": "^9.3.1",
     "dotenv": "^17.2.3",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",

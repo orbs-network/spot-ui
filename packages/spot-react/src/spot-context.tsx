@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useMemo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { analytics, getConfig, Module, getQueryParam, QUERY_PARAMS, amountBN } from "@orbs-network/spot-ui";
-import { TwapProps, TwapContextType, MarketReferencePrice } from "../types";
-import { initiateWallet } from "../lib";
+import { TwapProps, TwapContextType, MarketReferencePrice } from "./types";
+import { initiateWallet } from "./lib";
 import { ErrorBoundary } from "react-error-boundary";
-import { useTwapStore } from "../useTwapStore";
+import { useTwapStore } from "./useTwapStore";
 import BN from "bignumber.js";
-import { shouldUnwrapOnly, shouldWrapOnly } from "../utils";
+import { shouldUnwrapOnly, shouldWrapOnly } from "./utils";
 
 const TwapFallbackUI = () => {
   return (
@@ -147,7 +147,7 @@ const Content = (props: TwapProps) => {
   );
 };
 
-export const TwapProvider = (props: TwapProps) => {
+export const SpotProvider = (props: TwapProps) => {
   return (
     <QueryClientProvider client={queryClient}>
       <Content {...props} />

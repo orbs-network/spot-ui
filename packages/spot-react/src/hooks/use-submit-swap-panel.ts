@@ -1,7 +1,7 @@
 import { SwapStatus } from "@orbs-network/swap-ui";
 import { useMutation } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { InputErrors, SwapExecution } from "../types";
 import { useTwapStore } from "../useTwapStore";
 import { useCurrentOrderDetails } from "./use-current-order";

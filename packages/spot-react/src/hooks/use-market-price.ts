@@ -1,6 +1,6 @@
 import { amountUi } from "@orbs-network/spot-ui";
 import { useState, useMemo, useCallback } from "react";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { useAmountBN, useFormatNumber } from "./helper-hooks";
 import BN from "bignumber.js";
 

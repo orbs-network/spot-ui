@@ -6,7 +6,7 @@ import {
   TWAP_ABI,
 } from "@orbs-network/spot-ui";
 import { useMutation } from "@tanstack/react-query";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { getExplorerUrl, isTxRejected } from "../utils";
 import { useGetTransactionReceipt } from "./use-get-transaction-receipt";
 import { useTwapStore } from "../useTwapStore";

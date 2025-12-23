@@ -1,4 +1,4 @@
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { Translations } from "../types";
 import defaultTranslations from "../i18n/en.json";
 import { useCallback } from "react";

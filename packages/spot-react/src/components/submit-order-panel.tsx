@@ -1,16 +1,16 @@
 import { Step, SwapFlow, SwapStatus } from "@orbs-network/swap-ui";
 import { createContext, ReactNode, useContext, useMemo } from "react";
-import { useTwapContext } from "../../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { isNativeAddress, Module, ORBS_TWAP_FAQ_URL } from "@orbs-network/spot-ui";
-import { ParsedError, Steps, SubmitOrderPanelProps } from "../../types";
-import { useTwapStore } from "../../useTwapStore";
-import { useExplorerLink, useFormatNumber, useNetwork } from "../../hooks/helper-hooks";
-import { useTrades } from "../../hooks/use-trades";
-import { useSrcAmount } from "../../hooks/use-src-amount";
-import { useDstTokenAmount } from "../../hooks/use-dst-amount";
-import { OrderDetails } from "../../components/order-details";
-import { useCurrentOrderDetails } from "../../hooks/use-current-order";
-import { useTranslations } from "../../hooks/use-translations";
+import { ParsedError, Steps, SubmitOrderPanelProps } from "../types";
+import { useTwapStore } from "../useTwapStore";
+import { useExplorerLink, useFormatNumber, useNetwork } from "../hooks/helper-hooks";
+import { useTrades } from "../hooks/use-trades";
+import { useSrcAmount } from "../hooks/use-src-amount";
+import { useDstTokenAmount } from "../hooks/use-dst-amount";
+import { OrderDetails } from "../components/order-details";
+import { useCurrentOrderDetails } from "../hooks/use-current-order";
+import { useTranslations } from "../hooks/use-translations";
 
 const Context = createContext({} as SubmitOrderPanelProps);
 

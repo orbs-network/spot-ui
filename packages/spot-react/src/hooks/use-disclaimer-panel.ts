@@ -1,6 +1,6 @@
 import { Module } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { useTwapStore } from "../useTwapStore";
 import { useTranslations } from "./use-translations";
 

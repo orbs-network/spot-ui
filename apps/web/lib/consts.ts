@@ -1,5 +1,6 @@
 import { arbitrum, base, bsc, linea, mainnet, polygon, sei, sonic } from "viem/chains";
 import { TABS } from "./types";
+import { Partners } from "@orbs-network/spot-ui";
 
 export const DEFAULT_TOKENS = {
   [bsc.id]: {
@@ -106,3 +107,6 @@ export const SPOT_TABS = [
 
 
 export const BUNGEE_NATIVE_TOKEN_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE'
+
+export const DEFAULT_CHAIN_ID = 56;
+export const DEFAULT_PARTNER = Partners.Thena

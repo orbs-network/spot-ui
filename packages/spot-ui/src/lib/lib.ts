@@ -3,13 +3,29 @@ import BN from "bignumber.js";
 // @ts-ignore
 import * as Spot from "@orbs-network/spot";
 import Configs from "@orbs-network/twap/configs.json";
-import { DEFAULT_FILL_DELAY, MAX_ORDER_DURATION_MILLIS, MIN_FILL_DELAY_MILLIS, MIN_ORDER_DURATION_MILLIS } from "./consts";
-import { Config, Module, Partners, SpotConfig, TimeDuration, TimeUnit } from "./types";
+import {
+  DEFAULT_FILL_DELAY,
+  MAX_ORDER_DURATION_MILLIS,
+  MIN_FILL_DELAY_MILLIS,
+  MIN_ORDER_DURATION_MILLIS,
+} from "./consts";
+import {
+  Config,
+  Module,
+  Partners,
+  SpotConfig,
+  TimeDuration,
+  TimeUnit,
+} from "./types";
 import { findTimeUnit, getTimeDurationMillis } from "./utils";
 
 // values calculations
 
-export const getDestTokenAmount = (srcAmount?: string, limitPrice?: string, srcTokenDecimals?: number) => {
+export const getDestTokenAmount = (
+  srcAmount?: string,
+  limitPrice?: string,
+  srcTokenDecimals?: number
+) => {
   if (!srcAmount || !limitPrice || !srcTokenDecimals) return undefined;
 
   const result = BN(srcAmount).times(limitPrice);
@@ -17,15 +33,26 @@ export const getDestTokenAmount = (srcAmount?: string, limitPrice?: string, srcT
   return result.div(decimalAdjustment).toFixed(0);
 };
 
-export const getDestTokenMinAmountPerChunk = (srcChunkAmount?: string, limitPrice?: string, isMarketOrder?: boolean, srcTokenDecimals?: number) => {
-  if (isMarketOrder || !srcTokenDecimals || !srcChunkAmount || !limitPrice) return BN(0).toString();
+export const getDestTokenMinAmountPerChunk = (
+  srcChunkAmount?: string,
+  limitPrice?: string,
+  isMarketOrder?: boolean,
+  srcTokenDecimals?: number
+) => {
+  if (isMarketOrder || !srcTokenDecimals || !srcChunkAmount || !limitPrice)
+    return BN(0).toString();
   const result = BN(srcChunkAmount).times(BN(limitPrice));
   const decimalAdjustment = BN(10).pow(srcTokenDecimals);
   const adjustedResult = result.div(decimalAdjustment);
   return BN.max(1, adjustedResult).integerValue(BN.ROUND_FLOOR).toFixed(0);
 };
 
-export const getTriggerPricePerChunk = (module: Module, srcChunkAmount?: string, triggerPrice?: string, srcTokenDecimals?: number) => {
+export const getTriggerPricePerChunk = (
+  module: Module,
+  srcChunkAmount?: string,
+  triggerPrice?: string,
+  srcTokenDecimals?: number
+) => {
   if (module === Module.TWAP || module === Module.LIMIT) {
     return "0";
   }
@@ -34,10 +61,17 @@ export const getTriggerPricePerChunk = (module: Module, srcChunkAmount?: string,
   const result = BN(srcChunkAmount).times(BN(triggerPrice));
   const decimalAdjustment = BN(10).pow(srcTokenDecimals);
   const adjustedResult = result.div(decimalAdjustment);
-  return BN.max(1, adjustedResult).integerValue(BN.ROUND_FLOOR).toFixed(0) || "0";
+  return (
+    BN.max(1, adjustedResult).integerValue(BN.ROUND_FLOOR).toFixed(0) || "0"
+  );
 };
 
-export const getDuration = (module: Module, chunks: number, fillDelay: TimeDuration, customDuration?: TimeDuration): TimeDuration => {
+export const getDuration = (
+  module: Module,
+  chunks: number,
+  fillDelay: TimeDuration,
+  customDuration?: TimeDuration
+): TimeDuration => {
   const minDuration = getTimeDurationMillis(fillDelay) * 2 * chunks;
   const unit = findTimeUnit(minDuration);
 
@@ -56,19 +90,33 @@ export const getDuration = (module: Module, chunks: number, fillDelay: TimeDurat
   return { unit, value: Number(BN(minDuration / unit).toFixed(2)) };
 };
 
-export const getChunks = (maxPossibleChunks: number, module: Module, typedChunks?: number) => {
+export const getChunks = (
+  maxPossibleChunks: number,
+  module: Module,
+  typedChunks?: number
+) => {
   if (module !== Module.TWAP) return 1;
   if (typedChunks !== undefined) return typedChunks;
   return maxPossibleChunks;
 };
-export const getMaxPossibleChunks = (fillDelay: TimeDuration, typedSrcAmount?: string, oneSrcTokenUsd?: string, minChunkSizeUsd?: number) => {
+export const getMaxPossibleChunks = (
+  fillDelay: TimeDuration,
+  typedSrcAmount?: string,
+  oneSrcTokenUsd?: string,
+  minChunkSizeUsd?: number
+) => {
   if (!typedSrcAmount || !oneSrcTokenUsd || !minChunkSizeUsd) return 1;
 
   const totalUsd = BN(oneSrcTokenUsd).times(typedSrcAmount);
 
-  const maxChunksBySize = totalUsd.div(minChunkSizeUsd).integerValue(BN.ROUND_FLOOR).toNumber();
+  const maxChunksBySize = totalUsd
+    .div(minChunkSizeUsd)
+    .integerValue(BN.ROUND_FLOOR)
+    .toNumber();
 
-  const maxChunksByTime = Math.floor(MAX_ORDER_DURATION_MILLIS / 2 / getTimeDurationMillis(fillDelay));
+  const maxChunksByTime = Math.floor(
+    MAX_ORDER_DURATION_MILLIS / 2 / getTimeDurationMillis(fillDelay)
+  );
 
   return Math.max(1, Math.min(maxChunksBySize, maxChunksByTime));
 };
@@ -77,7 +125,10 @@ export const getMinimumDelayMinutes = (config: Config) => {
   return getEstimatedDelayBetweenChunksMillis(config) / 1000 / 60;
 };
 
-export const getDeadline = (currentTimeMillis: number, duration: TimeDuration) => {
+export const getDeadline = (
+  currentTimeMillis: number,
+  duration: TimeDuration
+) => {
   const minute = 60_000;
 
   return currentTimeMillis + getTimeDurationMillis(duration) + minute;
@@ -93,15 +144,26 @@ export const getSrcTokenChunkAmount = (srcAmount?: string, chunks?: number) => {
 };
 
 // errors
-export const getMaxFillDelayError = (fillDelay: TimeDuration, chunks: number) => {
-  const isDefault = fillDelay.unit === DEFAULT_FILL_DELAY.unit && fillDelay.value === DEFAULT_FILL_DELAY.value;
+export const getMaxFillDelayError = (
+  fillDelay: TimeDuration,
+  chunks: number
+) => {
+  const isDefault =
+    fillDelay.unit === DEFAULT_FILL_DELAY.unit &&
+    fillDelay.value === DEFAULT_FILL_DELAY.value;
   return {
-    isError: !isDefault && getTimeDurationMillis(fillDelay) * chunks > MAX_ORDER_DURATION_MILLIS,
+    isError:
+      !isDefault &&
+      getTimeDurationMillis(fillDelay) * chunks > MAX_ORDER_DURATION_MILLIS,
     value: Math.floor(MAX_ORDER_DURATION_MILLIS / chunks),
   };
 };
 
-export const getStopLossPriceError = (marketPrice = "", triggerPrice = "", module: Module) => {
+export const getStopLossPriceError = (
+  marketPrice = "",
+  triggerPrice = "",
+  module: Module
+) => {
   if (module === Module.STOP_LOSS) {
     return {
       isError: BN(triggerPrice || 0).gte(BN(marketPrice || 0)),
@@ -110,7 +172,11 @@ export const getStopLossPriceError = (marketPrice = "", triggerPrice = "", modul
   }
 };
 
-export const getTakeProfitPriceError = (marketPrice = "", triggerPrice = "", module: Module) => {
+export const getTakeProfitPriceError = (
+  marketPrice = "",
+  triggerPrice = "",
+  module: Module
+) => {
   if (module === Module.TAKE_PROFIT) {
     return {
       isError: BN(triggerPrice || 0).lte(BN(marketPrice || 0)),
@@ -119,7 +185,12 @@ export const getTakeProfitPriceError = (marketPrice = "", triggerPrice = "", mod
   }
 };
 
-export const getStopLossLimitPriceError = (triggerPrice = "", limitPrice = "", isMarketOrder = false, module: Module) => {
+export const getStopLossLimitPriceError = (
+  triggerPrice = "",
+  limitPrice = "",
+  isMarketOrder = false,
+  module: Module
+) => {
   if (!isMarketOrder && module === Module.STOP_LOSS) {
     return {
       isError: BN(limitPrice || 0).gte(BN(triggerPrice || 0)),
@@ -128,7 +199,12 @@ export const getStopLossLimitPriceError = (triggerPrice = "", limitPrice = "", i
   }
 };
 
-export const getTakeProfitLimitPriceError = (triggerPrice = "", limitPrice = "", isMarketOrder = false, module: Module) => {
+export const getTakeProfitLimitPriceError = (
+  triggerPrice = "",
+  limitPrice = "",
+  isMarketOrder = false,
+  module: Module
+) => {
   if (!isMarketOrder && module === Module.TAKE_PROFIT) {
     return {
       isError: BN(limitPrice || 0).gte(BN(triggerPrice || 0)),
@@ -137,7 +213,10 @@ export const getTakeProfitLimitPriceError = (triggerPrice = "", limitPrice = "",
   }
 };
 
-export const getMaxOrderDurationError = (module: Module, duration: TimeDuration) => {
+export const getMaxOrderDurationError = (
+  module: Module,
+  duration: TimeDuration
+) => {
   if (module === Module.STOP_LOSS || module === Module.TAKE_PROFIT) {
     const max = 60 * 24 * 60 * 60 * 1000; // 2 months
     return {
@@ -164,7 +243,11 @@ export const getMinFillDelayError = (fillDelay: TimeDuration) => {
     value: MIN_FILL_DELAY_MILLIS,
   };
 };
-export const getMinTradeSizeError = (typedSrcAmount: string, oneSrcTokenUsd: string, minChunkSizeUsd: number) => {
+export const getMinTradeSizeError = (
+  typedSrcAmount: string,
+  oneSrcTokenUsd: string,
+  minChunkSizeUsd: number
+) => {
   return {
     isError: BN(oneSrcTokenUsd || 0)
       .multipliedBy(typedSrcAmount || 0)
@@ -172,18 +255,29 @@ export const getMinTradeSizeError = (typedSrcAmount: string, oneSrcTokenUsd: str
     value: minChunkSizeUsd,
   };
 };
-export const getMaxChunksError = (chunks: number, maxChunks: number, module: Module) => {
+export const getMaxChunksError = (
+  chunks: number,
+  maxChunks: number,
+  module: Module
+) => {
   return {
     isError: module === Module.TWAP && BN(chunks).isGreaterThan(maxChunks),
     value: maxChunks,
   };
 };
 
-export const getConfig = (chainId?: number, _dex?: Partners): SpotConfig | undefined => {
+export const getConfig = (
+  chainId?: number,
+  _dex?: Partners
+): SpotConfig | undefined => {
   try {
     if (!chainId || !_dex) throw new Error("Invalid chainId or _dex");
 
-    const twapConfig = Object.entries(Configs).find(([key, value]) => value.chainId === chainId && key.toLowerCase().indexOf(_dex.toLowerCase()) >= 0)?.[1];
+    const twapConfig = Object.entries(Configs).find(
+      ([key, value]) =>
+        value.chainId === chainId &&
+        key.toLowerCase().indexOf(_dex.toLowerCase()) >= 0
+    )?.[1];
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { abi, ...dexConfig } = Spot.config(chainId, _dex);
 
@@ -198,3 +292,31 @@ export const getConfig = (chainId?: number, _dex?: Partners): SpotConfig | undef
     return undefined;
   }
 };
+
+export type PartnerPayloadItem = {
+  chainId: number;
+  partner: string;
+  type: string;
+  adapter: string;
+  fee: string;
+};
+
+export const getPartners = (): PartnerPayloadItem[] => {
+  const raw = Spot.raw as Record<string, any>;
+
+  return Object.entries(raw)
+    .filter(([chainId]) => chainId !== "*")
+    .flatMap(([chainId, chainCfg]) => {
+      const dex = chainCfg?.dex;
+      if (!dex || typeof dex !== "object") return [];
+
+      return Object.entries(dex).map(([partner, cfg]) => ({
+        chainId:Number(chainId),
+        partner,
+        ...(cfg as Omit<PartnerPayloadItem, "chainId" | "partner">),
+      }));
+    })
+    .sort((a, b) => a.partner.localeCompare(b.partner));
+};
+
+

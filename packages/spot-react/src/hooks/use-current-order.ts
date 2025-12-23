@@ -1,4 +1,4 @@
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { useDeadline } from "./use-deadline";
 import { useDstMinAmountPerTrade, useDstTokenAmount } from "./use-dst-amount";
 import { useFillDelay } from "./use-fill-delay";

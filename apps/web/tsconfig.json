@@ -20,7 +20,9 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@orbs-network/spot-ui": ["../../packages/spot-ui/src/index.ts"],
+      "@orbs-network/spot-react": ["../../packages/spot-react/src/index.ts"]
     }
   },
   "include": [

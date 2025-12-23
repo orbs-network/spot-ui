@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import BN from "bignumber.js";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { useTwapStore } from "../useTwapStore";
 import { useInputWithPercentage } from "./use-input-with-percentage";
 import { InputError, InputErrors, Module } from "../types";

@@ -2,15 +2,15 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { IoIosArrowDown } from "@react-icons/all-files/io/IoIosArrowDown";
 import BN from "bignumber.js";
 import { OrderStatus } from "@orbs-network/spot-ui";
-import { Token } from "../../../types";
+import { Token } from "../../types";
 import { TokensDisplay } from "@orbs-network/swap-ui";
-import { OrderDetails } from "../../../components/order-details";
-import { useTwapStore } from "../../../useTwapStore";
-import { useCancelOrderMutation } from "../../../hooks/use-cancel-order";
-import { useDateFormat, useFormatNumber } from "../../../hooks/helper-hooks";
-import { useHistoryOrder } from "../../../hooks/use-history-order";
-import { useTranslations } from "../../../hooks/use-translations";
-import { useTwapContext } from "../../../context/twap-context";
+import { OrderDetails } from "../../components/order-details";
+import { useTwapStore } from "../../useTwapStore";
+import { useCancelOrderMutation } from "../../hooks/use-cancel-order";
+import { useDateFormat, useFormatNumber } from "../../hooks/helper-hooks";
+import { useHistoryOrder } from "../../hooks/use-history-order";
+import { useTranslations } from "../../hooks/use-translations";
+import { useTwapContext } from "../../spot-context";
 
 type Order = NonNullable<ReturnType<typeof useHistoryOrder>>;
 

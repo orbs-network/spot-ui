@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useTwapStore } from "../useTwapStore";
 import BN from "bignumber.js";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 
 export const useInvertTradePanel = () => {
   const { srcToken, dstToken, marketPriceLoading } = useTwapContext();

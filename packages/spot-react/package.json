@@ -34,7 +34,6 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "dependencies": {
-    "@orbs-network/spot": "^1.9.0",
     "@orbs-network/spot-ui": "workspace:*",
     "@orbs-network/swap-ui": "^0.0.61",
     "@react-icons/all-files": "^4.1.0",

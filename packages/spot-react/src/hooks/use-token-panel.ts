@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { useTwapStore } from "../useTwapStore";
 import { formatDecimals } from "../utils";
 import { useUsdAmount, useShouldWrapOrUnwrapOnly, useAmountBN, useAmountUi } from "./helper-hooks";

@@ -16,10 +16,7 @@ const rl = createInterface({
 
 const question = (q) => new Promise((resolve) => rl.question(q, resolve))
 
-const packages = [
-  { name: '@orbs-network/spot-ui', path: 'packages/spot-ui' },
-  { name: '@orbs-network/spot-react', path: 'packages/spot-react' },
-]
+const pkg = { name: '@orbs-network/spot-ui', path: 'packages/spot-ui' }
 
 function getPackageJson(pkgPath) {
   const fullPath = join(rootDir, pkgPath, 'package.json')
@@ -46,17 +43,11 @@ function bumpVersion(version, type) {
 }
 
 async function main() {
-  console.log('\n🚀 Spot Packages Publisher\n')
+  console.log(`\n🚀 ${pkg.name} Publisher\n`)
 
-  // Show current versions
-  console.log('Current versions:')
-  for (const pkg of packages) {
-    const pkgJson = getPackageJson(pkg.path)
-    console.log(`  ${pkg.name}: ${pkgJson.version}`)
-  }
-  console.log()
+  const pkgJson = getPackageJson(pkg.path)
+  console.log(`Current version: ${pkgJson.version}\n`)
 
-  // Ask for version bump type
   console.log('Select version bump type:')
   console.log('  1) patch  (bug fixes)')
   console.log('  2) minor  (new features)')
@@ -73,21 +64,20 @@ async function main() {
     process.exit(0)
   }
 
-  let bumpType = null
-  let customVersion = null
+  let newVersion = null
 
   switch (choice) {
     case '1':
-      bumpType = 'patch'
+      newVersion = bumpVersion(pkgJson.version, 'patch')
       break
     case '2':
-      bumpType = 'minor'
+      newVersion = bumpVersion(pkgJson.version, 'minor')
       break
     case '3':
-      bumpType = 'major'
+      newVersion = bumpVersion(pkgJson.version, 'major')
       break
     case '4':
-      customVersion = await question('Enter custom version (e.g., 1.2.3): ')
+      newVersion = await question('Enter custom version (e.g., 1.2.3): ')
       break
     default:
       console.log('\n❌ Invalid choice\n')
@@ -95,21 +85,7 @@ async function main() {
       process.exit(1)
   }
 
-  // Calculate new versions
-  const updates = []
-  for (const pkg of packages) {
-    const pkgJson = getPackageJson(pkg.path)
-    const currentVersion = pkgJson.version
-    const newVersion = customVersion || bumpVersion(currentVersion, bumpType)
-    updates.push({ ...pkg, currentVersion, newVersion, pkgJson })
-  }
-
-  // Show what will be updated
-  console.log('\nVersion updates:')
-  for (const update of updates) {
-    console.log(`  ${update.name}: ${update.currentVersion} → ${update.newVersion}`)
-  }
-  console.log()
+  console.log(`\n${pkg.name}: ${pkgJson.version} → ${newVersion}\n`)
 
   const confirm = await question('Proceed with publish? [y/N]: ')
   if (confirm.toLowerCase() !== 'y') {
@@ -118,44 +94,38 @@ async function main() {
     process.exit(0)
   }
 
-  // Update versions
-  console.log('\n📝 Updating versions...')
-  for (const update of updates) {
-    update.pkgJson.version = update.newVersion
-    writePackageJson(update.path, update.pkgJson)
-    console.log(`  ✓ ${update.name}`)
-  }
+  // Update version
+  console.log('\n📝 Updating version...')
+  pkgJson.version = newVersion
+  writePackageJson(pkg.path, pkgJson)
+  console.log(`  ✓ ${pkg.name}`)
 
-  // Build packages
-  console.log('\n🔨 Building packages...')
+  // Build package
+  console.log('\n🔨 Building package...')
   try {
-    execSync('pnpm build', { cwd: rootDir, stdio: 'inherit' })
+    execSync('pnpm build:spot-ui', { cwd: rootDir, stdio: 'inherit' })
   } catch (error) {
     console.error('\n❌ Build failed\n')
     rl.close()
     process.exit(1)
   }
 
-  // Ask for OTP once
+  // Ask for OTP
   const otp = await question('\n🔐 Enter npm OTP code (or press Enter to skip): ')
   const otpFlag = otp.trim() ? `--otp ${otp.trim()}` : ''
 
-  // Publish packages
-  console.log('\n📦 Publishing packages...')
-  for (const update of updates) {
-    console.log(`\nPublishing ${update.name}...`)
-    try {
-      execSync(`pnpm publish --access public --no-git-checks ${otpFlag}`, {
-        cwd: join(rootDir, update.path),
-        stdio: 'inherit',
-      })
-      console.log(`  ✓ ${update.name}@${update.newVersion} published!`)
-    } catch (error) {
-      console.error(`  ❌ Failed to publish ${update.name}`)
-    }
+  // Publish package
+  console.log('\n📦 Publishing package...')
+  try {
+    execSync(`pnpm publish --access public --no-git-checks ${otpFlag}`, {
+      cwd: join(rootDir, pkg.path),
+      stdio: 'inherit',
+    })
+    console.log(`\n✅ ${pkg.name}@${newVersion} published!\n`)
+  } catch (error) {
+    console.error(`\n❌ Failed to publish ${pkg.name}\n`)
   }
 
-  console.log('\n✅ Done!\n')
   rl.close()
 }
 

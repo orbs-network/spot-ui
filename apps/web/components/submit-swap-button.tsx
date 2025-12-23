@@ -22,9 +22,11 @@ export const SubmitSwapButton = ({
 }) => {
   const { address, chainId: currentChainId } = useConnection();
   const { openConnectModal } = useConnectModal();
-  const { switchChain } = useSwitchChain();
+  const switchChain = useSwitchChain();
   const { inputCurrency, outputCurrency, parsedInputAmount, isLoadingTrade, trade } = useDerivedSwap();
   const inputTokenBalance = useBalance(inputCurrency).wei;
+
+
 
   const insufficientBalance = useMemo(() => {
     return BN(inputTokenBalance ?? "0").lt(parsedInputAmount ?? "0");
@@ -68,7 +70,7 @@ export const SubmitSwapButton = ({
     return (
       <Button
         onClick={() => {
-          switchChain?.({ chainId });
+          switchChain.mutate({ chainId });
         }}
       >
         Switch to {getChainName(chainId)} Network

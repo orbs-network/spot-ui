@@ -8,6 +8,10 @@ import {
   sei,
   base,
   sonic,
+  berachain,
+  flare,
+  avalanche,
+  monad,
 } from "viem/chains";
 import { useIsSpotTab } from "./hooks/use-tabs";
 import { useMemo } from "react";
@@ -38,6 +42,11 @@ const SPOT_CONFIG = getDefaultConfig({
     base,
     sonic,
     polygon,
+    berachain,
+    flare,
+    avalanche,
+    monad,
+    arbitrum,
   ],
 });
 

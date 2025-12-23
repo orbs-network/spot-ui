@@ -1,4 +1,4 @@
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { useUsdAmount } from "./helper-hooks";
 import { useDstTokenAmount } from "./use-dst-amount";
 import { useSrcAmount } from "./use-src-amount";

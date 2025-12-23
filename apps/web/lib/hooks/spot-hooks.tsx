@@ -9,16 +9,18 @@ import {
   ParsedError,
   Partners,
   Token,
-  Order
+  Order,
 } from "@orbs-network/spot-react";
 import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { useConnection } from "wagmi";
 
-import TokensPair from "../tokens-pair";
+import TokensPair from "@/components/tokens-pair";
 import { useCurrency } from "@/lib/hooks/use-currencies";
+import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import * as chains from "viem/chains";
-import { useConfigParams } from "@/lib/hooks/use-config-params";
+import { getPartners } from "@orbs-network/spot-ui";
+import { DEFAULT_PARTNER } from "../consts";
 
 const useCallbacks = () => {
   const wrapToastId = useRef<number>(null);
@@ -196,30 +198,37 @@ export const useSpotMarketReferencePrice = () => {
 };
 
 export const useSpotPartner = () => {
+  const { partner } = useSwapParams();
+
   const { chainId } = useConnection();
-  const { partner } = useConfigParams();
 
   return useMemo(() => {
-    if (partner) {
-      return partner;
+    const selected = partner?.split("_")[0];
+
+    if (selected) {
+      return selected as Partners;
     }
     if (!chainId) {
-      return Partners.THENA;
+      return DEFAULT_PARTNER;
     }
+
     switch (chainId) {
       case chains.base.id:
       case chains.polygon.id:
-        return Partners.QUICKSWAP;
+        return Partners.Quick;
       case chains.bsc.id:
-        return Partners.THENA;
+        return Partners.Thena;
       case chains.sonic.id:
-        return Partners.SPOOKYSWAP;
+        return Partners.Spooky;
       case chains.sei.id:
-        return Partners.NAMI;
+        return Partners.Nami;
       case chains.linea.id:
-        return Partners.LYNEX;
+        return Partners.Lynex;
       default:
-        return Partners.THENA;
+        return (
+          getPartners().find((p) => p.chainId === chainId)?.partner ||
+          DEFAULT_PARTNER
+        );
     }
   }, [chainId, partner]);
 };

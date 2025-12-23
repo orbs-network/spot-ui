@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import BN from "bignumber.js";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { useTwapStore } from "../useTwapStore";
 import { InputError, InputErrors } from "../types";
 import { useSrcAmount } from "./use-src-amount";
@@ -10,6 +10,7 @@ import { useTrades } from "./use-trades";
 import { useFillDelay } from "./use-fill-delay";
 import { useDuration } from "./use-duration";
 import { useTranslations } from "./use-translations";
+import { getQueryParam } from "@orbs-network/spot-ui";
 
 export const useBalanceError = () => {
   const { srcBalance } = useTwapContext();
@@ -37,7 +38,7 @@ export function useInputErrors() {
   const { error: fillDelayError } = useFillDelay();
   const { error: durationError } = useDuration();
 
-  const ignoreErrors = useMemo(() => new URLSearchParams(window.location.search)?.get("ignore-errors"), []);
+  const ignoreErrors = useMemo(() => getQueryParam("ignore-errors"), []);
 
   if (BN(marketPrice || 0).isZero() || BN(srcAmount || 0).isZero() || marketPriceLoading || ignoreErrors) {
     return undefined;

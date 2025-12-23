@@ -1,6 +1,6 @@
 import { getOrderFillDelayMillis, Order } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { useAmountUi, useFormatNumber } from "./helper-hooks";
 import { useOrders, useOrderName, useOrderLimitPrice, useOrderAvgExcecutionPrice } from "./order-hooks";
 import { useBaseOrder } from "./use-base-order";

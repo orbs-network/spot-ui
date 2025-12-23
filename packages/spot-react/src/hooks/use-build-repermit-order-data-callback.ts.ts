@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { useDeadline } from "./use-deadline";
 import { useFillDelay } from "./use-fill-delay";
 import { buildRePermitOrderData, getNetwork, isNativeAddress } from "@orbs-network/spot-ui";

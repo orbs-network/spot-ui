@@ -4,7 +4,7 @@ import { useTwapStore } from "../useTwapStore";
 import BN from "bignumber.js";
 import { InputError, InputErrors, millisToMinutes } from "..";
 import { useTranslations } from "./use-translations";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 
 const useFillDelayError = (fillDelay: TimeDuration) => {
   const t = useTranslations();

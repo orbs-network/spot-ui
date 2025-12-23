@@ -1,6 +1,6 @@
 import { OrderPreview } from "./order-preview";
 import { OrdersList } from "./orders-list";
-import { useTwapStore } from "../../../useTwapStore";
+import { useTwapStore } from "../../useTwapStore";
 
 export const Orders = () => {
   const selectedOrderID = useTwapStore((s) => s.state.selectedOrderID);

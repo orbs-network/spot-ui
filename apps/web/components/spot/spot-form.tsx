@@ -12,7 +12,7 @@ import {
   ButtonProps,
   Module,
   Token,
-  TWAP as Spot,
+  SpotProvider as Spot,
   useDstTokenPanel,
   useDurationPanel,
   useSrcTokenPanel,
@@ -56,13 +56,14 @@ import {
   useSpotMarketReferencePrice,
   useSpotPartner,
   useSpotToken,
-} from "./hooks";
+} from "@/lib/hooks/spot-hooks";
 import {
   SpotPriceInput,
   SpotPriceResetButton,
   SpotSelectMenu,
 } from "./components";
 import { SpotsOrders } from "./orders";
+import { useSwapParams } from "@/lib/hooks/use-swap-params";
 
 const { useCallbacks } = SpotHooks;
 const Context = createContext<{
@@ -410,7 +411,7 @@ const SubmitSwap = () => {
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <SubmitSwapButton
+        <ShowSubmitSwapButton
           disabled={openSubmitModalButton.disabled}
           text={openSubmitModalButton.text}
           isLoading={openSubmitModalButton.loading}
@@ -437,6 +438,36 @@ const SubmitSwap = () => {
         </DialogContent>
       </Dialog>
     </>
+  );
+};
+
+const ShowSubmitSwapButton = ({
+  onClick,
+  disabled,
+  text,
+  isLoading,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  text: string;
+  isLoading: boolean;
+}) => {
+  const { partner } = useSwapParams();
+
+
+  const partnerChainId = useMemo(() => {
+    const partnerChain = partner?.split("_")[1];
+    return partnerChain ? Number(partnerChain) : undefined;
+  }, [partner]);
+
+  return (
+    <SubmitSwapButton
+      onClick={onClick}
+      disabled={disabled}
+      isLoading={isLoading}
+      text={text}
+      chainId={partnerChainId}
+    />
   );
 };
 

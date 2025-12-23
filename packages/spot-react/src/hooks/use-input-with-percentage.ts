@@ -1,7 +1,7 @@
 import { amountBN, amountUi } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import BN from "bignumber.js";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { formatDecimals } from "../utils";
 import { useUsdAmount } from "./helper-hooks";
 import { useInvertTradePanel } from "./use-invert-trade-panel";

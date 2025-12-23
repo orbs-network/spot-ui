@@ -7,6 +7,7 @@ import { WagmiProvider } from "wagmi";
 import { QueryProvider } from "./query-provider";
 
 import { Spinner } from "@/components/ui/spinner";
+import { AppProvider } from "./context";
 
 const queryClient = new QueryClient();
 
@@ -36,7 +37,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <WagmiWrapper>
           <QueryClientProvider client={queryClient}>
             <RainbowKitProvider theme={darkTheme()}>
+              <AppProvider>
               {children}
+              </AppProvider>
             </RainbowKitProvider>
           </QueryClientProvider>
         </WagmiWrapper>

@@ -1,15 +1,9 @@
 import Configs from "@orbs-network/twap/configs.json";
 import { networks } from "./networks";
-import { Config, Partners, TimeDuration, TimeUnit } from "./types";
+import { Config, TimeDuration, TimeUnit } from "./types";
 import { getQueryParam } from "./utils";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-
 const DEV_API_URL = "https://order-sink-dev.orbs.network";
 const PROD_API_URL = "https://order-sink.orbs.network";
-
-
-console.log(process.env.NEXT_PUBLIC_SINC_API);
 
 export const getApiEndpoint = () => {
   const env = getQueryParam(QUERY_PARAMS.ENV);
@@ -20,7 +14,15 @@ export const getApiEndpoint = () => {
     return DEV_API_URL;
   }
 
-  return process.env.NEXT_PUBLIC_SINC_API;
+  if (process.env.NEXT_PUBLIC_MODE === "prod") {
+    return PROD_API_URL;
+  }
+
+  if (process.env.NEXT_PUBLIC_MODE === "dev") {
+    return DEV_API_URL;
+  }
+
+  return PROD_API_URL;
 };
 export const SUGGEST_CHUNK_VALUE = 100;
 
@@ -295,12 +297,3 @@ export const DEFAULT_TAKE_PROFIT_PERCENTAGE = "10";
 
 export const DEFAULT_STOP_LOSS_LIMIT_PERCENTAGE = "-10";
 export const DEFAULT_TAKE_PROFIT_LIMIT_PERCENTAGE = "5";
-
-export const PartnerChains = {
-  [Partners.LYNEX]: [networks.linea.id],
-  [Partners.QUICKSWAP]: [networks.poly.id, networks.base.id],
-  [Partners.NAMI]: [networks.sei.id],
-  [Partners.THENA]: [networks.bsc.id],
-  [Partners.SPOOKYSWAP]: [networks.sonic.id],
-  [Partners.YOWIE]: [networks.monad.id],
-};

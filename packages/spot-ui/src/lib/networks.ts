@@ -409,7 +409,7 @@ export const networks = {
       address: zeroAddress,
       symbol: "BERA",
       decimals: 18,
-      logoUrl: "https://berascan.com/token/images/bera_ofc_64.png",
+      logoUrl: "https://s2.coinmarketcap.com/static/img/coins/128x128/24647.png",
     },
     wToken: {
       symbol: "WBERA",

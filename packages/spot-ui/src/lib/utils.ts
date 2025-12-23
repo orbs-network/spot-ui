@@ -1,8 +1,8 @@
-import { LEGACY_EXCHANGES_MAP, getPartnerIdentifier, maxUint256, nativeTokenAddresses, THE_GRAPH_ORDERS_API, PartnerChains } from "./consts";
+import { LEGACY_EXCHANGES_MAP, getPartnerIdentifier, maxUint256, nativeTokenAddresses, THE_GRAPH_ORDERS_API } from "./consts";
 import BN from "bignumber.js";
 import { Config, Order, OrderType, Partners, TimeDuration, TimeUnit } from "./types";
 import { networks } from "./networks";
-import { Configs, getEstimatedDelayBetweenChunksMillis } from "..";
+import { getEstimatedDelayBetweenChunksMillis, getPartners } from "..";
 
 export const getTheGraphUrl = (chainId?: number) => {
   if (!chainId) return;
@@ -145,39 +145,6 @@ export const getExchanges = (config?: Config[]) => {
   return Array.from(allAddresses);
 };
 
-export const getConfigByExchange = (exchange: string, chainId: number): Config | undefined => {
-  const normalized = exchange.toLowerCase();
-
-  // 1. Try matching the main exchangeAddress in configs
-  const primaryMatch = Object.values(Configs).find((cfg) => cfg.exchangeAddress.toLowerCase() === normalized && cfg.chainId === chainId);
-  if (primaryMatch) return primaryMatch as Config;
-
-  // 2. Try matching legacy exchange addresses
-  for (const [key, legacyAddresses] of Object.entries(LEGACY_EXCHANGES_MAP)) {
-    if (legacyAddresses.some((addr) => addr.toLowerCase() === normalized)) {
-      const config = Object.values(Configs).find((cfg) => {
-        const name = key.split("_")[0];
-
-        return cfg.name === name && cfg.chainId === Number(chainId);
-      });
-      if (config) return config as Config;
-    }
-  }
-
-  // 3. Not found
-  return undefined;
-};
-
-export const HexToNumber = (hexStr: string) => {
-  // Remove 0x prefix if present
-  const trimmed = hexStr.replace("0x", "");
-  // Parse as base 16
-  const val = parseInt(trimmed, 16);
-  if (isNaN(val)) {
-    return 0;
-  }
-  return val;
-};
 
 export const numberToHex = (value: number | bigint, padding = 0): string => {
   if (typeof value !== "bigint" && !Number.isSafeInteger(value)) {
@@ -206,10 +173,11 @@ export const getOrderFillDelayMillis = (order: Order, config: Config) => {
 };
 
 export const getQueryParam = (name: string) => {
+  if (typeof window === 'undefined') return null;
   const urlParams = new URLSearchParams(window.location.search);
   return urlParams.get(name);
 };
 
 export const getPartnerChains = (partner: Partners) => {
-  return PartnerChains[partner as keyof typeof PartnerChains];
+  return getPartners().filter((p) => p.partner === partner).map((p) => p.chainId);
 };

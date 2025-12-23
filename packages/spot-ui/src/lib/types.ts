@@ -1,4 +1,5 @@
 import { EIP712_TYPES, REPERMIT_PRIMARY_TYPE } from "./consts";
+import { getPartners, PartnerPayloadItem } from "./lib";
 
 export type Config = {
   chainName: string;
@@ -243,19 +244,27 @@ export type OrderV2 = {
 };
 
 export enum Partners {
-  THENA = "thena",
-  PANCAKESWAP = "pancake",
-  QUICKSWAP = "quick",
-  SWAPX = "swapx",
-  DRAGONSWAP = "dragonswap",
-  SPOOKYSWAP = "spooky",
-  LYNEX = "lynex",
-  BLACKHOLE = "blackhole",
-  OMNI = "omni",
-  SUSHISWAP = "sushiswap",
-  NAMI = "nami",
-  YOWIE = "yowie",
+  Arbidex = "arbidex",
+  Blackhole = "blackhole",
+  Chronos = "chronos",
+  Dragon = "dragon",
+  Kodiak = "kodiak",
+  Lynex = "lynex",
+  Nami = "nami",
+  Newera = "newera",
+  Omni = "omni",
+  Pancake = "pancake",
+  Quick = "quick",
+  Ramses = "ramses",
+  Shadow = "shadow",
+  Spark = "spark",
+  Spooky = "spooky",
+  Swapx = "swapx",
+  Teafi = "teafi",
+  Thena = "thena",
+  Yowie = "yowie",
 }
+
 
 export type SpotConfig = {
   partner: Partners;

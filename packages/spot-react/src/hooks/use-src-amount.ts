@@ -1,4 +1,4 @@
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { useTwapStore } from "../useTwapStore";
 import { useAmountBN } from "./helper-hooks";
 import BN from "bignumber.js";

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import {
   DEFAULT_STOP_LOSS_LIMIT_PERCENTAGE,
   DEFAULT_STOP_LOSS_PERCENTAGE,

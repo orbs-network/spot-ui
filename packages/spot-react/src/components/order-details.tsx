@@ -2,7 +2,7 @@ import React, { CSSProperties, ReactNode, useMemo } from "react";
 
 import { fillDelayText, makeElipsisAddress } from "../utils";
 import { Token } from "../types";
-import { useTwapContext } from "../context/twap-context";
+import { useTwapContext } from "../spot-context";
 import { AiOutlineCopy } from "@react-icons/all-files/ai/AiOutlineCopy";
 import { useCopyToClipboard, useDateFormat, useFormatNumber, useNetwork } from "../hooks/helper-hooks";
 import BN from "bignumber.js";
