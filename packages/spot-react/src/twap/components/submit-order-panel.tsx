@@ -1,7 +1,7 @@
 import { Step, SwapFlow, SwapStatus } from "@orbs-network/swap-ui";
 import { createContext, ReactNode, useContext, useMemo } from "react";
 import { useTwapContext } from "../../context/twap-context";
-import { isNativeAddress, Module, ORBS_TWAP_FAQ_URL } from "@orbs-network/spot-sdk";
+import { isNativeAddress, Module, ORBS_TWAP_FAQ_URL } from "@orbs-network/spot-ui";
 import { ParsedError, Steps, SubmitOrderPanelProps } from "../../types";
 import { useTwapStore } from "../../useTwapStore";
 import { useExplorerLink, useFormatNumber, useNetwork } from "../../hooks/helper-hooks";

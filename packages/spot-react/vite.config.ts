@@ -13,7 +13,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@orbs-network/spot-sdk': resolve(__dirname, '../spot-sdk/src/index.ts'),
+      '@orbs-network/spot-ui': resolve(__dirname, '../spot-ui/src/index.ts'),
     },
   },
   build: {
@@ -23,13 +23,13 @@ export default defineConfig({
       fileName: 'spot-react',
     },
     rollupOptions: {
-      external: ['react', 'react-dom', 'react/jsx-runtime', '@orbs-network/spot-sdk'],
+      external: ['react', 'react-dom', 'react/jsx-runtime', '@orbs-network/spot-ui'],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
           'react/jsx-runtime': 'jsxRuntime',
-          '@orbs-network/spot-sdk': 'SpotSDK',
+          '@orbs-network/spot-ui': 'SpotSDK',
         },
       },
     },

@@ -1,9 +1,9 @@
 import { CSSProperties, FC, ReactNode } from "react";
-import { Partners, Module, Order, OrderStatus, SpotConfig, TimeDuration } from "@orbs-network/spot-sdk";
+import { Partners, Module, Order, OrderStatus, SpotConfig, TimeDuration } from "@orbs-network/spot-ui";
 import { SwapStatus } from "@orbs-network/swap-ui";
 import { createPublicClient, createWalletClient, TransactionReceipt as _TransactionReceipt, Abi } from "viem";
-export type { Order } from "@orbs-network/spot-sdk";
-export { OrderStatus, type TwapFill, OrderType, Module } from "@orbs-network/spot-sdk";
+export type { Order } from "@orbs-network/spot-ui";
+export { OrderStatus, type TwapFill, OrderType, Module } from "@orbs-network/spot-ui";
 
 export type TransactionReceipt = _TransactionReceipt;
 export interface Translations {

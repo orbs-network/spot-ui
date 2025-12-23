@@ -1,4 +1,4 @@
-import { getDuration, getMaxOrderDurationError, getMinOrderDurationError, Module, TimeDuration, TimeUnit } from "@orbs-network/spot-sdk";
+import { getDuration, getMaxOrderDurationError, getMinOrderDurationError, Module, TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import { useTwapContext } from "../context/twap-context";
 import { useTwapStore } from "../useTwapStore";

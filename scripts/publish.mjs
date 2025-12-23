@@ -17,7 +17,7 @@ const rl = createInterface({
 const question = (q) => new Promise((resolve) => rl.question(q, resolve))
 
 const packages = [
-  { name: '@orbs-network/spot-sdk', path: 'packages/spot-sdk' },
+  { name: '@orbs-network/spot-ui', path: 'packages/spot-ui' },
   { name: '@orbs-network/spot-react', path: 'packages/spot-react' },
 ]
 

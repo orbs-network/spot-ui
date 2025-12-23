@@ -1,4 +1,4 @@
-import { amountBN, amountUi } from "@orbs-network/spot-sdk";
+import { amountBN, amountUi } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import BN from "bignumber.js";
 import { useTwapContext } from "../context/twap-context";

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { analytics, getConfig, Module, getQueryParam, QUERY_PARAMS, amountBN } from "@orbs-network/spot-sdk";
+import { analytics, getConfig, Module, getQueryParam, QUERY_PARAMS, amountBN } from "@orbs-network/spot-ui";
 import { TwapProps, TwapContextType, MarketReferencePrice } from "../types";
 import { initiateWallet } from "../lib";
 import { ErrorBoundary } from "react-error-boundary";

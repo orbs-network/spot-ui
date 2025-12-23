@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { setUIVersion } from "@orbs-network/spot-sdk";
+import { setUIVersion } from "@orbs-network/spot-ui";
 import { useTwapStore } from "./useTwapStore";
 import pkg from "../package.json";
 

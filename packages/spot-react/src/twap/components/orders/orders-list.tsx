@@ -1,5 +1,5 @@
 import { HiArrowRight } from "@react-icons/all-files/hi/HiArrowRight";
-import { Order } from "@orbs-network/spot-sdk";
+import { Order } from "@orbs-network/spot-ui";
 import * as React from "react";
 import { Virtuoso } from "react-virtuoso";
 import TokenLogo from "../../../components/TokenLogo";

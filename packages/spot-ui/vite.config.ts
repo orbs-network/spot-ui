@@ -12,7 +12,7 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
       name: 'SpotSDK',
-      fileName: 'spot-sdk',
+      fileName: 'spot-ui',
     },
   },
 })

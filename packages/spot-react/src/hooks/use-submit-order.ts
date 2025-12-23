@@ -6,7 +6,7 @@ import {
   isNativeAddress,
   IWETH_ABI,
   submitOrder,
-} from "@orbs-network/spot-sdk";
+} from "@orbs-network/spot-ui";
 import { ParsedError, Steps, Token } from "../types";
 import { ensureWrappedToken, getExplorerUrl, isTxRejected } from "../utils";
 import { useSrcAmount } from "./use-src-amount";

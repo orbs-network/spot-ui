@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@orbs-network/spot": "^1.9.0",
-    "@orbs-network/spot-sdk": "workspace:*",
+    "@orbs-network/spot-ui": "workspace:*",
     "@orbs-network/swap-ui": "^0.0.61",
     "@react-icons/all-files": "^4.1.0",
     "@tanstack/react-query": "^5.90.12",

@@ -1,4 +1,4 @@
-import { Module } from "@orbs-network/spot-sdk";
+import { Module } from "@orbs-network/spot-ui";
 import { useTwapContext } from "../context/twap-context";
 import { useTwapStore } from "../useTwapStore";
 import { useLimitPrice } from "./use-limit-price";

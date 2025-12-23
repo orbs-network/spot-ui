@@ -4,7 +4,7 @@ import {
   Order,
   REPERMIT_ABI,
   TWAP_ABI,
-} from "@orbs-network/spot-sdk";
+} from "@orbs-network/spot-ui";
 import { useMutation } from "@tanstack/react-query";
 import { useTwapContext } from "../context/twap-context";
 import { getExplorerUrl, isTxRejected } from "../utils";

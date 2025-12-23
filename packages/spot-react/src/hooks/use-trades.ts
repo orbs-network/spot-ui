@@ -2,7 +2,7 @@ import { useMemo, useCallback } from "react";
 import { useTwapContext } from "../context/twap-context";
 import { InputError, InputErrors } from "../types";
 import { useTwapStore } from "../useTwapStore";
-import { getChunks, getMaxChunksError, getMaxPossibleChunks, getSrcTokenChunkAmount, getMinTradeSizeError } from "@orbs-network/spot-sdk";
+import { getChunks, getMaxChunksError, getMaxPossibleChunks, getSrcTokenChunkAmount, getMinTradeSizeError } from "@orbs-network/spot-ui";
 import { useFillDelay } from "./use-fill-delay";
 import { useSrcAmount } from "./use-src-amount";
 import { useAmountUi, useFormatNumber } from "./helper-hooks";

@@ -6,7 +6,7 @@ import {
   DEFAULT_TAKE_PROFIT_LIMIT_PERCENTAGE,
   DEFAULT_TAKE_PROFIT_PERCENTAGE,
   Module,
-} from "@orbs-network/spot-sdk";
+} from "@orbs-network/spot-ui";
 import { useTwapStore } from "../useTwapStore";
 
 export const useDefaultTriggerPricePercent = () => {

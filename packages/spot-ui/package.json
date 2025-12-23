@@ -3,14 +3,14 @@
   "version": "0.0.6",
   "description": "Spot SDK",
   "type": "module",
-  "main": "./dist/spot-sdk.umd.cjs",
-  "module": "./dist/spot-sdk.js",
+  "main": "./dist/spot-ui.umd.cjs",
+  "module": "./dist/spot-ui.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/spot-sdk.js",
-      "require": "./dist/spot-sdk.umd.cjs"
+      "import": "./dist/spot-ui.js",
+      "require": "./dist/spot-ui.umd.cjs"
     }
   },
   "files": [

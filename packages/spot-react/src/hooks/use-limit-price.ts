@@ -6,7 +6,7 @@ import { InputErrors, InputError, Module } from "../types";
 import BN from "bignumber.js";
 import { useTriggerPrice } from "./use-trigger-price";
 import { useDefaultLimitPricePercent } from "./use-default-values";
-import { getStopLossLimitPriceError, getTakeProfitLimitPriceError, ORBS_TWAP_FAQ_URL } from "@orbs-network/spot-sdk";
+import { getStopLossLimitPriceError, getTakeProfitLimitPriceError, ORBS_TWAP_FAQ_URL } from "@orbs-network/spot-ui";
 import { useTranslations } from "./use-translations";
 import { useInvertTradePanel } from "./use-invert-trade-panel";
 

@@ -5,7 +5,7 @@ import { useTwapStore } from "../useTwapStore";
 import { useInputWithPercentage } from "./use-input-with-percentage";
 import { InputError, InputErrors, Module } from "../types";
 import { useDefaultTriggerPricePercent } from "./use-default-values";
-import { getStopLossPriceError, getTakeProfitPriceError, getTriggerPricePerChunk } from "@orbs-network/spot-sdk";
+import { getStopLossPriceError, getTakeProfitPriceError, getTriggerPricePerChunk } from "@orbs-network/spot-ui";
 import { useAmountUi } from "./helper-hooks";
 import { useTrades } from "./use-trades";
 import { useTranslations } from "./use-translations";

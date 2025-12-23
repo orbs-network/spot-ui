@@ -27,7 +27,7 @@
 
     "baseUrl": ".",
     "paths": {
-      "@orbs-network/spot-sdk": ["../spot-sdk/src/index.ts"]
+      "@orbs-network/spot-ui": ["../spot-ui/src/index.ts"]
     }
   },
   "include": ["src", "package.json"]

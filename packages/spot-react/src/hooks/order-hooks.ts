@@ -4,7 +4,7 @@ import {
   Order,
   OrderStatus,
   OrderType,
-} from "@orbs-network/spot-sdk";
+} from "@orbs-network/spot-ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
 import { REFETCH_ORDER_HISTORY } from "../consts";

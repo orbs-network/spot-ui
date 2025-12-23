@@ -1,4 +1,4 @@
-import { DEFAULT_FILL_DELAY, getMinFillDelayError, TimeDuration, TimeUnit } from "@orbs-network/spot-sdk";
+import { DEFAULT_FILL_DELAY, getMinFillDelayError, TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import { useTwapStore } from "../useTwapStore";
 import BN from "bignumber.js";

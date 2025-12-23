@@ -1,7 +1,7 @@
 import { AddressPadding, OrderType, Token } from "./types";
-import { eqIgnoreCase, getNetwork, isNativeAddress, networks, Order } from "@orbs-network/spot-sdk";
+import { eqIgnoreCase, getNetwork, isNativeAddress, networks, Order } from "@orbs-network/spot-ui";
 import BN from "bignumber.js";
-import { amountUi } from "@orbs-network/spot-sdk";
+import { amountUi } from "@orbs-network/spot-ui";
 export const removeCommas = (numStr: string): string => {
   return numStr.replace(/,/g, "");
 };

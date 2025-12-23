@@ -1,4 +1,4 @@
-import { Module } from "@orbs-network/spot-sdk";
+import { Module } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
 import { useTwapContext } from "../context/twap-context";
 import { useTwapStore } from "../useTwapStore";

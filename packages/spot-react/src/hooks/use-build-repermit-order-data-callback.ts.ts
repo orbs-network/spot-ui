@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTwapContext } from "../context/twap-context";
 import { useDeadline } from "./use-deadline";
 import { useFillDelay } from "./use-fill-delay";
-import { buildRePermitOrderData, getNetwork, isNativeAddress } from "@orbs-network/spot-sdk";
+import { buildRePermitOrderData, getNetwork, isNativeAddress } from "@orbs-network/spot-ui";
 import { useDstMinAmountPerTrade } from "./use-dst-amount";
 import { useSrcAmount } from "./use-src-amount";
 import { useTriggerPrice } from "./use-trigger-price";

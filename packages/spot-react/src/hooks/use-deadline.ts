@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useTwapStore } from "../useTwapStore";
-import { getDeadline } from "@orbs-network/spot-sdk";
+import { getDeadline } from "@orbs-network/spot-ui";
 import { useDuration } from "./use-duration";
 
 export const useDeadline = () => {

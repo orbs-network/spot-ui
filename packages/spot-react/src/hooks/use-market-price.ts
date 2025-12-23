@@ -1,4 +1,4 @@
-import { amountUi } from "@orbs-network/spot-sdk";
+import { amountUi } from "@orbs-network/spot-ui";
 import { useState, useMemo, useCallback } from "react";
 import { useTwapContext } from "../context/twap-context";
 import { useAmountBN, useFormatNumber } from "./helper-hooks";
