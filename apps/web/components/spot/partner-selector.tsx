@@ -3,6 +3,7 @@ import {
   getNetwork,
   getPartners,
   PartnerPayloadItem,
+  Partners
 } from "@orbs-network/spot-react";
 import {
   Select,
@@ -16,7 +17,6 @@ import { Avatar, AvatarImage } from "../ui/avatar";
 import { useIsSpotTab } from "@/lib/hooks/use-tabs";
 import { getSpotPartnerProdLink } from "@/lib/utils";
 const partners = getPartners();
-
 const isProd = process.env.NEXT_PUBLIC_MODE === "prod";
 
 export function PartnerSelector() {

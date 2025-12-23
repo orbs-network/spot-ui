@@ -25,10 +25,7 @@
     "declarationMap": true,
     "outDir": "./dist",
 
-    "baseUrl": ".",
-    "paths": {
-      "@orbs-network/spot-ui": ["../spot-ui/src/index.ts"]
-    }
+    "baseUrl": "."
   },
   "include": ["src", "package.json"]
 }

@@ -9,7 +9,6 @@ export default defineConfig({
     dts({
       insertTypesEntry: true,
       tsconfigPath: './tsconfig.json',
-      pathsToAliases: false,  // Don't convert tsconfig paths to type aliases
     }),
   ],
   build: {

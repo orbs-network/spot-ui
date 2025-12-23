@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import * as spotUiLib from "@orbs-network/spot-ui";
+import { setUIVersion } from "@orbs-network/spot-ui";
 import { useTwapStore } from "./useTwapStore";
 import pkg from "../package.json";
 import { SpotProvider } from "./spot-context";
@@ -26,7 +26,7 @@ export { Configs, PRICE_PROTECTION_SETTINGS } from "./consts";
 export { useFormatNumber } from "./hooks/helper-hooks";
 
 // Set the UI version in spot-sdk for analytics
-spotUiLib.setUIVersion(pkg.version);
+setUIVersion(pkg.version);
 
 
 
@@ -44,6 +44,7 @@ const Components = {
   SubmitOrderPanel,
   Orders,
 };
+
 
 export * from "@orbs-network/spot-ui";
 
