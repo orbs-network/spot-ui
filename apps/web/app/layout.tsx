@@ -20,7 +20,7 @@ const robotoMono = Roboto({
 
 export const metadata: Metadata = {
   title: "dSpot",
-  description: "dSpot is a spot trading platform for the Orbs Network",
+  description: "dSpot",
 };
 
 export default function RootLayout({
@@ -33,7 +33,6 @@ export default function RootLayout({
       <body
         className={`${roboto.variable} ${robotoMono.variable} antialiased dark`}
       >
-
           <Providers>
             <div className="fixed top-4 right-4 z-50">
             <ConnectButton showBalance={false} />
