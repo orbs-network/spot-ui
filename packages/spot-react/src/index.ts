@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { setUIVersion } from "@orbs-network/spot-ui";
+import * as spotUiLib from "@orbs-network/spot-ui";
 import { useTwapStore } from "./useTwapStore";
 import pkg from "../package.json";
 import { SpotProvider } from "./spot-context";
@@ -20,18 +20,17 @@ import { useInputErrors } from "./hooks/use-input-errors";
 import { useBuildRePermitOrderDataCallback } from "./hooks/use-build-repermit-order-data-callback";
 import { useTogglePricePanel } from "./hooks/use-toggle-price";
 import { SubmitOrderPanel } from "./components/submit-order-panel";
-
-
-
-
-// Set the UI version in spot-sdk for analytics
-setUIVersion(pkg.version);
-
 export * from "./types";
 export * from "./utils";
 export { Configs, PRICE_PROTECTION_SETTINGS } from "./consts";
 export { useFormatNumber } from "./hooks/helper-hooks";
-export const useTypedSrcAmount = () => {
+
+// Set the UI version in spot-sdk for analytics
+spotUiLib.setUIVersion(pkg.version);
+
+
+
+const useTypedSrcAmount = () => {
   const updateState = useTwapStore((s) => s.updateState);
 
   return {
@@ -45,6 +44,9 @@ const Components = {
   SubmitOrderPanel,
   Orders,
 };
+
+export * from "@orbs-network/spot-ui";
+
 
 export {
   SpotProvider,
@@ -68,4 +70,5 @@ export {
   useInputErrors,
   useTogglePricePanel,
   useBuildRePermitOrderDataCallback,
+  useTypedSrcAmount
 };

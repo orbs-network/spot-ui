@@ -9,13 +9,9 @@ export default defineConfig({
     dts({
       insertTypesEntry: true,
       tsconfigPath: './tsconfig.json',
+      pathsToAliases: false,  // Don't convert tsconfig paths to type aliases
     }),
   ],
-  resolve: {
-    alias: {
-      '@orbs-network/spot-ui': resolve(__dirname, '../spot-ui/src/index.ts'),
-    },
-  },
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
@@ -23,13 +19,12 @@ export default defineConfig({
       fileName: 'spot-react',
     },
     rollupOptions: {
-      external: ['react', 'react-dom', 'react/jsx-runtime', '@orbs-network/spot-ui'],
+      external: ['react', 'react-dom', 'react/jsx-runtime'],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
           'react/jsx-runtime': 'jsxRuntime',
-          '@orbs-network/spot-ui': 'SpotSDK',
         },
       },
     },

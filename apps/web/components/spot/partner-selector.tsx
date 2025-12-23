@@ -3,7 +3,7 @@ import {
   getNetwork,
   getPartners,
   PartnerPayloadItem,
-} from "@orbs-network/spot-ui";
+} from "@orbs-network/spot-react";
 import {
   Select,
   SelectContent,
@@ -15,7 +15,6 @@ import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { Avatar, AvatarImage } from "../ui/avatar";
 import { useIsSpotTab } from "@/lib/hooks/use-tabs";
 import { getSpotPartnerProdLink } from "@/lib/utils";
-
 const partners = getPartners();
 
 const isProd = process.env.NEXT_PUBLIC_MODE === "prod";
@@ -37,7 +36,7 @@ export function PartnerSelector() {
     <Select onValueChange={(value) => setPartner(value)} defaultValue={partner}>
       <SelectTrigger>
         <SelectValue>
-          {selectedPartner && <PartnerDisplay partner={selectedPartner} isSelector={true} />}
+          {selectedPartner && <PartnerDisplay partner={selectedPartner} />}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>

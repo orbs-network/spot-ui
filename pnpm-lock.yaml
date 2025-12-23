@@ -195,9 +195,6 @@ importers:
 
   packages/spot-react:
     dependencies:
-      '@orbs-network/spot-ui':
-        specifier: workspace:*
-        version: link:../spot-ui
       '@orbs-network/swap-ui':
         specifier: ^0.0.61
         version: 0.0.61(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -229,6 +226,9 @@ importers:
         specifier: ^5.0.9
         version: 5.0.9(@types/react@19.2.7)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
     devDependencies:
+      '@orbs-network/spot-ui':
+        specifier: workspace:*
+        version: link:../spot-ui
       '@types/react':
         specifier: ^19.0.2
         version: 19.2.7

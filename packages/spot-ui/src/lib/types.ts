@@ -262,6 +262,7 @@ export enum Partners {
   Teafi = "teafi",
   Thena = "thena",
   Yowie = "yowie",
+  test = "test",
 }
 
 
