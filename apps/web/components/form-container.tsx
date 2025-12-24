@@ -57,7 +57,7 @@ const Tabs = () => {
 export function FormContainer({ children }: { children: React.ReactNode }) {
   const selectedTab = useSelectedFormTab();
   return (
-    <div className="flex flex-col gap-4 max-w-md w-full mx-auto mt-10 mb-10">
+    <div className="flex flex-col gap-4 max-w-md w-full mx-auto mt-10 mb-[100px]">
       <PartnerSelector />
 
       <Tabs />
