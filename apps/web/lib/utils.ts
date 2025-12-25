@@ -252,6 +252,8 @@ export const getSpotPartnerDemoLink = (partner?: string) => {
       return "https://nami-dex.vercel.app/swap";
     case Partners.Quick:
       return "http://198.20.104.22:4000/swap/twap/ETH/0xc2132D05D31c914a87C6611C10748AEb04B58e8F?chainId=137";
+    case Partners.Swapx:
+      return "https://swapx-twap.netlify.app/swap?tokenIn=0x0000000000000000000000000000000000000000&tokenOut=0xA04BC7140c26fc9BB1F36B1A604C7A5a88fb0E70&view=TWAP";
     case Partners.Yowie:
       return "https://yowie-spot.netlify.app/twap";
   }

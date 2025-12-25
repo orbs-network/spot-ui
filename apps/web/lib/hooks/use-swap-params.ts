@@ -65,6 +65,7 @@ export const useSwapParams = () => {
     toggleCurrencies,
     partner: selectedPartner,
     setPartner,
-    setCurrencies
+    setCurrencies,
+    parsedPartner: selectedPartner?.split("_")[0]
   };
 };

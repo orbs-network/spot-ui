@@ -61,14 +61,15 @@ const ConfigDialog = () => {
 };
 
 export const SpotFooter = () => {
-  const { partner } = useSwapParams();
+  const { parsedPartner } = useSwapParams();
 
-  if (process.env.NEXT_PUBLIC_MODE === "prod" || !partner) {
+  if (process.env.NEXT_PUBLIC_MODE === "prod" || !parsedPartner) {
     return null;
   }
 
-  const demo = getSpotPartnerDemoLink(partner);
-  const prod = getSpotPartnerProdLink(partner);
+  const demo = getSpotPartnerDemoLink(parsedPartner);
+  
+  const prod = getSpotPartnerProdLink(parsedPartner);
 
   return (
     <div className="flex flex-row gap-2 items-center  fixed z-10 bottom-0 left-8 right-0 p-4">
