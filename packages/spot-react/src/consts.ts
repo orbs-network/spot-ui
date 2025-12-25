@@ -1,13 +1,6 @@
 import { Configs, ORBS_TWAP_FAQ_URL, ORBS_LOGO, ORBS_LOGO_FALLBACK, ORBS_WEBSITE_URL, DISCLAIMER_URL, TimeUnit } from "@orbs-network/spot-ui";
 export const REFETCH_ORDER_HISTORY = 20_000;
 
-export const MIN_NATIVE_BALANCE = 0.01;
-
-export const SLIPPAGE_MULTIPLIER = 10;
-export const LIMIT_TRIGGER_PRICE_DELTA_PERCENTAGE = 15;
-
-export const TX_GAS_COST = 500_000;
-
 export { Configs, ORBS_TWAP_FAQ_URL, ORBS_LOGO, ORBS_LOGO_FALLBACK, ORBS_WEBSITE_URL, DISCLAIMER_URL };
 
 export const DEFAULT_DURATION_OPTIONS: { text: string; value: TimeUnit }[] = [

@@ -1,17 +1,66 @@
 import React, { createContext, useContext, useEffect, useMemo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { analytics, getConfig, Module, getQueryParam, QUERY_PARAMS, amountBN } from "@orbs-network/spot-ui";
-import { TwapProps, TwapContextType, MarketReferencePrice } from "./types";
-import { initiateWallet } from "./lib";
+import {
+  analytics,
+  getConfig,
+  Module,
+  getQueryParam,
+  QUERY_PARAMS,
+  amountBN,
+} from "@orbs-network/spot-ui";
+import {
+  TwapProps,
+  SpotContextType,
+  MarketReferencePrice,
+  Provider,
+} from "./types";
 import { ErrorBoundary } from "react-error-boundary";
-import { useTwapStore } from "./useTwapStore";
+import { useSpotStore } from "./store";
 import BN from "bignumber.js";
 import { shouldUnwrapOnly, shouldWrapOnly } from "./utils";
+import * as chains from "viem/chains";
+import { Chain } from "viem";
+import { custom, createWalletClient, createPublicClient, http } from "viem";
+import { WalletClient, PublicClient } from "./types";
+
+const initiateWallet = (chainId?: number, provider?: Provider) => {
+  const chain = Object.values(chains).find((it: Chain) => it.id === chainId);
+
+  if (!chain) {
+    return {
+      walletClient: undefined,
+      publicClient: undefined,
+    };
+  }
+  const transport = provider ? custom(provider) : undefined;
+  const walletClient = transport
+    ? (createWalletClient({ chain, transport }) as any)
+    : undefined;
+  const publicClient = createPublicClient({
+    chain,
+    transport: transport || http(),
+  });
+
+  return {
+    walletClient: walletClient as WalletClient | undefined,
+    publicClient: publicClient as PublicClient | undefined,
+  };
+};
 
 const TwapFallbackUI = () => {
   return (
     <div className="twap-error-fallback">
-      <p style={{ fontSize: 20, fontWeight: 600, textAlign: "center", width: "100%", marginTop: 40 }}>Something went wrong</p>
+      <p
+        style={{
+          fontSize: 20,
+          fontWeight: 600,
+          textAlign: "center",
+          width: "100%",
+          marginTop: 40,
+        }}
+      >
+        Something went wrong
+      </p>
     </div>
   );
 };
@@ -24,7 +73,7 @@ function ErrorWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-export const TwapContext = createContext({} as TwapContextType);
+export const SpotContext = createContext({} as SpotContextType);
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -34,8 +83,8 @@ const queryClient = new QueryClient({
 });
 
 const Listeners = (props: TwapProps) => {
-  const updateStore = useTwapStore((s) => s.updateState);
-  const isMarketOrder = useTwapStore((s) => s.state.isMarketOrder);
+  const updateStore = useSpotStore((s) => s.updateState);
+  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   // update current time every minute, so the deadline will be updated when confirmation window is open
   useEffect(() => {
     setInterval(() => {
@@ -45,7 +94,10 @@ const Listeners = (props: TwapProps) => {
 
   useEffect(() => {
     updateStore({
-      isMarketOrder: props.module !== Module.LIMIT ? false : props.overrides?.state?.isMarketOrder,
+      isMarketOrder:
+        props.module !== Module.LIMIT
+          ? false
+          : props.overrides?.state?.isMarketOrder,
       typedChunks: props.overrides?.state?.chunks,
       typedFillDelay: props.overrides?.state?.fillDelay,
       typedDuration: props.overrides?.state?.duration,
@@ -80,18 +132,30 @@ const Listeners = (props: TwapProps) => {
   return null;
 };
 
-const useParsedMarketPrice = ({ marketReferencePrice, srcToken, dstToken, chainId }: TwapProps) => {
-  const typedSrcAmount = useTwapStore((s) => s.state.typedSrcAmount);
+const useParsedMarketPrice = ({
+  marketReferencePrice,
+  srcToken,
+  dstToken,
+  chainId,
+}: TwapProps) => {
+  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
 
   return useMemo((): MarketReferencePrice => {
-    if (shouldWrapOnly(srcToken, dstToken, chainId) || shouldUnwrapOnly(srcToken, dstToken, chainId)) {
+    if (
+      shouldWrapOnly(srcToken, dstToken, chainId) ||
+      shouldUnwrapOnly(srcToken, dstToken, chainId)
+    ) {
       return {
         isLoading: false,
         noLiquidity: false,
         value: amountBN(srcToken?.decimals || 18, typedSrcAmount || "0"),
       };
     }
-    if (BN(marketReferencePrice.value || 0).isZero() || BN(typedSrcAmount || 0).isZero()) return marketReferencePrice;
+    if (
+      BN(marketReferencePrice.value || 0).isZero() ||
+      BN(typedSrcAmount || 0).isZero()
+    )
+      return marketReferencePrice;
 
     const value = BN(marketReferencePrice.value || 0)
       .dividedBy(typedSrcAmount || 0)
@@ -105,7 +169,9 @@ const useParsedMarketPrice = ({ marketReferencePrice, srcToken, dstToken, chainI
 };
 
 const getMinChunkSizeUsd = (minChunkSizeUsd: number) => {
-  const minChunkSizeUsdFromQuery = getQueryParam(QUERY_PARAMS.MIN_CHUNK_SIZE_USD);
+  const minChunkSizeUsdFromQuery = getQueryParam(
+    QUERY_PARAMS.MIN_CHUNK_SIZE_USD
+  );
   if (minChunkSizeUsdFromQuery) {
     return parseInt(minChunkSizeUsdFromQuery);
   }
@@ -113,11 +179,20 @@ const getMinChunkSizeUsd = (minChunkSizeUsd: number) => {
 };
 
 const Content = (props: TwapProps) => {
-  const acceptedMarketPrice = useTwapStore((s) => s.state.acceptedMarketPrice);
-  const { walletClient, publicClient } = useMemo(() => initiateWallet(props.chainId, props.provider), [props.chainId, props.provider]);
-  const config = useMemo(() => getConfig(props.chainId, props.partner), [props.chainId, props.partner]);
+  const acceptedMarketPrice = useSpotStore((s) => s.state.acceptedMarketPrice);
+  const { walletClient, publicClient } = useMemo(
+    () => initiateWallet(props.chainId, props.provider),
+    [props.chainId, props.provider]
+  );
+  const config = useMemo(
+    () => getConfig(props.chainId, props.partner),
+    [props.chainId, props.partner]
+  );
   const marketReferencePrice = useParsedMarketPrice(props);
-  const minChunkSizeUsd = useMemo(() => getMinChunkSizeUsd(props.minChunkSizeUsd), [props.minChunkSizeUsd]);
+  const minChunkSizeUsd = useMemo(
+    () => getMinChunkSizeUsd(props.minChunkSizeUsd),
+    [props.minChunkSizeUsd]
+  );
 
   useEffect(() => {
     analytics.onLoad();
@@ -127,7 +202,7 @@ const Content = (props: TwapProps) => {
   }, [config, props.chainId, minChunkSizeUsd]);
 
   return (
-    <TwapContext.Provider
+    <SpotContext.Provider
       value={{
         ...props,
         minChunkSizeUsd,
@@ -135,7 +210,8 @@ const Content = (props: TwapProps) => {
         walletClient,
         publicClient,
         marketPrice: acceptedMarketPrice || marketReferencePrice.value,
-        marketPriceLoading: !acceptedMarketPrice && marketReferencePrice.isLoading,
+        marketPriceLoading:
+          !acceptedMarketPrice && marketReferencePrice.isLoading,
         noLiquidity: !acceptedMarketPrice && marketReferencePrice.noLiquidity,
         config,
         slippage: props.priceProtection,
@@ -143,7 +219,7 @@ const Content = (props: TwapProps) => {
     >
       <Listeners {...props} />
       <ErrorWrapper>{props.children}</ErrorWrapper>
-    </TwapContext.Provider>
+    </SpotContext.Provider>
   );
 };
 
@@ -155,9 +231,9 @@ export const SpotProvider = (props: TwapProps) => {
   );
 };
 
-export const useTwapContext = () => {
-  if (!TwapContext) {
-    throw new Error("useTwapContext must be used within a WidgetProvider");
+export const useSpotContext = () => {
+  if (!SpotContext) {
+    throw new Error("useSpotContext must be used within a WidgetProvider");
   }
-  return useContext(TwapContext);
+  return useContext(SpotContext);
 };

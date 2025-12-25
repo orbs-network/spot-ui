@@ -1,6 +1,6 @@
 import { amountBN, amountUi, getNetwork } from "@orbs-network/spot-ui";
 import { useCallback, useMemo } from "react";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import BN from "bignumber.js";
 import { formatDecimals, getExplorerUrl, shouldUnwrapOnly, shouldWrapOnly } from "../utils";
 import moment from "moment";
@@ -15,7 +15,7 @@ export const useAmountUi = (decimals?: number, value?: string) => {
 };
 
 export const useNetwork = () => {
-  const { chainId } = useTwapContext();
+  const { chainId } = useSpotContext();
   return useMemo(() => getNetwork(chainId), [chainId]);
 };
 
@@ -37,7 +37,7 @@ export const useUsdAmount = (amount?: string, usd?: string | number) => {
 };
 
 export const useShouldOnlyWrap = () => {
-  const { srcToken, dstToken, chainId } = useTwapContext();
+  const { srcToken, dstToken, chainId } = useSpotContext();
 
   return useMemo(() => {
     return shouldWrapOnly(srcToken, dstToken, chainId);
@@ -45,7 +45,7 @@ export const useShouldOnlyWrap = () => {
 };
 
 export const useShouldUnwrap = () => {
-  const { srcToken, dstToken, chainId } = useTwapContext();
+  const { srcToken, dstToken, chainId } = useSpotContext();
 
   return useMemo(() => {
     return shouldUnwrapOnly(srcToken, dstToken, chainId);
@@ -60,7 +60,7 @@ export const useShouldWrapOrUnwrapOnly = () => {
 };
 
 export const useDateFormat = (date?: number) => {
-  const { overrides } = useTwapContext();
+  const { overrides } = useSpotContext();
   return useMemo(() => {
     if (overrides?.dateFormat) {
       return overrides.dateFormat(date || 0);
@@ -70,7 +70,7 @@ export const useDateFormat = (date?: number) => {
 };
 
 export function useCopyToClipboard() {
-  const { callbacks } = useTwapContext();
+  const { callbacks } = useSpotContext();
   return useCallback(
     async (text: string) => {
       try {
@@ -91,7 +91,7 @@ export const useFormatDecimals = (value?: string | number, decimalPlaces?: numbe
 
 export const useFormatNumber = ({ value, decimalScale = 3, prefix, suffix }: { value?: string | number; decimalScale?: number; prefix?: string; suffix?: string }) => {
   const _value = useFormatDecimals(value, decimalScale);
-  const { overrides } = useTwapContext();
+  const { overrides } = useSpotContext();
   const numberFormat = overrides?.numberFormat;
 
   const result = useNumericFormat({

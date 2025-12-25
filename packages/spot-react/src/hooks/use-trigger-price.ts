@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import BN from "bignumber.js";
-import { useTwapContext } from "../spot-context";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotContext } from "../spot-context";
+import { useSpotStore } from "../store";
 import { useInputWithPercentage } from "./use-input-with-percentage";
 import { InputError, InputErrors, Module } from "../types";
 import { useDefaultTriggerPricePercent } from "./use-default-values";
@@ -12,10 +12,10 @@ import { useTranslations } from "./use-translations";
 import { useInvertTradePanel } from "./use-invert-trade-panel";
 
 const useTriggerPriceError = (triggerPriceWei = "") => {
-  const { module, marketPrice } = useTwapContext();
+  const { module, marketPrice } = useSpotContext();
   const t = useTranslations();
 
-  const typedSrcAmount = useTwapStore((s) => s.state.typedSrcAmount);
+  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
   return useMemo((): InputError | undefined => {
     if (BN(typedSrcAmount || "0").isZero() || !marketPrice) return;
     if (module !== Module.STOP_LOSS && module !== Module.TAKE_PROFIT) return;
@@ -48,9 +48,9 @@ const useTriggerPriceError = (triggerPriceWei = "") => {
 };
 
 export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
-  const { srcToken, dstToken, module } = useTwapContext();
+  const { srcToken, dstToken, module } = useSpotContext();
   const amountPerTrade = useTrades().amountPerTradeWei;
-  const isMarketOrder = useTwapStore((s) => s.state.isMarketOrder);
+  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
 
   const result = useMemo(() => {
     return getTriggerPricePerChunk(module, amountPerTrade, triggerPrice, srcToken?.decimals || 0);
@@ -63,10 +63,10 @@ export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
 };
 
 export const useTriggerPrice = () => {
-  const { dstToken, marketPrice, module } = useTwapContext();
-  const updateState = useTwapStore((s) => s.updateState);
+  const { dstToken, marketPrice, module } = useSpotContext();
+  const updateState = useSpotStore((s) => s.updateState);
   const defaultTriggerPricePercent = useDefaultTriggerPricePercent();
-  const typedPercent = useTwapStore((s) => s.state.triggerPricePercent);
+  const typedPercent = useSpotStore((s) => s.state.triggerPricePercent);
 
   const setPercentage = useCallback(
     (triggerPricePercent?: string | null) => {
@@ -79,7 +79,7 @@ export const useTriggerPrice = () => {
   const enabled = module === Module.STOP_LOSS || module === Module.TAKE_PROFIT;
 
   const result = useInputWithPercentage({
-    typedValue: useTwapStore((s) => s.state.typedTriggerPrice),
+    typedValue: useSpotStore((s) => s.state.typedTriggerPrice),
     percentage,
     tokenDecimals: dstToken?.decimals,
     initialPrice: enabled ? marketPrice : undefined,
@@ -100,11 +100,11 @@ export const useTriggerPrice = () => {
 };
 
 export const useTriggerPricePanel = () => {
-  const { module, marketPrice, marketPriceLoading } = useTwapContext();
+  const { module, marketPrice, marketPriceLoading } = useSpotContext();
   const t = useTranslations();
   const { amountUI, onChange, onPercentageChange, usd, selectedPercentage, error } = useTriggerPrice();
-  const isMarketOrder = useTwapStore((s) => s.state.isMarketOrder);
-  const updateState = useTwapStore((s) => s.updateState);
+  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
+  const updateState = useSpotStore((s) => s.updateState);
   const { isInverted, onInvert, fromToken, toToken } = useInvertTradePanel();
 
   const onSetDefault = useCallback(() => {

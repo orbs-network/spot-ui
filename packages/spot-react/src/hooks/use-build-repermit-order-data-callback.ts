@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { useDeadline } from "./use-deadline";
 import { useFillDelay } from "./use-fill-delay";
 import { buildRePermitOrderData, getNetwork, isNativeAddress } from "@orbs-network/spot-ui";
@@ -9,7 +9,7 @@ import { useTriggerPrice } from "./use-trigger-price";
 import { useTrades } from "./use-trades";
 
 export const useBuildRePermitOrderDataCallback = () => {
-  const { srcToken, dstToken, chainId, account, slippage: _slippage, config } = useTwapContext();
+  const { srcToken, dstToken, chainId, account, slippage: _slippage, config } = useSpotContext();
   const srcAmountPerTrade = useTrades().amountPerTradeWei;
   const srcAmount = useSrcAmount().amountWei;
   const deadlineMillis = useDeadline();

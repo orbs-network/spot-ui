@@ -1,11 +1,11 @@
 import { amountUi } from "@orbs-network/spot-ui";
 import { useState, useMemo, useCallback } from "react";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { useAmountBN, useFormatNumber } from "./helper-hooks";
 import BN from "bignumber.js";
 
 export const useMarketPricePanel = () => {
-  const { srcToken, dstToken, marketPrice } = useTwapContext();
+  const { srcToken, dstToken, marketPrice } = useSpotContext();
   const [invert, setInvert] = useState(false);
 
   const price = useMemo(() => {

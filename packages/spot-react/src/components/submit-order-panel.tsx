@@ -1,9 +1,9 @@
 import { Step, SwapFlow, SwapStatus } from "@orbs-network/swap-ui";
 import { createContext, ReactNode, useContext, useMemo } from "react";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { isNativeAddress, Module, ORBS_TWAP_FAQ_URL } from "@orbs-network/spot-ui";
 import { ParsedError, Steps, SubmitOrderPanelProps } from "../types";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotStore } from "../store";
 import { useExplorerLink, useFormatNumber, useNetwork } from "../hooks/helper-hooks";
 import { useTrades } from "../hooks/use-trades";
 import { useSrcAmount } from "../hooks/use-src-amount";
@@ -28,7 +28,7 @@ export const useSubmitOrderPanelContext = () => {
 
 const WrapMsg = () => {
   const t = useTranslations();
-  const { wrapTxHash, srcToken } = useTwapStore((s) => s.state.swapExecution);
+  const { wrapTxHash, srcToken } = useSpotStore((s) => s.state.swapExecution);
   const wSymbol = useNetwork()?.wToken?.symbol;
 
   if (!wrapTxHash) {
@@ -39,7 +39,7 @@ const WrapMsg = () => {
 };
 
 const useOrderName = (isMarketOrder = false, chunks = 1) => {
-  const { module } = useTwapContext();
+  const { module } = useSpotContext();
   const t = useTranslations();
   return useMemo(() => {
     if (module === Module.STOP_LOSS) {
@@ -69,8 +69,8 @@ const LimitPrice = ({ price, dstTokenSymbol, label, usd }: { price?: string; dst
 
 const useTitle = () => {
   const t = useTranslations();
-  const isMarketOrder = useTwapStore((s) => s.state.isMarketOrder);
-  const status = useTwapStore((s) => s.state.swapExecution.status);
+  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
+  const status = useSpotStore((s) => s.state.swapExecution.status);
   const { totalTrades } = useTrades();
   const orderName = useOrderName(isMarketOrder, totalTrades);
 
@@ -82,14 +82,14 @@ const useTitle = () => {
 };
 
 const useStep = () => {
-  const srcToken = useTwapStore((s) => s.state.swapExecution.srcToken);
+  const srcToken = useSpotStore((s) => s.state.swapExecution.srcToken);
   const t = useTranslations();
-  const { step, wrapTxHash, approveTxHash } = useTwapStore((s) => s.state.swapExecution);
+  const { step, wrapTxHash, approveTxHash } = useSpotStore((s) => s.state.swapExecution);
   const network = useNetwork();
   const wrapExplorerUrl = useExplorerLink(wrapTxHash);
   const unwrapExplorerUrl = useExplorerLink(wrapTxHash);
   const approveExplorerUrl = useExplorerLink(approveTxHash);
-  const status = useTwapStore((s) => s.state.swapExecution.status);
+  const status = useSpotStore((s) => s.state.swapExecution.status);
   const isNativeIn = isNativeAddress(srcToken?.address || "");
   const symbol = isNativeIn ? network?.native.symbol || "" : srcToken?.symbol || "";
   const wSymbol = network?.wToken.symbol;
@@ -128,9 +128,9 @@ const TxError = ({ error }: { error?: any }) => {
 };
 
 function Failed({ error }: { error?: ParsedError }) {
-  const { components } = useTwapContext();
+  const { components } = useSpotContext();
   const t = useTranslations();
-  const wrapTxHash = useTwapStore((s) => s.state.swapExecution?.wrapTxHash);
+  const wrapTxHash = useSpotStore((s) => s.state.swapExecution?.wrapTxHash);
   const ErrorView = components.SubmitOrderErrorView;
 
   const content = <SwapFlow.Failed error={<TxError error={error} />} footerLink={ORBS_TWAP_FAQ_URL} footerText={t("viewOnExplorer")} />;
@@ -147,12 +147,12 @@ function Failed({ error }: { error?: ParsedError }) {
 }
 
 const Main = () => {
-  const { components } = useTwapContext();
-  const srcToken = useTwapStore((s) => s.state.swapExecution.srcToken);
-  const dstToken = useTwapStore((s) => s.state.swapExecution.dstToken);
+  const { components } = useSpotContext();
+  const srcToken = useSpotStore((s) => s.state.swapExecution.srcToken);
+  const dstToken = useSpotStore((s) => s.state.swapExecution.dstToken);
   const { reviewDetails } = useSubmitOrderPanelContext();
   const t = useTranslations();
-  const isSubmitted = useTwapStore((s) => Boolean(s.state.swapExecution?.status));
+  const isSubmitted = useSpotStore((s) => Boolean(s.state.swapExecution?.status));
   const order = useCurrentOrderDetails();
 
   const inUsd = useFormatNumber({ value: order.srcAmountUsd, decimalScale: 2 });
@@ -220,15 +220,15 @@ const Main = () => {
 };
 
 const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
-  const { status, stepIndex, totalSteps, error } = useTwapStore((s) => s.state.swapExecution);
+  const { status, stepIndex, totalSteps, error } = useSpotStore((s) => s.state.swapExecution);
 
-  const { components } = useTwapContext();
+  const { components } = useSpotContext();
   const Spinner = components.Spinner;
   const SuccessIcon = components.SuccessIcon;
   const ErrorIcon = components.ErrorIcon;
   const TokenLogo = components.TokenLogo;
 
-  const { srcToken, dstToken } = useTwapContext();
+  const { srcToken, dstToken } = useSpotContext();
   const srcAmount = useSrcAmount().amountUI;
   const dstAmount = useDstTokenAmount().amountUI;
   const srcAmountF = useFormatNumber({ value: srcAmount, decimalScale: 2 });
@@ -275,8 +275,8 @@ const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
 
 const SuccessContent = () => {
   const successTitle = useTitle();
-  const { components } = useTwapContext();
-  const newOrderId = useTwapStore((s) => s.state.swapExecution.orderId);
+  const { components } = useSpotContext();
+  const newOrderId = useSpotStore((s) => s.state.swapExecution.orderId);
   const SuccessView = components.SubmitOrderSuccessView;
 
   const content = (

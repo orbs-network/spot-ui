@@ -1,15 +1,15 @@
 import { DEFAULT_FILL_DELAY, getMinFillDelayError, TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotStore } from "../store";
 import BN from "bignumber.js";
 import { InputError, InputErrors, millisToMinutes } from "..";
 import { useTranslations } from "./use-translations";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 
 const useFillDelayError = (fillDelay: TimeDuration) => {
   const t = useTranslations();
-  const { marketPrice } = useTwapContext();
-  const typedSrcAmount = useTwapStore((s) => s.state.typedSrcAmount);
+  const { marketPrice } = useSpotContext();
+  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
   const minFillDelayError = useMemo((): InputError | undefined => {
     const { isError, value } = getMinFillDelayError(fillDelay);
     if (!isError || BN(typedSrcAmount || "0").isZero() || !marketPrice) return undefined;
@@ -24,8 +24,8 @@ const useFillDelayError = (fillDelay: TimeDuration) => {
 };
 
 export const useFillDelay = () => {
-  const typedFillDelay = useTwapStore((s) => s.state.typedFillDelay);
-  const updateState = useTwapStore((s) => s.updateState);
+  const typedFillDelay = useSpotStore((s) => s.state.typedFillDelay);
+  const updateState = useSpotStore((s) => s.updateState);
   const fillDelay = useMemo(() => typedFillDelay || DEFAULT_FILL_DELAY, [typedFillDelay]);
   const error = useFillDelayError(fillDelay);
 

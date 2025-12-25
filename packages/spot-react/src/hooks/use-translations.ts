@@ -1,4 +1,4 @@
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { Translations } from "../types";
 import defaultTranslations from "../i18n/en.json";
 import { useCallback } from "react";
@@ -11,7 +11,7 @@ function removeBraced(input: string) {
 }
 
 export const useTranslations = () => {
-  const context = useTwapContext();
+  const context = useSpotContext();
 
   const t = useCallback(
     (key: keyof Translations, args?: Record<string, string>): string => {

@@ -1,9 +1,9 @@
 import { SwapStatus } from "@orbs-network/swap-ui";
 import { useMutation } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { InputErrors, SwapExecution } from "../types";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotStore } from "../store";
 import { useCurrentOrderDetails } from "./use-current-order";
 import { useInputErrors } from "./use-input-errors";
 import { useSrcAmount } from "./use-src-amount";
@@ -12,14 +12,14 @@ import { useTranslations } from "./use-translations";
 import BN from "bignumber.js";
 
 export const useSubmitSwapPanel = () => {
-  const { marketPrice, srcToken, dstToken, marketPriceLoading, srcBalance, srcUsd1Token, noLiquidity } = useTwapContext();
+  const { marketPrice, srcToken, dstToken, marketPriceLoading, srcBalance, srcUsd1Token, noLiquidity } = useSpotContext();
   const t = useTranslations();
   const submitOrderMutation = useSubmitOrderMutation();
-  const updateState = useTwapStore((s) => s.updateState);
+  const updateState = useSpotStore((s) => s.updateState);
   const { amountUI: srcAmountUI, amountWei: srcAmountWei } = useSrcAmount();
-  const resetSwap = useTwapStore((s) => s.resetState);
-  const swapExecution = useTwapStore((s) => s.state.swapExecution);
-  const typedSrcAmount = useTwapStore((s) => s.state.typedSrcAmount);
+  const resetSwap = useSpotStore((s) => s.resetState);
+  const swapExecution = useSpotStore((s) => s.state.swapExecution);
+  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
   const isPropsLoading = marketPriceLoading || BN(srcUsd1Token || "0").isZero() || srcBalance === undefined || BN(marketPrice || "0").isZero();
   const buttonLoading = Boolean(srcToken && dstToken && typedSrcAmount && isPropsLoading);
   const inputsError = useInputErrors();

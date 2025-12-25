@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { setUIVersion } from "@orbs-network/spot-ui";
-import { useTwapStore } from "./useTwapStore";
+import { useSpotStore } from "./store";
 import pkg from "../package.json";
 import { SpotProvider } from "./spot-context";
 import { DISCLAIMER_URL, ORBS_LOGO, ORBS_WEBSITE_URL, DEFAULT_DURATION_OPTIONS } from "./consts";
@@ -31,10 +31,10 @@ setUIVersion(pkg.version);
 
 
 const useTypedSrcAmount = () => {
-  const updateState = useTwapStore((s) => s.updateState);
+  const updateState = useSpotStore((s) => s.updateState);
 
   return {
-    amount: useTwapStore((s) => s.state.typedSrcAmount),
+    amount: useSpotStore((s) => s.state.typedSrcAmount),
     reset: useCallback(() => updateState({ typedSrcAmount: "" }), [updateState]),
   };
 };

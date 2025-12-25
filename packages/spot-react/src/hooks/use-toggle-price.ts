@@ -1,9 +1,9 @@
 import { useCallback } from "react";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotStore } from "../store";
 
 export const useTogglePricePanel = () => {
-  const isMarketOrder = useTwapStore((s) => s.state.isMarketOrder);
-  const updateState = useTwapStore((s) => s.updateState);
+  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
+  const updateState = useSpotStore((s) => s.updateState);
   const togglePrice = useCallback(() => {
     updateState({ isMarketOrder: !isMarketOrder });
   }, [updateState, isMarketOrder]);

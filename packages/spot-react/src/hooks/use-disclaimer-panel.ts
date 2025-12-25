@@ -1,12 +1,12 @@
 import { Module } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
-import { useTwapContext } from "../spot-context";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotContext } from "../spot-context";
+import { useSpotStore } from "../store";
 import { useTranslations } from "./use-translations";
 
 export const useDisclaimerPanel = () => {
-  const isMarketOrder = useTwapStore((s) => s.state.isMarketOrder);
-  const { module } = useTwapContext();
+  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
+  const { module } = useSpotContext();
   const t = useTranslations();
 
   const hide = module === Module.STOP_LOSS || module === Module.TAKE_PROFIT;

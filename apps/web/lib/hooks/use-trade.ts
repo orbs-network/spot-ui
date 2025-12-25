@@ -100,6 +100,7 @@ const useSyntheticTrade = (
     token: outputCurrency?.address,
   }).data;
 
+
   return useMemo(() => {
     try {
       if (!inputCurrency || !outputCurrency || BN(parsedInputAmount).eq(0)) {
@@ -176,6 +177,7 @@ export const useTrade = (
 
   const showSyntheticTrade = Boolean(liquidityHubQuote.error);
 
+  
 
 
 

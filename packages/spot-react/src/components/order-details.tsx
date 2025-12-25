@@ -2,7 +2,7 @@ import React, { CSSProperties, ReactNode, useMemo } from "react";
 
 import { fillDelayText, makeElipsisAddress } from "../utils";
 import { Token } from "../types";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { AiOutlineCopy } from "@react-icons/all-files/ai/AiOutlineCopy";
 import { useCopyToClipboard, useDateFormat, useFormatNumber, useNetwork } from "../hooks/helper-hooks";
 import BN from "bignumber.js";
@@ -86,7 +86,7 @@ const TradesAmount = ({ trades, label, tooltip }: { trades?: number; label: stri
 
 const Recipient = () => {
   const t = useTranslations();
-  const { account } = useTwapContext();
+  const { account } = useSpotContext();
   const explorerUrl = useNetwork()?.explorer;
   const makerAddress = makeElipsisAddress(account);
 
@@ -130,7 +130,7 @@ const DetailRow = ({
   onClick?: () => void;
   style?: CSSProperties;
 }) => {
-  const { components } = useTwapContext();
+  const { components } = useSpotContext();
   const Tooltip = components.Tooltip;
   return (
     <div className={`${className} twap-order-details__detail-row`} onClick={onClick} style={style}>
@@ -144,7 +144,7 @@ const DetailRow = ({
 };
 
 const OrderID = ({ id }: { id: string }) => {
-  const { components } = useTwapContext();
+  const { components } = useSpotContext();
   const Tooltip = components?.Tooltip;
   const copy = useCopyToClipboard();
 

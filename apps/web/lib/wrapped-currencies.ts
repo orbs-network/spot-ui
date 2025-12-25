@@ -1,3 +1,4 @@
+import { monad } from "viem/chains";
 import { Currency } from "./types";
 
 export const wCurrencies: Record<number, Currency> = {
@@ -141,5 +142,12 @@ export const wCurrencies: Record<number, Currency> = {
       logoUrl: "https://berascan.com/token/images/wrappedbera_ofc_64.png",
       name: "Wrapped Bera",
     },
+    [monad.id]: {
+      symbol: "WMON",
+      address: "0x3bd359c1119da7da1d913d1c4d2b7c461115433a",
+      decimals: 18,
+      logoUrl: "https://s2.coinmarketcap.com/static/img/coins/128x128/30495.png",
+      name: "Wrapped Monad",
+    }
   };
   

@@ -5,7 +5,6 @@ import { createPublicClient, createWalletClient, TransactionReceipt as _Transact
 export type { Order } from "@orbs-network/spot-ui";
 export { OrderStatus, type TwapFill, OrderType, Module } from "@orbs-network/spot-ui";
 
-export type TransactionReceipt = _TransactionReceipt;
 export interface Translations {
   deadlineTooltip: string;
   tradeSizeTooltip: string;
@@ -355,7 +354,7 @@ export interface TwapProps {
   };
 }
 
-export interface TwapContextType extends TwapProps {
+export interface SpotContextType extends TwapProps {
   walletClient?: ReturnType<typeof createWalletClient>;
   publicClient?: PublicClient;
   marketPrice?: string;

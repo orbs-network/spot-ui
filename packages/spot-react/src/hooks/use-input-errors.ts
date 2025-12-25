@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import BN from "bignumber.js";
-import { useTwapContext } from "../spot-context";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotContext } from "../spot-context";
+import { useSpotStore } from "../store";
 import { InputError, InputErrors } from "../types";
 import { useSrcAmount } from "./use-src-amount";
 import { useTriggerPrice } from "./use-trigger-price";
@@ -13,7 +13,7 @@ import { useTranslations } from "./use-translations";
 import { getQueryParam } from "@orbs-network/spot-ui";
 
 export const useBalanceError = () => {
-  const { srcBalance } = useTwapContext();
+  const { srcBalance } = useSpotContext();
   const t = useTranslations();
   const srcAmountWei = useSrcAmount().amountWei;
 
@@ -29,8 +29,8 @@ export const useBalanceError = () => {
 };
 
 export function useInputErrors() {
-  const { marketPrice, marketPriceLoading } = useTwapContext();
-  const srcAmount = useTwapStore((s) => s.state.typedSrcAmount);
+  const { marketPrice, marketPriceLoading } = useSpotContext();
+  const srcAmount = useSpotStore((s) => s.state.typedSrcAmount);
   const balanceError = useBalanceError();
   const { error: triggerPriceError } = useTriggerPrice();
   const { error: limitPriceError } = useLimitPrice();

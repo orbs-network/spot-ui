@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from "react";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { InputError, InputErrors } from "../types";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotStore } from "../store";
 import { getChunks, getMaxChunksError, getMaxPossibleChunks, getSrcTokenChunkAmount, getMinTradeSizeError } from "@orbs-network/spot-ui";
 import { useFillDelay } from "./use-fill-delay";
 import { useSrcAmount } from "./use-src-amount";
@@ -10,9 +10,9 @@ import BN from "bignumber.js";
 import { useTranslations } from "./use-translations";
 
 const useTradesError = (amount: number, maxAmount: number) => {
-  const { module, srcUsd1Token, marketPrice, minChunkSizeUsd } = useTwapContext();
+  const { module, srcUsd1Token, marketPrice, minChunkSizeUsd } = useSpotContext();
   const t = useTranslations();
-  const typedSrcAmount = useTwapStore((s) => s.state.typedSrcAmount);
+  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
 
   return useMemo((): InputError | undefined => {
     if (BN(typedSrcAmount || "0").isZero() || !marketPrice) return;
@@ -44,10 +44,10 @@ const useTradesError = (amount: number, maxAmount: number) => {
 };
 
 export const useTrades = () => {
-  const { srcToken, srcUsd1Token, module, minChunkSizeUsd } = useTwapContext();
-  const typedChunks = useTwapStore((s) => s.state.typedChunks);
+  const { srcToken, srcUsd1Token, module, minChunkSizeUsd } = useSpotContext();
+  const typedChunks = useSpotStore((s) => s.state.typedChunks);
   const fillDelay = useFillDelay().fillDelay;
-  const updateState = useTwapStore((s) => s.updateState);
+  const updateState = useSpotStore((s) => s.updateState);
   const { amountWei: srcAmountWei, amountUI: srcAmountUI } = useSrcAmount();
 
   const maxTrades = useMemo(
@@ -87,7 +87,7 @@ export const useTrades = () => {
 };
 
 export const useTradesPanel = () => {
-  const { srcToken, dstToken } = useTwapContext();
+  const { srcToken, dstToken } = useSpotContext();
   const t = useTranslations();
   const { onChange, totalTrades, amountPerTradeUsd, amountPerTradeUI, error, maxTrades, amountPerTradeWei } = useTrades();
   const amountPerTradeUIF = useFormatNumber({ value: amountPerTradeUI });

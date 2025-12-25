@@ -11,8 +11,8 @@ import { ParsedError, Steps, Token } from "../types";
 import { ensureWrappedToken, getExplorerUrl, isTxRejected } from "../utils";
 import { useSrcAmount } from "./use-src-amount";
 import { useMutation } from "@tanstack/react-query";
-import { useTwapContext } from "../spot-context";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotContext } from "../spot-context";
+import { useSpotStore } from "../store";
 
 import { erc20Abi, maxUint256, numberToHex, parseSignature } from "viem";
 import { useAddNewOrder } from "./order-hooks";
@@ -33,7 +33,7 @@ const useWrapToken = () => {
     refetchBalances,
     callbacks,
     chainId,
-  } = useTwapContext();
+  } = useSpotContext();
   const wToken = useNetwork()?.wToken;
   const getTransactionReceipt = useGetTransactionReceipt();
 
@@ -96,7 +96,7 @@ const useWrapToken = () => {
 };
 
 const useSignAndSend = () => {
-  const { account, walletClient, chainId, callbacks } = useTwapContext();
+  const { account, walletClient, chainId, callbacks } = useSpotContext();
   const rePermitOrderData = useBuildRePermitOrderDataCallback();
   const addNewOrder = useAddNewOrder();
 
@@ -165,7 +165,7 @@ const useSignAndSend = () => {
 };
 
 const useHasAllowanceCallback = () => {
-  const { account, publicClient, config } = useTwapContext();
+  const { account, publicClient, config } = useSpotContext();
 
   return useMutation({
     mutationFn: async ({
@@ -204,7 +204,7 @@ const useHasAllowanceCallback = () => {
 
 const useApproveToken = () => {
   const { account, walletClient, overrides, config, chainId, callbacks } =
-    useTwapContext();
+    useSpotContext();
   const getTransactionReceipt = useGetTransactionReceipt();
   const { mutateAsync: hasAllowanceCallback } = useHasAllowanceCallback();
 
@@ -298,14 +298,14 @@ const useApproveToken = () => {
 
 const useInitOrderRequest = () => {
   const { account, chainId, srcToken, dstToken, module, slippage } =
-    useTwapContext();
+    useSpotContext();
   const triggerPrice = useTriggerPrice();
   const srcAmount = useSrcAmount().amountWei;
   const srcChunkAmount = useTrades().amountPerTradeWei;
   const deadlineMillis = useDeadline();
   const fillDelay = useFillDelay().fillDelay;
   const dstMinAmountPerTrade = useDstMinAmountPerTrade().amountWei;
-  const isMarketOrder = useTwapStore((s) => s.state.isMarketOrder);
+  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
 
   return useMutation({
     mutationFn: async () => {
@@ -343,12 +343,12 @@ function parseError(input: string): ParsedError {
 }
 
 export const useSubmitOrderMutation = () => {
-  const { srcToken, dstToken, chainId, callbacks } = useTwapContext();
+  const { srcToken, dstToken, chainId, callbacks } = useSpotContext();
   const approveCallback = useApproveToken().mutateAsync;
   const wrapCallback = useWrapToken().mutateAsync;
   const createOrderCallback = useSignAndSend().mutateAsync;
   const { mutateAsync: hasAllowanceCallback } = useHasAllowanceCallback();
-  const updateSwapExecution = useTwapStore((s) => s.updateSwapExecution);
+  const updateSwapExecution = useSpotStore((s) => s.updateSwapExecution);
   const { amountWei: srcAmountWei } = useSrcAmount();
   const initOrderRequest = useInitOrderRequest().mutate;
 

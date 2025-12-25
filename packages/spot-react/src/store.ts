@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { State, SwapExecution } from "./types";
 import { useCallback } from "react";
 
-interface TwapStore {
+interface SpotStore {
   resetState: () => void;
   updateState: (value: Partial<State>) => void;
   updateSwapExecution: (value: Partial<SwapExecution>) => void;
@@ -15,7 +15,7 @@ const initialState = {
   swapExecution: {} as SwapExecution,
 } as State;
 
-export const useTwapStore = create<TwapStore>((set, get) => ({
+export const useSpotStore = create<SpotStore>((set, get) => ({
   state: initialState,
   updateState: (value: Partial<State>) => set((state) => ({ state: { ...state.state, ...value } })),
   updateSwapExecution: (data: Partial<SwapExecution>) => set((state) => ({ state: { ...state.state, swapExecution: { ...state.state.swapExecution, ...data } } })),
@@ -32,8 +32,8 @@ export const useTwapStore = create<TwapStore>((set, get) => ({
 }));
 
 export const useResetState = (partialState?: Partial<State>) => {
-  const updateState = useTwapStore((s) => s.updateState);
-  const state = useTwapStore((s) => s.state);
+  const updateState = useSpotStore((s) => s.updateState);
+  const state = useSpotStore((s) => s.state);
   return useCallback(() => {
     updateState({
       ...(partialState || {}),

@@ -5,12 +5,12 @@ import { OrderStatus } from "@orbs-network/spot-ui";
 import { Token } from "../../types";
 import { TokensDisplay } from "@orbs-network/swap-ui";
 import { OrderDetails } from "../../components/order-details";
-import { useTwapStore } from "../../useTwapStore";
+import { useSpotStore } from "../../store";
 import { useCancelOrderMutation } from "../../hooks/use-cancel-order";
 import { useDateFormat, useFormatNumber } from "../../hooks/helper-hooks";
 import { useHistoryOrder } from "../../hooks/use-history-order";
 import { useTranslations } from "../../hooks/use-translations";
-import { useTwapContext } from "../../spot-context";
+import { useSpotContext } from "../../spot-context";
 
 type Order = NonNullable<ReturnType<typeof useHistoryOrder>>;
 
@@ -25,12 +25,12 @@ const useOrderContext = () => {
 };
 
 export const OrderPreview = () => {
-  const selectedOrderID = useTwapStore((s) => s.state.selectedOrderID);
+  const selectedOrderID = useSpotStore((s) => s.state.selectedOrderID);
   const order = useHistoryOrder(selectedOrderID);
 
   const t = useTranslations();
   const [expanded, setExpanded] = useState<string | false>("panel1");
-  const { components } = useTwapContext();
+  const { components } = useSpotContext();
   const TokenLogo = components.TokenLogo;
 
   useEffect(() => {
@@ -197,7 +197,7 @@ const AmountOutFilled = () => {
 export const CancelOrderButton = () => {
   const { order } = useOrderContext();
   const { mutateAsync: cancelOrder, isPending: isLoading } = useCancelOrderMutation();
-  const { components } = useTwapContext();
+  const { components } = useSpotContext();
   const Button = components.Button;
 
   const onCancelOrder = useCallback(async () => {

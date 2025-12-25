@@ -1,4 +1,4 @@
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { useDeadline } from "./use-deadline";
 import { useDstMinAmountPerTrade, useDstTokenAmount } from "./use-dst-amount";
 import { useFillDelay } from "./use-fill-delay";
@@ -14,7 +14,7 @@ import { useTranslations } from "./use-translations";
 import { useFormatNumber, useUsdAmount } from "./helper-hooks";
 
 const useFees = () => {
-  const { fees, dstUsd1Token } = useTwapContext();
+  const { fees, dstUsd1Token } = useSpotContext();
   const { amountUI: dstAmount } = useDstTokenAmount();
 
   const amount = useMemo(() => {
@@ -45,7 +45,7 @@ const usePrice = () => {
 };
 
 export const useCurrentOrderDetails = () => {
-  const { srcToken, dstToken, account } = useTwapContext();
+  const { srcToken, dstToken, account } = useSpotContext();
   const t = useTranslations();
   const { amountWei: srcAmountWei } = useSrcAmount();
   const { amountWei: dstMinAmountPerTrade, usd: dstMinAmountPerTradeUsd } = useDstMinAmountPerTrade();

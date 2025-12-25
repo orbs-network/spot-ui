@@ -1,16 +1,16 @@
 import { useCallback } from "react";
-import { useTwapContext } from "../spot-context";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotContext } from "../spot-context";
+import { useSpotStore } from "../store";
 import { formatDecimals } from "../utils";
 import { useUsdAmount, useShouldWrapOrUnwrapOnly, useAmountBN, useAmountUi } from "./helper-hooks";
 import { useDstTokenAmount } from "./use-dst-amount";
 import { useBalanceError } from "./use-input-errors";
 
 const useTokenPanel = (isSrcToken: boolean, dstAmount?: string) => {
-  const { marketPriceLoading, srcToken, dstToken, srcBalance, dstBalance } = useTwapContext();
-  const typedSrcAmount = useTwapStore((s) => s.state.typedSrcAmount);
-  const updateState = useTwapStore((s) => s.updateState);
-  const { srcUsd1Token, dstUsd1Token } = useTwapContext();
+  const { marketPriceLoading, srcToken, dstToken, srcBalance, dstBalance } = useSpotContext();
+  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
+  const updateState = useSpotStore((s) => s.updateState);
+  const { srcUsd1Token, dstUsd1Token } = useSpotContext();
   const srcUsd = useUsdAmount(typedSrcAmount, srcUsd1Token);
   const dstUsd = useUsdAmount(dstAmount, dstUsd1Token);
   const isWrapOrUnwrapOnly = useShouldWrapOrUnwrapOnly();
@@ -51,14 +51,14 @@ export const useSrcTokenPanel = () => useTokenPanel(true);
 
 export const useDstTokenPanel = () => {
   const dstAmount = useDstTokenAmount().amountUI;
-  const typedSrcAmount = useTwapStore((s) => s.state.typedSrcAmount);
+  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
   return useTokenPanel(false, typedSrcAmount ? dstAmount : "");
 };
 
 export const useTypedSrcAmount = () => {
-  const updateState = useTwapStore((s) => s.updateState);
+  const updateState = useSpotStore((s) => s.updateState);
   return {
-    amount: useTwapStore((s) => s.state.typedSrcAmount) || "",
+    amount: useSpotStore((s) => s.state.typedSrcAmount) || "",
     reset: useCallback(() => updateState({ typedSrcAmount: "" }), [updateState]),
   };
 };

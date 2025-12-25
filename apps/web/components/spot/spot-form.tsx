@@ -75,7 +75,7 @@ const Context = createContext<{
   swapModule: Module.TWAP,
 });
 
-const useTwapContext = () => {
+const useSpotContext = () => {
   return useContext(Context);
 };
 
@@ -302,7 +302,7 @@ const FillDelayPanel = () => {
 };
 
 const ModuleInputs = () => {
-  const { swapModule } = useTwapContext();
+  const { swapModule } = useSpotContext();
 
   if (swapModule === Module.TWAP) {
     return (
@@ -508,7 +508,7 @@ const LimitPricePanel = () => {
     isLoading,
   } = useLimitPricePanel();
 
-  const { swapModule } = useTwapContext();
+  const { swapModule } = useSpotContext();
 
   return (
     <div className="flex flex-col gap-2">
@@ -565,7 +565,7 @@ const TriggerPricePanel = () => {
     toToken,
   } = useTriggerPricePanel();
 
-  const { swapModule } = useTwapContext();
+  const { swapModule } = useSpotContext();
 
   if (swapModule !== Module.TAKE_PROFIT && swapModule !== Module.STOP_LOSS) {
     return null;

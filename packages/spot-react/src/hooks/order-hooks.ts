@@ -8,10 +8,10 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
 import { REFETCH_ORDER_HISTORY } from "../consts";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { Token } from "../types";
 import { useCancelOrderMutation } from "./use-cancel-order";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotStore } from "../store";
 import { getOrderExcecutionRate, getOrderLimitPriceRate } from "../utils";
 import { useTranslations } from "./use-translations";
 import { useHistoryOrder } from "./use-history-order";
@@ -37,7 +37,7 @@ export const useOrderName = (order?: Order) => {
 };
 
 const useOrdersQueryKey = () => {
-  const { account, config, chainId } = useTwapContext();
+  const { account, config, chainId } = useSpotContext();
   return useMemo(
     () => ["useTwapOrderHistoryManager", account, config?.partner, chainId],
     [account, config, chainId]
@@ -45,7 +45,7 @@ const useOrdersQueryKey = () => {
 };
 
 export const usePersistedOrdersStore = () => {
-  const { account, config, chainId } = useTwapContext();
+  const { account, config, chainId } = useSpotContext();
 
   const cancelledOrderIdsKey = `cancelled-orders-${account}-${config?.partner}-${chainId}`;
   const getCancelledOrderIds = useCallback((): string[] => {
@@ -91,7 +91,7 @@ export const usePersistedOrdersStore = () => {
 
 export const useAddNewOrder = () => {
   const queryClient = useQueryClient();
-  const { account } = useTwapContext();
+  const { account } = useSpotContext();
   const queryKey = useOrdersQueryKey();
   return useCallback(
     (order: Order) => {
@@ -155,7 +155,7 @@ const useHandlePersistedCancelledOrders = () => {
 
 export const useOrdersQuery = () => {
   const { account, config, chainId, callbacks, refetchBalances } =
-    useTwapContext();
+    useSpotContext();
     
   const queryKey = useOrdersQueryKey();
   const queryClient = useQueryClient();
@@ -247,7 +247,7 @@ export const useOrders = () => {
 };
 
 export const useOrderToDisplay = () => {
-  const selectedStatus = useTwapStore((s) => s.state.orderHistoryStatusFilter);
+  const selectedStatus = useSpotStore((s) => s.state.orderHistoryStatusFilter);
   const { orders } = useOrders();
   return useMemo(() => {
     if (!selectedStatus) {
@@ -295,8 +295,8 @@ export const useOrderAvgExcecutionPrice = (
 };
 
 export const useSelectedOrderIdsToCancel = () => {
-  const updateState = useTwapStore((s) => s.updateState);
-  const orderIdsToCancel = useTwapStore((s) => s.state.orderIdsToCancel);
+  const updateState = useSpotStore((s) => s.updateState);
+  const orderIdsToCancel = useSpotStore((s) => s.state.orderIdsToCancel);
   return useCallback(
     (id: string) => {
       if (orderIdsToCancel?.includes(id)) {
@@ -324,10 +324,10 @@ export const useOrderHistoryPanel = () => {
   const { mutateAsync: cancelOrder, isPending: isCancelOrdersLoading } =
     useCancelOrderMutation();
   const ordersToDisplay = useOrderToDisplay();
-  const updateState = useTwapStore((s) => s.updateState);
-  const selectedStatus = useTwapStore((s) => s.state.orderHistoryStatusFilter);
-  const cancelOrdersMode = useTwapStore((s) => s.state.cancelOrdersMode);
-  const orderIdsToCancel = useTwapStore((s) => s.state.orderIdsToCancel);
+  const updateState = useSpotStore((s) => s.updateState);
+  const selectedStatus = useSpotStore((s) => s.state.orderHistoryStatusFilter);
+  const cancelOrdersMode = useSpotStore((s) => s.state.cancelOrdersMode);
+  const orderIdsToCancel = useSpotStore((s) => s.state.orderIdsToCancel);
   const onToggleCancelOrdersMode = useCallback(
     (cancelOrdersMode: boolean) =>
       updateState({ cancelOrdersMode, orderIdsToCancel: [] }),
@@ -357,7 +357,7 @@ export const useOrderHistoryPanel = () => {
   }, [t]);
 
   const onSelectOrder = useSelectedOrderIdsToCancel();
-  const selectedOrderID = useTwapStore((s) => s.state.selectedOrderID);
+  const selectedOrderID = useSpotStore((s) => s.state.selectedOrderID);
   const selectedOrder = useHistoryOrder(selectedOrderID);
   const ordersToCancel = useMemo(
     () => orders.all.filter((order) => orderIdsToCancel?.includes(order.id)),

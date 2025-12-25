@@ -6,17 +6,17 @@ import {
   TWAP_ABI,
 } from "@orbs-network/spot-ui";
 import { useMutation } from "@tanstack/react-query";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { getExplorerUrl, isTxRejected } from "../utils";
 import { useGetTransactionReceipt } from "./use-get-transaction-receipt";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotStore } from "../store";
 import { useOptimisticCancelOrder } from "./order-hooks";
 
 export const useCancelOrderMutation = () => {
   const { account, walletClient, publicClient, config, callbacks, chainId } =
-    useTwapContext();
+    useSpotContext();
   const getTransactionReceipt = useGetTransactionReceipt();
-  const updateState = useTwapStore((s) => s.updateState);
+  const updateState = useSpotStore((s) => s.updateState);
   const optimisticCancelOrder = useOptimisticCancelOrder();
 
   const cancelOrdersV1 = async (orders: Order[]) => {

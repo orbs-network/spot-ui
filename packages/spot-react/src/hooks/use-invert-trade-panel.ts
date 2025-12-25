@@ -1,15 +1,15 @@
 import { useCallback } from "react";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotStore } from "../store";
 import BN from "bignumber.js";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 
 export const useInvertTradePanel = () => {
-  const { srcToken, dstToken, marketPriceLoading } = useTwapContext();
-  const updateState = useTwapStore((s) => s.updateState);
-  const isInverted = useTwapStore((s) => s.state.isInvertedTrade);
-  const typedTriggerPrice = useTwapStore((s) => s.state.typedTriggerPrice);
-  const typedLimitPrice = useTwapStore((s) => s.state.typedLimitPrice);
-  const isMarketOrder = useTwapStore((s) => s.state.isMarketOrder);
+  const { srcToken, dstToken, marketPriceLoading } = useSpotContext();
+  const updateState = useSpotStore((s) => s.updateState);
+  const isInverted = useSpotStore((s) => s.state.isInvertedTrade);
+  const typedTriggerPrice = useSpotStore((s) => s.state.typedTriggerPrice);
+  const typedLimitPrice = useSpotStore((s) => s.state.typedLimitPrice);
+  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   const onInvert = useCallback(() => {
     if (marketPriceLoading) return;
     if (typedTriggerPrice !== undefined) {

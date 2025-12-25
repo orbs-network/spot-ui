@@ -1,8 +1,6 @@
 "use client";
 import { Currency } from "@/lib/types";
 import { CurrencySelector } from "./currency-selector";
-import { Avatar } from "./ui/avatar";
-import { AvatarImage } from "@radix-ui/react-avatar";
 import { ChevronDownIcon } from "lucide-react";
 import { NumericInput } from "./ui/numeric-input";
 import { useBalance } from "@/lib/hooks/use-balances";
@@ -96,6 +94,7 @@ export function CurrencyCard({
   title,
   isLoading = false,
 }: Props) {
+  
   return (
     <div className="flex flex-col gap-2 bg-card p-4 rounded-lg group relative">
       {!disabled && (

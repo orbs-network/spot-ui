@@ -1,6 +1,6 @@
 import { getOrderFillDelayMillis, Order } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { useAmountUi, useFormatNumber } from "./helper-hooks";
 import { useOrders, useOrderName, useOrderLimitPrice, useOrderAvgExcecutionPrice } from "./order-hooks";
 import { useBaseOrder } from "./use-base-order";
@@ -8,7 +8,7 @@ import { useTranslations } from "./use-translations";
 
 export const useHistoryOrder = (orderId?: string) => {
   const { orders } = useOrders();
-  const { config, useToken } = useTwapContext();
+  const { config, useToken } = useSpotContext();
   const t = useTranslations();
   const order = useMemo(() => orders?.all.find((order) => order.id === orderId), [orders, orderId]) || ({} as Order);
   const title = useOrderName(order);

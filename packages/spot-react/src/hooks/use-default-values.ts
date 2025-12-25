@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import {
   DEFAULT_STOP_LOSS_LIMIT_PERCENTAGE,
   DEFAULT_STOP_LOSS_PERCENTAGE,
@@ -7,18 +7,18 @@ import {
   DEFAULT_TAKE_PROFIT_PERCENTAGE,
   Module,
 } from "@orbs-network/spot-ui";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotStore } from "../store";
 
 export const useDefaultTriggerPricePercent = () => {
-  const { module } = useTwapContext();
+  const { module } = useSpotContext();
   return useMemo(() => {
     return module === Module.STOP_LOSS ? DEFAULT_STOP_LOSS_PERCENTAGE : DEFAULT_TAKE_PROFIT_PERCENTAGE;
   }, [module]);
 };
 
 export const useDefaultLimitPricePercent = () => {
-  const { module } = useTwapContext();
-  const isMarketOrder = useTwapStore((s) => s.state.isMarketOrder);
+  const { module } = useSpotContext();
+  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   return useMemo(() => {
     if ((module !== Module.STOP_LOSS && module !== Module.TAKE_PROFIT) || isMarketOrder) {
       return undefined;

@@ -3,11 +3,11 @@ import { Order } from "@orbs-network/spot-ui";
 import * as React from "react";
 import { Virtuoso } from "react-virtuoso";
 import TokenLogo from "../../components/TokenLogo";
-import { useTwapStore } from "../../useTwapStore";
+import { useSpotStore } from "../../store";
 import { useOrderName, useOrders, useOrderToDisplay, useSelectedOrderIdsToCancel } from "../../hooks/order-hooks";
 import { useDateFormat } from "../../hooks/helper-hooks";
 import { useTranslations } from "../../hooks/use-translations";
-import { useTwapContext } from "../../spot-context";
+import { useSpotContext } from "../../spot-context";
 
 const ListLoader = () => {
   return <div className="twap-orders__loader">{<p>Loading...</p>}</div>;
@@ -16,8 +16,8 @@ const ListLoader = () => {
 export const OrdersList = () => {
   const { isLoading } = useOrders();
   const ordersToDisplay = useOrderToDisplay();
-  const orderIdsToCancel = useTwapStore((s) => s.state.orderIdsToCancel);
-  const cancelOrdersMode = useTwapStore((s) => s.state.cancelOrdersMode);
+  const orderIdsToCancel = useSpotStore((s) => s.state.orderIdsToCancel);
+  const cancelOrdersMode = useSpotStore((s) => s.state.cancelOrdersMode);
   const onSelectOrder = useSelectedOrderIdsToCancel();
 
   return (
@@ -48,7 +48,7 @@ export const OrdersList = () => {
 };
 
 const ListOrder = ({ order, selectOrder, selected, cancelOrdersMode }: { order: Order; selectOrder: (id: string) => void; selected: boolean; cancelOrdersMode: boolean }) => {
-  const updateState = useTwapStore((s) => s.updateState);
+  const updateState = useSpotStore((s) => s.updateState);
 
   const onShowOrder = React.useCallback(() => {
     updateState({ selectedOrderID: order?.id });
@@ -83,7 +83,7 @@ const ListOrder = ({ order, selectOrder, selected, cancelOrdersMode }: { order: 
 };
 
 const EmptyList = () => {
-  const status = useTwapStore((s) => s.state.orderHistoryStatusFilter);
+  const status = useSpotStore((s) => s.state.orderHistoryStatusFilter);
   const t = useTranslations();
   const name = React.useMemo(() => {
     if (!status) {
@@ -115,7 +115,7 @@ const ListItemHeader = ({ order }: { order: Order }) => {
 };
 
 const TokenDisplay = (props: { address?: string; amount?: string }) => {
-  const { useToken, components } = useTwapContext();
+  const { useToken, components } = useSpotContext();
   const token = useToken?.(props.address);
 
   return (

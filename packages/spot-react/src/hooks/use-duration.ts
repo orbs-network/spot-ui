@@ -1,7 +1,7 @@
 import { getDuration, getMaxOrderDurationError, getMinOrderDurationError, Module, TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
-import { useTwapContext } from "../spot-context";
-import { useTwapStore } from "../useTwapStore";
+import { useSpotContext } from "../spot-context";
+import { useSpotStore } from "../store";
 import { InputError, InputErrors } from "../types";
 import { millisToDays, millisToMinutes } from "../utils";
 import { useTrades } from "./use-trades";
@@ -9,7 +9,7 @@ import { useFillDelay } from "./use-fill-delay";
 import { useTranslations } from "./use-translations";
 
 const useDurationError = (duration: TimeDuration) => {
-  const { module, marketPrice } = useTwapContext();
+  const { module, marketPrice } = useSpotContext();
   const t = useTranslations();
 
   return useMemo((): InputError | undefined => {
@@ -35,9 +35,9 @@ const useDurationError = (duration: TimeDuration) => {
 };
 
 export const useDuration = () => {
-  const { module } = useTwapContext();
-  const typedDuration = useTwapStore((s) => s.state.typedDuration);
-  const updateState = useTwapStore((s) => s.updateState);
+  const { module } = useSpotContext();
+  const typedDuration = useSpotStore((s) => s.state.typedDuration);
+  const updateState = useSpotStore((s) => s.updateState);
   const totalTrades = useTrades().totalTrades;
   const fillDelay = useFillDelay().fillDelay;
   const duration = useMemo(() => getDuration(module, totalTrades, fillDelay, typedDuration), [totalTrades, fillDelay, typedDuration, module]);
@@ -51,7 +51,7 @@ export const useDuration = () => {
 };
 
 export const useDurationPanel = () => {
-  const { module } = useTwapContext();
+  const { module } = useSpotContext();
   const t = useTranslations();
   const { duration, setDuration, error } = useDuration();
 

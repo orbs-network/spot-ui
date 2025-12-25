@@ -1,7 +1,7 @@
 import { amountBN, amountUi } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import BN from "bignumber.js";
-import { useTwapContext } from "../spot-context";
+import { useSpotContext } from "../spot-context";
 import { formatDecimals } from "../utils";
 import { useUsdAmount } from "./helper-hooks";
 import { useInvertTradePanel } from "./use-invert-trade-panel";
@@ -21,7 +21,7 @@ export const useInputWithPercentage = ({
   setValue: (value?: string) => void;
   setPercentage: (percentage?: string | null) => void;
 }) => {
-  const { srcUsd1Token, dstUsd1Token } = useTwapContext();
+  const { srcUsd1Token, dstUsd1Token } = useSpotContext();
   const { isInverted } = useInvertTradePanel();
   const priceWei = useMemo(() => {
     if (typedValue !== undefined) {

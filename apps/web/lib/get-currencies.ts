@@ -24,6 +24,7 @@ const coingekoChainToName = {
   [chains.katana.id]: "katana",
   [chains.sei.id]: "sei-v2",
   [chains.berachain.id]: "berachain",
+  [chains.monad.id]: "monad",
 };
 
 export const getCurrencies = async (
