@@ -1,4 +1,12 @@
-import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { IoIosArrowDown } from "@react-icons/all-files/io/IoIosArrowDown";
 import BN from "bignumber.js";
 import { OrderStatus } from "@orbs-network/spot-ui";
@@ -58,10 +66,18 @@ export const OrderPreview = () => {
         <OrderDetails.Container>
           <div className="twap-orders__selected-order-bottom">
             <div className="twap-orders__selected-order-accordions">
-              <AccordionContainer title={t("excecutionSummary")} onClick={() => handleChange("panel1")} expanded={expanded === "panel1"}>
+              <AccordionContainer
+                title={t("excecutionSummary")}
+                onClick={() => handleChange("panel1")}
+                expanded={expanded === "panel1"}
+              >
                 <ExcecutionSummary />
               </AccordionContainer>
-              <AccordionContainer title={t("orderInfo")} expanded={expanded === "panel2"} onClick={() => handleChange("panel2")}>
+              <AccordionContainer
+                title={t("orderInfo")}
+                expanded={expanded === "panel2"}
+                onClick={() => handleChange("panel2")}
+              >
                 <OrderInfo />
               </AccordionContainer>
             </div>
@@ -73,14 +89,33 @@ export const OrderPreview = () => {
   );
 };
 
-const AccordionContainer = ({ expanded, onClick, children, title }: { expanded: boolean; onClick: () => void; children: ReactNode; title: string }) => {
+const AccordionContainer = ({
+  expanded,
+  onClick,
+  children,
+  title,
+}: {
+  expanded: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  title: string;
+}) => {
   return (
     <div className="twap-orders__selected-order-accordion">
-      <div onClick={onClick} className="twap-orders__selected-order-accordion-trigger">
+      <div
+        onClick={onClick}
+        className="twap-orders__selected-order-accordion-trigger"
+      >
         <p>{title}</p>
-        <IoIosArrowDown style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }} />
+        <IoIosArrowDown
+          style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
       </div>
-      {expanded && <div className="twap-orders__selected-order-accordion-details">{children}</div>}
+      {expanded && (
+        <div className="twap-orders__selected-order-accordion-details">
+          {children}
+        </div>
+      )}
     </div>
   );
 };
@@ -118,7 +153,13 @@ const ChunkSize = () => {
 
 const ChunksAmount = () => {
   const { order } = useOrderContext();
-  return <OrderDetails.TradesAmount trades={order.display.totalTrades.value} label={order.display.totalTrades.label} tooltip={order.display.totalTrades.tooltip} />;
+  return (
+    <OrderDetails.TradesAmount
+      trades={order.display.totalTrades.value}
+      label={order.display.totalTrades.label}
+      tooltip={order.display.totalTrades.tooltip}
+    />
+  );
 };
 
 const MinDestAmount = () => {
@@ -136,7 +177,13 @@ const MinDestAmount = () => {
 
 const Expiry = () => {
   const { order } = useOrderContext();
-  return <OrderDetails.Deadline deadline={order.display.deadline.value} label={order.display.deadline.label} tooltip={order.display.deadline.tooltip} />;
+  return (
+    <OrderDetails.Deadline
+      deadline={order.display.deadline.value}
+      label={order.display.deadline.label}
+      tooltip={order.display.deadline.tooltip}
+    />
+  );
 };
 
 const TradeInterval = () => {
@@ -183,7 +230,10 @@ const ExcecutionSummary = () => {
 
 const AmountOutFilled = () => {
   const { order } = useOrderContext();
-  const amount = useFormatNumber({ value: order.amountOutFilled.value, decimalScale: 3 });
+  const amount = useFormatNumber({
+    value: order.amountOutFilled.value,
+    decimalScale: 3,
+  });
   if (!order.amountOutFilled.value) return null;
   return (
     <OrderDetails.DetailRow title={order.amountOutFilled.label}>
@@ -196,19 +246,25 @@ const AmountOutFilled = () => {
 
 export const CancelOrderButton = () => {
   const { order } = useOrderContext();
-  const { mutateAsync: cancelOrder, isPending: isLoading } = useCancelOrderMutation();
+  const { mutateAsync: cancelOrder, isPending: isLoading } =
+    useCancelOrderMutation();
   const { components } = useSpotContext();
   const Button = components.Button;
 
   const onCancelOrder = useCallback(async () => {
-    // return cancelOrder({ orders: [order.original] } as { orders: Order[] });
+    return cancelOrder({ orders: [order.original] });
   }, [cancelOrder, order]);
 
   if (!order || order.original.status !== OrderStatus.Open) return null;
   if (!Button) return null;
 
   return (
-    <Button loading={isLoading} onClick={onCancelOrder} disabled={isLoading} className="twap-cancel-order">
+    <Button
+      loading={isLoading}
+      onClick={onCancelOrder}
+      disabled={isLoading}
+      className="twap-cancel-order"
+    >
       Cancel
     </Button>
   );
@@ -229,7 +285,10 @@ const AmountIn = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
 
-  const amount = useFormatNumber({ value: order.display.srcAmount.value, decimalScale: 3 });
+  const amount = useFormatNumber({
+    value: order.display.srcAmount.value,
+    decimalScale: 3,
+  });
 
   return (
     <OrderDetails.DetailRow title={t("amountOut") || ""}>
@@ -242,7 +301,10 @@ const AmountIn = () => {
 
 const AmountInFilled = () => {
   const { order } = useOrderContext();
-  const amount = useFormatNumber({ value: order.amountInFilled.value, decimalScale: 3 });
+  const amount = useFormatNumber({
+    value: order.amountInFilled.value,
+    decimalScale: 3,
+  });
 
   return (
     <OrderDetails.DetailRow title={order.amountInFilled.label}>
@@ -288,7 +350,10 @@ const OrderStatusComponent = () => {
 
 const Progress = () => {
   const { order } = useOrderContext();
-  const progress = useFormatNumber({ value: order.progress.value, decimalScale: 2 });
+  const progress = useFormatNumber({
+    value: order.progress.value,
+    decimalScale: 2,
+  });
 
   return (
     <OrderDetails.DetailRow title={order.progress.label}>
@@ -303,16 +368,40 @@ const LimitPrice = () => {
 
   if (!order.display.limitPrice.value) return null;
 
-  return <Price title={t("limitPrice") || ""} price={order.display.limitPrice.value} srcToken={order.data.srcToken} dstToken={order.data.dstToken} />;
+  return (
+    <Price
+      title={t("limitPrice") || ""}
+      price={order.display.limitPrice.value}
+      srcToken={order.data.srcToken}
+      dstToken={order.data.dstToken}
+    />
+  );
 };
 
 const AvgExcecutionPrice = () => {
   const { order } = useOrderContext();
   if (!order.excecutionPrice.value) return null;
-  return <Price title={order.excecutionPrice.label} price={order.excecutionPrice.value} srcToken={order.data.srcToken} dstToken={order.data.dstToken} />;
+  return (
+    <Price
+      title={order.excecutionPrice.label}
+      price={order.excecutionPrice.value}
+      srcToken={order.data.srcToken}
+      dstToken={order.data.dstToken}
+    />
+  );
 };
 
-const Price = ({ price, srcToken, dstToken, title }: { price?: string; srcToken?: Token; dstToken?: Token; title: string }) => {
+const Price = ({
+  price,
+  srcToken,
+  dstToken,
+  title,
+}: {
+  price?: string;
+  srcToken?: Token;
+  dstToken?: Token;
+  title: string;
+}) => {
   const _price = useFormatNumber({ value: price, decimalScale: 3 });
   return (
     <OrderDetails.DetailRow title={title}>

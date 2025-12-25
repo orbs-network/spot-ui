@@ -11,7 +11,6 @@ export const useInvertTradePanel = () => {
   const typedLimitPrice = useSpotStore((s) => s.state.typedLimitPrice);
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   const onInvert = useCallback(() => {
-    if (marketPriceLoading) return;
     if (typedTriggerPrice !== undefined) {
       updateState({ typedTriggerPrice: BN(1).div(typedTriggerPrice).toFixed() });
     }
