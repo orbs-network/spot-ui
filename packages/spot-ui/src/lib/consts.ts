@@ -307,3 +307,7 @@ export const DEFAULT_TAKE_PROFIT_PERCENTAGE = "10";
 
 export const DEFAULT_STOP_LOSS_LIMIT_PERCENTAGE = "-10";
 export const DEFAULT_TAKE_PROFIT_LIMIT_PERCENTAGE = "5";
+
+
+
+export const CRASH_ERROR_MESSAGE = "Something went wrong";

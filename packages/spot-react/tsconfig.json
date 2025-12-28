@@ -30,5 +30,5 @@
       "@orbs-network/spot-ui": ["../spot-ui/src/index.ts"]
     }
   },
-  "include": ["src", "package.json"]
+  "include": ["src", "package.json", "../spot-ui/src"]
 }

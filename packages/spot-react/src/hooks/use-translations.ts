@@ -21,8 +21,8 @@ export const useTranslations = () => {
         return dynamicTranslation;
       }
 
-      const staticTranslation = context.translations?.[key] || (defaultTranslations as Translations)[key];
-      return removeBraced(staticTranslation.replace(/{(\w+)}/g, (match: string, p1: string) => args?.[p1] || match));
+      const staticTranslation = context.translations?.[key] || defaultTranslations[key];
+      return removeBraced(staticTranslation.replace(/{(\w+)}/g, (match, p1) => args?.[p1] || match));
     },
     [context.getTranslation, context.translations],
   );
