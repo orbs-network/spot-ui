@@ -51,7 +51,7 @@ export const useBaseOrder = (props: Props) => {
 
         deadline: {
           tooltip: t("expirationTooltip"),
-          label: t("deadline"),
+          label: t("expirationLabel"),
           value: props.deadline || 0,
         },
         srcAmount: {

@@ -23,7 +23,6 @@ export interface Translations {
   viewOnExplorer: string;
   proceedInWallet: string;
   maxOrderSizeError: string;
-  minReceivedPerChunk: string;
   maxDurationTooltip: string;
   triggerPriceMarket: string;
   triggerPriceLimit: string;
@@ -32,7 +31,7 @@ export interface Translations {
   emptyLimitPrice: string;
   insufficientFunds: string;
   tradeIntervalLabel: string;
-  deadline: string;
+  expirationLabel: string;
   limitPrice: string;
   finalExcecutionPrice: string;
   marketPrice: string;
