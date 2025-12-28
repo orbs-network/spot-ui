@@ -1,7 +1,5 @@
-import { Configs, ORBS_TWAP_FAQ_URL, ORBS_LOGO, ORBS_LOGO_FALLBACK, ORBS_WEBSITE_URL, DISCLAIMER_URL, TimeUnit } from "@orbs-network/spot-ui";
+import { TimeUnit } from "@orbs-network/spot-ui";
 export const REFETCH_ORDER_HISTORY = 20_000;
-
-export { Configs, ORBS_TWAP_FAQ_URL, ORBS_LOGO, ORBS_LOGO_FALLBACK, ORBS_WEBSITE_URL, DISCLAIMER_URL };
 
 export const DEFAULT_DURATION_OPTIONS: { text: string; value: TimeUnit }[] = [
   {

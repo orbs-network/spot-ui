@@ -3,7 +3,7 @@ import { setUIVersion } from "@orbs-network/spot-ui";
 import { useSpotStore } from "./store";
 import pkg from "../package.json";
 import { SpotProvider } from "./spot-context";
-import { DISCLAIMER_URL, ORBS_LOGO, ORBS_WEBSITE_URL, DEFAULT_DURATION_OPTIONS } from "./consts";
+import { DEFAULT_DURATION_OPTIONS } from "./consts";
 import { Orders } from "./components/orders/orders";
 import { useTradesPanel } from "./hooks/use-trades";
 import { useFillDelayPanel } from "./hooks/use-fill-delay";
@@ -22,7 +22,7 @@ import { useTogglePricePanel } from "./hooks/use-toggle-price";
 import { SubmitOrderPanel } from "./components/submit-order-panel";
 export * from "./types";
 export * from "./utils";
-export { Configs, PRICE_PROTECTION_SETTINGS } from "./consts";
+export { PRICE_PROTECTION_SETTINGS } from "./consts";
 export { useFormatNumber } from "./hooks/helper-hooks";
 
 // Set the UI version in spot-sdk for analytics
@@ -51,10 +51,7 @@ export * from "@orbs-network/spot-ui";
 
 export {
   SpotProvider,
-  ORBS_WEBSITE_URL,
-  ORBS_LOGO,
   DEFAULT_DURATION_OPTIONS,
-  DISCLAIMER_URL,
   Components,
   useTradesPanel,
   useDurationPanel,
