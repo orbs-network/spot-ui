@@ -53,7 +53,7 @@ const getConfigDetails = (config: SpotConfig, minChunkSizeUsd: number, chainId?:
   };
 };
 
-type Action = "cancel order" | "wrap" | "approve" | "sign order" | "create order" | "module-import" | "reset";
+type Action = "cancel order" | "wrap" | "approve" | "sign order" | "create order" | "module-import" | "reset" | "crash";
 
 interface Data {
   _id: string;
@@ -208,6 +208,11 @@ class Analytics {
 
   onApproveError(error: any) {
     this.onTxError(error);
+  }
+
+
+  onCrash(error: any) {
+    this.updateAndSend({ action: "crash", actionError: error?.message?.toLowerCase() || error?.toLowerCase() });
   }
 
   onTxError(error: any) {

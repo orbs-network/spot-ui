@@ -50,7 +50,7 @@ export const useBaseOrder = (props: Props) => {
         },
 
         deadline: {
-          tooltip: t("deadlineTooltip"),
+          tooltip: t("expirationTooltip"),
           label: t("deadline"),
           value: props.deadline || 0,
         },
@@ -78,9 +78,9 @@ export const useBaseOrder = (props: Props) => {
         },
         tradeInterval: {
           tooltip: t("tradeIntervalTootlip"),
-          label: t("tradeInterval"),
+          label: t("tradeIntervalLabel"),
           value: props.tradeInterval || 0,
-        },
+      },
         triggerPricePerTrade: {
           tooltip: t("triggerPriceTooltip"),
           label: props.totalTrades && props.totalTrades > 1 ? t("triggerPricePerChunk") : t("triggerPrice"),

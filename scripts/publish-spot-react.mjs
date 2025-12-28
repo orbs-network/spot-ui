@@ -101,9 +101,10 @@ async function main() {
   console.log(`  ✓ ${pkg.name}`)
 
   // Build packages (spot-react depends on spot-ui)
+  // NODE_ENV=production ensures spot-react uses node_modules instead of local source
   console.log('\n🔨 Building packages...')
   try {
-    execSync('pnpm build:spot-ui && pnpm build:spot-react', { cwd: rootDir, stdio: 'inherit' })
+    execSync('pnpm build:spot-ui && NODE_ENV=production pnpm build:spot-react', { cwd: rootDir, stdio: 'inherit' })
   } catch (error) {
     console.error('\n❌ Build failed\n')
     rl.close()

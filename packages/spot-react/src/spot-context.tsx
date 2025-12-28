@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useMemo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
-  analytics,
   getConfig,
   Module,
   getQueryParam,
   QUERY_PARAMS,
   amountBN,
+  analytics,
 } from "@orbs-network/spot-ui";
 import {
   TwapProps,
@@ -67,9 +67,9 @@ const TwapFallbackUI = () => {
 
 function ErrorWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <ErrorBoundary FallbackComponent={TwapFallbackUI}>
+    <ErrorBoundary FallbackComponent={TwapFallbackUI} onError={(error) => analytics.onCrash(error)}>
       <>{children}</>
-    </ErrorBoundary>
+  </ErrorBoundary>
   );
 }
 

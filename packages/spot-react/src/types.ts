@@ -6,7 +6,7 @@ export type { Order } from "@orbs-network/spot-ui";
 export { OrderStatus, type TwapFill, OrderType, Module } from "@orbs-network/spot-ui";
 
 export interface Translations {
-  deadlineTooltip: string;
+  expirationTooltip: string;
   tradeSizeTooltip: string;
   totalTradesTooltip: string;
   stopLossDurationTooltip: string;
@@ -14,7 +14,6 @@ export interface Translations {
   stopLossLimitPriceTooltip: string;
   takeProfitTooltip: string;
   minDstAmountTooltip: string;
-  marketPriceTooltip: string;
   limitPriceTooltip: string;
   wrapMsg: string;
   tradeIntervalTootlip: string;
@@ -23,7 +22,6 @@ export interface Translations {
   version: string;
   viewOnExplorer: string;
   proceedInWallet: string;
-  outAmountLoading: string;
   maxOrderSizeError: string;
   minReceivedPerChunk: string;
   maxDurationTooltip: string;
@@ -33,9 +31,7 @@ export interface Translations {
   enterAmount: string;
   emptyLimitPrice: string;
   insufficientFunds: string;
-  every: string;
-  over: string;
-  tradeInterval: string;
+  tradeIntervalLabel: string;
   deadline: string;
   limitPrice: string;
   finalExcecutionPrice: string;
