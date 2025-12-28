@@ -12,11 +12,10 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@orbs-network/spot-react', '@orbs-network/spot-ui', '@orbs-network/liquidity-hub-sdk'],
   webpack: (config) => {
     // Only alias to source in development for hot reload
-    // Note: liquidity-hub-sdk doesn't work with Turbopack - uses built dist
     if (isDev) {
       config.resolve.alias['@orbs-network/spot-react'] = path.resolve(__dirname, '../../packages/spot-react/src');
       config.resolve.alias['@orbs-network/spot-ui'] = path.resolve(__dirname, '../../packages/spot-ui/src');
-      // liquidity-hub-sdk uses dist/ - Turbopack can't compile its source
+      config.resolve.alias['@orbs-network/liquidity-hub-sdk'] = path.resolve(__dirname, '../../packages/liquidity-hub-ui/src/lib');
     }
     return config;
   },
@@ -24,7 +23,7 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       '@orbs-network/spot-react': '../../packages/spot-react/src',
       '@orbs-network/spot-ui': '../../packages/spot-ui/src',
-      // liquidity-hub-sdk uses dist/ - Turbopack can't compile its source
+      '@orbs-network/liquidity-hub-sdk': '../../packages/liquidity-hub-ui/src/lib',
     },
   },
 };

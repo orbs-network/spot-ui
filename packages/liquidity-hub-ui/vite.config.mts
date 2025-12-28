@@ -7,9 +7,6 @@ import version from 'vite-plugin-package-version';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  server: {
-    port: 3003,
-  },
   define: {
     "process.env": process.env,
   },
@@ -19,12 +16,7 @@ export default defineConfig({
       fileName: (format) => `main.${format}.js`,
       name: "main",
     },
-    rollupOptions: {
-      input: path.resolve(__dirname, "src/lib/index.ts"),
-    },
-
   },
-
   plugins: [
     svgr(),
     tsconfigPaths(),
