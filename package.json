@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "prod": "NEXT_PUBLIC_MODE=prod pnpm --filter web dev",
-    "dev:lh": "pnpm build:liquidity-hub && pnpm --filter web dev",
     "start": "pnpm --filter web start",
     "build": "pnpm build:spot-ui && pnpm build:liquidity-hub && pnpm build:spot-react && pnpm --filter web build",
     "build:spot-ui": "pnpm --filter @orbs-network/spot-ui build",
