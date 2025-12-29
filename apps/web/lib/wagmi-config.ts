@@ -28,6 +28,7 @@ const MAIN_CONFIG = getDefaultConfig({
     base,
     sonic,
     polygon,
+    monad
   ],
 });
 

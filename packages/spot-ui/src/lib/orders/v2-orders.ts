@@ -54,6 +54,7 @@ const getStatus = (order: OrderV2, progress: number) => {
 
 export const buildV2Order = (order: OrderV2): Order => {
   const progress = getProgress(order);
+  
 
   const dstMinAmountPerTrade = Number(order.order.witness.output.limit) === 1 ? "" : order.order.witness.output.limit;
   const totalTradesAmount = order.metadata.expectedChunks || 1;
@@ -83,7 +84,7 @@ export const buildV2Order = (order: OrderV2): Order => {
     srcAmountPerTrade: order.order.witness.input.amount,
     txHash: "",
     totalTradesAmount,
-    isMarketPrice: false,
+    isMarketPrice: BN(dstMinAmountPerTrade || 0).lte(1),
     chainId: order.order.witness.chainid,
     filledOrderTimestamp: 0,
     status: getStatus(order, progress),

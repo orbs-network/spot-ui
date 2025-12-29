@@ -180,7 +180,7 @@ export const useTrade = (
     parsedInputAmount
   );
 
-  const showSyntheticTrade = Boolean(liquidityHubQuote.error || isSpotTab);
+  const showSyntheticTrade = !isSpotTab ? false :  Boolean(liquidityHubQuote.error || isSpotTab);
   
 
 
