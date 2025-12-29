@@ -13,6 +13,7 @@ import { useConnection } from "wagmi";
 import { useSwapStore } from "./store";
 import { useMemo } from "react";
 import { useUSDPrice } from "./use-usd-price";
+import { useIsSpotTab } from "./use-tabs";
 
 const stopQuoteLiquidityHub = (_error?: string) => {
   if (!_error) return false;
@@ -37,6 +38,7 @@ const useQuoteLiquidityHub = (
   const { chainId, address: account } = useConnection();
   const inputCurrencyAddress = inputCurrency?.address ?? "";
   const outputCurrencyAddress = outputCurrency?.address ?? "";
+  const isSpotTab = useIsSpotTab();
   return useQuery<BestTradeQuote>({
     queryKey: [
       "quote-liquidity-hub",
@@ -84,7 +86,8 @@ const useQuoteLiquidityHub = (
       !!inputCurrencyAddress &&
       !!outputCurrencyAddress &&
       BN(parsedInputAmount).gt(0) &&
-      !!chainId,
+      !!chainId &&
+      !isSpotTab,
   });
 };
 
@@ -164,6 +167,8 @@ export const useTrade = (
   outputCurrency?: Currency,
   parsedInputAmount = ""
 ) => {
+  const isSpotTab = useIsSpotTab();
+
   const liquidityHubQuote = useQuoteLiquidityHub(
     inputCurrency,
     outputCurrency,
@@ -175,8 +180,7 @@ export const useTrade = (
     parsedInputAmount
   );
 
-  const showSyntheticTrade = Boolean(liquidityHubQuote.error);
-
+  const showSyntheticTrade = Boolean(liquidityHubQuote.error || isSpotTab);
   
 
 
