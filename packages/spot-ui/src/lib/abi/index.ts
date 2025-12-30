@@ -1,18 +1,14 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import IWETHABI from "./iweth.json";
-import ERC20ABI from "./erc20.json";
-import ReactorAbi from "./reactor.json";
-import ExecutorAbi from "./executor.json";
-import RepermitAbi from "./repermit.json";
-
+import ERC20 from "./erc20.json";
+// @ts-ignore
+import * as Spot from "@orbs-network/spot";
 import TwapAbi from "@orbs-network/twap/twap.abi.json";
-import LensAbi from "@orbs-network/twap/lens.abi.json";
 
-export const REACTOR_ABI = ReactorAbi;
-export const EXECUTOR_ABI = ExecutorAbi;
-export const REPERMIT_ABI = RepermitAbi;
+const ABIS = Spot.abis();
+
 export const IWETH_ABI = IWETHABI;
-export const ERC20_ABI = ERC20ABI;
+export const ERC20_ABI = ERC20;
+export const REPERMIT_ABI = ABIS.repermit;
 export const TWAP_ABI = TwapAbi;
-export const LENS_ABI = LensAbi;
