@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-constant-condition */
 import { getApiEndpoint } from "../consts";
-import { OrderStatus, OrderType, OrderV2, Order } from "../types";
+import { OrderStatus, OrderType, OrderV2, Order, OrderFill } from "../types";
 import BN from "bignumber.js";
 
 const getOrderType = (order: OrderV2) => {
@@ -42,15 +42,33 @@ const getProgress = (order: OrderV2) => {
   return Number((progress * 100).toFixed(2));
 };
 
-const OPEN_STATUS = ["pending", "eligible"];
-
 const getStatus = (order: OrderV2, progress: number) => {
   if (order.metadata.status === "completed" || progress >= 99) return OrderStatus.Completed;
-  if (OPEN_STATUS.includes(order.metadata.status)) return OrderStatus.Open;
+  if (["pending", "eligible"].includes(order.metadata.status)) return OrderStatus.Open;
   if (order.metadata.description.toLowerCase() === "cancelled by contract") return OrderStatus.Canceled;
 
   return OrderStatus.Expired;
 };
+
+
+const getFills = (order: OrderV2): OrderFill[] => {
+  const chunks = order.metadata.chunks?.filter((chunk) => chunk.status === "success") || [];
+  return chunks.map((chunk) => ({
+    inAmount: chunk.inAmount,
+    outAmount: chunk.outAmount,
+    timestamp: new Date(chunk.timestamp).getTime(),
+    txHash: chunk.txHash,
+  }));
+}
+
+
+const getFilledOrderTimestamp = (fills: OrderFill[], totalTradesAmount: number) => {
+const totalFilled = fills.length;
+if (totalFilled >= totalTradesAmount) {
+  return fills[totalFilled - 1]?.timestamp || 0;
+}
+return 0;
+}
 
 export const buildV2Order = (order: OrderV2): Order => {
   const progress = getProgress(order);
@@ -58,6 +76,7 @@ export const buildV2Order = (order: OrderV2): Order => {
 
   const dstMinAmountPerTrade = Number(order.order.witness.output.limit) === 1 ? "" : order.order.witness.output.limit;
   const totalTradesAmount = order.metadata.expectedChunks || 1;
+  const fills = getFills(order);
   return {
     id: order.hash,
     hash: order.hash,
@@ -65,15 +84,12 @@ export const buildV2Order = (order: OrderV2): Order => {
     type: getOrderType(order),
     maker: order.order.witness.swapper,
     progress,
-    srcAmountFilled: order.metadata.chunks?.reduce((acc, chunk) => acc.plus(chunk.inAmount), new BN(0)).toString() || "",
-    dstAmountFilled: order.metadata.chunks?.reduce((acc, chunk) => acc.plus(chunk.outAmount), new BN(0)).toString() || "",
-    dollarValueInFilled: "",
-    dollarValueOutFilled: "",
-    feesFilled: "",
-    fills: [],
+    srcAmountFilled: fills.reduce((acc, fill) => acc.plus(fill.inAmount), new BN(0)).toFixed() || "",
+    dstAmountFilled: fills.reduce((acc, fill) => acc.plus(fill.outAmount), new BN(0)).toFixed() || "",
+    fills,
     srcTokenAddress: order.order.witness.input.token,
     dstTokenAddress: order.order.witness.output.token,
-    orderDollarValueIn: "",
+    orderDollarValueIn: order.metadata.displayOnlyInputTokenPriceUSD ? BN(order.metadata.displayOnlyInputTokenPriceUSD).toFixed(6) : "",
     fillDelay: order.order.witness.epoch,
     deadline: Number(order.order.deadline) * 1000,
     createdAt: new Date(order.timestamp).getTime(),
@@ -82,11 +98,10 @@ export const buildV2Order = (order: OrderV2): Order => {
     triggerPricePerTrade: BN(order.order.witness.output.stop || 0).isZero() ? "" : order.order.witness.output.stop,
     dstMinAmountTotal: BN(dstMinAmountPerTrade).multipliedBy(totalTradesAmount).toString(),
     srcAmountPerTrade: order.order.witness.input.amount,
-    txHash: "",
     totalTradesAmount,
     isMarketPrice: BN(dstMinAmountPerTrade || 0).lte(1),
     chainId: order.order.witness.chainid,
-    filledOrderTimestamp: 0,
+    filledOrderTimestamp: getFilledOrderTimestamp(fills, totalTradesAmount),
     status: getStatus(order, progress),
     rawOrder: order,
   };

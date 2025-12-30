@@ -46,7 +46,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Switch } from "../ui/switch";
 import { useConnection, useWalletClient } from "wagmi";
 import { SubmitSwapButton } from "../submit-swap-button";
-import { useBalance } from "@/lib/hooks/use-balances";
+import { useBalance, useRefetchSelectedCurrenciesBalances } from "@/lib/hooks/use-balances";
 import { Avatar, AvatarImage } from "../ui/avatar";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { Portal } from "../ui/portal";
@@ -633,6 +633,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const swapModule = useMemo(() => getModule(swapType), [swapType]);
   const callbacks = useCallbacks();
   const partner = useSpotPartner();
+  const { mutateAsync: refetchBalances } = useRefetchSelectedCurrenciesBalances();
 
   const inputUsd = useUSDPrice({
     token: inputCurrency?.address,
@@ -662,14 +663,16 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           dstUsd1Token={outputUsd.data.toString()}
           marketReferencePrice={useSpotMarketReferencePrice()}
           minChunkSizeUsd={5}
+          refetchBalances={refetchBalances}
           useToken={useSpotToken}
+          callbacks={callbacks}
           components={{
             Button: TwapButton,
             Tooltip: TwapTooltip,
             TokenLogo,
             Spinner: <Spinner className="size-18" />,
           }}
-          callbacks={callbacks}
+          
         >
           <div className="flex flex-col gap-1">
             <div className="flex flex-col gap-0">

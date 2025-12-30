@@ -1,7 +1,5 @@
 import Configs from "@orbs-network/twap/configs.json";
-
 export * from "./lib/abi";
-
 export * from "./lib/types";
 export * from "./lib/consts";
 export * from "./lib/lib";
@@ -13,7 +11,5 @@ export { isNativeAddress, getNetwork, amountBN, amountUi, eqIgnoreCase, getOrder
 export { networks } from "./lib/networks";
 
 export { getAccountOrders } from "./lib/orders";
-
-export { type GetOrdersFilters } from "./lib/orders/v1-orders";
 
 export { Configs };

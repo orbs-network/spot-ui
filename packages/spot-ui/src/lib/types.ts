@@ -47,7 +47,7 @@ export enum OrderType {
   TRIGGER_PRICE_LIMIT = "trigger-price-limit",
 }
 
-export type TwapFill = {
+export type FillV1 = {
   TWAP_id: number;
   dollarValueIn: string;
   dollarValueOut: string;
@@ -62,6 +62,14 @@ export type TwapFill = {
   transactionHash: string;
 };
 
+export type OrderFill = {
+  inAmount: string;
+  outAmount: string;
+  timestamp: number;
+  txHash: string;
+};
+
+
 export type Order = {
   version: number;
   id: string;
@@ -71,12 +79,9 @@ export type Order = {
   twapAddress?: string;
   maker: string;
   progress: number;
-  dstAmountFilled: string;
   srcAmountFilled: string;
-  dollarValueInFilled: string;
-  dollarValueOutFilled: string;
-  feesFilled: string;
-  fills: TwapFill[];
+  dstAmountFilled: string;
+  fills: OrderFill[];
   srcTokenAddress: string;
   dstTokenAddress: string;
   orderDollarValueIn: string;
@@ -88,7 +93,7 @@ export type Order = {
   triggerPricePerTrade: string;
   dstMinAmountTotal: string;
   srcAmountPerTrade: string;
-  txHash: string;
+  txHash?: string;
   totalTradesAmount: number;
   isMarketPrice: boolean;
   chainId: number;
@@ -179,13 +184,6 @@ export type OrderV1 = {
   ask_dstToken: string;
 };
 
-export type ParsedFills = {
-  filledDstAmount: string;
-  filledSrcAmount: string;
-  filledDollarValueIn: string;
-  filledDollarValueOut: string;
-  dexFee: string;
-};
 
 type OrderV2Chunk = {
   blockId: number;
@@ -227,6 +225,22 @@ type OrderV2Chunk = {
   txHash: string;
 };
 
+export type GetV1OrdersFilters = {
+  transactionHashes?: string[];
+  orderIds?: number[];
+  accounts?: string[];
+  configs?: Config[];
+  inTokenSymbols?: string[];
+  outTokenSymbols?: string[];
+  inTokenAddresses?: string[];
+  outTokenAddresses?: string[];
+  minDollarValueIn?: number;
+  startDate?: number;
+  endDate?: number;
+  orderType?: "limit" | "market";
+};
+
+
 export type OrderV2 = {
   hash: string;
   metadata: {
@@ -236,6 +250,7 @@ export type OrderV2 = {
     nextEligibleTime: string;
     status: string;
     description: string;
+    displayOnlyInputTokenPriceUSD: string;
   };
   order: RePermitOrder;
   signature: string;

@@ -10,14 +10,12 @@ import { useSpotContext } from "../spot-context";
 import { getExplorerUrl, isTxRejected } from "../utils";
 import { useGetTransactionReceipt } from "./use-get-transaction-receipt";
 import { useSpotStore } from "../store";
-import { useOptimisticCancelOrder } from "./order-hooks";
 
 export const useCancelOrderMutation = () => {
   const { account, walletClient, publicClient, config, callbacks, chainId } =
     useSpotContext();
   const getTransactionReceipt = useGetTransactionReceipt();
   const updateState = useSpotStore((s) => s.updateState);
-  const optimisticCancelOrder = useOptimisticCancelOrder();
 
   const cancelOrdersV1 = async (orders: Order[]) => {
     analytics.onCancelOrderRequest(
@@ -105,7 +103,6 @@ export const useCancelOrderMutation = () => {
           cancelOrderStatus: SwapStatus.SUCCESS,
           orderIdsToCancel: [],
         });
-        optimisticCancelOrder(orders.map((o) => o.id));
         return [...(v1Results || []), v2Result];
       } catch (error) {
         console.error("cancel order error", error);

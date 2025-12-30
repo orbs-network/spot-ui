@@ -3,7 +3,7 @@ import { Partners, Module, Order, OrderStatus, SpotConfig, TimeDuration } from "
 import { SwapStatus } from "@orbs-network/swap-ui";
 import { createPublicClient, createWalletClient, TransactionReceipt as _TransactionReceipt, Abi } from "viem";
 export type { Order } from "@orbs-network/spot-ui";
-export { OrderStatus, type TwapFill, OrderType, Module } from "@orbs-network/spot-ui";
+export { OrderStatus, type OrderFill, OrderType, Module } from "@orbs-network/spot-ui";
 
 export interface Translations {
   expirationTooltip: string;

@@ -44,51 +44,6 @@ const useOrdersQueryKey = () => {
   );
 };
 
-export const usePersistedOrdersStore = () => {
-  const { account, config, chainId } = useSpotContext();
-
-  const cancelledOrderIdsKey = `cancelled-orders-${account}-${config?.partner}-${chainId}`;
-  const getCancelledOrderIds = useCallback((): string[] => {
-    const res = localStorage.getItem(cancelledOrderIdsKey);
-    if (!res) return [];
-    return JSON.parse(res);
-  }, [cancelledOrderIdsKey]);
-
-  const addCancelledOrderId = useCallback(
-    (orderId: string) => {
-      const cancelledOrderIds = getCancelledOrderIds();
-      if (!cancelledOrderIds.includes(orderId)) {
-        // `.includes()` is more readable for arrays
-        cancelledOrderIds.push(orderId);
-        localStorage.setItem(
-          cancelledOrderIdsKey,
-          JSON.stringify(cancelledOrderIds)
-        );
-      }
-    },
-    [getCancelledOrderIds, cancelledOrderIdsKey]
-  );
-
-  const deleteCancelledOrderId = useCallback(
-    (orderId: string) => {
-      const cancelledOrderIds = getCancelledOrderIds().filter(
-        (id) => id !== orderId
-      );
-      localStorage.setItem(
-        cancelledOrderIdsKey,
-        JSON.stringify(cancelledOrderIds)
-      );
-    },
-    [getCancelledOrderIds, cancelledOrderIdsKey]
-  );
-
-  return {
-    getCancelledOrderIds,
-    addCancelledOrderId,
-    deleteCancelledOrderId,
-  };
-};
-
 export const useAddNewOrder = () => {
   const queryClient = useQueryClient();
   const { account } = useSpotContext();
@@ -105,78 +60,14 @@ export const useAddNewOrder = () => {
   );
 };
 
-export const useOptimisticCancelOrder = () => {
+const useOrderFilledCallback = () => {
+  const { callbacks, refetchBalances } = useSpotContext();
   const queryClient = useQueryClient();
   const queryKey = useOrdersQueryKey();
-  const persistedOrdersStore = usePersistedOrdersStore();
-  return useCallback(
-    (orderIds: string[]) => {
-      orderIds.forEach((orderId) => {
-        persistedOrdersStore.addCancelledOrderId(orderId);
-      });
-
-      queryClient.setQueryData(queryKey, (orders?: Order[]) => {
-        if (!orders) return [];
-        return orders.map((order) => {
-          if (orderIds.includes(order.id)) {
-            return { ...order, status: OrderStatus.Canceled };
-          }
-          return order;
-        });
-      });
-    },
-    [queryClient, queryKey, persistedOrdersStore.addCancelledOrderId]
-  );
-};
-
-const useHandlePersistedCancelledOrders = () => {
-  const { getCancelledOrderIds, deleteCancelledOrderId } =
-    usePersistedOrdersStore();
   return useCallback(
     (orders: Order[]) => {
-      const cancelledOrderIds = new Set(getCancelledOrderIds());
-      orders.forEach((order, index) => {
-        if (cancelledOrderIds.has(order.id)) {
-          if (order.status !== OrderStatus.Canceled) {
-            console.log(`Marking order as cancelled: ${order.id}`);
-            orders[index] = { ...order, status: OrderStatus.Canceled };
-          } else {
-            console.log(
-              `Removing cancelled ID for already-cancelled order: ${order.id}`
-            );
-            deleteCancelledOrderId(order.id);
-          }
-        }
-      });
-    },
-    [getCancelledOrderIds, deleteCancelledOrderId]
-  );
-};
-
-export const useOrdersQuery = () => {
-  const { account, config, chainId, callbacks, refetchBalances } =
-    useSpotContext();
-    
-  const queryKey = useOrdersQueryKey();
-  const queryClient = useQueryClient();
-  const handlePersistedCancelledOrders = useHandlePersistedCancelledOrders();
-  const query = useQuery<Order[]>({
-    enabled: Boolean(account && chainId && config),
-    refetchInterval: REFETCH_ORDER_HISTORY,
-    refetchOnWindowFocus: true,
-    retry: false,
-    staleTime: Infinity,
-    queryKey,
-    queryFn: async ({ signal }) => {
-      const orders = await getAccountOrders({
-        signal,
-        chainId: chainId!,
-        config: config?.twapConfig,
-        account: account!,
-      });
-      handlePersistedCancelledOrders(orders);
-      let isProgressUpdated = false;
       const prevOrders = queryClient.getQueryData(queryKey) as Order[];
+      let isProgressUpdated = false;
       const updatedOrders: Order[] = [];
 
       if (prevOrders) {
@@ -198,7 +89,32 @@ export const useOrdersQuery = () => {
         callbacks?.onOrdersProgressUpdate?.(updatedOrders);
         refetchBalances?.();
       }
+    },
+    [queryClient, queryKey, callbacks, refetchBalances]
+  );
+};
 
+export const useOrdersQuery = () => {
+  const { account, config, chainId } = useSpotContext();
+
+  const queryKey = useOrdersQueryKey();
+  const orderFilledCallback = useOrderFilledCallback();
+  return useQuery<Order[]>({
+    refetchInterval: REFETCH_ORDER_HISTORY,
+    refetchOnWindowFocus: true,
+    retry: false,
+    staleTime: Infinity,
+    queryKey,
+    queryFn: async ({ signal }) => {
+      if (!account || !chainId || !config) return [];
+      const orders = await getAccountOrders({
+        signal,
+        chainId,
+        config: config.twapConfig,
+        account,
+      });
+
+      orderFilledCallback(orders);
       return orders.map((order) => {
         if (config?.twapConfig) {
           return {
@@ -210,12 +126,6 @@ export const useOrdersQuery = () => {
       });
     },
   });
-  
-
-  return {
-    ...query,
-    isLoading: Boolean(account && query.isLoading),
-  };
 };
 
 export const useOrders = () => {

@@ -1,12 +1,21 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-constant-condition */
-import { Config, OrderStatus, OrderType, ParsedFills, OrderV1, TwapFill, Order } from "../types";
+import {
+  OrderStatus,
+  OrderType,
+  OrderV1,
+  FillV1,
+  Order,
+  OrderFill,
+  GetV1OrdersFilters,
+} from "../types";
 import BN from "bignumber.js";
 import { eqIgnoreCase, getExchanges } from "../utils";
 import { THE_GRAPH_ORDERS_API } from "../consts";
 type RawStatus = "CANCELED" | "COMPLETED" | null;
 
-const normalizeSubgraphList = <T>(list?: T[], transform?: (val: T) => string) => (list && list.length ? list.map(transform || ((v) => `${v}`)) : undefined);
+const normalizeSubgraphList = <T>(list?: T[], transform?: (val: T) => string) =>
+  list && list.length ? list.map(transform || ((v) => `${v}`)) : undefined;
 
 const getTheGraphUrl = (chainId?: number) => {
   if (!chainId) return;
@@ -103,33 +112,13 @@ const fetchWithRetryPaginated = async <T>({
   return results;
 };
 
-const parseFills = (fills: TwapFill[]): ParsedFills => {
-  const initial = {
-    dstAmountOut: BN(0),
-    srcAmountIn: BN(0),
-    dollarValueIn: BN(0),
-    dollarValueOut: BN(0),
-    dexFee: BN(0),
-  };
-
-  const result = fills.reduce(
-    (acc, it) => ({
-      dstAmountOut: acc.dstAmountOut.plus(BN(it.dstAmountOut || 0)),
-      srcAmountIn: acc.srcAmountIn.plus(BN(it.srcAmountIn || 0)),
-      dollarValueIn: acc.dollarValueIn.plus(BN(it.dollarValueIn || 0)),
-      dollarValueOut: acc.dollarValueOut.plus(BN(it.dollarValueOut || 0)),
-      dexFee: acc.dexFee.plus(BN(it.dstFee || 0)),
-    }),
-    initial,
-  );
-
-  return {
-    filledDstAmount: result.dstAmountOut.toFixed(),
-    filledSrcAmount: result.srcAmountIn.toFixed(),
-    filledDollarValueIn: result.dollarValueIn.toFixed(),
-    filledDollarValueOut: result.dollarValueOut.toFixed(),
-    dexFee: result.dexFee.toFixed(),
-  };
+const parseFills = (fills: FillV1[]): OrderFill[] => {
+  return fills.map((fill) => ({
+    inAmount: fill.srcAmountIn,
+    outAmount: fill.dstAmountOut,
+    timestamp: fill.timestamp,
+    txHash: fill.transactionHash,
+  }));
 };
 
 const getOrderType = (ask_dstMinAmount: string, chunks: number) => {
@@ -149,18 +138,29 @@ const getOrderType = (ask_dstMinAmount: string, chunks: number) => {
   return OrderType.TWAP_MARKET;
 };
 
-const isMarketPrice = (type: OrderType) => {
-  return type === OrderType.TWAP_MARKET || type === OrderType.TRIGGER_PRICE_MARKET;
-};
 
-const buildV1Order = (order: OrderV1, chainId: number, fills: TwapFill[], status: OrderStatus): Order => {
-  const { filledDstAmount, filledSrcAmount, filledDollarValueIn, filledDollarValueOut, dexFee } = parseFills(fills || ([] as TwapFill[]));
+
+const buildV1Order = (
+  order: OrderV1,
+  chainId: number,
+  fills: FillV1[],
+  status: OrderStatus
+): Order => {
+  const parsedFills = parseFills(fills || ([] as FillV1[]));
   const chunks = new BN(order.ask_srcAmount || 0)
     .div(order.ask_srcBidAmount) // Avoid division by zero
     .integerValue(BN.ROUND_FLOOR)
     .toNumber();
   const isFilled = fills?.length === chunks;
-  const filledOrderTimestamp = isFilled ? fills?.[fills?.length - 1]?.timestamp : undefined;
+  const filledOrderTimestamp = isFilled
+    ? fills?.[fills?.length - 1]?.timestamp
+    : undefined;
+  const filledSrcAmount = parsedFills
+    .reduce((acc, fill) => acc.plus(fill.inAmount), new BN(0))
+    .toFixed();
+  const filledDstAmount = parsedFills
+    .reduce((acc, fill) => acc.plus(fill.outAmount), new BN(0))
+    .toFixed();
   const progress = getV1OrderProgress(order.ask_srcAmount, filledSrcAmount);
   const type = getOrderType(order.ask_dstMinAmount, chunks);
   return {
@@ -174,24 +174,25 @@ const buildV1Order = (order: OrderV1, chainId: number, fills: TwapFill[], status
     twapAddress: order.twapAddress,
     maker: order.maker,
     progress,
-    dstAmountFilled: !fills ? "" : filledDstAmount,
-    srcAmountFilled: !fills ? "" : filledSrcAmount,
-    orderDollarValueIn: order.dollarValueIn,
+    dstAmountFilled: filledDstAmount,
+    srcAmountFilled: filledSrcAmount,
+    orderDollarValueIn: BN(order.dollarValueIn || 0).toFixed(6),
     srcAmount: order.ask_srcAmount,
-    dollarValueInFilled: !fills ? "" : filledDollarValueIn,
-    dollarValueOutFilled: !fills ? "" : filledDollarValueOut,
-    feesFilled: !fills ? "" : dexFee,
-    dstMinAmountTotal: BN(order.ask_dstMinAmount).multipliedBy(chunks).toString(),
-    fills: fills || ([] as TwapFill[]),
+    dstMinAmountTotal: BN(order.ask_dstMinAmount)
+      .multipliedBy(chunks)
+      .toString(),
+    fills: parsedFills,
     fillDelay: order.ask_fillDelay,
     deadline: order.ask_deadline * 1000,
     createdAt: new Date(order.timestamp).getTime(),
-    dstMinAmountPerTrade: BN(order.ask_dstMinAmount).eq(1) ? "" : order.ask_dstMinAmount,
+    dstMinAmountPerTrade: BN(order.ask_dstMinAmount).eq(1)
+      ? ""
+      : order.ask_dstMinAmount,
     triggerPricePerTrade: "",
     srcAmountPerTrade: order.ask_srcBidAmount,
     txHash: order.transactionHash,
     totalTradesAmount: chunks,
-    isMarketPrice: isMarketPrice(type),
+    isMarketPrice: [OrderType.TWAP_MARKET, OrderType.TRIGGER_PRICE_MARKET].includes(type),
     chainId,
     filledOrderTimestamp: filledOrderTimestamp || 0,
     status,
@@ -199,35 +200,63 @@ const buildV1Order = (order: OrderV1, chainId: number, fills: TwapFill[], status
   };
 };
 
-const getCreatedOrdersFilters = (filters?: GetOrdersFilters) => {
+const getCreatedOrdersFilters = (filters?: GetV1OrdersFilters) => {
   if (!filters) return "";
 
-  const accounts = normalizeSubgraphList(filters.accounts, (a) => `"${a.toLowerCase()}"`);
-  const exchanges = normalizeSubgraphList(getExchanges(filters.configs), (e) => `"${e.toLowerCase()}"`);
-  const inTokenSymbols = normalizeSubgraphList(filters.inTokenSymbols, (s) => `"${s.toUpperCase()}"`);
-  const outTokenSymbols = normalizeSubgraphList(filters.outTokenSymbols, (s) => `"${s.toUpperCase()}"`);
-  const inTokenAddresses = normalizeSubgraphList(filters.inTokenAddresses, (a) => `"${a.toLowerCase()}"`);
-  const outTokenAddresses = normalizeSubgraphList(filters.outTokenAddresses, (a) => `"${a.toLowerCase()}"`);
-  const transactionHashes = normalizeSubgraphList(filters.transactionHashes, (h) => `"${h.toLowerCase()}"`);
-  const orderIds = normalizeSubgraphList(filters.orderIds, (id) => `"${id}"`);
-  const twapAddresses =exchanges?.length ? '' : normalizeSubgraphList(
-    filters.configs?.map((c) => c.twapAddress),
-    (a) => `"${a.toLowerCase()}"`,
+  const accounts = normalizeSubgraphList(
+    filters.accounts,
+    (a) => `"${a.toLowerCase()}"`
   );
+  const exchanges = normalizeSubgraphList(
+    getExchanges(filters.configs),
+    (e) => `"${e.toLowerCase()}"`
+  );
+  const inTokenSymbols = normalizeSubgraphList(
+    filters.inTokenSymbols,
+    (s) => `"${s.toUpperCase()}"`
+  );
+  const outTokenSymbols = normalizeSubgraphList(
+    filters.outTokenSymbols,
+    (s) => `"${s.toUpperCase()}"`
+  );
+  const inTokenAddresses = normalizeSubgraphList(
+    filters.inTokenAddresses,
+    (a) => `"${a.toLowerCase()}"`
+  );
+  const outTokenAddresses = normalizeSubgraphList(
+    filters.outTokenAddresses,
+    (a) => `"${a.toLowerCase()}"`
+  );
+  const transactionHashes = normalizeSubgraphList(
+    filters.transactionHashes,
+    (h) => `"${h.toLowerCase()}"`
+  );
+  const orderIds = normalizeSubgraphList(filters.orderIds, (id) => `"${id}"`);
+  const twapAddresses = exchanges?.length
+    ? ""
+    : normalizeSubgraphList(
+        filters.configs?.map((c) => c.twapAddress),
+        (a) => `"${a.toLowerCase()}"`
+      );
   const minDollarValueIn = filters.minDollarValueIn;
-  
 
   return [
     exchanges ? `exchange_in: [${exchanges.join(", ")}]` : "",
     twapAddresses ? `twapAddress_in: [${twapAddresses.join(", ")}]` : "",
     accounts ? `maker_in: [${accounts.join(", ")}]` : "",
-    transactionHashes ? `transactionHash_in: [${transactionHashes.join(", ")}]` : "",
+    transactionHashes
+      ? `transactionHash_in: [${transactionHashes.join(", ")}]`
+      : "",
     orderIds ? `Contract_id_in: [${orderIds.join(", ")}]` : "",
     minDollarValueIn ? `dollarValueIn_gte: ${minDollarValueIn}` : "",
     inTokenSymbols ? `srcTokenSymbol_in: [${inTokenSymbols.join(", ")}]` : "",
     outTokenSymbols ? `dstTokenSymbol_in: [${outTokenSymbols.join(", ")}]` : "",
-    inTokenAddresses ? `srcTokenAddress_in: [${inTokenAddresses.join(", ")}]` : "",
-    outTokenAddresses ? `dstTokenAddress_in: [${outTokenAddresses.join(", ")}]` : "",
+    inTokenAddresses
+      ? `srcTokenAddress_in: [${inTokenAddresses.join(", ")}]`
+      : "",
+    outTokenAddresses
+      ? `dstTokenAddress_in: [${outTokenAddresses.join(", ")}]`
+      : "",
     filters?.startDate ? `blockTimestamp_gte: ${filters.startDate}` : "",
     filters?.endDate ? `blockTimestamp_lte: ${filters.endDate}` : "",
     filters?.orderType === "limit" ? `ask_dstMinAmount_gt: 1` : "",
@@ -248,7 +277,7 @@ export async function getCreatedOrders({
   exchanges?: string[];
   page?: number;
   limit?: number;
-  filters?: GetOrdersFilters;
+  filters?: GetV1OrdersFilters;
 }): Promise<OrderV1[]> {
   const limit = _limit || 1000;
 
@@ -294,7 +323,9 @@ export async function getCreatedOrders({
         }
       }
     `,
-    extractResults: (json: unknown) => (json as { data?: { orderCreateds?: OrderV1[] } }).data?.orderCreateds || [],
+    extractResults: (json: unknown) =>
+      (json as { data?: { orderCreateds?: OrderV1[] } }).data?.orderCreateds ||
+      [],
   });
 
   return orders;
@@ -306,7 +337,15 @@ type GraphStatus = {
   status: RawStatus;
 };
 
-export const getStatuses = async ({ chainId, orders, signal }: { chainId: number; orders: OrderV1[]; signal?: AbortSignal }): Promise<GraphStatus[]> => {
+export const getStatuses = async ({
+  chainId,
+  orders,
+  signal,
+}: {
+  chainId: number;
+  orders: OrderV1[];
+  signal?: AbortSignal;
+}): Promise<GraphStatus[]> => {
   if (orders.length === 0) return [];
 
   const ids = uniq(orders.map((o) => o.Contract_id.toString()));
@@ -334,7 +373,9 @@ export const getStatuses = async ({ chainId, orders, signal }: { chainId: number
         }
       }
     `,
-    extractResults: (json: unknown) => (json as { data?: { statusNews?: GraphStatus[] } }).data?.statusNews || [],
+    extractResults: (json: unknown) =>
+      (json as { data?: { statusNews?: GraphStatus[] } }).data?.statusNews ||
+      [],
   });
 
   return statuses;
@@ -344,25 +385,42 @@ export function uniq<T>(array: T[]): T[] {
   return Array.from(new Set(array));
 }
 
-const getFills = async ({ chainId, orders, signal }: { chainId: number; orders: OrderV1[]; signal?: AbortSignal }) => {
+const getFills = async ({
+  chainId,
+  orders,
+  signal,
+}: {
+  chainId: number;
+  orders: OrderV1[];
+  signal?: AbortSignal;
+}) => {
   const ids = uniq(orders.map((o) => o.Contract_id)); // no `.toString()`
   const twapAddresses = uniq(orders.map((o) => o.twapAddress)).filter(Boolean);
 
   if (ids.length === 0) return [];
 
   const formattedIds = ids.join(", "); // no quotes
-  const formattedTwapAddresses = twapAddresses.map((addr) => `"${addr}"`).join(", ");
-  const twapAddressClause = twapAddresses.length ? `twapAddress_in: [${formattedTwapAddresses}]` : "";
+  const formattedTwapAddresses = twapAddresses
+    .map((addr) => `"${addr}"`)
+    .join(", ");
+  const twapAddressClause = twapAddresses.length
+    ? `twapAddress_in: [${formattedTwapAddresses}]`
+    : "";
 
-  const whereFields = [`TWAP_id_in: [${formattedIds}]`, twapAddressClause].filter(Boolean);
+  const whereFields = [
+    `TWAP_id_in: [${formattedIds}]`,
+    twapAddressClause,
+  ].filter(Boolean);
   const where = `where: { ${whereFields.join(", ")} }`;
-  const fills = await fetchWithRetryPaginated<TwapFill>({
+  const fills = await fetchWithRetryPaginated<FillV1>({
     chainId,
     signal,
     limit: 1000,
     buildQuery: (page, limit) => `
       {
-        orderFilleds(first: ${limit}, orderBy: timestamp, skip: ${page * limit}, ${where}) {
+        orderFilleds(first: ${limit}, orderBy: timestamp, skip: ${
+      page * limit
+    }, ${where}) {
           id
           dstAmountOut
           dstFee
@@ -379,7 +437,7 @@ const getFills = async ({ chainId, orders, signal }: { chainId: number; orders: 
       }
     `,
     extractResults: (json: any) =>
-      (json.data?.orderFilleds || []).map((it: TwapFill) => ({
+      (json.data?.orderFilleds || []).map((it: FillV1) => ({
         ...it,
         timestamp: new Date(it.timestamp).getTime(),
       })),
@@ -395,20 +453,6 @@ export class NoGraphEndpointError extends Error {
   }
 }
 
-export type GetOrdersFilters = {
-  transactionHashes?: string[];
-  orderIds?: number[];
-  accounts?: string[];
-  configs?: Config[];
-  inTokenSymbols?: string[];
-  outTokenSymbols?: string[];
-  inTokenAddresses?: string[];
-  outTokenAddresses?: string[];
-  minDollarValueIn?: number;
-  startDate?: number;
-  endDate?: number;
-  orderType?: "limit" | "market";
-};
 
 export const getOrders = async ({
   chainId,
@@ -421,28 +465,59 @@ export const getOrders = async ({
   signal?: AbortSignal;
   page?: number;
   limit?: number;
-  filters?: GetOrdersFilters;
+  filters?: GetV1OrdersFilters;
 }): Promise<Order[]> => {
-  const orders = await getCreatedOrders({ chainId, signal, page, limit, filters });
-  const [fills, statuses] = await Promise.all([getFills({ chainId, orders, signal }), getStatuses({ chainId, orders, signal })]);
+  const orders = await getCreatedOrders({
+    chainId,
+    signal,
+    page,
+    limit,
+    filters,
+  });
+  const [fills, statuses] = await Promise.all([
+    getFills({ chainId, orders, signal }),
+    getStatuses({ chainId, orders, signal }),
+  ]);
 
   const parsedOrders = orders
     .map((o) => {
-      const orderFills = fills?.filter((it) => it.TWAP_id === Number(o.Contract_id) && eqIgnoreCase(it.exchange, o.exchange) && eqIgnoreCase(it.twapAddress, o.twapAddress));
-      return buildV1Order(o, chainId, orderFills, getStatus(o, orderFills || [], statuses));
+      const orderFills = fills?.filter(
+        (it) =>
+          it.TWAP_id === Number(o.Contract_id) &&
+          eqIgnoreCase(it.exchange, o.exchange) &&
+          eqIgnoreCase(it.twapAddress, o.twapAddress)
+      );
+      return buildV1Order(
+        o,
+        chainId,
+        orderFills,
+        getStatus(o, orderFills || [], statuses)
+      );
     })
     .sort((a, b) => b.createdAt - a.createdAt);
   return parsedOrders;
 };
 
-const getStatus = (order: OrderV1, fills: TwapFill[], statuses?: GraphStatus[]): OrderStatus => {
-  const status = statuses?.find((it) => it.twapId === order.Contract_id.toString() && eqIgnoreCase(it.twapAddress, order.twapAddress))?.status;
-  const { filledSrcAmount } = parseFills(fills);
+const getStatus = (
+  order: OrderV1,
+  fills: FillV1[],
+  statuses?: GraphStatus[]
+): OrderStatus => {
+  const status = statuses?.find(
+    (it) =>
+      it.twapId === order.Contract_id.toString() &&
+      eqIgnoreCase(it.twapAddress, order.twapAddress)
+  )?.status;
+  const parsedFills = parseFills(fills);
+  const filledSrcAmount = parsedFills.reduce((acc, fill) => acc.plus(fill.inAmount), new BN(0)).toFixed();
   const progress = getV1OrderProgress(order.ask_srcAmount, filledSrcAmount);
   return parseOrderStatus(progress, order.ask_deadline * 1000, status);
 };
 
-export const getV1OrderProgress = (srcAmount: string, filledSrcAmount: string) => {
+export const getV1OrderProgress = (
+  srcAmount: string,
+  filledSrcAmount: string
+) => {
   if (!filledSrcAmount || !srcAmount) return 0;
   const progress = BN(filledSrcAmount).dividedBy(srcAmount).toNumber();
 
@@ -452,7 +527,11 @@ export const getV1OrderProgress = (srcAmount: string, filledSrcAmount: string) =
   return Number((progress * 100).toFixed(2));
 };
 
-const parseOrderStatus = (progress: number, deadline: number, status?: RawStatus): OrderStatus => {
+const parseOrderStatus = (
+  progress: number,
+  deadline: number,
+  status?: RawStatus
+): OrderStatus => {
   if (progress === 100) return OrderStatus.Completed;
   if (status === "CANCELED") return OrderStatus.Canceled;
   if (status === "COMPLETED") return OrderStatus.Completed;
