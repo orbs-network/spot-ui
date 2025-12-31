@@ -1,4 +1,4 @@
-import { Step, SwapStatus } from "@orbs-network/swap-ui";
+import { SwapStatus } from "@orbs-network/swap-ui";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { Currency, SwapStep } from "../types";
@@ -12,8 +12,6 @@ type UserStore = {
   setSlippage: (slippage: number) => void;
   priceProtection: number;
   setPriceProtection: (priceProtection: number) => void;
-  _hasHydrated: boolean;
-  setHasHydrated: (state: boolean) => void;
   customCurrencies: CustomCurrencies;
   setCustomCurrency: (chainId: number, currency: Currency) => void;
 };
@@ -33,27 +31,13 @@ export const useUserStore = create<UserStore>()(
         })),
       setSlippage: (slippage: number) => set({ slippage }),
       setPriceProtection: (priceProtection: number) => set({ priceProtection }),
-      _hasHydrated: false,
-      setHasHydrated: (state: boolean) => set({ _hasHydrated: state }),
     }),
     {
       name: "swap-store",
       storage: createJSONStorage(() => localStorage),
-      // Skip automatic hydration to prevent SSR mismatch
-      skipHydration: true,
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
-      },
     }
   )
 );
-
-// Hook to handle hydration - call this in your root component
-export const useHydrateStores = () => {
-  useEffect(() => {
-    useUserStore.persist.rehydrate();
-  }, []);
-};
 
 type SwapStore = {
   inputAmount: string;

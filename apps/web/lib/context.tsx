@@ -1,9 +1,7 @@
 import { createContext, useEffect, useRef } from "react";
 import { useConnection } from "wagmi";
 import { useSwapParams } from "./hooks/use-swap-params";
-import { eqIgnoreCase, setApiMode } from "@orbs-network/spot-react";
-import { useHydrateStores } from "./hooks/store";
-import { useCurrencies } from "./hooks/use-currencies";
+import { setApiMode } from "@orbs-network/spot-react";
 
 const Context = createContext({});
 
@@ -13,7 +11,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const chainRef = useRef<number | undefined>(undefined);
 
   // Hydrate persisted Zustand stores on client
-  useHydrateStores();
 
   // Set API mode on client side only
   useEffect(() => {
