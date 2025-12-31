@@ -20,6 +20,7 @@ const chainIdToName: { [key: number]: string } = {
   [chains.cronoszkEVM.id]: "cronos-zkevm",
   [chains.katana.id]: "katana",
   [chains.monad.id]: "monad",
+  [chains.avalanche.id]: "avax",
 };
 
 export interface LlamaPriceResult {

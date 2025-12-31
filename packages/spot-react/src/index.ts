@@ -20,6 +20,7 @@ import { useInputErrors } from "./hooks/use-input-errors";
 import { useBuildRePermitOrderDataCallback } from "./hooks/use-build-repermit-order-data-callback";
 import { useTogglePricePanel } from "./hooks/use-toggle-price";
 import { SubmitOrderPanel } from "./components/submit-order-panel";
+import { useTranslations } from "./hooks/use-translations";
 export * from "./types";
 export * from "./utils";
 export { PRICE_PROTECTION_SETTINGS } from "./consts";
@@ -49,6 +50,7 @@ const Components = {
 export * from "@orbs-network/spot-ui";
 
 
+
 export {
   SpotProvider,
   DEFAULT_DURATION_OPTIONS,
@@ -68,5 +70,6 @@ export {
   useInputErrors,
   useTogglePricePanel,
   useBuildRePermitOrderDataCallback,
-  useTypedSrcAmount
+  useTypedSrcAmount,
+  useTranslations
 };

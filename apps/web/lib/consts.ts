@@ -1,4 +1,4 @@
-import { arbitrum, base, bsc, linea, mainnet, monad, polygon, sei, sonic } from "viem/chains";
+import { arbitrum, avalanche, base, bsc, linea, mainnet, monad, polygon, sei, sonic } from "viem/chains";
 import { TABS } from "./types";
 import { Partners } from "@orbs-network/spot-ui";
 
@@ -38,7 +38,11 @@ export const DEFAULT_TOKENS = {
   [monad.id]: {
     input: "0x3bd359c1119da7da1d913d1c4d2b7c461115433a",
     output: "0x754704bc059f8c67012fed69bc8a327a5aafb603",
-  }
+  },
+  [avalanche.id]: { 
+    input: "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+    output: "0xc7198437980c041c805a1edcba50c1ce5db95118",
+  },
 };
 
 
@@ -65,6 +69,7 @@ export const NATIVE_TOKENS_LOGO_URLS = {
   [sonic.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/32684.png",
   [sei.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/23149.png",
   [monad.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/30495.png",
+  [avalanche.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/5805.png",
 };
 
 export const DEFAULT_PRICE_PROTECTION = 5;
