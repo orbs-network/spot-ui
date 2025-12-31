@@ -1,11 +1,12 @@
 import { useOrderHistoryPanel, SelectMeuItem, OrderStatus, Components } from "@orbs-network/spot-react";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
-import { ArrowLeftIcon, HistoryIcon } from "lucide-react";
+import { ArrowLeftIcon, HistoryIcon, LinkIcon } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "../ui/button";
 import { DialogHeader } from "../ui/dialog";
 import { SpotSelectMenu } from "./components";
+import { isDev } from "@/lib/consts";
 
 export const SpotsOrders = () => {
     const {
@@ -66,6 +67,12 @@ export const SpotsOrders = () => {
               />
             )}
             <Components.Orders />
+            {selectedOrder && isDev && <div className="flex flex-row gap-2 items-center justify-between">
+                <p className="text-sm text-foreground flex-1 font-medium">Sink Url</p>
+                <a href={`https://order-sink-dev.orbs.network/?order=${selectedOrder.id.value}`} target="_blank" rel="noopener noreferrer">
+                  <LinkIcon className="size-4" />
+                </a>
+              </div>}
           </DialogContent>
         </Dialog>
   

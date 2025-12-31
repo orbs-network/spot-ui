@@ -6,6 +6,7 @@ export type Currency = {
     logoUrl: string;
     balance?: string;
     name: string
+    imported?: boolean;
 }
 
 export type USDPrices = {

@@ -5,10 +5,9 @@ import { erc20Abi, isAddress } from "viem";
 import { useChainId, useConnection, useReadContracts } from "wagmi";
 import { useBalances } from "./use-balances";
 import { useUSDPrices } from "./use-usd-price";
-import { useQuery } from "@tanstack/react-query";
-import { getCurrencies } from "../get-currencies";
 import { Currency } from "../types";
 import { useCurrenciesQuery } from "./use-currencies-query";
+import { useUserStore } from "./store";
 
 const useExternalCurrency = (address?: `0x${string}`) => {
   const { data: externalCurrency } = useReadContracts({
@@ -40,15 +39,13 @@ const useExternalCurrency = (address?: `0x${string}`) => {
       symbol: externalCurrency[2] ?? "",
       address: address ?? "",
       logoUrl: "",
+      imported: true,
     };
   }, [externalCurrency, address]);
 };
 
-
-
 const useAllCurrencies = () => {
   const { data: currencies, isLoading } = useCurrenciesQuery();
-  const chainId = useChainId();
 
   const { data: balances } = useBalances();
 
@@ -68,7 +65,9 @@ const useAllCurrencies = () => {
   const result = useMemo(() => {
     if (!currencies) return [];
     const sorted = sortTokens(currencies, usdPrices, balances);
-    return sorted;
+
+    
+    return sorted
   }, [currencies, balances, usdPrices]);
 
   return {

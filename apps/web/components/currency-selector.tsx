@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Dialog,
   DialogClose,
@@ -29,6 +29,7 @@ import { Input } from "./ui/input";
 import { Skeleton } from "./ui/skeleton";
 import { useCurrencies } from "@/lib/hooks/use-currencies";
 import { CurrencyLogo } from "./ui/currency-logo";
+import { useUserStore } from "@/lib/hooks/store";
 
 type Props = {
   onCurrencyChange: (currency: Currency) => void;
@@ -45,9 +46,10 @@ const PopularTokens = ({
   const popularTokens = getPopularTokenForChain(chainId);
 
   const popularCurrencies = useMemo(() => {
-    if(!popularTokens.length) return [];
-    return (
-      filterCurrencies(currencies, popularTokens.map((t) => t.toLowerCase()))
+    if (!popularTokens.length) return [];
+    return filterCurrencies(
+      currencies,
+      popularTokens.map((t) => t.toLowerCase())
     );
   }, [currencies, popularTokens]);
 
@@ -112,10 +114,23 @@ const Loader = () => {
 
 export function CurrencySelector({ onCurrencyChange, trigger }: Props) {
   const [open, setOpen] = useState(false);
+  const { chainId } = useConnection();
   const [search, setSearch] = useState("");
   const { currencies, isLoading } = useCurrencies(search);
+  const { setCustomCurrency } = useUserStore();
 
   const isEmptyList = !isLoading && currencies.length === 0;
+
+  const onChange = useCallback(
+    (currency: Currency) => {
+      onCurrencyChange(currency);
+      setOpen(false);
+      if (currency.imported) {
+        setCustomCurrency(chainId ?? 0, currency);
+      }
+    },
+    [onCurrencyChange, setOpen, setCustomCurrency, chainId]
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -133,19 +148,20 @@ export function CurrencySelector({ onCurrencyChange, trigger }: Props) {
           <DialogTitle>Select a token</DialogTitle>
         </DialogHeader>
         <SearchInput onChange={setSearch} value={search} />
-        <PopularTokens onCurrencyChange={onCurrencyChange} />
+        <PopularTokens onCurrencyChange={onChange} />
         <div className="flex flex-col gap-2 h-[80vh] max-h-[500px] overflow-y-auto">
-          {isEmptyList ? <div className="flex items-center justify-center h-full">No results found</div> : isLoading ? (
+          {isEmptyList ? (
+            <div className="flex items-center justify-center h-full">
+              No results found
+            </div>
+          ) : isLoading ? (
             <Loader />
           ) : (
             <Virtuoso
               style={{ height: "100%" }}
               data={currencies}
               itemContent={(_, currency) => (
-                <CurrencyItem
-                  currency={currency}
-                  onCurrencyChange={onCurrencyChange}
-                />
+                <CurrencyItem currency={currency} onCurrencyChange={onChange} />
               )}
             />
           )}

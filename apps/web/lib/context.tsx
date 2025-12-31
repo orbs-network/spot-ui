@@ -1,14 +1,16 @@
-import { createContext, useEffect } from "react";
+import { createContext, useEffect, useRef } from "react";
 import { useConnection } from "wagmi";
 import { useSwapParams } from "./hooks/use-swap-params";
-import { setApiMode } from "@orbs-network/spot-react";
+import { eqIgnoreCase, setApiMode } from "@orbs-network/spot-react";
 import { useHydrateStores } from "./hooks/store";
+import { useCurrencies } from "./hooks/use-currencies";
 
 const Context = createContext({});
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const { chainId } = useConnection();
   const { setCurrencies } = useSwapParams();
+  const chainRef = useRef<number | undefined>(undefined);
 
   // Hydrate persisted Zustand stores on client
   useHydrateStores();
@@ -21,9 +23,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // Reset currencies when chain changes
   useEffect(() => {
-    setCurrencies({ inputCurrency: undefined, outputCurrency: undefined });
+    if (chainRef.current && chainRef.current !== chainId) {
+      setCurrencies({ inputCurrency: undefined, outputCurrency: undefined });
+    }
+    chainRef.current = chainId;
   }, [chainId, setCurrencies]);
 
   return <Context.Provider value={{}}>{children}</Context.Provider>;

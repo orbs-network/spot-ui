@@ -327,6 +327,7 @@ const TokenLogo = ({ token }: TokenLogoProps) => {
 const SubmitSwapError = ({
   code,
   onClose,
+  message,
 }: {
   message: string;
   code: number;
@@ -339,6 +340,11 @@ const SubmitSwapError = ({
         <p className="text-sm text-foreground flex-1 font-medium">
           Error code: {code}
         </p>
+        {process.env.NEXT_PUBLIC_MODE === "dev" && (
+          <p className="text-sm text-foreground flex-1 font-medium max-h-[200px] overflow-y-auto">
+            {message}
+          </p>
+        )}
       </div>
       <div className="w-full flex justify-center">
         <Button onClick={onClose}>Close</Button>
@@ -389,6 +395,7 @@ const SubmitSwapMain = ({
     />
   );
 };
+
 
 const SubmitSwap = () => {
   const {
