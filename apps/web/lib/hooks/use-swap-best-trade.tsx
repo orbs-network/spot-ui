@@ -1,4 +1,4 @@
-import { isFreshQuote, permit2Address, Quote } from "@orbs-network/liquidity-hub-sdk";
+import { isFreshQuote, permit2Address, Quote,  } from "@orbs-network/liquidity-hub-sdk";
 import { useMutation } from "@tanstack/react-query";
 import { useSignEip } from "./use-sign-eip";
 import { useApproval } from "./use-approval";
@@ -205,6 +205,9 @@ export const useSwapBestTrade = () => {
       const tx = await liquidityHubClient.swap(quote, signature);
       toasts.onSwapSuccess();
       updateStore({ txHash: tx as `0x${string}` });
+      const test = await liquidityHubClient.getTransactionDetails(tx as `0x${string}`, quote);
+      console.log({test});
+      
       return await getTransactionReceiptCallback(tx as `0x${string}`);
     },
     onSuccess: () => {

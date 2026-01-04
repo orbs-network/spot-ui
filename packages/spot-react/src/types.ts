@@ -272,17 +272,18 @@ export type OnCancelOrderSuccess = {
 export type ParsedError = {
   message: string;
   code: number;
+  error: Error;
 };
 
 export type Callbacks = {
   onCancelOrderRequest?: (orders: Order[]) => void;
   onCancelOrderSuccess?: (props: OnCancelOrderSuccess) => void;
-  onCancelOrderFailed?: (error: string) => void;
+  onCancelOrderFailed?: (error: Error) => void;
   onOrdersProgressUpdate?: (orders: Order[]) => void;
   onSignOrderRequest?: () => void;
   onOrderCreated?: (order: Order) => void;
   onSignOrderSuccess?: (signature: string) => void;
-  onSignOrderError?: (error: string) => void;
+  onSignOrderError?: (error: Error) => void;
   onApproveRequest?: () => void;
   onApproveSuccess?: (props: OnApproveSuccessCallback) => void;
   onWrapRequest?: () => void;
@@ -358,6 +359,7 @@ export interface SpotContextType extends TwapProps {
   noLiquidity?: boolean;
   config?: SpotConfig;
   slippage: number;
+  supportedChains: number[];
 }
 
 export type SelectMeuItem = { text: string; value: string | number };
@@ -401,7 +403,7 @@ export enum Steps {
 }
 export type SwapExecution = {
   status?: SwapStatus;
-  error?: { message: string; code: number };
+  error?: ParsedError;
   step?: Steps;
   stepIndex?: number;
   approveTxHash?: string;

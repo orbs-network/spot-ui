@@ -2,13 +2,11 @@
 // @ts-ignore
 import IWETHABI from "./iweth.json";
 import ERC20 from "./erc20.json";
-// @ts-ignore
-import * as Spot from "@orbs-network/spot";
 import TwapAbi from "@orbs-network/twap/twap.abi.json";
+import RePermitAbi from "./repermit.json";
 
-const ABIS = Spot.abis();
 
 export const IWETH_ABI = IWETHABI;
 export const ERC20_ABI = ERC20;
-export const REPERMIT_ABI = ABIS.repermit;
+export const REPERMIT_ABI = RePermitAbi;
 export const TWAP_ABI = TwapAbi;

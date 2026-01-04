@@ -21,6 +21,7 @@ import { useBuildRePermitOrderDataCallback } from "./hooks/use-build-repermit-or
 import { useTogglePricePanel } from "./hooks/use-toggle-price";
 import { SubmitOrderPanel } from "./components/submit-order-panel";
 import { useTranslations } from "./hooks/use-translations";
+import { useConfig } from "./hooks/use-config";
 export * from "./types";
 export * from "./utils";
 export { PRICE_PROTECTION_SETTINGS } from "./consts";
@@ -50,7 +51,6 @@ const Components = {
 export * from "@orbs-network/spot-ui";
 
 
-
 export {
   SpotProvider,
   DEFAULT_DURATION_OPTIONS,
@@ -71,5 +71,6 @@ export {
   useTogglePricePanel,
   useBuildRePermitOrderDataCallback,
   useTypedSrcAmount,
-  useTranslations
+  useTranslations,
+  useConfig
 };

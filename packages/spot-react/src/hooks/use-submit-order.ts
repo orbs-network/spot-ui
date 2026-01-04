@@ -142,7 +142,7 @@ const useSignAndSend = () => {
           account: account as `0x${string}`,
         });
       } catch (error) {
-        callbacks?.onSignOrderError?.((error as Error).message);
+        callbacks?.onSignOrderError?.(error as Error);
         analytics.onSignOrderError(error);
         throw error;
       }
@@ -328,17 +328,19 @@ const useInitOrderRequest = () => {
   });
 };
 
-function parseError(input: string): ParsedError {
+function parseError(error: Error): ParsedError {
+  const input = error.message;
   const codeMatch = input.match(/,\s*code\s*:\s*(\d+)/i);
 
-  const error = input
+  const errorStr = input
     .replace(/^error\s*:/i, "")
     .replace(/,\s*code\s*:\s*\d+/i, "")
     .trim();
 
   return {
-    message: error || "",
+    message: errorStr || "",
     code: codeMatch ? Number(codeMatch[1]) : 0,
+    error
   };
 }
 
@@ -419,17 +421,11 @@ export const useSubmitOrderMutation = () => {
             stepIndex: undefined,
           });
         } else {
-          const errorMsg = parseError((error as Error).message);
-          callbacks?.onSubmitOrderFailed?.({
-            message: errorMsg.message || "",
-            code: errorMsg.code || 0,
-          });
+          const parsedError = parseError(error as Error);
+          callbacks?.onSubmitOrderFailed?.(parsedError);
           updateSwapExecution({
             status: SwapStatus.FAILED,
-            error: {
-              message: errorMsg.message || "",
-              code: errorMsg.code || 0,
-            },
+            error: parsedError,
           });
         }
       }

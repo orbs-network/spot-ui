@@ -7,6 +7,7 @@ import {
   QUERY_PARAMS,
   amountBN,
   analytics,
+  getPartnerChains,
 } from "@orbs-network/spot-ui";
 import {
   TwapProps,
@@ -201,6 +202,11 @@ const Content = (props: TwapProps) => {
     }
   }, [config, props.chainId, minChunkSizeUsd]);
 
+  const supportedChains = useMemo(() => {
+    if (!config) return [];
+    return getPartnerChains(config.partner);
+  }, [config]);
+
   return (
     <SpotContext.Provider
       value={{
@@ -215,6 +221,7 @@ const Content = (props: TwapProps) => {
         noLiquidity: !acceptedMarketPrice && marketReferencePrice.noLiquidity,
         config,
         slippage: props.priceProtection,
+        supportedChains
       }}
     >
       <Listeners {...props} />

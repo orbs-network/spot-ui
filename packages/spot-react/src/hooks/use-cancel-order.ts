@@ -106,7 +106,7 @@ export const useCancelOrderMutation = () => {
         return [...(v1Results || []), v2Result];
       } catch (error) {
         console.error("cancel order error", error);
-        callbacks?.onCancelOrderFailed?.((error as Error).message);
+        callbacks?.onCancelOrderFailed?.(error as Error);
 
         if (isTxRejected(error)) {
           updateState({ cancelOrderStatus: undefined });
