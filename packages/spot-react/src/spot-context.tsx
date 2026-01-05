@@ -68,9 +68,12 @@ const TwapFallbackUI = () => {
 
 function ErrorWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <ErrorBoundary FallbackComponent={TwapFallbackUI} onError={(error) => analytics.onCrash(error)}>
+    <ErrorBoundary
+      FallbackComponent={TwapFallbackUI}
+      onError={(error) => analytics.onCrash(error)}
+    >
       <>{children}</>
-  </ErrorBoundary>
+    </ErrorBoundary>
   );
 }
 
@@ -185,10 +188,20 @@ const Content = (props: TwapProps) => {
     () => initiateWallet(props.chainId, props.provider),
     [props.chainId, props.provider]
   );
+
+  const supportedChains = useMemo(() => getPartnerChains(props.partner), [props.partner]);
+
+  const chainId = useMemo(() => {
+    return supportedChains.includes(props.chainId || 0)
+      ? props.chainId
+      : supportedChains[0];
+  }, [props.chainId, supportedChains]);
+
   const config = useMemo(
-    () => getConfig(props.chainId, props.partner),
-    [props.chainId, props.partner]
+    () => getConfig(props.partner, chainId),
+    [props.partner, chainId]
   );
+
   const marketReferencePrice = useParsedMarketPrice(props);
   const minChunkSizeUsd = useMemo(
     () => getMinChunkSizeUsd(props.minChunkSizeUsd),
@@ -196,16 +209,8 @@ const Content = (props: TwapProps) => {
   );
 
   useEffect(() => {
-    analytics.onLoad();
-    if (config && props.chainId) {
-      analytics.init(config, minChunkSizeUsd, props.chainId);
-    }
-  }, [config, props.chainId, minChunkSizeUsd]);
-
-  const supportedChains = useMemo(() => {
-    if (!config) return [];
-    return getPartnerChains(config.partner);
-  }, [config]);
+    analytics.init(config, minChunkSizeUsd, chainId);
+  }, [config, chainId, minChunkSizeUsd]);
 
   return (
     <SpotContext.Provider
@@ -221,7 +226,7 @@ const Content = (props: TwapProps) => {
         noLiquidity: !acceptedMarketPrice && marketReferencePrice.noLiquidity,
         config,
         slippage: props.priceProtection,
-        supportedChains
+        supportedChains,
       }}
     >
       <Listeners {...props} />

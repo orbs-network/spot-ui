@@ -6,7 +6,7 @@ export const useAddresses = () => {
   const { config } = useSpotContext();
   return useMemo(() => {
     return {
-      spender: config?.repermit ?? "",
+      spender: config.repermit,
     }
   }, [config])
 };

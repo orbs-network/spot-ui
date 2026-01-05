@@ -179,5 +179,6 @@ export const getQueryParam = (name: string) => {
 };
 
 export const getPartnerChains = (partner: Partners) => {
+  
   return getPartners().filter((p) => p.name === partner).map((p) => p.chainId);
 };

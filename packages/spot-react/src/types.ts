@@ -357,7 +357,7 @@ export interface SpotContextType extends TwapProps {
   marketPriceLoading?: boolean;
   account?: `0x${string}`;
   noLiquidity?: boolean;
-  config?: SpotConfig;
+  config: SpotConfig;
   slippage: number;
   supportedChains: number[];
 }

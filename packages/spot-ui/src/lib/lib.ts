@@ -267,30 +267,24 @@ export const getMaxChunksError = (
 };
 
 export const getConfig = (
-  chainId?: number,
-  _dex?: Partners
-): SpotConfig | undefined => {
-  try {
-    if (!chainId || !_dex) throw new Error("Invalid chainId or _dex");
+  _dex: Partners,
+  chainId = 0
+): SpotConfig => {
+  const twapConfig = Object.entries(Configs).find(
+    ([key, value]) =>
+      value.chainId === chainId &&
+      key.toLowerCase().indexOf(_dex.toLowerCase()) >= 0
+  )?.[1];
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { abi, ...dexConfig } = Spot.config(chainId, _dex);
 
-    const twapConfig = Object.entries(Configs).find(
-      ([key, value]) =>
-        value.chainId === chainId &&
-        key.toLowerCase().indexOf(_dex.toLowerCase()) >= 0
-    )?.[1];
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { abi, ...dexConfig } = Spot.config(chainId, _dex);
+  const result = {
+    ...dexConfig,
+    partner: _dex,
+    twapConfig: twapConfig as Config | undefined,
+  };
 
-    const result = {
-      ...dexConfig,
-      partner: _dex,
-      twapConfig: twapConfig as Config | undefined,
-    };
-
-    return result;
-  } catch (error) {
-    return undefined;
-  }
+  return result;
 };
 
 export type PartnerPayloadItem = {
@@ -309,13 +303,10 @@ export const getPartners = (): PartnerPayloadItem[] => {
       if (!dex || typeof dex !== "object") return [];
 
       return Object.entries(dex).map(([name]) => ({
-        chainId:Number(chainId),
+        chainId: Number(chainId),
         name: name,
-        config: getConfig(Number(chainId), name as Partners),
+        config: getConfig(name as Partners, Number(chainId)),
       }));
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 };
-
-
-
