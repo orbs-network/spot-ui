@@ -21,7 +21,8 @@ import { useBuildRePermitOrderDataCallback } from "./hooks/use-build-repermit-or
 import { useTogglePricePanel } from "./hooks/use-toggle-price";
 import { SubmitOrderPanel } from "./components/submit-order-panel";
 import { useTranslations } from "./hooks/use-translations";
-import { useConfig } from "./hooks/use-config";
+import { useSupportedChains } from "./hooks/use-supported-chains";
+import { useAddresses } from "./hooks/use-addresses";
 export * from "./types";
 export * from "./utils";
 export { PRICE_PROTECTION_SETTINGS } from "./consts";
@@ -72,5 +73,6 @@ export {
   useBuildRePermitOrderDataCallback,
   useTypedSrcAmount,
   useTranslations,
-  useConfig
+  useSupportedChains,
+  useAddresses
 };

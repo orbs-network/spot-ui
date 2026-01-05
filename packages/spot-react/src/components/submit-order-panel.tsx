@@ -203,7 +203,7 @@ const Main = () => {
                 tooltip={order.display.tradeInterval.tooltip}
               />
               <OrderDetails.Recipient />
-              {order.fee.value && <OrderDetails.Fees fees={order.fee.value} label={order.fee.label} usd={order.fee.usd} dstTokenSymbol={dstToken?.symbol} />}
+              {order.fee.amount && <OrderDetails.Fees fees={order.fee.amount} label={order.fee.label} usd={order.fee.usd} dstTokenSymbol={dstToken?.symbol} />}
             </div>
           </OrderDetails.Container>
           {reviewDetails}

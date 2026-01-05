@@ -78,8 +78,9 @@ export const useCurrentOrderDetails = () => {
       dstAmountUsd,
       fee: {
         label: t("fees", { value: `${feesPercent}%` }),
-        value: feesAmount,
+        amount: feesAmount,
         usd: feesUsd,
+        percentage: feesPercent,
       },
       display: {
         ...order.display,
