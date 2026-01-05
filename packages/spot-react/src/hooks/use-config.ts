@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useSpotContext } from "../spot-context";
 
 export const useConfig = () => {
-  const { config, supportedChains, chainId } = useSpotContext();
+  const { config, supportedChains } = useSpotContext();
   return useMemo(() => {
     if (!config) return;
     const { twapConfig, ...rest } = config;
@@ -11,7 +11,6 @@ export const useConfig = () => {
     return {
       ...rest,
       supportedChains,
-      invalidChain: chainId ? !supportedChains.includes(chainId) : false,
     };
-  }, [config, supportedChains, chainId]);
+  }, [config, supportedChains])
 };
