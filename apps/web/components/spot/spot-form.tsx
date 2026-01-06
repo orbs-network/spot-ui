@@ -335,11 +335,13 @@ const SubmitSwapError = ({
 }) => {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-row gap-2 bg-destructive/50 p-2 rounded-md">
-        <AlertTriangleIcon className="size-4 text-foreground relative top-0.5" />
+      <div className="flex flex-col gap-2 bg-destructive/50 p-2 rounded-md">
+       <div className="flex flex-row gap-2">
+       <AlertTriangleIcon className="size-4 text-foreground relative top-0.5" />
         <p className="text-sm text-foreground flex-1 font-medium">
           Error code: {code}
         </p>
+       </div>
         {process.env.NEXT_PUBLIC_MODE === "dev" && (
           <p className="text-sm text-foreground flex-1 font-medium max-h-[200px] overflow-y-auto">
             {message}

@@ -158,8 +158,9 @@ const useParsedMarketPrice = ({
     if (
       BN(marketReferencePrice.value || 0).isZero() ||
       BN(typedSrcAmount || 0).isZero()
-    )
+    ) {
       return marketReferencePrice;
+    }
 
     const value = BN(marketReferencePrice.value || 0)
       .dividedBy(typedSrcAmount || 0)
@@ -189,12 +190,19 @@ const Content = (props: TwapProps) => {
     [props.chainId, props.provider]
   );
 
-  const supportedChains = useMemo(() => getPartnerChains(props.partner), [props.partner]);
+  const supportedChains = useMemo(
+    () => getPartnerChains(props.partner),
+    [props.partner]
+  );
 
   const chainId = useMemo(() => {
-    return supportedChains.includes(props.chainId || 0)
+    const supportedChain = supportedChains[0] as number;
+    if (!props.chainId) {
+      return supportedChain;
+    }
+    return supportedChains.includes(props.chainId)
       ? props.chainId
-      : supportedChains[0];
+      : supportedChain;
   }, [props.chainId, supportedChains]);
 
   const config = useMemo(
@@ -215,7 +223,6 @@ const Content = (props: TwapProps) => {
   return (
     <SpotContext.Provider
       value={{
-        ...props,
         minChunkSizeUsd,
         account: props.account as `0x${string}` | undefined,
         walletClient,
@@ -227,6 +234,23 @@ const Content = (props: TwapProps) => {
         config,
         slippage: props.priceProtection,
         supportedChains,
+        chainId,
+        partner: props.partner,
+        module: props.module,
+        fees: props.fees || 0,
+        components: props.components,
+        overrides: props.overrides,
+        callbacks: props.callbacks,
+        getTranslation: props.getTranslation,
+        translations: props.translations,
+        useToken: props.useToken,
+        refetchBalances: props.refetchBalances,
+        srcUsd1Token: props.srcUsd1Token,
+        dstUsd1Token: props.dstUsd1Token,
+        srcBalance: props.srcBalance,
+        dstBalance: props.dstBalance,
+        srcToken: props.srcToken,
+        dstToken: props.dstToken,
       }}
     >
       <Listeners {...props} />

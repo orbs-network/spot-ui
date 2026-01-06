@@ -13,7 +13,7 @@ import { useTranslations } from "./use-translations";
 import { getQueryParam } from "@orbs-network/spot-ui";
 
 export const useBalanceError = () => {
-  const { srcBalance } = useSpotContext();
+  const { srcBalance, chainId } = useSpotContext();
   const t = useTranslations();
   const srcAmountWei = useSrcAmount().amountWei;
 
@@ -25,7 +25,7 @@ export const useBalanceError = () => {
         value: srcBalance || "",
       };
     }
-  }, [srcBalance, srcAmountWei, t]);
+  }, [srcBalance, srcAmountWei, t, chainId]);
 };
 
 export function useInputErrors() {
@@ -38,11 +38,35 @@ export function useInputErrors() {
   const { error: fillDelayError } = useFillDelay();
   const { error: durationError } = useDuration();
 
-  const ignoreErrors = useMemo(() => getQueryParam("ignore-errors"), []);
+  return useMemo(() => {
+    const ignoreErrors = getQueryParam("ignore-errors");
 
-  if (BN(marketPrice || 0).isZero() || BN(srcAmount || 0).isZero() || marketPriceLoading || ignoreErrors) {
-    return undefined;
-  }
+    if (
+      BN(marketPrice || 0).isZero() ||
+      BN(srcAmount || 0).isZero() ||
+      marketPriceLoading ||
+      ignoreErrors
+    ) {
+      return undefined;
+    }
 
-  return triggerPriceError || limitPriceError || tradesError || fillDelayError || durationError || balanceError;
+    return (
+      triggerPriceError ||
+      limitPriceError ||
+      tradesError ||
+      fillDelayError ||
+      durationError ||
+      balanceError
+    );
+  }, [
+    marketPrice,
+    marketPriceLoading,
+    srcAmount,
+    triggerPriceError,
+    limitPriceError,
+    tradesError,
+    fillDelayError,
+    durationError,
+    balanceError,
+  ]);
 }

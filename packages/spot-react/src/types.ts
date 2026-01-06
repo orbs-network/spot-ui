@@ -311,6 +311,20 @@ export type MarketReferencePrice = {
   noLiquidity?: boolean;
 };
 
+export type Components = {
+  Button?: FC<ButtonProps>;
+  Tooltip?: FC<TooltipProps>;
+  TokenLogo?: FC<TokenLogoProps>;
+  Spinner?: ReactNode;
+  SuccessIcon?: ReactNode;
+  ErrorIcon?: ReactNode;
+  Link?: FC<LinkProps>;
+  USD?: FC<USDProps>;
+  SubmitOrderSuccessView?: FC<SubmitOrderSuccessViewProps>;
+  SubmitOrderErrorView?: FC<SubmitOrderErrorViewProps>;
+  SubmitOrderMainView?: FC<{ children: ReactNode }>;
+};
+
 export interface TwapProps {
   children?: React.ReactNode;
   provider?: Provider;
@@ -335,22 +349,10 @@ export interface TwapProps {
   translations?: Partial<Translations> | undefined;
   useToken?: UseToken;
   minChunkSizeUsd: number;
-  components: {
-    Button?: FC<ButtonProps>;
-    Tooltip?: FC<TooltipProps>;
-    TokenLogo?: FC<TokenLogoProps>;
-    Spinner?: ReactNode;
-    SuccessIcon?: ReactNode;
-    ErrorIcon?: ReactNode;
-    Link?: FC<LinkProps>;
-    USD?: FC<USDProps>;
-    SubmitOrderSuccessView?: FC<SubmitOrderSuccessViewProps>;
-    SubmitOrderErrorView?: FC<SubmitOrderErrorViewProps>;
-    SubmitOrderMainView?: FC<{ children: ReactNode }>;
-  };
+  components: Components;
 }
 
-export interface SpotContextType extends TwapProps {
+export interface SpotContextType {
   walletClient?: ReturnType<typeof createWalletClient>;
   publicClient?: PublicClient;
   marketPrice?: string;
@@ -358,8 +360,26 @@ export interface SpotContextType extends TwapProps {
   account?: `0x${string}`;
   noLiquidity?: boolean;
   config: SpotConfig;
-  slippage: number;
   supportedChains: number[];
+  partner: Partners;
+  minChunkSizeUsd: number;
+  srcToken?: Token;
+  dstToken?: Token;
+  srcUsd1Token?: string;
+  dstUsd1Token?: string;
+  srcBalance?: string;
+  dstBalance?: string;
+  chainId: number;
+  slippage: number;
+  fees: number;
+  module: Module;
+  components: Components;
+  overrides?: Overrides;
+  callbacks?: Callbacks;
+  getTranslation?: (key: string, args?: Record<string, string>) => string | undefined;
+  translations?: Partial<Translations> | undefined;
+  useToken?: UseToken;
+  refetchBalances?: () => void;
 }
 
 export type SelectMeuItem = { text: string; value: string | number };

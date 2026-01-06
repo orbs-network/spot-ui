@@ -33,7 +33,6 @@ export const buildRePermitOrderData = ({
   const nonce = Date.now().toString();
   const epoch = parseInt((fillDelayMillis / 1000).toFixed(0));
   const deadline = safeBNString(deadlineMillis / 1000);
-
   const customFreshness = getQueryParam(QUERY_PARAMS.FRESHNESS);
   const freshness = customFreshness ? parseInt(customFreshness) : 60;
 
