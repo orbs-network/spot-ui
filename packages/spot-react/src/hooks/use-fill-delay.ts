@@ -33,6 +33,7 @@ export const useFillDelay = () => {
     fillDelay,
     onChange: useCallback((typedFillDelay: TimeDuration) => updateState({ typedFillDelay }), [updateState]),
     error,
+    milliseconds: fillDelay.unit * fillDelay.value,
   };
 };
 

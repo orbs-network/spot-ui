@@ -1,46 +1,35 @@
-import { useCallback } from "react";
+
 import { setUIVersion } from "@orbs-network/spot-ui";
-import { useSpotStore } from "./store";
 import pkg from "../package.json";
 import { SpotProvider } from "./spot-context";
 import { DEFAULT_DURATION_OPTIONS } from "./consts";
 import { Orders } from "./components/orders/orders";
 import { useTradesPanel } from "./hooks/use-trades";
 import { useFillDelayPanel } from "./hooks/use-fill-delay";
-import { useMarketPricePanel } from "./hooks/use-market-price";
 import { useDurationPanel } from "./hooks/use-duration";
 import { useDisclaimerPanel } from "./hooks/use-disclaimer-panel";
-import { useSubmitSwapPanel } from "./hooks/use-submit-swap-panel";
 import { useTriggerPricePanel } from "./hooks/use-trigger-price";
 import { useOrderHistoryPanel } from "./hooks/order-hooks";
-import { useDstTokenPanel, useSrcTokenPanel } from "./hooks/use-token-panel";
+import { useDstTokenPanel, useSrcTokenPanel, useTypedSrcAmount } from "./hooks/use-token-panel";
 import { useLimitPricePanel } from "./hooks/use-limit-price";
 import { useInvertTradePanel } from "./hooks/use-invert-trade-panel";
 import { useInputErrors } from "./hooks/use-input-errors";
-import { useBuildRePermitOrderDataCallback } from "./hooks/use-build-repermit-order-data-callback";
 import { useTogglePricePanel } from "./hooks/use-toggle-price";
 import { SubmitOrderPanel } from "./components/submit-order-panel";
 import { useTranslations } from "./hooks/use-translations";
-import { useSupportedChains } from "./hooks/use-supported-chains";
+import { usePartnerChains } from "./hooks/use-partner-chains";
 import { useAddresses } from "./hooks/use-addresses";
+import { useSubmitOrderButton, useSubmitOrderPanel } from "./hooks/use-submit-order-panel";
 export * from "./types";
 export * from "./utils";
 export { PRICE_PROTECTION_SETTINGS } from "./consts";
 export { useFormatNumber } from "./hooks/helper-hooks";
+import { useOrder, useOrderInfo } from "./hooks/use-order";
 
 // Set the UI version in spot-sdk for analytics
 setUIVersion(pkg.version);
 
 
-
-const useTypedSrcAmount = () => {
-  const updateState = useSpotStore((s) => s.updateState);
-
-  return {
-    amount: useSpotStore((s) => s.state.typedSrcAmount),
-    reset: useCallback(() => updateState({ typedSrcAmount: "" }), [updateState]),
-  };
-};
 
 
 const Components = {
@@ -60,19 +49,20 @@ export {
   useDurationPanel,
   useFillDelayPanel,
   useLimitPricePanel,
-  useMarketPricePanel,
   useSrcTokenPanel,
   useDstTokenPanel,
   useTriggerPricePanel,
   useOrderHistoryPanel,
-  useSubmitSwapPanel,
+  useSubmitOrderPanel,
   useDisclaimerPanel,
   useInvertTradePanel,
   useInputErrors,
   useTogglePricePanel,
-  useBuildRePermitOrderDataCallback,
   useTypedSrcAmount,
   useTranslations,
-  useSupportedChains,
-  useAddresses
+  usePartnerChains,
+  useAddresses,
+  useSubmitOrderButton,
+  useOrder,
+  useOrderInfo,
 };

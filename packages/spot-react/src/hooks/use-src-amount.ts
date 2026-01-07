@@ -3,6 +3,7 @@ import { useSpotStore } from "../store";
 import { useAmountBN } from "./helper-hooks";
 import BN from "bignumber.js";
 import { useTranslations } from "./use-translations";
+import { useCallback } from "react";
 
 export const useSrcAmount = () => {
   const { srcToken } = useSpotContext();
@@ -17,5 +18,15 @@ export const useSrcAmount = () => {
     amountWei: useAmountBN(srcToken?.decimals, value),
     amountUI: value,
     error: BN(value || 0).isZero() ? t("enterAmount") : undefined,
+  };
+};
+
+
+export const useTypedSrcAmount = () => {
+  const updateState = useSpotStore((s) => s.updateState);
+
+  return {
+    amount: useSpotStore((s) => s.state.typedSrcAmount),
+    reset: useCallback(() => updateState({ typedSrcAmount: "" }), [updateState]),
   };
 };

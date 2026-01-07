@@ -20,7 +20,7 @@ import {
   useTypedSrcAmount,
   DEFAULT_DURATION_OPTIONS,
   useFillDelayPanel,
-  useSubmitSwapPanel,
+  useSubmitOrderPanel,
   Components,
   DISCLAIMER_URL,
   TooltipProps,
@@ -30,6 +30,7 @@ import {
   useLimitPricePanel,
   useTriggerPricePanel,
   useInvertTradePanel,
+  useSubmitOrderButton,
 } from "@orbs-network/spot-react";
 import { Currency, Field, SwapType } from "@/lib/types";
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
@@ -401,13 +402,12 @@ const SubmitSwapMain = ({
 
 const SubmitSwap = () => {
   const {
-    openSubmitModalButton,
-    onSubmitOrder,
+    onSubmit,
     onOpenModal,
     onCloseModal,
-    swapLoading,
+    isLoading,
     error,
-  } = useSubmitSwapPanel();
+  } = useSubmitOrderPanel();
   const [isOpen, setIsOpen] = useState(false);
 
   const onOpen = useCallback(() => {
@@ -424,9 +424,6 @@ const SubmitSwap = () => {
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
         <ShowSubmitSwapButton
-          disabled={openSubmitModalButton.disabled}
-          text={openSubmitModalButton.text}
-          isLoading={openSubmitModalButton.loading}
           onClick={onOpen}
         />
         <DialogContent>
@@ -443,8 +440,8 @@ const SubmitSwap = () => {
             />
           ) : (
             <SubmitSwapMain
-              onSubmitOrder={onSubmitOrder}
-              swapLoading={swapLoading ?? false}
+              onSubmitOrder={onSubmit}
+              swapLoading={isLoading}
             />
           )}
         </DialogContent>
@@ -455,16 +452,12 @@ const SubmitSwap = () => {
 
 const ShowSubmitSwapButton = ({
   onClick,
-  disabled,
-  text,
-  isLoading,
 }: {
   onClick: () => void;
-  disabled: boolean;
-  text: string;
-  isLoading: boolean;
 }) => {
   const { partner } = useSwapParams();
+
+  const { disabled, text, loading } = useSubmitOrderButton();
 
 
   const partnerChainId = useMemo(() => {
@@ -476,7 +469,7 @@ const ShowSubmitSwapButton = ({
     <SubmitSwapButton
       onClick={onClick}
       disabled={disabled}
-      isLoading={isLoading}
+      isLoading={loading}
       text={text}
       chainId={partnerChainId}
     />
@@ -654,6 +647,8 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const { wei: inputBalance } = useBalance(inputCurrency);
   const { wei: outputBalance } = useBalance(outputCurrency);
 
+  
+
   return (
     <Context.Provider value={{ swapModule }}>
       <FormContainer>
@@ -681,6 +676,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
             TokenLogo,
             Spinner: <Spinner className="size-18" />,
           }}
+          fees={0.25}
           
         >
           <div className="flex flex-col gap-1">

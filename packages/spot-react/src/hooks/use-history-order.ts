@@ -2,44 +2,87 @@ import { getOrderFillDelayMillis, Order } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
 import { useSpotContext } from "../spot-context";
 import { useAmountUi, useFormatNumber } from "./helper-hooks";
-import { useOrders, useOrderName, useOrderLimitPrice, useOrderAvgExcecutionPrice } from "./order-hooks";
-import { useBaseOrder } from "./use-base-order";
+import {
+  useOrders,
+  useOrderName,
+  useOrderLimitPrice,
+  useOrderAvgExcecutionPrice,
+} from "./order-hooks";
 import { useTranslations } from "./use-translations";
+import { useBuildOrderInfo } from "./use-build-order-info";
+
 
 export const useHistoryOrder = (orderId?: string) => {
   const { orders } = useOrders();
-  const { config, useToken } = useSpotContext();
+  const { useToken, config } = useSpotContext();
   const t = useTranslations();
-  const order = useMemo(() => orders?.all.find((order) => order.id === orderId), [orders, orderId]) || ({} as Order);
+  const order =
+    useMemo(
+      () => orders?.all.find((order) => order.id === orderId),
+      [orders, orderId]
+    ) || ({} as Order);
   const title = useOrderName(order);
   const srcToken = useToken?.(order?.srcTokenAddress);
   const dstToken = useToken?.(order?.dstTokenAddress);
-  const selectedOrderLimitPrice = useOrderLimitPrice(srcToken, dstToken, order);
+  const srcAmount = useAmountUi(srcToken?.decimals, order?.srcAmount);
+  const limitPrice = useOrderLimitPrice(srcToken, dstToken, order);
 
-  const excecutionPrice = useFormatNumber({ value: useOrderAvgExcecutionPrice(srcToken, dstToken, order) });
-  const srcFilledAmount = useFormatNumber({ value: useAmountUi(srcToken?.decimals, order?.srcAmountFilled) });
-  const dstFilledAmount = useFormatNumber({ value: useAmountUi(dstToken?.decimals, order?.dstAmountFilled) });
+  const excecutionPrice = useFormatNumber({
+    value: useOrderAvgExcecutionPrice(srcToken, dstToken, order),
+  });
+  const srcFilledAmount = useFormatNumber({
+    value: useAmountUi(srcToken?.decimals, order?.srcAmountFilled),
+  });
+  const dstFilledAmount = useFormatNumber({
+    value: useAmountUi(dstToken?.decimals, order?.dstAmountFilled),
+  });
   const progress = useFormatNumber({ value: order?.progress, decimalScale: 2 });
-  const extendedOrder = useBaseOrder({
+
+  const srcAmountPerTrade = useAmountUi(
+    srcToken?.decimals,
+    order?.srcAmountPerTrade
+  );
+  const minDestAmountPerTrade = useAmountUi(
+    dstToken?.decimals,
+    order?.dstMinAmountPerTrade
+  );
+  const triggerPricePerTrade = useAmountUi(
+    dstToken?.decimals,
+    order?.triggerPricePerTrade
+  );
+
+  
+
+  const tradeInterval = useMemo(() => {
+    if(!order) return 0;
+    if(order.version === 2) {
+      return order.fillDelay;
+    }
+    if(config.twapConfig) {
+      return getOrderFillDelayMillis(order, config.twapConfig);
+    }
+    return 0;
+  }, [order, config]);
+
+  const info = useBuildOrderInfo({
     srcToken,
     dstToken,
-    limitPrice: selectedOrderLimitPrice,
+    account: order?.maker,
+    limitPrice,
     deadline: order?.deadline,
-    srcAmount: order?.srcAmount,
-    srcAmountPerTrade: order?.srcAmountPerTrade,
+    tradeInterval,
+    srcAmount,
     totalTrades: order?.totalTradesAmount,
-    minDestAmountPerTrade: order?.dstMinAmountPerTrade,
-    tradeInterval: order?.totalTradesAmount === 1 || !order || !config?.twapConfig ? undefined : getOrderFillDelayMillis(order, config.twapConfig!),
-    triggerPricePerTrade: order?.triggerPricePerTrade,
-    maker: order?.maker,
+    srcAmountPerTrade: srcAmountPerTrade,
+    minDestAmountPerTrade,
+    triggerPricePerTrade,
   });
 
   return useMemo(() => {
     return {
       original: order,
-
-      ...extendedOrder,
       title,
+      ...info,
       createdAt: {
         label: t("createdAt"),
         value: order?.createdAt,
@@ -51,7 +94,6 @@ export const useHistoryOrder = (orderId?: string) => {
       amountInFilled: {
         label: t("amountOut"),
         value: srcFilledAmount,
-        token: srcToken,
       },
       amountOutFilled: {
         label: t("amountReceived"),
@@ -63,15 +105,28 @@ export const useHistoryOrder = (orderId?: string) => {
         value: progress,
       },
       excecutionPrice: {
-        label: order?.totalTradesAmount === 1 ? t("finalExcecutionPrice") : t("AverageExecutionPrice"),
+        label: t(
+          order?.totalTradesAmount === 1
+            ? "finalExcecutionPrice"
+            : "averageExecutionPrice"
+        ),
         value: excecutionPrice,
-        sellToken: srcToken,
-        buyToken: dstToken,
       },
       version: {
         label: t("version"),
         value: order?.version,
       },
     };
-  }, [order, t, excecutionPrice, srcFilledAmount, dstFilledAmount, progress, title, srcToken, dstToken, extendedOrder]);
+  }, [
+    order,
+    t,
+    excecutionPrice,
+    srcFilledAmount,
+    dstFilledAmount,
+    progress,
+    title,
+    srcToken,
+    dstToken,
+    info,
+  ]);
 };

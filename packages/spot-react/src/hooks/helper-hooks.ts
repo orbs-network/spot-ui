@@ -110,3 +110,4 @@ export const useFormatNumber = ({ value, decimalScale = 3, prefix, suffix }: { v
 
   return result.value?.toString();
 };
+

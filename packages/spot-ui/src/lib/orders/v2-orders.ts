@@ -90,7 +90,7 @@ export const buildV2Order = (order: OrderV2): Order => {
     srcTokenAddress: order.order.witness.input.token,
     dstTokenAddress: order.order.witness.output.token,
     orderDollarValueIn: order.metadata.displayOnlyInputTokenPriceUSD ? BN(order.metadata.displayOnlyInputTokenPriceUSD).toFixed(6) : "",
-    fillDelay: order.order.witness.epoch,
+    fillDelay: order.order.witness.epoch * 1000,
     deadline: Number(order.order.deadline) * 1000,
     createdAt: new Date(order.timestamp).getTime(),
     srcAmount: order.order.witness.input.maxAmount,

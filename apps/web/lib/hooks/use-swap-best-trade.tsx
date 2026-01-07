@@ -204,10 +204,7 @@ export const useSwapBestTrade = () => {
       const signature = await signEip(quote);
       const tx = await liquidityHubClient.swap(quote, signature);
       toasts.onSwapSuccess();
-      updateStore({ txHash: tx as `0x${string}` });
-      const test = await liquidityHubClient.getTransactionDetails(tx as `0x${string}`, quote);
-      console.log({test});
-      
+      updateStore({ txHash: tx as `0x${string}` });      
       return await getTransactionReceiptCallback(tx as `0x${string}`);
     },
     onSuccess: () => {

@@ -39,7 +39,7 @@
   "expiry": "Expiry",
   "individualTradeSize": "Individual trade size",
   "numberOfTrades": "No. of trades",
-  "AverageExecutionPrice": "Avg. execution price",
+  "averageExecutionPrice": "Avg. execution price",
   "twapMarket": "TWAP-market",
   "twapLimit": "TWAP-limit",
   "stopLoss": "Stop-loss",

@@ -23,7 +23,7 @@ import { useTrades } from "./use-trades";
 import { useDeadline } from "./use-deadline";
 import { useFillDelay } from "./use-fill-delay";
 import { useDstMinAmountPerTrade } from "./use-dst-amount";
-import { useBuildRePermitOrderDataCallback } from "./use-build-repermit-order-data-callback";
+import { useOrder } from "./use-order";
 
 const useWrapToken = () => {
   const {
@@ -97,7 +97,7 @@ const useWrapToken = () => {
 
 const useSignAndSend = () => {
   const { account, walletClient, chainId, callbacks } = useSpotContext();
-  const rePermitOrderData = useBuildRePermitOrderDataCallback();
+  const rePermitData = useOrder().rePermitData;
   const addNewOrder = useAddNewOrder();
 
   return useMutation({
@@ -112,11 +112,7 @@ const useSignAndSend = () => {
         throw new Error("missing chainId");
       }
 
-      if (!rePermitOrderData) {
-        throw new Error("rePermitOrderData is not defined");
-      }
-
-      const { order, domain, types, primaryType } = rePermitOrderData;
+      const { order, domain, types, primaryType } = rePermitData;
 
       analytics.onSignOrderRequest(order);
       callbacks?.onSignOrderRequest?.();
@@ -184,6 +180,8 @@ const useHasAllowanceCallback = () => {
       if (!config) {
         throw new Error("missing config");
       }
+      console.log(config.repermit, 'repermit');
+      
       const allowance = await publicClient
         .readContract({
           address: tokenAddress as `0x${string}`,
@@ -230,6 +228,7 @@ const useApproveToken = () => {
       if (!config) {
         throw new Error("missing config");
       }
+      
       callbacks?.onApproveRequest?.();
       analytics.onApproveRequest();
       let hash: `0x${string}` | undefined;

@@ -62,14 +62,18 @@ const PercentageButtons = ({
 }) => {
   const { ui: balance } = useBalance(currency);
   const onPercentageClick = useCallback(
-    (percentage: number) => {
-      if(BN(balance).lte(0)) return;
+    (percentage: number) => {      
+      if(BN(balance).decimalPlaces(7).lte(0)) {
+        onAmountChange("");
+        return;
+      }
       onAmountChange(
         formatDecimals(BN(balance).times(percentage).toString(), 8)
       );
     },
     [balance, onAmountChange]
   );
+  
   return (
     <div className="cursor-pointer flex items-center gap-1 justify-end  absolute right-[10px] top-[10px]">
       {PERCENTAGE_BUTTONS.map((button) => (

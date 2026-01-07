@@ -58,7 +58,7 @@ export interface Translations {
   expiry: string;
   individualTradeSize: string;
   numberOfTrades: string;
-  AverageExecutionPrice: string;
+  averageExecutionPrice: string;
   twapMarket: string;
   twapLimit: string;
   stopLoss: string;

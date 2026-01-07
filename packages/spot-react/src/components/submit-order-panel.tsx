@@ -1,16 +1,24 @@
 import { Step, SwapFlow, SwapStatus } from "@orbs-network/swap-ui";
 import { createContext, ReactNode, useContext, useMemo } from "react";
 import { useSpotContext } from "../spot-context";
-import { isNativeAddress, Module, ORBS_TWAP_FAQ_URL } from "@orbs-network/spot-ui";
+import {
+  isNativeAddress,
+  Module,
+  ORBS_TWAP_FAQ_URL,
+} from "@orbs-network/spot-ui";
 import { ParsedError, Steps, SubmitOrderPanelProps } from "../types";
 import { useSpotStore } from "../store";
-import { useExplorerLink, useFormatNumber, useNetwork } from "../hooks/helper-hooks";
+import {
+  useExplorerLink,
+  useFormatNumber,
+  useNetwork,
+} from "../hooks/helper-hooks";
 import { useTrades } from "../hooks/use-trades";
 import { useSrcAmount } from "../hooks/use-src-amount";
 import { useDstTokenAmount } from "../hooks/use-dst-amount";
 import { OrderDetails } from "../components/order-details";
-import { useCurrentOrderDetails } from "../hooks/use-current-order";
 import { useTranslations } from "../hooks/use-translations";
+import { useOrderInfo } from "../hooks/use-order";
 
 const Context = createContext({} as SubmitOrderPanelProps);
 
@@ -35,7 +43,11 @@ const WrapMsg = () => {
     return null;
   }
 
-  return <p className="twap-error-wrap-msg">{t("wrapMsg", { symbol: srcToken?.symbol || "", wSymbol: wSymbol || "" })}</p>;
+  return (
+    <p className="twap-error-wrap-msg">
+      {t("wrapMsg", { symbol: srcToken?.symbol || "", wSymbol: wSymbol || "" })}
+    </p>
+  );
 };
 
 const useOrderName = (isMarketOrder = false, chunks = 1) => {
@@ -58,7 +70,17 @@ const useOrderName = (isMarketOrder = false, chunks = 1) => {
   }, [t, module, isMarketOrder, chunks]);
 };
 
-const LimitPrice = ({ price, dstTokenSymbol, label, usd }: { price?: string; dstTokenSymbol?: string; label: string; usd?: string }) => {
+const LimitPrice = ({
+  price,
+  dstTokenSymbol,
+  label,
+  usd,
+}: {
+  price?: string;
+  dstTokenSymbol?: string;
+  label: string;
+  usd?: string;
+}) => {
   return (
     <OrderDetails.DetailRow title={label}>
       {`${price ? price : "-"} ${dstTokenSymbol || ""}`}
@@ -84,14 +106,18 @@ const useTitle = () => {
 const useStep = () => {
   const srcToken = useSpotStore((s) => s.state.swapExecution.srcToken);
   const t = useTranslations();
-  const { step, wrapTxHash, approveTxHash } = useSpotStore((s) => s.state.swapExecution);
+  const { step, wrapTxHash, approveTxHash } = useSpotStore(
+    (s) => s.state.swapExecution
+  );
   const network = useNetwork();
   const wrapExplorerUrl = useExplorerLink(wrapTxHash);
   const unwrapExplorerUrl = useExplorerLink(wrapTxHash);
   const approveExplorerUrl = useExplorerLink(approveTxHash);
   const status = useSpotStore((s) => s.state.swapExecution.status);
   const isNativeIn = isNativeAddress(srcToken?.address || "");
-  const symbol = isNativeIn ? network?.native.symbol || "" : srcToken?.symbol || "";
+  const symbol = isNativeIn
+    ? network?.native.symbol || ""
+    : srcToken?.symbol || "";
   const wSymbol = network?.wToken.symbol;
   const swapTitle = useTitle();
 
@@ -100,28 +126,45 @@ const useStep = () => {
       return {
         title: t("wrapAction", { symbol: symbol }),
         footerLink: wrapExplorerUrl,
-        footerText: wrapExplorerUrl ? t("viewOnExplorer") : t("proceedInWallet"),
+        footerText: wrapExplorerUrl
+          ? t("viewOnExplorer")
+          : t("proceedInWallet"),
       };
     }
     if (step === Steps.APPROVE) {
       return {
         title: t("approveAction", { symbol: symbol }),
         footerLink: approveExplorerUrl,
-        footerText: approveExplorerUrl ? t("viewOnExplorer") : t("proceedInWallet"),
+        footerText: approveExplorerUrl
+          ? t("viewOnExplorer")
+          : t("proceedInWallet"),
       };
     }
     return {
       title: swapTitle,
-      footerText: status === SwapStatus.LOADING ? t("proceedInWallet") : undefined,
+      footerText:
+        status === SwapStatus.LOADING ? t("proceedInWallet") : undefined,
     };
-  }, [step, approveExplorerUrl, symbol, swapTitle, t, wrapExplorerUrl, unwrapExplorerUrl, wSymbol, status]);
+  }, [
+    step,
+    approveExplorerUrl,
+    symbol,
+    swapTitle,
+    t,
+    wrapExplorerUrl,
+    unwrapExplorerUrl,
+    wSymbol,
+    status,
+  ]);
 };
 
 const TxError = ({ error }: { error?: any }) => {
   return (
     <div className="twap-error">
       <h2 className="twap-error-title">Transaction failed</h2>
-      {error?.code && <p className="twap-error-code">Error code: {error?.code}</p>}
+      {error?.code && (
+        <p className="twap-error-code">Error code: {error?.code}</p>
+      )}
       <WrapMsg />
     </div>
   );
@@ -133,7 +176,13 @@ function Failed({ error }: { error?: ParsedError }) {
   const wrapTxHash = useSpotStore((s) => s.state.swapExecution?.wrapTxHash);
   const ErrorView = components.SubmitOrderErrorView;
 
-  const content = <SwapFlow.Failed error={<TxError error={error} />} footerLink={ORBS_TWAP_FAQ_URL} footerText={t("viewOnExplorer")} />;
+  const content = (
+    <SwapFlow.Failed
+      error={<TxError error={error} />}
+      footerLink={ORBS_TWAP_FAQ_URL}
+      footerText={t("viewOnExplorer")}
+    />
+  );
 
   if (ErrorView) {
     return (
@@ -152,11 +201,11 @@ const Main = () => {
   const dstToken = useSpotStore((s) => s.state.swapExecution.dstToken);
   const { reviewDetails } = useSubmitOrderPanelContext();
   const t = useTranslations();
-  const isSubmitted = useSpotStore((s) => Boolean(s.state.swapExecution?.status));
-  const order = useCurrentOrderDetails();
+  const isSubmitted = useSpotStore((s) =>
+    Boolean(s.state.swapExecution?.status)
+  );
+  const order = useOrderInfo();
 
-  const inUsd = useFormatNumber({ value: order.srcAmountUsd, decimalScale: 2 });
-  const outUsd = useFormatNumber({ value: order.dstAmountUsd, decimalScale: 2 });
   const USD = components.USD;
   const MainView = components.SubmitOrderMainView;
 
@@ -165,45 +214,69 @@ const Main = () => {
       <SwapFlow.Main
         fromTitle={t("from")}
         toTitle={t("to")}
-        inUsd={USD ? <USD value={order.srcAmountUsd} isLoading={false} /> : `$${inUsd}`}
-        outUsd={USD ? <USD value={order.dstAmountUsd} isLoading={false} /> : `$${outUsd}`}
+        inUsd={
+          USD ? <USD value={order.srcUsd} isLoading={false} /> : `$${order.srcUsd}`
+        }
+        outUsd={
+          USD ? <USD value={order.dstUsd} isLoading={false} /> : `$${order.dstUsd}`
+        }
       />
       {!isSubmitted && (
         <div className="twap-create-order-bottom">
           <OrderDetails.Container>
             <div className="twap-create-order-details">
-              <OrderDetails.Deadline deadline={order.display.deadline.value} label={order.display.deadline.label} tooltip={order.display.deadline.tooltip || ""} />
-              <OrderDetails.TriggerPrice
-                price={order.display.triggerPricePerTrade.value}
-                dstToken={dstToken}
-                label={order.display.triggerPricePerTrade.label}
-                tooltip={order.display.triggerPricePerTrade.tooltip || ""}
-                usd={order.display.triggerPricePerTrade.usd}
+              <OrderDetails.Deadline
+                deadline={order.deadline.value}
+                label={order.deadline.label}
+                tooltip={order.deadline.tooltip || ""}
               />
-              <LimitPrice price={order.display.limitPrice.value} dstTokenSymbol={dstToken?.symbol} label={order.display.limitPrice.label} usd={order.display.limitPrice.usd} />
+              <OrderDetails.TriggerPrice
+                price={order.triggerPricePerTrade.value}
+                dstToken={dstToken}
+                label={order.triggerPricePerTrade.label}
+                tooltip={order.triggerPricePerTrade.tooltip || ""}
+                usd={order.triggerPricePerTrade.usd}
+              />
+              <LimitPrice
+                price={order.limitPrice.value}
+                dstTokenSymbol={dstToken?.symbol}
+                label={order.limitPrice.label}
+                usd={order.limitPrice.usd}
+              />
               <OrderDetails.MinDestAmount
                 dstToken={dstToken}
-                dstMinAmountOut={order.display.minDestAmountPerTrade.value}
-                label={order.display.minDestAmountPerTrade.label}
-                tooltip={order.display.minDestAmountPerTrade.tooltip || ""}
-                usd={order.display.minDestAmountPerTrade.usd}
+                dstMinAmountOut={order.minDestAmountPerTrade.value}
+                label={order.minDestAmountPerTrade.label}
+                tooltip={order.minDestAmountPerTrade.tooltip || ""}
+                usd={order.minDestAmountPerTrade.usd}
               />
               <OrderDetails.TradeSize
-                tradeSize={order.display.tradeSize.value}
-                trades={order.display.totalTrades.value}
+                tradeSize={order.sizePerTrade.value}
+                trades={order.totalTrades.value}
                 srcToken={srcToken}
-                label={order.display.tradeSize.label}
-                tooltip={order.display.tradeSize.tooltip}
+                label={order.sizePerTrade.label}
+                tooltip={order.sizePerTrade.tooltip}
               />
-              <OrderDetails.TradesAmount trades={order.display.totalTrades.value} label={order.display.totalTrades.label} tooltip={order.display.totalTrades.tooltip} />
+              <OrderDetails.TradesAmount
+                trades={order.totalTrades.value}
+                label={order.totalTrades.label}
+                tooltip={order.totalTrades.tooltip}
+              />
               <OrderDetails.TradeInterval
-                chunks={order.display.totalTrades.value}
-                fillDelayMillis={order.display.tradeInterval.value}
-                label={order.display.tradeInterval.label}
-                tooltip={order.display.tradeInterval.tooltip}
+                chunks={order.totalTrades.value}
+                fillDelayMillis={order.tradeInterval.value}
+                label={order.tradeInterval.label}
+                tooltip={order.tradeInterval.tooltip}
               />
               <OrderDetails.Recipient />
-              {order.fee.amount && <OrderDetails.Fees fees={order.fee.amount} label={order.fee.label} usd={order.fee.usd} dstTokenSymbol={dstToken?.symbol} />}
+              {order.fees.amount && (
+                <OrderDetails.Fees
+                  fees={order.fees.amount}
+                  label={order.fees.label}
+                  usd={order.fees.usd}
+                  dstTokenSymbol={dstToken?.symbol}
+                />
+              )}
             </div>
           </OrderDetails.Container>
           {reviewDetails}
@@ -220,7 +293,9 @@ const Main = () => {
 };
 
 const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
-  const { status, stepIndex, totalSteps, error } = useSpotStore((s) => s.state.swapExecution);
+  const { status, stepIndex, totalSteps, error } = useSpotStore(
+    (s) => s.state.swapExecution
+  );
 
   const { components } = useSpotContext();
   const Spinner = components.Spinner;
