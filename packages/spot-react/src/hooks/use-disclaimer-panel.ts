@@ -1,4 +1,4 @@
-import { Module } from "@orbs-network/spot-ui";
+import { Module, ORBS_TWAP_FAQ_URL } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
@@ -9,12 +9,22 @@ export const useDisclaimerPanel = () => {
   const { module } = useSpotContext();
   const t = useTranslations();
 
-  const hide = module === Module.STOP_LOSS || module === Module.TAKE_PROFIT;
-  return useMemo(() => {
-    if (hide) return;
+  const triggerPriceWarning = useMemo(() => {
+    if(!isMarketOrder) return;
+    if (module !== Module.STOP_LOSS && module !== Module.TAKE_PROFIT) return;
+
+    return {
+      text: t("triggerMarketPriceDisclaimer"),
+      url: ORBS_TWAP_FAQ_URL,
+    };
+  }, [isMarketOrder, t, module]);
+
+  const spotWarning = useMemo(() => {
+    if(module !== Module.LIMIT && module !== Module.TWAP) return;
     return {
       text: isMarketOrder ? t("marketOrderWarning") : t("limitPriceMessage"),
       url: "https://www.orbs.com/dtwap-and-dlimit-faq/",
     };
-  }, [isMarketOrder, t, hide]);
+  }, [isMarketOrder, t, module]);
+  return triggerPriceWarning || spotWarning;
 };

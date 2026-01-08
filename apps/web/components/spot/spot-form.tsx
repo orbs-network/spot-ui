@@ -505,7 +505,6 @@ const LimitPricePanel = () => {
     toggleLimitPrice,
     label,
     tooltip,
-    warning,
     onReset,
     isLoading,
   } = useLimitPricePanel();
@@ -533,22 +532,6 @@ const LimitPricePanel = () => {
           onPercentageChange={(it) => onPercentageChange(it)}
           isLoading={isLoading}
         />
-      )}
-      {warning && (
-        <div className="text-sm text-foreground/80 flex items-start gap-2 bg-accent p-2 rounded-md">
-          <AlertTriangleIcon className="size-4 relative top-0.5" />
-          <p className="flex-1">
-            {warning.text}{" "}
-            <a
-              href={warning.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary"
-            >
-              Learn more
-            </a>
-          </p>
-        </div>
       )}
     </div>
   );
