@@ -84,7 +84,7 @@ const useOrderFilledCallback = () => {
           }
         });
       }
-
+  // refetch balances when orders progress is updated
       if (isProgressUpdated) {
         callbacks?.onOrdersProgressUpdate?.(updatedOrders);
         refetchBalances?.();

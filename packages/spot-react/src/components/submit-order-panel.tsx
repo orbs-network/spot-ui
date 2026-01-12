@@ -293,7 +293,7 @@ const Main = () => {
 };
 
 const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
-  const { status, stepIndex, totalSteps, error } = useSpotStore(
+  const { status, stepIndex, totalSteps, parsedError } = useSpotStore(
     (s) => s.state.swapExecution
   );
 
@@ -336,7 +336,7 @@ const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
         components={{
           SrcTokenLogo: TokenLogo && <TokenLogo token={srcToken} />,
           DstTokenLogo: TokenLogo && <TokenLogo token={dstToken} />,
-          Failed: <Failed error={error} />,
+          Failed: <Failed error={parsedError} />,
           Success: <SuccessContent />,
           Main: <Main />,
           Loader: Spinner,

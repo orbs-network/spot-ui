@@ -24,7 +24,6 @@ const useGetAllowance = (
         functionName: "allowance",
         args: [account as `0x${string}`, spender as `0x${string}`],
       });
-      console.log({allowance});
       
       return BN(allowance).gte(BN(amount ?? "0"));
     },

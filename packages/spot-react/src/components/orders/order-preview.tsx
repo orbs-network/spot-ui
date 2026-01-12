@@ -246,6 +246,7 @@ const AmountOutFilled = () => {
 
 export const CancelOrderButton = () => {
   const { order } = useOrderContext();
+  const t = useTranslations();
   const { mutateAsync: cancelOrder, isPending: isLoading } =
     useCancelOrderMutation();
   const { components } = useSpotContext();
@@ -264,8 +265,9 @@ export const CancelOrderButton = () => {
       onClick={onCancelOrder}
       disabled={isLoading}
       className="twap-cancel-order"
+      text={t("cancelOrder")}
     >
-      Cancel
+      {t("cancelOrder")}
     </Button>
   );
 };

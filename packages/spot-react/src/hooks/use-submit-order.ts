@@ -339,7 +339,6 @@ function parseError(error: Error): ParsedError {
   return {
     message: errorStr || "",
     code: codeMatch ? Number(codeMatch[1]) : 0,
-    error
   };
 }
 
@@ -418,15 +417,18 @@ export const useSubmitOrderMutation = () => {
             step: undefined,
             status: undefined,
             stepIndex: undefined,
+            error: error as Error,
           });
         } else {
           const parsedError = parseError(error as Error);
           callbacks?.onSubmitOrderFailed?.(parsedError);
           updateSwapExecution({
             status: SwapStatus.FAILED,
-            error: parsedError,
+            parsedError,
+            error: error as Error,
           });
         }
+        throw error;
       }
     },
   });

@@ -256,6 +256,8 @@ export const getSpotPartnerDemoLink = (partner?: string) => {
       return "https://swapx-twap.netlify.app/swap?tokenIn=0x0000000000000000000000000000000000000000&tokenOut=0xA04BC7140c26fc9BB1F36B1A604C7A5a88fb0E70&view=TWAP";
     case Partners.Yowie:
       return "https://yowie-spot.netlify.app/twap";
+    case Partners.Blackhole:
+      return "https://blackhole-spot.netlify.app/swap?token0=0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7&token1=0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e&panel=twap";
   }
 };
 

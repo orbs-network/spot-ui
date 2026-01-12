@@ -16,6 +16,7 @@ export interface Translations {
   minDstAmountTooltip: string;
   limitPriceTooltip: string;
   wrapMsg: string;
+  cancelOrder: string;
   tradeIntervalTootlip: string;
   triggerPriceTooltip: string;
   createOrderActionSuccess: string;
@@ -272,7 +273,6 @@ export type OnCancelOrderSuccess = {
 export type ParsedError = {
   message: string;
   code: number;
-  error: Error;
 };
 
 export type Callbacks = {
@@ -423,7 +423,8 @@ export enum Steps {
 }
 export type SwapExecution = {
   status?: SwapStatus;
-  error?: ParsedError;
+  parsedError?: ParsedError;
+  error?: Error;
   step?: Steps;
   stepIndex?: number;
   approveTxHash?: string;

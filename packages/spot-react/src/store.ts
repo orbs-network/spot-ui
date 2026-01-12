@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { State, SwapExecution } from "./types";
-import { useCallback } from "react";
+
 
 interface SpotStore {
   resetState: () => void;
@@ -24,21 +24,14 @@ export const useSpotStore = create<SpotStore>((set, get) => ({
       state: {
         ...initialState,
         currentTime: Date.now(),
-        swapExecution: get().state.swapExecution,
+        swapExecution: {
+          ...get().state.swapExecution,
+          error: undefined,
+          parsedError: undefined,
+          status: undefined,
+        },
         isMarketOrder: get().state.isMarketOrder,
       },
     });
   },
 }));
-
-export const useResetState = (partialState?: Partial<State>) => {
-  const updateState = useSpotStore((s) => s.updateState);
-  const state = useSpotStore((s) => s.state);
-  return useCallback(() => {
-    updateState({
-      ...(partialState || {}),
-      triggerPricePercent: state.triggerPricePercent,
-      limitPricePercent: state.limitPricePercent,
-    });
-  }, [updateState, partialState, state]);
-};

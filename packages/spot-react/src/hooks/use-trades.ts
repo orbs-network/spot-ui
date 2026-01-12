@@ -20,7 +20,7 @@ const useTradesError = (amount: number, maxAmount: number) => {
       return {
         type: InputErrors.MIN_CHUNKS,
         value: 1,
-        message: `${t("minChunksError")} 1`,
+        message: t("minChunksError", { minChunks: '1' }),
       };
     }
     const { isError: maxChunksError } = getMaxChunksError(amount, maxAmount, module);
