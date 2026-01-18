@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import BN from "bignumber.js";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
-import { InputError, InputErrors } from "../types";
+import { InputError, InputErrors, SwapStatus } from "../types";
 import { useSrcAmount } from "./use-src-amount";
 import { useTriggerPrice } from "./use-trigger-price";
 import { useLimitPrice } from "./use-limit-price";
@@ -31,6 +31,7 @@ export const useBalanceError = () => {
 export function useInputErrors() {
   const { marketPrice, marketPriceLoading } = useSpotContext();
   const srcAmount = useSpotStore((s) => s.state.typedSrcAmount);
+  const status = useSpotStore((s) => s.state.swapExecution.status);
   const balanceError = useBalanceError();
   const { error: triggerPriceError } = useTriggerPrice();
   const { error: limitPriceError } = useLimitPrice();
@@ -40,7 +41,9 @@ export function useInputErrors() {
 
   return useMemo(() => {
     const ignoreErrors = getQueryParam("ignore-errors");
-
+    if (status === SwapStatus.LOADING) {
+      return undefined;
+    }
     if (
       BN(marketPrice || 0).isZero() ||
       BN(srcAmount || 0).isZero() ||
@@ -68,5 +71,6 @@ export function useInputErrors() {
     fillDelayError,
     durationError,
     balanceError,
+    status,
   ]);
 }
