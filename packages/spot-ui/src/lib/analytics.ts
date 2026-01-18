@@ -234,6 +234,7 @@ class Analytics {
     fillDelay,
     slippage,
     isMarketOrder,
+    chunksAmount,
   }: {
     account: string;
     chainId: number;
@@ -248,8 +249,8 @@ class Analytics {
     fillDelay: number;
     slippage: number;
     isMarketOrder: boolean;
+    chunksAmount: number;
   }) {
-    const chunksAmount = BN(fromTokenAmount).div(srcChunkAmount).integerValue(BN.ROUND_FLOOR).toNumber();
     this.updateAndSend({
       toTokenAddress: dstToken.address,
       toTokenSymbol: dstToken.symbol,

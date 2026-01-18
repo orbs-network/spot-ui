@@ -302,6 +302,7 @@ const useInitOrderRequest = () => {
   const srcAmount = useSrcAmount().amountWei;
   const srcChunkAmount = useTrades().amountPerTradeWei;
   const deadlineMillis = useDeadline();
+  const chunksAmount = useTrades().totalTrades;
   const fillDelay = useFillDelay().fillDelay;
   const dstMinAmountPerTrade = useDstMinAmountPerTrade().amountWei;
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
@@ -322,6 +323,7 @@ const useInitOrderRequest = () => {
         minDstAmountOutPerTrade: dstMinAmountPerTrade as string,
         slippage,
         isMarketOrder: isMarketOrder || false,
+        chunksAmount,
       });
     },
   });
