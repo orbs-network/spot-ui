@@ -1,6 +1,19 @@
-import { LEGACY_EXCHANGES_MAP, getPartnerIdentifier, maxUint256, nativeTokenAddresses, THE_GRAPH_ORDERS_API } from "./consts";
+import {
+  LEGACY_EXCHANGES_MAP,
+  getPartnerIdentifier,
+  maxUint256,
+  nativeTokenAddresses,
+  THE_GRAPH_ORDERS_API,
+} from "./consts";
 import BN from "bignumber.js";
-import { Config, Order, OrderType, Partners, TimeDuration, TimeUnit } from "./types";
+import {
+  Config,
+  Order,
+  OrderType,
+  Partners,
+  TimeDuration,
+  TimeUnit,
+} from "./types";
 import { networks } from "./networks";
 import { getEstimatedDelayBetweenChunksMillis, getPartners } from "..";
 
@@ -10,7 +23,9 @@ export const getTheGraphUrl = (chainId?: number) => {
 };
 
 export const isMarketPrice = (type: OrderType) => {
-  return type === OrderType.TWAP_MARKET || type === OrderType.TRIGGER_PRICE_MARKET;
+  return (
+    type === OrderType.TWAP_MARKET || type === OrderType.TRIGGER_PRICE_MARKET
+  );
 };
 
 export const groupBy = (array: any = [], key: string) => {
@@ -36,11 +51,17 @@ export const keyBy = <T>(array: T[], key: keyof T): KeyByArray<T> => {
   }, {} as KeyByArray<T>);
 };
 
-export const compact = <T>(array: (T | null | undefined | false | "")[]): T[] => {
+export const compact = <T>(
+  array: (T | null | undefined | false | "")[],
+): T[] => {
   return array.filter((value): value is T => Boolean(value));
 };
 
-export const orderBy = <T>(array: T[], key: (item: T) => any, order: "asc" | "desc" = "asc"): T[] => {
+export const orderBy = <T>(
+  array: T[],
+  key: (item: T) => any,
+  order: "asc" | "desc" = "asc",
+): T[] => {
   return array.slice().sort((a, b) => {
     const valueA = key(a);
     const valueB = key(b);
@@ -59,7 +80,10 @@ export const amountUi = (decimals?: number, amount?: string) => {
 
 export const amountBN = (decimals?: number, amount?: string) => {
   if (!decimals || !amount) return "";
-  return parsebn(amount).times(BN(10).pow(decimals)).decimalPlaces(0).toFixed(0);
+  return parsebn(amount)
+    .times(BN(10).pow(decimals))
+    .decimalPlaces(0)
+    .toFixed(0);
 };
 export const zero = BN(0);
 export const one = BN(1);
@@ -72,9 +96,14 @@ export function bn(n: BN.Value, base?: number): BN {
   return BN(n, base);
 }
 
-export function convertDecimals(n: BN.Value, sourceDecimals: number, targetDecimals: number): BN {
+export function convertDecimals(
+  n: BN.Value,
+  sourceDecimals: number,
+  targetDecimals: number,
+): BN {
   if (sourceDecimals === targetDecimals) return bn(n);
-  else if (sourceDecimals > targetDecimals) return bn(n).idiv(ten.pow(sourceDecimals - targetDecimals));
+  else if (sourceDecimals > targetDecimals)
+    return bn(n).idiv(ten.pow(sourceDecimals - targetDecimals));
   else return bn(n).times(ten.pow(targetDecimals - sourceDecimals));
 }
 
@@ -87,19 +116,30 @@ export function parsebn(n: BN.Value, defaultValue?: BN, fmt?: BN.Format): BN {
 
   const decimalSeparator = fmt?.decimalSeparator || ".";
   const str = n.replace(new RegExp(`[^${decimalSeparator}\\d-]+`, "g"), "");
-  const result = bn(decimalSeparator === "." ? str : str.replace(decimalSeparator, "."));
-  if (defaultValue && (!result.isFinite() || result.lte(zero))) return defaultValue;
+  const result = bn(
+    decimalSeparator === "." ? str : str.replace(decimalSeparator, "."),
+  );
+  if (defaultValue && (!result.isFinite() || result.lte(zero)))
+    return defaultValue;
   else return result;
 }
 
-export const isNativeAddress = (address?: string) => !!nativeTokenAddresses.find((a) => eqIgnoreCase(a, address || ""));
+export const isNativeAddress = (address?: string) =>
+  !!nativeTokenAddresses.find((a) => eqIgnoreCase(a, address || ""));
 
 export function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function findTimeUnit(_millis: number): TimeUnit {
-  const units = [TimeUnit.Years, TimeUnit.Months, TimeUnit.Weeks, TimeUnit.Days, TimeUnit.Hours, TimeUnit.Minutes];
+  const units = [
+    TimeUnit.Years,
+    TimeUnit.Months,
+    TimeUnit.Weeks,
+    TimeUnit.Days,
+    TimeUnit.Hours,
+    TimeUnit.Minutes,
+  ];
   return units.find((unit) => unit <= _millis) || TimeUnit.Minutes;
 }
 
@@ -140,11 +180,12 @@ export const getExchanges = (config?: Config[]) => {
     .flatMap(([, addresses]) => addresses);
   const exchangeAddresses = config.map((c) => c.exchangeAddress);
 
-  const allAddresses = new Set([...exchangeAddresses, ...legacyAddresses].map((a) => a.toLowerCase()));
+  const allAddresses = new Set(
+    [...exchangeAddresses, ...legacyAddresses].map((a) => a.toLowerCase()),
+  );
 
   return Array.from(allAddresses);
 };
-
 
 export const numberToHex = (value: number | bigint, padding = 0): string => {
   if (typeof value !== "bigint" && !Number.isSafeInteger(value)) {
@@ -167,18 +208,49 @@ export const numberToHex = (value: number | bigint, padding = 0): string => {
 
 export const getOrderFillDelayMillis = (order: Order, config: Config) => {
   if (order.version === 1) {
-    return (order.fillDelay || 0) * 1000 + getEstimatedDelayBetweenChunksMillis(config);
+    return (
+      (order.fillDelay || 0) * 1000 +
+      getEstimatedDelayBetweenChunksMillis(config)
+    );
   }
   return (order.fillDelay || 0) * 1000;
 };
 
 export const getQueryParam = (name: string) => {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   const urlParams = new URLSearchParams(window.location.search);
   return urlParams.get(name);
 };
 
 export const getPartnerChains = (partner: Partners) => {
-  
-  return getPartners().filter((p) => p.name === partner).map((p) => p.chainId);
+  return getPartners()
+    .filter((p) => p.name === partner)
+    .map((p) => p.chainId);
+};
+
+export const getOrderExcecutionRate = (
+  order: Order,
+  srcTokenDecimals: number,
+  dstTokenDecimals: number,
+) => {
+  if (
+    !BN(order.srcAmountFilled || 0).gt(0) ||
+    !BN(order.dstAmountFilled || 0).gt(0)
+  )
+    return "";
+  const srcFilledAmountUi = amountUi(srcTokenDecimals, order.srcAmountFilled);
+  const dstFilledAmountUi = amountUi(dstTokenDecimals, order.dstAmountFilled);
+
+  return BN(dstFilledAmountUi).div(srcFilledAmountUi).toFixed();
+};
+
+export const getOrderLimitPriceRate = (
+  order: Order,
+  srcTokenDecimals: number,
+  dstTokenDecimals: number,
+) => {
+  if (order.type === OrderType.TWAP_MARKET) return "";
+  const srcBidAmountUi = amountUi(srcTokenDecimals, order.srcAmountPerTrade);
+  const dstMinAmountUi = amountUi(dstTokenDecimals, order.dstMinAmountPerTrade);
+  return BN(dstMinAmountUi).div(srcBidAmountUi).toFixed();
 };

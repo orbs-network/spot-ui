@@ -7,9 +7,21 @@ export * from "./lib/build-repermit-order-data";
 export * from "./lib/submit-order";
 export { analytics, setUIVersion } from "./lib/analytics";
 
-export { isNativeAddress, getNetwork, amountBN, amountUi, eqIgnoreCase, getOrderFillDelayMillis, getQueryParam, getPartnerChains } from "./lib/utils";
+export {
+  isNativeAddress,
+  getNetwork,
+  amountBN,
+  amountUi,
+  eqIgnoreCase,
+  getOrderFillDelayMillis,
+  getQueryParam,
+  getPartnerChains,
+  getOrderExcecutionRate,
+  getOrderLimitPriceRate,
+} from "./lib/utils";
 export { networks } from "./lib/networks";
 
 export { getAccountOrders } from "./lib/orders";
+export { buildV2Order } from "./lib/orders/v2-orders";
 
 export { Configs };

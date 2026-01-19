@@ -307,6 +307,8 @@ const useInitOrderRequest = () => {
   const dstMinAmountPerTrade = useDstMinAmountPerTrade().amountWei;
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
 
+
+
   return useMutation({
     mutationFn: async () => {
       analytics.onRequestOrder({
@@ -326,6 +328,8 @@ const useInitOrderRequest = () => {
         chunksAmount,
       });
     },
+
+    
   });
 };
 

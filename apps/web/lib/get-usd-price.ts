@@ -21,6 +21,7 @@ const chainIdToName: { [key: number]: string } = {
   [chains.katana.id]: "katana",
   [chains.monad.id]: "monad",
   [chains.avalanche.id]: "avax",
+  [chains.berachain.id]: "berachain",
 };
 
 export interface LlamaPriceResult {
@@ -36,61 +37,64 @@ export interface LlamaPriceResponse {
 
 export async function getUSDPrice(
   tokens: string[],
-  chainId: number
+  chainId: number,
 ): Promise<USDPrices> {
   try {
     const chainName = chainIdToName[chainId];
-  if (!chainName) {
-    throw new Error(`Chain name not found for chainId: ${chainId}`);
-  }
-
-  // Normalize to llama format: "chain:address"
-
-  const includesNative = tokens.some((t) => isNativeAddress(t));
-  const wCurrencyAddress= getWrappedNativeCurrency(chainId)?.address ?? "";
-  const tokensWithChainId = tokens.map((t) => {
-    let tokenAddress = t;
-    if (isNativeAddress(t)) {
-      tokenAddress = wCurrencyAddress;
-    }
-    return `${chainName}:${tokenAddress}`;
-  });
-
-  
-
-  // ---- batching (20 tokens per request) ----
-  const BATCH_SIZE = 20;
-  const batches = [];
-
-  for (let i = 0; i < tokensWithChainId.length; i += BATCH_SIZE) {
-    batches.push(tokensWithChainId.slice(i, i + BATCH_SIZE));
-  }
-
-  // Final merged result
-  const result: LlamaPriceResponse = { coins: {} };
-
-  for (const batch of batches) {
-    const url = `https://coins.llama.fi/prices/current/${batch.join(",")}`;
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      console.error("Failed Llama batch:", batch);
-      continue; // skip failing batches, but don't stop execution
+    if (!chainName) {
+      throw new Error(`Chain name not found for chainId: ${chainId}`);
     }
 
-    const data: LlamaPriceResponse = await response.json();
+    // Normalize to llama format: "chain:address"
 
-    Object.assign(result.coins, data.coins);
-  }
+    const includesNative = tokens.some((t) => isNativeAddress(t));
+    const wCurrencyAddress = getWrappedNativeCurrency(chainId)?.address ?? "";
+    const tokensWithChainId = tokens.map((t) => {
+      let tokenAddress = t;
+      if (isNativeAddress(t)) {
+        tokenAddress = wCurrencyAddress;
+      }
+      return `${chainName}:${tokenAddress}`;
+    });
 
-  const prices = Object.entries(result.coins).reduce((acc, [symbol, result]) =>{
-    acc[symbol.split(":")[1]] = BN(result.price).decimalPlaces(6).toNumber()
-    return acc;
-  }, {} as USDPrices);
-  if(includesNative) {
-    prices[zeroAddress] = prices[wCurrencyAddress];
-  }
-  return prices;
+    // ---- batching (20 tokens per request) ----
+    const BATCH_SIZE = 20;
+    const batches = [];
+
+    for (let i = 0; i < tokensWithChainId.length; i += BATCH_SIZE) {
+      batches.push(tokensWithChainId.slice(i, i + BATCH_SIZE));
+    }
+
+    // Final merged result
+    const result: LlamaPriceResponse = { coins: {} };
+
+    for (const batch of batches) {
+      const url = `https://coins.llama.fi/prices/current/${batch.join(",")}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        console.error("Failed Llama batch:", batch);
+        continue; // skip failing batches, but don't stop execution
+      }
+
+      const data: LlamaPriceResponse = await response.json();
+
+      Object.assign(result.coins, data.coins);
+    }
+
+    const prices = Object.entries(result.coins).reduce(
+      (acc, [symbol, result]) => {
+        acc[symbol.split(":")[1]] = BN(result.price)
+          .decimalPlaces(6)
+          .toNumber();
+        return acc;
+      },
+      {} as USDPrices,
+    );
+    if (includesNative) {
+      prices[zeroAddress] = prices[wCurrencyAddress];
+    }
+    return prices;
   } catch (error) {
     console.error("Error fetching Llama price:", error);
     return {};

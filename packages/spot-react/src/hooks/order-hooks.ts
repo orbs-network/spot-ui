@@ -4,6 +4,8 @@ import {
   Order,
   OrderStatus,
   OrderType,
+  getOrderExcecutionRate,
+  getOrderLimitPriceRate,
 } from "@orbs-network/spot-ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
@@ -12,7 +14,6 @@ import { useSpotContext } from "../spot-context";
 import { Token } from "../types";
 import { useCancelOrderMutation } from "./use-cancel-order";
 import { useSpotStore } from "../store";
-import { getOrderExcecutionRate, getOrderLimitPriceRate } from "../utils";
 import { useTranslations } from "./use-translations";
 import { useHistoryOrder } from "./use-history-order";
 
@@ -40,7 +41,7 @@ const useOrdersQueryKey = () => {
   const { account, config, chainId } = useSpotContext();
   return useMemo(
     () => ["useTwapOrderHistoryManager", account, config?.partner, chainId],
-    [account, config, chainId]
+    [account, config, chainId],
   );
 };
 
@@ -56,7 +57,7 @@ export const useAddNewOrder = () => {
         return [order, ...orders];
       });
     },
-    [queryClient, queryKey, account]
+    [queryClient, queryKey, account],
   );
 };
 
@@ -84,13 +85,13 @@ const useOrderFilledCallback = () => {
           }
         });
       }
-  // refetch balances when orders progress is updated
+      // refetch balances when orders progress is updated
       if (isProgressUpdated) {
         callbacks?.onOrdersProgressUpdate?.(updatedOrders);
         refetchBalances?.();
       }
     },
-    [queryClient, queryKey, callbacks, refetchBalances]
+    [queryClient, queryKey, callbacks, refetchBalances],
   );
 };
 
@@ -166,7 +167,7 @@ export const useOrderToDisplay = () => {
 
     return (
       orders.all.filter(
-        (order) => order.status.toLowerCase() === selectedStatus.toLowerCase()
+        (order) => order.status.toLowerCase() === selectedStatus.toLowerCase(),
       ) || []
     );
   }, [selectedStatus, orders]);
@@ -181,14 +182,14 @@ const filterAndSortOrders = (orders: Order[], status: OrderStatus) => {
 export const useOrderLimitPrice = (
   srcToken?: Token,
   dstToken?: Token,
-  order?: Order
+  order?: Order,
 ) => {
   return useMemo(() => {
     if (!srcToken || !dstToken || !order || order?.isMarketPrice) return;
     return getOrderLimitPriceRate(
       order,
       srcToken?.decimals,
-      dstToken?.decimals
+      dstToken?.decimals,
     );
   }, [order, srcToken, dstToken]);
 };
@@ -196,7 +197,7 @@ export const useOrderLimitPrice = (
 export const useOrderAvgExcecutionPrice = (
   srcToken?: Token,
   dstToken?: Token,
-  order?: Order
+  order?: Order,
 ) => {
   return useMemo(() => {
     if (!srcToken || !dstToken || !order) return;
@@ -212,14 +213,14 @@ export const useSelectedOrderIdsToCancel = () => {
       if (orderIdsToCancel?.includes(id)) {
         updateState({
           orderIdsToCancel: orderIdsToCancel?.filter(
-            (orderId) => orderId !== id
+            (orderId) => orderId !== id,
           ),
         });
       } else {
         updateState({ orderIdsToCancel: [...(orderIdsToCancel || []), id] });
       }
     },
-    [updateState, orderIdsToCancel]
+    [updateState, orderIdsToCancel],
   );
 };
 
@@ -241,19 +242,19 @@ export const useOrderHistoryPanel = () => {
   const onToggleCancelOrdersMode = useCallback(
     (cancelOrdersMode: boolean) =>
       updateState({ cancelOrdersMode, orderIdsToCancel: [] }),
-    [updateState]
+    [updateState],
   );
   const onHideSelectedOrder = useCallback(
     () => updateState({ selectedOrderID: undefined }),
-    [updateState]
+    [updateState],
   );
   const onCancelOrders = useCallback(
     (orders: Order[]) => cancelOrder({ orders }),
-    [cancelOrder]
+    [cancelOrder],
   );
   const onSelectStatus = useCallback(
     (status?: OrderStatus) => updateState({ orderHistoryStatusFilter: status }),
-    []
+    [],
   );
 
   const statuses = useMemo(() => {
@@ -271,18 +272,18 @@ export const useOrderHistoryPanel = () => {
   const selectedOrder = useHistoryOrder(selectedOrderID);
   const ordersToCancel = useMemo(
     () => orders.all.filter((order) => orderIdsToCancel?.includes(order.id)),
-    [orders, orderIdsToCancel]
+    [orders, orderIdsToCancel],
   );
   const onSelectAllOrdersToCancel = useCallback(
     () =>
       updateState({ orderIdsToCancel: orders.open.map((order) => order.id) }),
-    [updateState, orders]
+    [updateState, orders],
   );
   const onCancelOrder = useCallback(
     (order: Order) => {
       return cancelOrder({ orders: [order] }).then((it) => it?.[0] || "");
     },
-    [cancelOrder]
+    [cancelOrder],
   );
   return {
     refetch,

@@ -107,7 +107,7 @@ const useStep = () => {
   const srcToken = useSpotStore((s) => s.state.swapExecution.srcToken);
   const t = useTranslations();
   const { step, wrapTxHash, approveTxHash } = useSpotStore(
-    (s) => s.state.swapExecution
+    (s) => s.state.swapExecution,
   );
   const network = useNetwork();
   const wrapExplorerUrl = useExplorerLink(wrapTxHash);
@@ -202,7 +202,7 @@ const Main = () => {
   const { reviewDetails } = useSubmitOrderPanelContext();
   const t = useTranslations();
   const isSubmitted = useSpotStore((s) =>
-    Boolean(s.state.swapExecution?.status)
+    Boolean(s.state.swapExecution?.status),
   );
   const order = useOrderInfo();
 
@@ -215,10 +215,18 @@ const Main = () => {
         fromTitle={t("from")}
         toTitle={t("to")}
         inUsd={
-          USD ? <USD value={order.srcUsd} isLoading={false} /> : `$${order.srcUsd}`
+          USD ? (
+            <USD value={order.srcUsd} isLoading={false} />
+          ) : (
+            `$${order.srcUsd}`
+          )
         }
         outUsd={
-          USD ? <USD value={order.dstUsd} isLoading={false} /> : `$${order.dstUsd}`
+          USD ? (
+            <USD value={order.dstUsd} isLoading={false} />
+          ) : (
+            `$${order.dstUsd}`
+          )
         }
       />
       {!isSubmitted && (
@@ -237,12 +245,14 @@ const Main = () => {
                 tooltip={order.triggerPricePerTrade.tooltip || ""}
                 usd={order.triggerPricePerTrade.usd}
               />
-              <LimitPrice
-                price={order.limitPrice.value}
-                dstTokenSymbol={dstToken?.symbol}
-                label={order.limitPrice.label}
-                usd={order.limitPrice.usd}
-              />
+              {!order.limitPrice.value ? null : (
+                <LimitPrice
+                  price={order.limitPrice.value}
+                  dstTokenSymbol={dstToken?.symbol}
+                  label={order.limitPrice.label}
+                  usd={order.limitPrice.usd}
+                />
+              )}
               <OrderDetails.MinDestAmount
                 dstToken={dstToken}
                 dstMinAmountOut={order.minDestAmountPerTrade.value}
@@ -294,7 +304,7 @@ const Main = () => {
 
 const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
   const { status, stepIndex, totalSteps, parsedError } = useSpotStore(
-    (s) => s.state.swapExecution
+    (s) => s.state.swapExecution,
   );
 
   const { components } = useSpotContext();

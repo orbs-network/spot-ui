@@ -1,7 +1,10 @@
 import { AddressPadding, OrderType, Token } from "./types";
-import { eqIgnoreCase, getNetwork, isNativeAddress, networks, Order } from "@orbs-network/spot-ui";
-import BN from "bignumber.js";
-import { amountUi } from "@orbs-network/spot-ui";
+import {
+  eqIgnoreCase,
+  getNetwork,
+  isNativeAddress,
+  networks,
+} from "@orbs-network/spot-ui";
 export const removeCommas = (numStr: string): string => {
   return numStr.replace(/,/g, "");
 };
@@ -54,9 +57,14 @@ export const fillDelayText = (value?: number) => {
   return arr.join(" ");
 };
 
-export const makeElipsisAddress = (address?: string, padding?: AddressPadding): string => {
+export const makeElipsisAddress = (
+  address?: string,
+  padding?: AddressPadding,
+): string => {
   if (!address) return "";
-  return `${address.substring(0, padding?.start || 6)}...${address.substring(address.length - (padding?.end || 5))}`;
+  return `${address.substring(0, padding?.start || 6)}...${address.substring(
+    address.length - (padding?.end || 5),
+  )}`;
 };
 
 export const parseError = (error?: any) => {
@@ -72,7 +80,11 @@ export const parseError = (error?: any) => {
   }
 };
 
-export function formatDecimals(value?: string, scale = 6, maxDecimals = 8): string {
+export function formatDecimals(
+  value?: string,
+  scale = 6,
+  maxDecimals = 8,
+): string {
   if (!value) return "";
 
   // ─── keep the sign, work with the absolute value ────────────────
@@ -106,7 +118,10 @@ export function formatDecimals(value?: string, scale = 6, maxDecimals = 8): stri
 
 export const isTxRejected = (error: any) => {
   if (error?.message) {
-    return error.message?.toLowerCase()?.includes("rejected") || error.message?.toLowerCase()?.includes("denied");
+    return (
+      error.message?.toLowerCase()?.includes("rejected") ||
+      error.message?.toLowerCase()?.includes("denied")
+    );
   }
 };
 
@@ -118,21 +133,6 @@ export const getMinNativeBalance = (chainId: number) => {
     default:
       return 0.01;
   }
-};
-
-export const getOrderExcecutionRate = (order: Order, srcTokenDecimals: number, dstTokenDecimals: number) => {
-  if (!BN(order.srcAmountFilled || 0).gt(0) || !BN(order.dstAmountFilled || 0).gt(0)) return "";
-  const srcFilledAmountUi = amountUi(srcTokenDecimals, order.srcAmountFilled);
-  const dstFilledAmountUi = amountUi(dstTokenDecimals, order.dstAmountFilled);
-
-  return BN(dstFilledAmountUi).div(srcFilledAmountUi).toFixed();
-};
-
-export const getOrderLimitPriceRate = (order: Order, srcTokenDecimals: number, dstTokenDecimals: number) => {
-  if (order.type === OrderType.TWAP_MARKET) return "";
-  const srcBidAmountUi = amountUi(srcTokenDecimals, order.srcAmountPerTrade);
-  const dstMinAmountUi = amountUi(dstTokenDecimals, order.dstMinAmountPerTrade);
-  return BN(dstMinAmountUi).div(srcBidAmountUi).toFixed();
 };
 
 export const ensureWrappedToken = (token: Token, chainId: number) => {
@@ -166,14 +166,28 @@ export const getOrderType = (isMarketOrder: boolean, chunks: number) => {
   return OrderType.TWAP_LIMIT;
 };
 
-export const shouldWrapOnly = (srcToken?: Token, dstToken?: Token, chainId?: number) => {
+export const shouldWrapOnly = (
+  srcToken?: Token,
+  dstToken?: Token,
+  chainId?: number,
+) => {
   const network = getNetwork(chainId);
-  return isNativeAddress(srcToken?.address || "") && eqIgnoreCase(dstToken?.address || "", network?.wToken.address || "");
+  return (
+    isNativeAddress(srcToken?.address || "") &&
+    eqIgnoreCase(dstToken?.address || "", network?.wToken.address || "")
+  );
 };
 
-export const shouldUnwrapOnly = (srcToken?: Token, dstToken?: Token, chainId?: number) => {
+export const shouldUnwrapOnly = (
+  srcToken?: Token,
+  dstToken?: Token,
+  chainId?: number,
+) => {
   const network = getNetwork(chainId);
-  return eqIgnoreCase(srcToken?.address || "", network?.wToken.address || "") && isNativeAddress(dstToken?.address || "");
+  return (
+    eqIgnoreCase(srcToken?.address || "", network?.wToken.address || "") &&
+    isNativeAddress(dstToken?.address || "")
+  );
 };
 
 export { eqIgnoreCase, isNativeAddress };

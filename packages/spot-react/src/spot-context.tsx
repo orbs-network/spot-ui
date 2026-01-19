@@ -22,7 +22,8 @@ import { shouldUnwrapOnly, shouldWrapOnly } from "./utils";
 import * as chains from "viem/chains";
 import { Chain } from "viem";
 import { custom, createWalletClient, createPublicClient, http } from "viem";
-import { WalletClient, PublicClient } from "./types";
+
+import type { WalletClient, PublicClient } from "viem";
 
 const initiateWallet = (chainId?: number, provider?: Provider) => {
   const chain = Object.values(chains).find((it: Chain) => it.id === chainId);
@@ -175,7 +176,7 @@ const useParsedMarketPrice = ({
 
 const getMinChunkSizeUsd = (minChunkSizeUsd: number) => {
   const minChunkSizeUsdFromQuery = getQueryParam(
-    QUERY_PARAMS.MIN_CHUNK_SIZE_USD
+    QUERY_PARAMS.MIN_CHUNK_SIZE_USD,
   );
   if (minChunkSizeUsdFromQuery) {
     return parseInt(minChunkSizeUsdFromQuery);
@@ -187,12 +188,12 @@ const Content = (props: TwapProps) => {
   const acceptedMarketPrice = useSpotStore((s) => s.state.acceptedMarketPrice);
   const { walletClient, publicClient } = useMemo(
     () => initiateWallet(props.chainId, props.provider),
-    [props.chainId, props.provider]
+    [props.chainId, props.provider],
   );
 
   const supportedChains = useMemo(
     () => getPartnerChains(props.partner),
-    [props.partner]
+    [props.partner],
   );
 
   const chainId = useMemo(() => {
@@ -207,13 +208,13 @@ const Content = (props: TwapProps) => {
 
   const config = useMemo(
     () => getConfig(props.partner, chainId),
-    [props.partner, chainId]
+    [props.partner, chainId],
   );
 
   const marketReferencePrice = useParsedMarketPrice(props);
   const minChunkSizeUsd = useMemo(
     () => getMinChunkSizeUsd(props.minChunkSizeUsd),
-    [props.minChunkSizeUsd]
+    [props.minChunkSizeUsd],
   );
 
   useEffect(() => {

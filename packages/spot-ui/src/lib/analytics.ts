@@ -1,5 +1,5 @@
 import { Address, Module, Partners, RePermitOrder, SpotConfig } from "./types";
-import BN from "bignumber.js";
+
 import pkg from "../../package.json";
 
 const Version = 0.7;
