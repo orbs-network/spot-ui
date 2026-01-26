@@ -1,6 +1,6 @@
 {
   "name": "@orbs-network/spot-react",
-  "version": "0.0.45",
+  "version": "0.0.48",
   "description": "Spot React Components - React components for Spot SDK",
   "type": "module",
   "main": "./dist/spot-react.umd.cjs",
@@ -15,7 +15,8 @@
     "./styles.css": "./dist/style.css"
   },
   "files": [
-    "dist"
+    "dist",
+    ".cursor"
   ],
   "scripts": {
     "dev": "vite build --watch",
