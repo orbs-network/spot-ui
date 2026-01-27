@@ -3,7 +3,6 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { Currency, SwapStep } from "../types";
 import { DEFAULT_PRICE_PROTECTION, DEFAULT_SLIPPAGE } from "../consts";
-import { useEffect } from "react";
 
 type CustomCurrencies = { [chainId: number]: Currency[] };
 

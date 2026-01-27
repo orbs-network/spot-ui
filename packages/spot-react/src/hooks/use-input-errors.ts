@@ -29,8 +29,7 @@ export const useBalanceError = () => {
 };
 
 export function useInputErrors() {
-  const { marketPrice, marketPriceLoading } = useSpotContext();
-  const srcAmount = useSpotStore((s) => s.state.typedSrcAmount);
+  const { marketPrice, marketPriceLoading, typedInputAmount } = useSpotContext();
   const status = useSpotStore((s) => s.state.swapExecution.status);
   const balanceError = useBalanceError();
   const { error: triggerPriceError } = useTriggerPrice();
@@ -46,7 +45,7 @@ export function useInputErrors() {
     }
     if (
       BN(marketPrice || 0).isZero() ||
-      BN(srcAmount || 0).isZero() ||
+      BN(typedInputAmount || 0).isZero() ||
       marketPriceLoading ||
       ignoreErrors
     ) {
@@ -64,7 +63,7 @@ export function useInputErrors() {
   }, [
     marketPrice,
     marketPriceLoading,
-    srcAmount,
+    typedInputAmount,
     triggerPriceError,
     limitPriceError,
     tradesError,

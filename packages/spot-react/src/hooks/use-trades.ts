@@ -10,12 +10,11 @@ import BN from "bignumber.js";
 import { useTranslations } from "./use-translations";
 
 const useTradesError = (amount: number, maxAmount: number) => {
-  const { module, srcUsd1Token, marketPrice, minChunkSizeUsd } = useSpotContext();
+  const { module, srcUsd1Token, marketPrice, minChunkSizeUsd, typedInputAmount } = useSpotContext();
   const t = useTranslations();
-  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
 
   return useMemo((): InputError | undefined => {
-    if (BN(typedSrcAmount || "0").isZero() || !marketPrice) return;
+    if (BN(typedInputAmount || "0").isZero() || !marketPrice) return;
     if (!amount) {
       return {
         type: InputErrors.MIN_CHUNKS,
@@ -31,7 +30,7 @@ const useTradesError = (amount: number, maxAmount: number) => {
         message: t("maxChunksError", { maxChunks: `${maxAmount}` }),
       };
     }
-    const { isError: minTradeSizeError, value: minTradeSizeValue } = getMinTradeSizeError(typedSrcAmount || "", srcUsd1Token || "", minChunkSizeUsd || 0);
+    const { isError: minTradeSizeError, value: minTradeSizeValue } = getMinTradeSizeError(typedInputAmount || "", srcUsd1Token || "", minChunkSizeUsd || 0);
 
     if (minTradeSizeError) {
       return {
@@ -40,7 +39,7 @@ const useTradesError = (amount: number, maxAmount: number) => {
         message: t("minTradeSizeError", { minTradeSize: `${minTradeSizeValue}` }),
       };
     }
-  }, [amount, maxAmount, module, typedSrcAmount, srcUsd1Token, minChunkSizeUsd, t, marketPrice]);
+  }, [amount, maxAmount, module, typedInputAmount, srcUsd1Token, minChunkSizeUsd, t, marketPrice]);
 };
 
 export const useTrades = () => {

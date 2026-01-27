@@ -142,9 +142,8 @@ const useParsedMarketPrice = ({
   srcToken,
   dstToken,
   chainId,
+  typedInputAmount,
 }: TwapProps) => {
-  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
-
   return useMemo((): MarketReferencePrice => {
     if (
       shouldWrapOnly(srcToken, dstToken, chainId) ||
@@ -153,30 +152,30 @@ const useParsedMarketPrice = ({
       return {
         isLoading: false,
         noLiquidity: false,
-        value: amountBN(srcToken?.decimals || 18, typedSrcAmount || "0"),
+        value: amountBN(srcToken?.decimals || 18, typedInputAmount || "0"),
       };
     }
     if (
       BN(marketReferencePrice.value || 0).isZero() ||
-      BN(typedSrcAmount || 0).isZero()
+      BN(typedInputAmount || 0).isZero()
     ) {
       return marketReferencePrice;
     }
 
     const value = BN(marketReferencePrice.value || 0)
-      .dividedBy(typedSrcAmount || 0)
+      .dividedBy(typedInputAmount || 0)
       .toFixed();
 
     return {
       ...marketReferencePrice,
       value,
     };
-  }, [marketReferencePrice, typedSrcAmount, srcToken, dstToken, chainId]);
+  }, [marketReferencePrice, typedInputAmount, srcToken, dstToken, chainId]);
 };
 
 const getMinChunkSizeUsd = (minChunkSizeUsd: number) => {
   const minChunkSizeUsdFromQuery = getQueryParam(
-    QUERY_PARAMS.MIN_CHUNK_SIZE_USD,
+    QUERY_PARAMS.MIN_CHUNK_SIZE_USD
   );
   if (minChunkSizeUsdFromQuery) {
     return parseInt(minChunkSizeUsdFromQuery);
@@ -188,12 +187,12 @@ const Content = (props: TwapProps) => {
   const acceptedMarketPrice = useSpotStore((s) => s.state.acceptedMarketPrice);
   const { walletClient, publicClient } = useMemo(
     () => initiateWallet(props.chainId, props.provider),
-    [props.chainId, props.provider],
+    [props.chainId, props.provider]
   );
 
   const supportedChains = useMemo(
     () => getPartnerChains(props.partner),
-    [props.partner],
+    [props.partner]
   );
 
   const chainId = useMemo(() => {
@@ -208,13 +207,13 @@ const Content = (props: TwapProps) => {
 
   const config = useMemo(
     () => getConfig(props.partner, chainId),
-    [props.partner, chainId],
+    [props.partner, chainId]
   );
 
   const marketReferencePrice = useParsedMarketPrice(props);
   const minChunkSizeUsd = useMemo(
     () => getMinChunkSizeUsd(props.minChunkSizeUsd),
-    [props.minChunkSizeUsd],
+    [props.minChunkSizeUsd]
   );
 
   useEffect(() => {
@@ -224,6 +223,8 @@ const Content = (props: TwapProps) => {
   return (
     <SpotContext.Provider
       value={{
+        typedInputAmount: props.typedInputAmount,
+        resetTypedInputAmount: props.resetTypedInputAmount,
         minChunkSizeUsd,
         account: props.account as `0x${string}` | undefined,
         walletClient,

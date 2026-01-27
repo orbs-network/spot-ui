@@ -8,17 +8,16 @@ import { useSpotContext } from "../spot-context";
 
 const useFillDelayError = (fillDelay: TimeDuration) => {
   const t = useTranslations();
-  const { marketPrice } = useSpotContext();
-  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
+  const { marketPrice, typedInputAmount } = useSpotContext();
   const minFillDelayError = useMemo((): InputError | undefined => {
     const { isError, value } = getMinFillDelayError(fillDelay);
-    if (!isError || BN(typedSrcAmount || "0").isZero() || !marketPrice) return undefined;
+    if (!isError || BN(typedInputAmount || "0").isZero() || !marketPrice) return undefined;
     return {
       type: InputErrors.MIN_FILL_DELAY,
       value: value,
       message: t("minFillDelayError", { fillDelay: `${millisToMinutes(value)} ${t("minutes")}` }),
     };
-  }, [fillDelay, t, typedSrcAmount, marketPrice]);
+  }, [fillDelay, t, typedInputAmount, marketPrice]);
 
   return minFillDelayError;
 };

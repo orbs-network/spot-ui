@@ -3,7 +3,6 @@ import React, {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -15,9 +14,7 @@ import {
   SpotProvider as Spot,
   useDstTokenPanel,
   useDurationPanel,
-  useSrcTokenPanel,
   useTradesPanel,
-  useTypedSrcAmount,
   DEFAULT_DURATION_OPTIONS,
   useFillDelayPanel,
   useSubmitOrderPanel,
@@ -47,7 +44,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Switch } from "../ui/switch";
 import { useConnection, useWalletClient } from "wagmi";
 import { SubmitSwapButton } from "../submit-swap-button";
-import { useBalance, useRefetchSelectedCurrenciesBalances } from "@/lib/hooks/use-balances";
+import {
+  useBalance,
+  useRefetchSelectedCurrenciesBalances,
+} from "@/lib/hooks/use-balances";
 import { Avatar, AvatarImage } from "../ui/avatar";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { Portal } from "../ui/portal";
@@ -66,8 +66,6 @@ import {
 import { SpotsOrders } from "./orders";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { SpotFooter } from "./footer";
-
-
 
 const { useCallbacks } = SpotHooks;
 const Context = createContext<{
@@ -102,12 +100,10 @@ const TwapButton = (props: ButtonProps) => {
 };
 
 const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
-  const { inputCurrency, outputCurrency, inputAmount, outputAmount } =
+  const { inputCurrency, outputCurrency, inputAmount } =
     useDerivedSwap();
-  const { handleCurrencyChange } = useActionHandlers();
-  const srcTokenPanel = useSrcTokenPanel();
-  const dstTokenPanel = useDstTokenPanel();
-  const tokenPanel = isSrcToken ? srcTokenPanel : dstTokenPanel;
+  const {value: dstAmount, isLoading} = useDstTokenPanel();
+  const { handleCurrencyChange, setInputAmount } = useActionHandlers();
   const onTokenChange = useCallback(
     (currency: string) => {
       if (isSrcToken) {
@@ -119,35 +115,17 @@ const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
     [handleCurrencyChange, isSrcToken]
   );
 
-  const onAmountChange = useCallback(
-    (amount: string) => {
-      tokenPanel.onChange(amount);
-    },
-    [tokenPanel]
-  );
-
   return (
     <CurrencyCard
       currency={isSrcToken ? inputCurrency : outputCurrency}
       onCurrencyChange={onTokenChange}
-      onAmountChange={onAmountChange}
-      amount={isSrcToken ? inputAmount : outputAmount}
+      onAmountChange={isSrcToken ? setInputAmount : undefined}
+      amount={isSrcToken ? inputAmount : dstAmount}
       title={isSrcToken ? "From" : "To"}
       disabled={!isSrcToken}
-      isLoading={tokenPanel.isLoading}
+      isLoading={!isSrcToken ? isLoading : false}
     />
   );
-};
-
-const Listener = () => {
-  const { amount: srcAmount } = useTypedSrcAmount();
-  const { setInputAmount } = useActionHandlers();
-
-  useEffect(() => {
-    setInputAmount(srcAmount ?? "");
-  }, [srcAmount, setInputAmount]);
-
-  return null;
 };
 
 const getModule = (swapType: SwapType) => {
@@ -337,12 +315,12 @@ const SubmitSwapError = ({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 bg-destructive/50 p-2 rounded-md">
-       <div className="flex flex-row gap-2">
-       <AlertTriangleIcon className="size-4 text-foreground relative top-0.5" />
-        <p className="text-sm text-foreground flex-1 font-medium">
-          Error code: {code}
-        </p>
-       </div>
+        <div className="flex flex-row gap-2">
+          <AlertTriangleIcon className="size-4 text-foreground relative top-0.5" />
+          <p className="text-sm text-foreground flex-1 font-medium">
+            Error code: {code}
+          </p>
+        </div>
         {process.env.NEXT_PUBLIC_MODE === "dev" && (
           <p className="text-sm text-foreground flex-1 font-medium max-h-[200px] overflow-y-auto">
             {message}
@@ -399,15 +377,9 @@ const SubmitSwapMain = ({
   );
 };
 
-
 const SubmitSwap = () => {
-  const {
-    onSubmit,
-    onOpenModal,
-    onCloseModal,
-    isLoading,
-    parsedError,
-  } = useSubmitOrderPanel();
+  const { onSubmit, onOpenModal, onCloseModal, isLoading, parsedError } =
+    useSubmitOrderPanel();
   const [isOpen, setIsOpen] = useState(false);
 
   const onOpen = useCallback(() => {
@@ -423,9 +395,7 @@ const SubmitSwap = () => {
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <ShowSubmitSwapButton
-          onClick={onOpen}
-        />
+        <ShowSubmitSwapButton onClick={onOpen} />
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -439,10 +409,7 @@ const SubmitSwap = () => {
               onClose={onClose}
             />
           ) : (
-            <SubmitSwapMain
-              onSubmitOrder={onSubmit}
-              swapLoading={isLoading}
-            />
+            <SubmitSwapMain onSubmitOrder={onSubmit} swapLoading={isLoading} />
           )}
         </DialogContent>
       </Dialog>
@@ -450,15 +417,10 @@ const SubmitSwap = () => {
   );
 };
 
-const ShowSubmitSwapButton = ({
-  onClick,
-}: {
-  onClick: () => void;
-}) => {
+const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
   const { partner } = useSwapParams();
 
   const { disabled, text, loading } = useSubmitOrderButton();
-
 
   const partnerChainId = useMemo(() => {
     const partnerChain = partner?.split("_")[1];
@@ -608,17 +570,16 @@ const Prices = () => {
   );
 };
 
-
-
-
 export function SpotForm({ swapType }: { swapType: SwapType }) {
-  const { inputCurrency, outputCurrency } = useDerivedSwap();
+  const { inputCurrency, outputCurrency, inputAmount, } = useDerivedSwap();
+  const { setInputAmount } = useActionHandlers();
   const { chainId, address } = useConnection();
   const { priceProtection } = useSettings();
   const swapModule = useMemo(() => getModule(swapType), [swapType]);
   const callbacks = useCallbacks();
   const partner = useSpotPartner();
-  const { mutateAsync: refetchBalances } = useRefetchSelectedCurrenciesBalances();
+  const { mutateAsync: refetchBalances } =
+    useRefetchSelectedCurrenciesBalances();
 
   const inputUsd = useUSDPrice({
     token: inputCurrency?.address,
@@ -630,13 +591,13 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const { wei: inputBalance } = useBalance(inputCurrency);
   const { wei: outputBalance } = useBalance(outputCurrency);
 
-  
-
   return (
     <Context.Provider value={{ swapModule }}>
       <FormContainer>
         <Spot
           chainId={chainId}
+          typedInputAmount={inputAmount}
+          resetTypedInputAmount={() => setInputAmount("")}
           provider={useWalletClient().data?.transport}
           account={address}
           partner={partner}
@@ -660,7 +621,6 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
             Spinner: <Spinner className="size-18" />,
           }}
           fees={0.25}
-          
         >
           <div className="flex flex-col gap-1">
             <div className="flex flex-col gap-0">
@@ -678,7 +638,6 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
             <SpotsOrders />
           </Portal>
         </Spot>
-        <Listener />
         <SpotFooter />
       </FormContainer>
     </Context.Provider>

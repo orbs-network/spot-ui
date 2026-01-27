@@ -350,6 +350,8 @@ export interface TwapProps {
   useToken?: UseToken;
   minChunkSizeUsd: number;
   components: Components;
+  typedInputAmount: string;
+  resetTypedInputAmount: () => void;
 }
 
 export interface SpotContextType {
@@ -361,6 +363,7 @@ export interface SpotContextType {
   noLiquidity?: boolean;
   config: SpotConfig;
   supportedChains: number[];
+  typedInputAmount: string;
   partner: Partners;
   minChunkSizeUsd: number;
   srcToken?: Token;
@@ -380,6 +383,7 @@ export interface SpotContextType {
   translations?: Partial<Translations> | undefined;
   useToken?: UseToken;
   refetchBalances?: () => void;
+  resetTypedInputAmount: () => void;
 }
 
 export type SelectMeuItem = { text: string; value: string | number };
@@ -438,7 +442,6 @@ export type SwapExecution = {
 
 export interface State {
   unwrapTxHash?: string;
-  typedSrcAmount?: string;
   typedChunks?: number;
   typedFillDelay?: TimeDuration;
   typedDuration?: TimeDuration;

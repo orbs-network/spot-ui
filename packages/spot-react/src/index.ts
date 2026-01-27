@@ -10,7 +10,7 @@ import { useDurationPanel } from "./hooks/use-duration";
 import { useDisclaimerPanel } from "./hooks/use-disclaimer-panel";
 import { useTriggerPricePanel } from "./hooks/use-trigger-price";
 import { useOrderHistoryPanel } from "./hooks/order-hooks";
-import { useDstTokenPanel, useSrcTokenPanel, useTypedSrcAmount } from "./hooks/use-token-panel";
+import { useDstTokenPanel } from "./hooks/use-dst-token-panel";
 import { useLimitPricePanel } from "./hooks/use-limit-price";
 import { useInvertTradePanel } from "./hooks/use-invert-trade-panel";
 import { useInputErrors } from "./hooks/use-input-errors";
@@ -49,7 +49,6 @@ export {
   useDurationPanel,
   useFillDelayPanel,
   useLimitPricePanel,
-  useSrcTokenPanel,
   useDstTokenPanel,
   useTriggerPricePanel,
   useOrderHistoryPanel,
@@ -58,7 +57,6 @@ export {
   useInvertTradePanel,
   useInputErrors,
   useTogglePricePanel,
-  useTypedSrcAmount,
   useTranslations,
   usePartnerChains,
   useAddresses,

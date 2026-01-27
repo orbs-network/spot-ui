@@ -11,14 +11,13 @@ import { useTranslations } from "./use-translations";
 import { useInvertTradePanel } from "./use-invert-trade-panel";
 
 export const useLimitPriceError = (limitPriceWei?: string) => {
-  const { module, marketPrice } = useSpotContext();
+  const { module, marketPrice, typedInputAmount } = useSpotContext();
   const t = useTranslations();
   const { amountWei: triggerPrice } = useTriggerPrice();
 
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
-  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
   return useMemo((): InputError | undefined => {
-    if (BN(typedSrcAmount || "0").isZero() || !triggerPrice || !marketPrice) return;
+    if (BN(typedInputAmount || "0").isZero() || !triggerPrice || !marketPrice) return;
     const _stopLossError = getStopLossLimitPriceError(triggerPrice, limitPriceWei, isMarketOrder, module);
     const _takeProfitError = getTakeProfitLimitPriceError(triggerPrice, limitPriceWei, isMarketOrder, module);
 
@@ -45,7 +44,7 @@ export const useLimitPriceError = (limitPriceWei?: string) => {
         value: limitPriceWei || "",
       };
     }
-  }, [limitPriceWei, t, triggerPrice, module, isMarketOrder, typedSrcAmount, marketPrice]);
+  }, [limitPriceWei, t, triggerPrice, module, isMarketOrder, typedInputAmount, marketPrice]);
 };
 
 export const useLimitPrice = () => {

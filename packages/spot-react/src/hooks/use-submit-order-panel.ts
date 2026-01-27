@@ -11,7 +11,7 @@ import { useTranslations } from "./use-translations";
 import BN from "bignumber.js";
 
 export const useSubmitOrderPanel = () => {
-  const { marketPrice, srcToken, dstToken } = useSpotContext();
+  const { marketPrice, srcToken, dstToken, resetTypedInputAmount } = useSpotContext();
   const submitOrderMutation = useSubmitOrderMutation();
   const updateState = useSpotStore((s) => s.updateState);
   const { amountUI: srcAmountUI } = useSrcAmount();
@@ -20,12 +20,12 @@ export const useSubmitOrderPanel = () => {
 
   const onCloseModal = useCallback(() => {
     if (swapExecution?.status === SwapStatus.SUCCESS) {
-      updateState({ typedSrcAmount: "" });
+      resetTypedInputAmount();
       setTimeout(() => {
         resetSwap();
       }, 1_000);
     }
-  }, [swapExecution?.status, resetSwap, updateState]);
+  }, [swapExecution?.status, resetSwap, resetTypedInputAmount]);
 
   const onOpenModal = useCallback(() => {
     if (swapExecution?.status !== SwapStatus.LOADING) {
@@ -81,6 +81,7 @@ export const useSubmitOrderButton = () => {
     srcBalance,
     srcUsd1Token,
     noLiquidity,
+    typedInputAmount,
   } = useSpotContext();
 
   const isPropsLoading =
@@ -88,26 +89,25 @@ export const useSubmitOrderButton = () => {
     BN(srcUsd1Token || "0").isZero() ||
     srcBalance === undefined ||
     BN(marketPrice || "0").isZero();
-  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
 
   const buttonLoading = Boolean(
-    srcToken && dstToken && typedSrcAmount && isPropsLoading
+    srcToken && dstToken && typedInputAmount && isPropsLoading
   );
   const inputsError = useInputErrors();
 
   const buttonText = useMemo(() => {
     if (noLiquidity) return t("noLiquidity");
-    if (BN(typedSrcAmount || "0").isZero()) return t("enterAmount");
+    if (BN(typedInputAmount || "0").isZero()) return t("enterAmount");
     if (inputsError?.type === InputErrors.INSUFFICIENT_BALANCE)
       return t("insufficientFunds");
     return t("placeOrder");
-  }, [inputsError, t, typedSrcAmount, noLiquidity]);
+  }, [inputsError, t, typedInputAmount, noLiquidity]);
 
   const disabled = Boolean(
     inputsError ||
       noLiquidity ||
       buttonLoading ||
-      BN(typedSrcAmount || "0").isZero() ||
+      BN(typedInputAmount || "0").isZero() ||
       !srcToken ||
       !dstToken
   );

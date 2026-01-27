@@ -3,16 +3,14 @@ import { useSpotStore } from "../store";
 import { useAmountBN } from "./helper-hooks";
 import BN from "bignumber.js";
 import { useTranslations } from "./use-translations";
-import { useCallback } from "react";
 
 export const useSrcAmount = () => {
-  const { srcToken } = useSpotContext();
+  const { srcToken, typedInputAmount } = useSpotContext();
   const t = useTranslations();
 
-  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
   const acceptedSrcAmount = useSpotStore((s) => s.state.acceptedSrcAmount);
 
-  const value = acceptedSrcAmount || typedSrcAmount;
+  const value = acceptedSrcAmount || typedInputAmount;
 
   return {
     amountWei: useAmountBN(srcToken?.decimals, value),
@@ -21,12 +19,3 @@ export const useSrcAmount = () => {
   };
 };
 
-
-export const useTypedSrcAmount = () => {
-  const updateState = useSpotStore((s) => s.updateState);
-
-  return {
-    amount: useSpotStore((s) => s.state.typedSrcAmount),
-    reset: useCallback(() => updateState({ typedSrcAmount: "" }), [updateState]),
-  };
-};

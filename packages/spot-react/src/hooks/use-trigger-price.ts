@@ -12,12 +12,12 @@ import { useTranslations } from "./use-translations";
 import { useInvertTradePanel } from "./use-invert-trade-panel";
 
 const useTriggerPriceError = (triggerPriceWei = "") => {
-  const { module, marketPrice } = useSpotContext();
+  const { module, marketPrice, typedInputAmount } = useSpotContext();
   const t = useTranslations();
 
-  const typedSrcAmount = useSpotStore((s) => s.state.typedSrcAmount);
+
   return useMemo((): InputError | undefined => {
-    if (BN(typedSrcAmount || "0").isZero() || !marketPrice) return;
+    if (BN(typedInputAmount || "0").isZero() || !marketPrice) return;
     if (module !== Module.STOP_LOSS && module !== Module.TAKE_PROFIT) return;
     const stopLossError = getStopLossPriceError(marketPrice || "", triggerPriceWei || "", module);
     if (stopLossError?.isError) {
@@ -44,7 +44,7 @@ const useTriggerPriceError = (triggerPriceWei = "") => {
         message: t("emptyTriggerPrice") || "",
       };
     }
-  }, [marketPrice, triggerPriceWei, module, t, typedSrcAmount]);
+  }, [marketPrice, triggerPriceWei, module, t, typedInputAmount]);
 };
 
 export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
