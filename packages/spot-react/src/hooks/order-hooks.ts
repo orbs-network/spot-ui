@@ -40,7 +40,7 @@ export const useOrderName = (order?: Order) => {
 const useOrdersQueryKey = () => {
   const { account, config, chainId } = useSpotContext();
   return useMemo(
-    () => ["useTwapOrderHistoryManager", account, config?.partner, chainId],
+    () => ["useTwapOrderHistoryManager", account, config?.adapter, chainId],
     [account, config, chainId],
   );
 };
@@ -111,7 +111,7 @@ export const useOrdersQuery = () => {
       const orders = await getAccountOrders({
         signal,
         chainId,
-        config: config.twapConfig,
+        config,
         account,
       });
 

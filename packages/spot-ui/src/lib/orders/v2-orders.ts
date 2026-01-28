@@ -89,7 +89,6 @@ const getOrderDollarValueIn = (order: OrderV2) => {
 
 export const buildV2Order = (order: OrderV2): Order => {
   const progress = getProgress(order);
-  console.log(getOrderDollarValueIn(order));
 
   const dstMinAmountPerTrade =
     Number(order.order.witness.output.limit) === 1
@@ -141,14 +140,17 @@ export const getOrders = async ({
   chainId,
   signal,
   account,
+  exchange,
 }: {
   chainId: number;
   signal?: AbortSignal;
   account?: string;
+  exchange?: string;
 }): Promise<Order[]> => {
   if (!account) return [];
+  const exchangeQuery = exchange ? `&exchange=${exchange}` : "";
   const response = await fetch(
-    `${getApiEndpoint()}/orders?swapper=${account}&chainId=${chainId}`,
+    `${getApiEndpoint()}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
     {
       signal,
     },
