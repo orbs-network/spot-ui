@@ -441,22 +441,17 @@ export type SwapExecution = {
 };
 
 export interface State {
-  unwrapTxHash?: string;
   typedChunks?: number;
   typedFillDelay?: TimeDuration;
   typedDuration?: TimeDuration;
   typedLimitPrice?: string;
   typedTriggerPrice?: string;
   triggerPricePercent?: string | null;
-  isInvertedTrade?: boolean;
   limitPricePercent?: string | null;
+  isInvertedTrade?: boolean;
   isMarketOrder?: boolean;
-
   currentTime: number;
   cancelOrderStatus?: SwapStatus;
-  cancelOrderTxHash?: string;
-  cancelOrderError?: string;
-  cancelOrderId?: number;
 
   selectedOrderID?: string;
   orderHistoryStatusFilter?: OrderStatus;

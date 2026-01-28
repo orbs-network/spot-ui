@@ -8,15 +8,16 @@ import { useTrades } from "./use-trades";
 import { useSrcAmount } from "./use-src-amount";
 
 export const useDstTokenAmount = () => {
-  const { srcToken, dstToken } = useSpotContext();
+  const { srcToken, dstToken, dstUsd1Token } = useSpotContext();
   const tradePrice = useTradePrice();
   const srcAmountWei = useSrcAmount().amountWei;
 
   const amountWei = useMemo(() => getDestTokenAmount(srcAmountWei || "", tradePrice, srcToken?.decimals || 0), [srcAmountWei, tradePrice, srcToken?.decimals]);
-
+  const amountUI = useAmountUi(dstToken?.decimals, amountWei);
   return {
     amountWei,
-    amountUI: useAmountUi(dstToken?.decimals, amountWei),
+    amountUI,
+    usd: useUsdAmount(amountUI, dstUsd1Token),
   };
 };
 
