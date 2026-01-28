@@ -35,7 +35,7 @@ const useDurationError = (duration: TimeDuration) => {
 };
 
 export const useDuration = () => {
-  const { module } = useSpotContext();
+  const { module, callbacks } = useSpotContext();
   const typedDuration = useSpotStore((s) => s.state.typedDuration);
   const updateState = useSpotStore((s) => s.updateState);
   const totalTrades = useTrades().totalTrades;
@@ -45,7 +45,10 @@ export const useDuration = () => {
 
   return {
     duration,
-    setDuration: useCallback((typedDuration: TimeDuration) => updateState({ typedDuration }), [updateState]),
+    setDuration: useCallback((typedDuration: TimeDuration) => {
+      updateState({ typedDuration });
+      callbacks?.onDurationChange?.(typedDuration);
+    }, [updateState, callbacks]),
     error,
   };
 };

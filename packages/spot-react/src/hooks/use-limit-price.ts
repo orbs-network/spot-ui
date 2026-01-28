@@ -48,7 +48,7 @@ export const useLimitPriceError = (limitPriceWei?: string) => {
 };
 
 export const useLimitPrice = () => {
-  const { dstToken, marketPrice, module } = useSpotContext();
+  const { dstToken, marketPrice, callbacks } = useSpotContext();
   const updateState = useSpotStore((s) => s.updateState);
   const defaultLimitPricePercent = useDefaultLimitPricePercent();
   const typedPercent = useSpotStore((s) => s.state.limitPricePercent);
@@ -59,12 +59,16 @@ export const useLimitPrice = () => {
     percentage,
     tokenDecimals: dstToken?.decimals,
     initialPrice: marketPrice,
-    setValue: useCallback((typedLimitPrice?: string) => updateState({ typedLimitPrice }), [updateState]),
+    setValue: useCallback((typedLimitPrice?: string) => {
+      updateState({ typedLimitPrice });
+      callbacks?.onLimitPriceChange?.(typedLimitPrice || "");
+    }, [updateState, callbacks]),
     setPercentage: useCallback(
       (limitPricePercent?: string | null) => {
         updateState({ limitPricePercent });
+        callbacks?.onLimitPricePercentChange?.(limitPricePercent || "");
       },
-      [updateState, module],
+      [updateState, callbacks],
     ),
   });
 

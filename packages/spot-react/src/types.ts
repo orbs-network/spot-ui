@@ -242,7 +242,7 @@ export type OrderDetails = {
 };
 
 export type Overrides = {
-  wrap?: (amount: bigint) => Promise<`0x${string}`>;
+  wrap?: (amountWei: string) => Promise<`0x${string}`>;
   approveOrder?: (props: ApproveProps) => Promise<`0x${string}`>;
   createOrder?: (props: CreateOrderProps) => Promise<`0x${string}`>;
   getAllowance?: (props: GetAllowanceProps) => Promise<string>;
@@ -292,6 +292,14 @@ export type Callbacks = {
   onCopy?: () => void;
   onSubmitOrderFailed?: (error: ParsedError) => void;
   onSubmitOrderRejected?: () => void;
+
+  onLimitPriceChange?: (typedLimitPrice: string) => void;
+  onTriggerPriceChange?: (typedTriggerPrice: string) => void;
+  onTriggerPricePercentChange?: (triggerPricePercent: string) => void;
+  onLimitPricePercentChange?: (limitPricePercent: string) => void;
+  onDurationChange?: (typedDuration?: TimeDuration) => void;
+  onFillDelayChange?: (typedFillDelay?: TimeDuration) => void;
+  onChunksChange?: (typedChunks: number) => void;
 };
 
 export type SubmitOrderSuccessViewProps = {
@@ -441,17 +449,22 @@ export type SwapExecution = {
 };
 
 export interface State {
+  unwrapTxHash?: string;
   typedChunks?: number;
   typedFillDelay?: TimeDuration;
   typedDuration?: TimeDuration;
   typedLimitPrice?: string;
   typedTriggerPrice?: string;
   triggerPricePercent?: string | null;
-  limitPricePercent?: string | null;
   isInvertedTrade?: boolean;
+  limitPricePercent?: string | null;
   isMarketOrder?: boolean;
+
   currentTime: number;
   cancelOrderStatus?: SwapStatus;
+  cancelOrderTxHash?: string;
+  cancelOrderError?: string;
+  cancelOrderId?: number;
 
   selectedOrderID?: string;
   orderHistoryStatusFilter?: OrderStatus;

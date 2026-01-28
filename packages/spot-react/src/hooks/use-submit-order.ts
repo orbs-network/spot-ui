@@ -59,7 +59,7 @@ const useWrapToken = () => {
       analytics.onWrapRequest();
       callbacks?.onWrapRequest?.();
       if (overrides?.wrap) {
-        hash = await overrides.wrap(BigInt(srcAmountWei));
+        hash = await overrides.wrap(srcAmountWei);
       } else {
         hash = await walletClient.writeContract({
           abi: IWETH_ABI,

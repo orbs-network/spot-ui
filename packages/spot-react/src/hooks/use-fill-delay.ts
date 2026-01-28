@@ -23,6 +23,7 @@ const useFillDelayError = (fillDelay: TimeDuration) => {
 };
 
 export const useFillDelay = () => {
+  const { callbacks } = useSpotContext();
   const typedFillDelay = useSpotStore((s) => s.state.typedFillDelay);
   const updateState = useSpotStore((s) => s.updateState);
   const fillDelay = useMemo(() => typedFillDelay || DEFAULT_FILL_DELAY, [typedFillDelay]);
@@ -30,7 +31,10 @@ export const useFillDelay = () => {
 
   return {
     fillDelay,
-    onChange: useCallback((typedFillDelay: TimeDuration) => updateState({ typedFillDelay }), [updateState]),
+    onChange: useCallback((typedFillDelay: TimeDuration) => {
+      updateState({ typedFillDelay });
+      callbacks?.onFillDelayChange?.(typedFillDelay);
+    }, [updateState, callbacks]),
     error,
     milliseconds: fillDelay.unit * fillDelay.value,
   };

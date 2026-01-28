@@ -63,17 +63,10 @@ export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
 };
 
 export const useTriggerPrice = () => {
-  const { dstToken, marketPrice, module } = useSpotContext();
+  const { dstToken, marketPrice, module, callbacks } = useSpotContext();
   const updateState = useSpotStore((s) => s.updateState);
   const defaultTriggerPricePercent = useDefaultTriggerPricePercent();
   const typedPercent = useSpotStore((s) => s.state.triggerPricePercent);
-
-  const setPercentage = useCallback(
-    (triggerPricePercent?: string | null) => {
-      updateState({ triggerPricePercent });
-    },
-    [updateState],
-  );
 
   const percentage = typedPercent === undefined ? defaultTriggerPricePercent : typedPercent;
   const enabled = module === Module.STOP_LOSS || module === Module.TAKE_PROFIT;
@@ -83,8 +76,17 @@ export const useTriggerPrice = () => {
     percentage,
     tokenDecimals: dstToken?.decimals,
     initialPrice: enabled ? marketPrice : undefined,
-    setValue: useCallback((typedTriggerPrice?: string) => updateState({ typedTriggerPrice }), [updateState]),
-    setPercentage,
+    setValue: useCallback((typedTriggerPrice?: string) => {
+      updateState({ typedTriggerPrice });
+      callbacks?.onTriggerPriceChange?.(typedTriggerPrice || "");
+    }, [updateState, callbacks]),
+    setPercentage: useCallback(
+      (triggerPricePercent?: string | null) => {
+        updateState({ triggerPricePercent });
+        callbacks?.onTriggerPricePercentChange?.(triggerPricePercent || "");
+      },
+      [updateState, callbacks],
+    ),
   });
   const error = useTriggerPriceError(result.amountWei);
   const { amountWei: triggerAmountPerChunk, amountUI: triggerAmountPerChunkUI } = useTriggerAmountPerChunk(result.amountWei);
