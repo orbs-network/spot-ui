@@ -2,7 +2,7 @@ import { SwapStatus } from "@orbs-network/swap-ui";
 import { useMutation } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
 import { useSpotContext } from "../spot-context";
-import { InputErrors, SwapExecution } from "../types";
+import { InputErrors } from "../types";
 import { useSpotStore } from "../store";
 import { useInputErrors } from "./use-input-errors";
 import { useSrcAmount } from "./use-src-amount";
@@ -11,19 +11,19 @@ import { useTranslations } from "./use-translations";
 import BN from "bignumber.js";
 
 export const useSubmitOrderPanel = () => {
-  const { marketPrice, srcToken, dstToken, resetTypedInputAmount } = useSpotContext();
+  const { marketPrice, srcToken, dstToken, resetTypedInputAmount } =
+    useSpotContext();
   const submitOrderMutation = useSubmitOrderMutation();
   const updateState = useSpotStore((s) => s.updateState);
   const { amountUI: srcAmountUI } = useSrcAmount();
   const resetSwap = useSpotStore((s) => s.resetState);
   const swapExecution = useSpotStore((s) => s.state.swapExecution);
+  const updateSwapExecution = useSpotStore((s) => s.updateSwapExecution);
 
   const onCloseModal = useCallback(() => {
     if (swapExecution?.status === SwapStatus.SUCCESS) {
       resetTypedInputAmount();
-      setTimeout(() => {
-        resetSwap();
-      }, 1_000);
+      resetSwap();
     }
   }, [swapExecution?.status, resetSwap, resetTypedInputAmount]);
 
@@ -32,7 +32,13 @@ export const useSubmitOrderPanel = () => {
       updateState({
         acceptedSrcAmount: undefined,
         acceptedMarketPrice: undefined,
-        swapExecution: { srcToken, dstToken } as SwapExecution,
+      });
+      updateSwapExecution({
+        srcToken,
+        dstToken,
+        error: undefined,
+        parsedError: undefined,
+        status: undefined,
       });
     }
   }, [updateState, srcToken, dstToken]);
@@ -52,7 +58,6 @@ export const useSubmitOrderPanel = () => {
     () => submitSwapMutation.mutateAsync(),
     [submitSwapMutation]
   );
-
 
   return useMemo(() => {
     return {

@@ -129,7 +129,6 @@ export const useOrdersQuery = () => {
       });
     },
   });
-  console.log(query.error);
   
   return query;
 };

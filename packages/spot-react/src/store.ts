@@ -24,12 +24,7 @@ export const useSpotStore = create<SpotStore>((set, get) => ({
       state: {
         ...initialState,
         currentTime: Date.now(),
-        swapExecution: {
-          ...get().state.swapExecution,
-          error: undefined,
-          parsedError: undefined,
-          status: undefined,
-        },
+        swapExecution: get().state.swapExecution,
         isMarketOrder: get().state.isMarketOrder,
       },
     });
