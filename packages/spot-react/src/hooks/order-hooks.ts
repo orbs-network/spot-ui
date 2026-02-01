@@ -100,7 +100,7 @@ export const useOrdersQuery = () => {
 
   const queryKey = useOrdersQueryKey();
   const orderFilledCallback = useOrderFilledCallback();
-  return useQuery<Order[]>({
+  const query = useQuery<Order[]>({
     refetchInterval: REFETCH_ORDER_HISTORY,
     refetchOnWindowFocus: true,
     retry: false,
@@ -115,6 +115,8 @@ export const useOrdersQuery = () => {
         account,
       });
 
+      
+
       orderFilledCallback(orders);
       return orders.map((order) => {
         if (config?.twapConfig) {
@@ -127,6 +129,9 @@ export const useOrdersQuery = () => {
       });
     },
   });
+  console.log(query.error);
+  
+  return query;
 };
 
 export const useOrders = () => {

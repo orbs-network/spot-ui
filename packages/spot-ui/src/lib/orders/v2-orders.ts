@@ -147,7 +147,8 @@ export const getOrders = async ({
   account?: string;
   exchange?: string;
 }): Promise<Order[]> => {
-  if (!account) return [];
+  try {
+    if (!account) return [];
   const exchangeQuery = exchange ? `&exchange=${exchange}` : "";
   const response = await fetch(
     `${getApiEndpoint()}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
@@ -159,4 +160,7 @@ export const getOrders = async ({
   const payload = (await response.json()) as { orders: OrderV2[] };
 
   return payload.orders.map(buildV2Order);
+  } catch (error) {
+    return [];
+  }
 };

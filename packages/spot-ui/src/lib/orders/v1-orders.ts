@@ -467,35 +467,39 @@ export const getOrders = async ({
   limit?: number;
   filters?: GetV1OrdersFilters;
 }): Promise<Order[]> => {
-  const orders = await getCreatedOrders({
-    chainId,
-    signal,
-    page,
-    limit,
-    filters,
-  });
-  const [fills, statuses] = await Promise.all([
-    getFills({ chainId, orders, signal }),
-    getStatuses({ chainId, orders, signal }),
-  ]);
-
-  const parsedOrders = orders
-    .map((o) => {
-      const orderFills = fills?.filter(
-        (it) =>
-          it.TWAP_id === Number(o.Contract_id) &&
-          eqIgnoreCase(it.exchange, o.exchange) &&
-          eqIgnoreCase(it.twapAddress, o.twapAddress)
-      );
-      return buildV1Order(
-        o,
-        chainId,
-        orderFills,
-        getStatus(o, orderFills || [], statuses)
-      );
-    })
-    .sort((a, b) => b.createdAt - a.createdAt);
-  return parsedOrders;
+  try {
+    const orders = await getCreatedOrders({
+      chainId,
+      signal,
+      page,
+      limit,
+      filters,
+    });
+    const [fills, statuses] = await Promise.all([
+      getFills({ chainId, orders, signal }),
+      getStatuses({ chainId, orders, signal }),
+    ]);
+  
+    const parsedOrders = orders
+      .map((o) => {
+        const orderFills = fills?.filter(
+          (it) =>
+            it.TWAP_id === Number(o.Contract_id) &&
+            eqIgnoreCase(it.exchange, o.exchange) &&
+            eqIgnoreCase(it.twapAddress, o.twapAddress)
+        );
+        return buildV1Order(
+          o,
+          chainId,
+          orderFills,
+          getStatus(o, orderFills || [], statuses)
+        );
+      })
+      .sort((a, b) => b.createdAt - a.createdAt);
+    return parsedOrders;
+  } catch (error) {
+    return [];
+  }
 };
 
 const getStatus = (
