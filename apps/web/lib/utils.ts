@@ -268,6 +268,8 @@ export const getSpotPartnerProdLink = (partner?: string) => {
       return "https://spooky.fi/#/swap/twap";
     case Partners.Thena:
       return "https://thena.fi/swap?inputCurrency=BNB&outputCurrency=0xf4c8e32eadec4bfe97e0f595add0f4450a863a11&swapType=2";
+    case Partners.Lynex:
+      return "https://app.lynex.fi/swap?inputCurrency=ETH&outputCurrency=0x1a51b19CE03dbE0Cb44C1528E34a7EDD7771E9Af&swapType=2";
     default:
       return undefined;
   }
