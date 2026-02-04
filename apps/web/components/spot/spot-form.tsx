@@ -591,13 +591,15 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const { wei: inputBalance } = useBalance(inputCurrency);
   const { wei: outputBalance } = useBalance(outputCurrency);
 
+  const resetTypedInputAmount = useCallback(() =>  setInputAmount(""), [setInputAmount]);
+
   return (
     <Context.Provider value={{ swapModule }}>
       <FormContainer>
         <Spot
           chainId={chainId}
           typedInputAmount={inputAmount}
-          resetTypedInputAmount={() => setInputAmount("")}
+          resetTypedInputAmount={resetTypedInputAmount}
           provider={useWalletClient().data?.transport}
           account={address}
           partner={partner}

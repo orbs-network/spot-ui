@@ -180,7 +180,6 @@ const useHasAllowanceCallback = () => {
       if (!config) {
         throw new Error("missing config");
       }
-      console.log(config.repermit, 'repermit');
       
       const allowance = await publicClient
         .readContract({
