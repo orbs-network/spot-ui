@@ -380,7 +380,7 @@ const SubmitSwapMain = ({
 };
 
 const SubmitSwap = () => {
-  const { onSubmit, onOpenModal, onCloseModal, isLoading, parsedError } =
+  const { onSubmit, onOpenModal, onCloseModal, status, parsedError, orderTitle, allowanceLoading } =
     useSubmitOrderPanel();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -401,7 +401,7 @@ const SubmitSwap = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {parsedError ? "Error Creating Order" : "Submit Swap"}
+              {parsedError ? "Error Creating Order" : !status ?   `${orderTitle} order` :' '}
             </DialogTitle>
           </DialogHeader>
           {parsedError ? (
@@ -411,7 +411,7 @@ const SubmitSwap = () => {
               onClose={onClose}
             />
           ) : (
-            <SubmitSwapMain onSubmitOrder={onSubmit} swapLoading={isLoading} />
+            <SubmitSwapMain onSubmitOrder={onSubmit} swapLoading={Boolean(allowanceLoading)} />
           )}
         </DialogContent>
       </Dialog>

@@ -22,12 +22,6 @@ export const getTheGraphUrl = (chainId?: number) => {
   return THE_GRAPH_ORDERS_API[chainId as keyof typeof THE_GRAPH_ORDERS_API];
 };
 
-export const isMarketPrice = (type: OrderType) => {
-  return (
-    type === OrderType.TWAP_MARKET || type === OrderType.TRIGGER_PRICE_MARKET
-  );
-};
-
 export const groupBy = (array: any = [], key: string) => {
   return array.reduce((result: any, currentItem: any) => {
     const groupKey = currentItem[key];

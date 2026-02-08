@@ -25,8 +25,8 @@ export interface Translations {
   proceedInWallet: string;
   maxOrderSizeError: string;
   maxDurationTooltip: string;
-  triggerPriceMarket: string;
-  triggerPriceLimit: string;
+  stopLossMarket: string;
+  stopLossLimit: string;
   placeOrder: string;
   enterAmount: string;
   emptyLimitPrice: string;

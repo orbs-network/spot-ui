@@ -192,7 +192,7 @@ const buildV1Order = (
     srcAmountPerTrade: order.ask_srcBidAmount,
     txHash: order.transactionHash,
     totalTradesAmount: chunks,
-    isMarketPrice: [OrderType.TWAP_MARKET, OrderType.TRIGGER_PRICE_MARKET].includes(type),
+    isMarketPrice: [OrderType.TWAP_MARKET].includes(type),
     chainId,
     filledOrderTimestamp: filledOrderTimestamp || 0,
     status,

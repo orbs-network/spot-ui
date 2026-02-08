@@ -16,26 +16,62 @@ import { useCancelOrderMutation } from "./use-cancel-order";
 import { useSpotStore } from "../store";
 import { useTranslations } from "./use-translations";
 import { useHistoryOrder } from "./use-history-order";
+import { Module } from "@orbs-network/spot-ui";
 
-export const useOrderName = (order?: Order) => {
+
+
+
+export const useOrderTitle = (type?: OrderType) => {
   const t = useTranslations();
   return useMemo(() => {
-    if (!order) return t("twapMarket");
-    if (order.type === OrderType.TRIGGER_PRICE_MARKET) {
-      return t("triggerPriceMarket");
-    }
-    if (order.type === OrderType.TRIGGER_PRICE_LIMIT) {
-      return t("triggerPriceLimit");
-    }
-    if (order.type === OrderType.TWAP_MARKET) {
+   switch (type) {
+    case OrderType.TWAP_MARKET:
       return t("twapMarket");
-    }
-    if (order.type === OrderType.TWAP_LIMIT) {
+    case OrderType.TWAP_LIMIT:
       return t("twapLimit");
-    }
-    return t("twapMarket");
-  }, [t, order?.type]);
+    case OrderType.STOP_LOSS_MARKET:
+      return t("stopLossMarket");
+    case OrderType.STOP_LOSS_LIMIT:
+      return t("stopLossLimit");
+    case OrderType.TAKE_PROFIT:
+      return t("takeProfit");
+    default:
+      return t("twapMarket");
+   }
+  }, [t, type]);
 };
+
+
+const useOrderType = () => {
+  const { module } = useSpotContext();
+  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
+  return useMemo(() => {
+    if (module === Module.TWAP) {
+      return isMarketOrder ? OrderType.TWAP_MARKET : OrderType.TWAP_LIMIT;
+    }
+    if (module === Module.LIMIT) {
+      return isMarketOrder ? OrderType.LIMIT : OrderType.TWAP_LIMIT;
+    }
+    if (module === Module.STOP_LOSS) {
+      return isMarketOrder ? OrderType.STOP_LOSS_MARKET : OrderType.STOP_LOSS_LIMIT;
+    }
+    if (module === Module.TAKE_PROFIT) {
+      return  OrderType.TAKE_PROFIT
+    }
+    return OrderType.TWAP_MARKET;
+  }, [module, isMarketOrder]);
+};
+
+
+export const useCurrentOrderTitle = () => {
+  const orderType = useOrderType();
+  return useOrderTitle(orderType);
+};
+
+export const useHistoryOrderTitle = (order?: Order) => {
+  return useOrderTitle(order?.type);
+};
+
 
 const useOrdersQueryKey = () => {
   const { account, config, chainId } = useSpotContext();

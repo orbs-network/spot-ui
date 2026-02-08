@@ -9,6 +9,7 @@ import { useSrcAmount } from "./use-src-amount";
 import { useSubmitOrderMutation } from "./use-submit-order";
 import { useTranslations } from "./use-translations";
 import BN from "bignumber.js";
+import { useCurrentOrderTitle } from "./order-hooks";
 
 export const useSubmitOrderPanel = () => {
   const { marketPrice, srcToken, dstToken, resetTypedInputAmount } =
@@ -19,6 +20,7 @@ export const useSubmitOrderPanel = () => {
   const resetSwap = useSpotStore((s) => s.resetState);
   const swapExecution = useSpotStore((s) => s.state.swapExecution);
   const updateSwapExecution = useSpotStore((s) => s.updateSwapExecution);
+  const orderTitle = useCurrentOrderTitle();
 
   const onCloseModal = useCallback(() => {
     if (swapExecution?.status === SwapStatus.SUCCESS) {
@@ -65,15 +67,13 @@ export const useSubmitOrderPanel = () => {
       onCloseModal,
       onOpenModal,
       onSubmit: onSubmitOrder,
+      orderTitle,
       ...swapExecution,
-      isLoading: Boolean(
-        swapExecution?.status === SwapStatus.LOADING ||
-          swapExecution?.allowanceLoading
-      ),
+      isLoading: swapExecution?.status === SwapStatus.LOADING,
       isSuccess: swapExecution?.status === SwapStatus.SUCCESS,
       isFailed: swapExecution?.status === SwapStatus.FAILED,
     };
-  }, [resetSwap, onCloseModal, onSubmitOrder, swapExecution]);
+  }, [resetSwap, onCloseModal, onSubmitOrder, swapExecution, orderTitle]);
 };
 
 export const useSubmitOrderButton = () => {

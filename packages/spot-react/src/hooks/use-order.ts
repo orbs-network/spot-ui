@@ -27,8 +27,9 @@ export const useOrder = () => {
   const { amountPerTradeWei: srcAmountPerTrade, totalTrades } = useTrades();
   const deadlineMillis = useDeadline();
   const { amountWei: minDestAmountPerTrade } = useDstMinAmountPerTrade();
-  const { amountWei: triggerPricePerTrade } = useTriggerPrice();
+  const { pricePerChunkWei: triggerPricePerTrade } = useTriggerPrice();
   const { milliseconds: fillDelayMillis } = useFillDelay();
+  
 
   return useMemo(() => {
     return {

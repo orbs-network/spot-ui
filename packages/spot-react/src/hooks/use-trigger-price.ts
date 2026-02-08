@@ -56,6 +56,8 @@ export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
     return getTriggerPricePerChunk(module, amountPerTrade, triggerPrice, srcToken?.decimals || 0);
   }, [triggerPrice, amountPerTrade, isMarketOrder, srcToken?.decimals, module]);
 
+  
+
   return {
     amountWei: result,
     amountUI: useAmountUi(dstToken?.decimals || 0, result),

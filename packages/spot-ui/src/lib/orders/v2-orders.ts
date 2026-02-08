@@ -1,27 +1,29 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-constant-condition */
-import { getApiEndpoint } from "../consts";
+import { getApiEndpoint, maxUint256 } from "../consts";
 import { OrderStatus, OrderType, OrderV2, Order, OrderFill } from "../types";
 import BN from "bignumber.js";
 
 const getOrderType = (order: OrderV2) => {
   const isLimit = BN(order.order.witness.output.limit || 0).gt(1);
-  const isTriggerPrice = BN(order.order.witness.output.stop || 0).gt(0);
+  const stop = order.order.witness.output.stop;
+  const isTakeProfit = BN(stop || 0).eq(maxUint256);
+  const isStopLoss = BN(stop || 0).gt(0);
   const chunks =
     order.metadata.chunks?.length ||
     BN(order.order.witness.input.maxAmount)
       .div(BN(order.order.witness.input.amount))
       .toNumber();
 
-  if (isTriggerPrice && isLimit) {
-    return OrderType.TRIGGER_PRICE_LIMIT;
+  if (isTakeProfit) {
+    return OrderType.TAKE_PROFIT;
   }
 
-  if (isTriggerPrice) {
-    return OrderType.TRIGGER_PRICE_MARKET;
+  if (isStopLoss) {
+    return isLimit ? OrderType.STOP_LOSS_LIMIT : OrderType.STOP_LOSS_MARKET;
   }
 
-  if (!isLimit && chunks <= 1) {
+  if (!isLimit) {
     return OrderType.TWAP_MARKET;
   }
   if (chunks >= 1 && isLimit) {
@@ -72,7 +74,7 @@ const getFills = (order: OrderV2): OrderFill[] => {
 
 const getFilledOrderTimestamp = (
   fills: OrderFill[],
-  totalTradesAmount: number,
+  totalTradesAmount: number
 ) => {
   const totalFilled = fills.length;
   if (totalFilled >= totalTradesAmount) {
@@ -89,6 +91,7 @@ const getOrderDollarValueIn = (order: OrderV2) => {
 
 export const buildV2Order = (order: OrderV2): Order => {
   const progress = getProgress(order);
+  const isTakeProfit = BN(order.order.witness.output.stop || 0).eq(maxUint256);
 
   const dstMinAmountPerTrade =
     Number(order.order.witness.output.limit) === 1
@@ -119,13 +122,11 @@ export const buildV2Order = (order: OrderV2): Order => {
     deadline: Number(order.order.deadline) * 1000,
     createdAt: new Date(order.timestamp).getTime(),
     srcAmount: order.order.witness.input.maxAmount,
-    dstMinAmountPerTrade,
-    triggerPricePerTrade: BN(order.order.witness.output.stop || 0).isZero()
-      ? ""
-      : order.order.witness.output.stop,
-    dstMinAmountTotal: BN(dstMinAmountPerTrade)
+    dstMinAmountPerTrade:isTakeProfit ? '': dstMinAmountPerTrade,
+    triggerPricePerTrade:isTakeProfit ? dstMinAmountPerTrade :  BN(order.order.witness.output.stop || "").toFixed(),
+    dstMinAmountTotal:isTakeProfit ? '':  BN(dstMinAmountPerTrade)
       .multipliedBy(totalTradesAmount)
-      .toString(),
+      .toFixed(),
     srcAmountPerTrade: order.order.witness.input.amount,
     totalTradesAmount,
     isMarketPrice: BN(dstMinAmountPerTrade || 0).lte(1),
@@ -149,17 +150,17 @@ export const getOrders = async ({
 }): Promise<Order[]> => {
   try {
     if (!account) return [];
-  const exchangeQuery = exchange ? `&exchange=${exchange}` : "";
-  const response = await fetch(
-    `${getApiEndpoint()}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
-    {
-      signal,
-    },
-  );
+    const exchangeQuery = exchange ? `&exchange=${exchange}` : "";
+    const response = await fetch(
+      `${getApiEndpoint()}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
+      {
+        signal,
+      }
+    );
 
-  const payload = (await response.json()) as { orders: OrderV2[] };
+    const payload = (await response.json()) as { orders: OrderV2[] };
 
-  return payload.orders.map(buildV2Order);
+    return payload.orders.map(buildV2Order);
   } catch (error) {
     return [];
   }

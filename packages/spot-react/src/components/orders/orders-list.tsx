@@ -4,7 +4,7 @@ import * as React from "react";
 import { Virtuoso } from "react-virtuoso";
 import TokenLogo from "../../components/TokenLogo";
 import { useSpotStore } from "../../store";
-import { useOrderName, useOrders, useOrderToDisplay, useSelectedOrderIdsToCancel } from "../../hooks/order-hooks";
+import { useHistoryOrderTitle, useOrders, useOrderToDisplay, useSelectedOrderIdsToCancel } from "../../hooks/order-hooks";
 import { useDateFormat } from "../../hooks/helper-hooks";
 import { useTranslations } from "../../hooks/use-translations";
 import { useSpotContext } from "../../spot-context";
@@ -101,7 +101,7 @@ const EmptyList = () => {
 
 const ListItemHeader = ({ order }: { order: Order }) => {
   const status = order && order.status;
-  const name = useOrderName(order);
+  const name = useHistoryOrderTitle(order);
   const formattedDate = useDateFormat(order.createdAt);
 
   return (

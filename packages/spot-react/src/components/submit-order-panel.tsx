@@ -3,7 +3,6 @@ import { createContext, ReactNode, useContext, useMemo } from "react";
 import { useSpotContext } from "../spot-context";
 import {
   isNativeAddress,
-  Module,
   ORBS_TWAP_FAQ_URL,
 } from "@orbs-network/spot-ui";
 import { ParsedError, Steps, SubmitOrderPanelProps } from "../types";
@@ -13,12 +12,12 @@ import {
   useFormatNumber,
   useNetwork,
 } from "../hooks/helper-hooks";
-import { useTrades } from "../hooks/use-trades";
 import { useSrcAmount } from "../hooks/use-src-amount";
 import { useDstTokenAmount } from "../hooks/use-dst-amount";
 import { OrderDetails } from "../components/order-details";
 import { useTranslations } from "../hooks/use-translations";
 import { useOrderInfo } from "../hooks/use-order";
+import { useCurrentOrderTitle } from "../hooks/order-hooks";
 
 const Context = createContext({} as SubmitOrderPanelProps);
 
@@ -50,51 +49,10 @@ const WrapMsg = () => {
   );
 };
 
-const useOrderName = (isMarketOrder = false, chunks = 1) => {
-  const { module } = useSpotContext();
-  const t = useTranslations();
-  return useMemo(() => {
-    if (module === Module.STOP_LOSS) {
-      return t("stopLoss");
-    }
-    if (module === Module.TAKE_PROFIT) {
-      return t("takeProfit");
-    }
-    if (isMarketOrder) {
-      return t("twapMarket");
-    }
-    if (chunks === 1) {
-      return t("limit");
-    }
-    return t("twapLimit");
-  }, [t, module, isMarketOrder, chunks]);
-};
-
-const LimitPrice = ({
-  price,
-  dstTokenSymbol,
-  label,
-  usd,
-}: {
-  price?: string;
-  dstTokenSymbol?: string;
-  label: string;
-  usd?: string;
-}) => {
-  return (
-    <OrderDetails.DetailRow title={label}>
-      {`${price ? price : "-"} ${dstTokenSymbol || ""}`}
-      <OrderDetails.USD value={usd} />
-    </OrderDetails.DetailRow>
-  );
-};
-
 const useTitle = () => {
   const t = useTranslations();
-  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   const status = useSpotStore((s) => s.state.swapExecution.status);
-  const { totalTrades } = useTrades();
-  const orderName = useOrderName(isMarketOrder, totalTrades);
+  const orderName = useCurrentOrderTitle();
 
   if (status === SwapStatus.SUCCESS) {
     return t("createOrderActionSuccess", { name: orderName });
@@ -245,14 +203,7 @@ const Main = () => {
                 tooltip={order.triggerPricePerTrade.tooltip || ""}
                 usd={order.triggerPricePerTrade.usd}
               />
-              {!order.limitPrice.value ? null : (
-                <LimitPrice
-                  price={order.limitPrice.value}
-                  dstTokenSymbol={dstToken?.symbol}
-                  label={order.limitPrice.label}
-                  usd={order.limitPrice.usd}
-                />
-              )}
+
               <OrderDetails.MinDestAmount
                 dstToken={dstToken}
                 dstMinAmountOut={order.minDestAmountPerTrade.value}

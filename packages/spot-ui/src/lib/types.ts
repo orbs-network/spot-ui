@@ -43,8 +43,9 @@ export enum OrderType {
   LIMIT = "limit",
   TWAP_LIMIT = "twap-limit",
   TWAP_MARKET = "twap-market",
-  TRIGGER_PRICE_MARKET = "trigger-price-market",
-  TRIGGER_PRICE_LIMIT = "trigger-price-limit",
+  TAKE_PROFIT = "take-profit",
+  STOP_LOSS_LIMIT = "stop-loss-limit",
+  STOP_LOSS_MARKET = "stop-loss-market",
 }
 
 export type FillV1 = {

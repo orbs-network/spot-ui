@@ -4,9 +4,9 @@ import { useSpotContext } from "../spot-context";
 import { useAmountUi, useFormatNumber } from "./helper-hooks";
 import {
   useOrders,
-  useOrderName,
   useOrderLimitPrice,
   useOrderAvgExcecutionPrice,
+  useHistoryOrderTitle,
 } from "./order-hooks";
 import { useTranslations } from "./use-translations";
 import { useBuildOrderInfo } from "./use-build-order-info";
@@ -21,7 +21,7 @@ export const useHistoryOrder = (orderId?: string) => {
       () => orders?.all.find((order) => order.id === orderId),
       [orders, orderId]
     ) || ({} as Order);
-  const title = useOrderName(order);
+  const title = useHistoryOrderTitle(order);
   const srcToken = useToken?.(order?.srcTokenAddress);
   const dstToken = useToken?.(order?.dstTokenAddress);
   const srcAmount = useAmountUi(srcToken?.decimals, order?.srcAmount);
