@@ -11,7 +11,7 @@ export const useDisclaimerPanel = () => {
 
   const triggerPriceWarning = useMemo(() => {
     if(!isMarketOrder) return;
-    if (module !== Module.STOP_LOSS && module !== Module.TAKE_PROFIT) return;
+    if (module !== Module.STOP_LOSS) return;
 
     return {
       text: t("triggerMarketPriceDisclaimer"),

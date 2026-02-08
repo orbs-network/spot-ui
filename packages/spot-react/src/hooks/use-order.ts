@@ -20,7 +20,7 @@ import { useFormatNumber } from "./helper-hooks";
 import { useSpotStore } from "../store";
 
 export const useOrder = () => {
-  const { srcToken, dstToken, account, chainId, slippage, config } =
+  const { srcToken, dstToken, account, chainId, slippage, config, module } =
     useSpotContext();
   const { amountWei: srcAmount } = useSrcAmount();
   const { amountWei: limitPrice } = useLimitPrice();
@@ -59,6 +59,7 @@ export const useOrder = () => {
         dstMinAmountPerTrade: minDestAmountPerTrade,
         triggerAmountPerTrade: triggerPricePerTrade,
         config,
+        module,
       }),
     };
   }, [
@@ -76,6 +77,7 @@ export const useOrder = () => {
     slippage,
     chainId,
     config,
+    module,
   ]);
 };
 

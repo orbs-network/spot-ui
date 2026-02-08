@@ -1,7 +1,12 @@
-import { Address, RePermitOrder, SpotConfig } from "./types";
-import BN from "bignumber.js";
+import { Address, Module, RePermitOrder, SpotConfig } from "./types";
 import { getQueryParam, safeBNString } from "./utils";
-import { EIP712_TYPES, QUERY_PARAMS, REPERMIT_PRIMARY_TYPE } from "./consts";
+import {
+  EIP712_TYPES,
+  maxUint256,
+  QUERY_PARAMS,
+  REPERMIT_PRIMARY_TYPE,
+} from "./consts";
+import BN from "bignumber.js";
 
 export const buildRePermitOrderData = ({
   chainId,
@@ -13,9 +18,10 @@ export const buildRePermitOrderData = ({
   slippage,
   account,
   srcAmountPerTrade,
-  dstMinAmountPerTrade,
-  triggerAmountPerTrade,
+  dstMinAmountPerTrade = "0",
+  triggerAmountPerTrade = "0",
   config,
+  module,
 }: {
   chainId: number;
   srcToken: string;
@@ -29,12 +35,19 @@ export const buildRePermitOrderData = ({
   dstMinAmountPerTrade?: string;
   triggerAmountPerTrade?: string;
   config: SpotConfig;
+  module: Module;
 }) => {
   const nonce = Date.now().toString();
   const epoch = parseInt((fillDelayMillis / 1000).toFixed(0));
   const deadline = safeBNString(deadlineMillis / 1000);
   const customFreshness = getQueryParam(QUERY_PARAMS.FRESHNESS);
   const freshness = customFreshness ? parseInt(customFreshness) : 60;
+  const stop =
+    module === Module.TAKE_PROFIT ? maxUint256 : triggerAmountPerTrade;
+  const limit =
+    module === Module.TAKE_PROFIT
+      ? triggerAmountPerTrade
+      : dstMinAmountPerTrade;
 
   const orderData: RePermitOrder = {
     permitted: {
@@ -68,8 +81,8 @@ export const buildRePermitOrderData = ({
       },
       output: {
         token: dstToken as Address,
-        limit: dstMinAmountPerTrade || "0",
-        stop: !triggerAmountPerTrade || BN(triggerAmountPerTrade || 0).isZero() ? "0" : triggerAmountPerTrade,
+        limit: BN(limit || 0).toFixed(),
+        stop: BN(stop || 0).toFixed(),
         recipient: account as Address,
       },
     },

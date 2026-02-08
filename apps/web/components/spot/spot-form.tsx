@@ -28,6 +28,8 @@ import {
   useTriggerPricePanel,
   useInvertTradePanel,
   useSubmitOrderButton,
+  useOrder,
+  formatDecimals,
 } from "@orbs-network/spot-react";
 import { Currency, Field, SwapType } from "@/lib/types";
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
@@ -120,7 +122,7 @@ const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
       currency={isSrcToken ? inputCurrency : outputCurrency}
       onCurrencyChange={onTokenChange}
       onAmountChange={isSrcToken ? setInputAmount : undefined}
-      amount={isSrcToken ? inputAmount : dstAmount}
+      amount={isSrcToken ? inputAmount : formatDecimals(dstAmount, 6)}
       title={isSrcToken ? "From" : "To"}
       disabled={!isSrcToken}
       isLoading={!isSrcToken ? isLoading : false}
@@ -193,7 +195,7 @@ const Card = ({
 
 const Disclaimer = () => {
   const message = useDisclaimerPanel();
-
+  
   if (!message) {
     return null;
   }
@@ -472,6 +474,11 @@ const LimitPricePanel = () => {
   } = useLimitPricePanel();
 
   const { swapModule } = useSpotContext();
+  
+
+  if(swapModule === Module.TAKE_PROFIT) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col gap-2">

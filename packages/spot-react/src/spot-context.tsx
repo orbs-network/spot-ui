@@ -126,6 +126,9 @@ const Listeners = (props: TwapProps) => {
     if (props.module === Module.LIMIT) {
       updateStore({ isMarketOrder: false });
     }
+    if (props.module === Module.TAKE_PROFIT) {
+      updateStore({ isMarketOrder: true });
+    }
   }, [props.module]);
 
   useEffect(() => {

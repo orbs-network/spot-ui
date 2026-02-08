@@ -6,7 +6,7 @@ import { InputErrors, InputError, Module } from "../types";
 import BN from "bignumber.js";
 import { useTriggerPrice } from "./use-trigger-price";
 import { useDefaultLimitPricePercent } from "./use-default-values";
-import { getStopLossLimitPriceError, getTakeProfitLimitPriceError, ORBS_TWAP_FAQ_URL } from "@orbs-network/spot-ui";
+import { getStopLossLimitPriceError, getTakeProfitLimitPriceError } from "@orbs-network/spot-ui";
 import { useTranslations } from "./use-translations";
 import { useInvertTradePanel } from "./use-invert-trade-panel";
 
@@ -109,22 +109,11 @@ export const useLimitPricePanel = () => {
   const { module, marketPriceLoading } = useSpotContext();
   const t = useTranslations();
   const { amountUI, onChange, onPercentageChange, usd, selectedPercentage, error } = useLimitPrice();
-  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
 
   const updateState = useSpotStore((s) => s.updateState);
   const defaultLimitPricePercent = useDefaultLimitPricePercent();
   const { isLimitPrice, toggleLimitPrice } = useLimitPriceToggle();
-  const { triggerPricePercent } = useSpotStore((s) => s.state);
   const { isInverted, onInvert, fromToken, toToken } = useInvertTradePanel();
-
-  const warning = useMemo(() => {
-    if ((module !== Module.STOP_LOSS && module !== Module.TAKE_PROFIT) || !isMarketOrder) return;
-
-    return {
-      text: t("triggerMarketPriceDisclaimer"),
-      url: ORBS_TWAP_FAQ_URL,
-    };
-  }, [triggerPricePercent, t, module, isMarketOrder]);
 
   const reset = useCallback(() => {
     updateState({ typedLimitPrice: undefined });
@@ -141,7 +130,6 @@ export const useLimitPricePanel = () => {
   return {
     price: amountUI,
     error,
-    warning,
     label: t("limitPrice"),
     tooltip,
     onChange,
