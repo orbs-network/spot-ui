@@ -9,6 +9,7 @@ import {
   useHistoryOrderTitle,
 } from "./order-hooks";
 import { useTranslations } from "./use-translations";
+import BN from "bignumber.js";
 import { useBuildOrderInfo } from "./use-build-order-info";
 
 
@@ -46,9 +47,9 @@ export const useHistoryOrder = (orderId?: string) => {
     dstToken?.decimals,
     order?.dstMinAmountPerTrade
   );
-  const triggerPricePerTrade = useAmountUi(
+  const triggerPrice = useAmountUi(
     dstToken?.decimals,
-    order?.triggerPricePerTrade
+    BN(order?.triggerPricePerTrade).multipliedBy(order?.totalTradesAmount).toFixed()
   );
 
   
@@ -75,7 +76,7 @@ export const useHistoryOrder = (orderId?: string) => {
     totalTrades: order?.totalTradesAmount,
     srcAmountPerTrade: srcAmountPerTrade,
     minDestAmountPerTrade,
-    triggerPricePerTrade,
+    triggerPrice,
   });
 
   return useMemo(() => {

@@ -40,7 +40,8 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
     percentage,
     onPercentageChange,
     usd,
-    isLoading
+    isLoading,
+    chunkText,
   }: {
     symbol?: string;
     value: string;
@@ -49,6 +50,7 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
     onPercentageChange: (value: string) => void;
     usd: string;
     isLoading?: boolean;
+    chunkText?: string;
   }) => {
     const usdF = useFormatNumber({ value: usd });
     return (
@@ -67,6 +69,7 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
             <p className="text-[13px] text-muted-foreground">${usdF || "0"}</p>
           </div>
         </div>
+       
         <div className="w-[100px] bg-accent items-center px-3 py-2 rounded-[12px]">
           <NumericInput
             value={percentage}

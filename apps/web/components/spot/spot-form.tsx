@@ -30,6 +30,7 @@ import {
   useSubmitOrderButton,
   useOrder,
   formatDecimals,
+  useFormatNumber,
 } from "@orbs-network/spot-react";
 import { Currency, Field, SwapType } from "@/lib/types";
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
@@ -471,10 +472,21 @@ const LimitPricePanel = () => {
     tooltip,
     onReset,
     isLoading,
+    amountPerChunk,
+    isInverted,
+    fromToken,
   } = useLimitPricePanel();
 
+
+  const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk});
+
+  const chunkText = useMemo(() => {
+    const token = isInverted ? fromToken : toToken;
+    return `${amountPerChunkFormatted} ${token?.symbol} per chunk`;
+  }, [isInverted, toToken, fromToken, amountPerChunkFormatted]);
+
   const { swapModule } = useSpotContext();
-  
+
 
   if(swapModule === Module.TAKE_PROFIT) {
     return null;
@@ -492,7 +504,8 @@ const LimitPricePanel = () => {
         </div>
       </div>
       {isLimitPrice && (
-        <SpotPriceInput
+        <div className="flex flex-col gap-2 items-stretch">
+          <SpotPriceInput
           usd={usd}
           symbol={toToken?.symbol}
           value={price}
@@ -500,7 +513,10 @@ const LimitPricePanel = () => {
           percentage={percentage}
           onPercentageChange={(it) => onPercentageChange(it)}
           isLoading={isLoading}
+          chunkText={chunkText}
         />
+        <p className="text-[13px] text-muted-foreground">{chunkText}</p>
+        </div>
       )}
     </div>
   );
@@ -517,9 +533,19 @@ const TriggerPricePanel = () => {
     tooltip,
     onReset,
     toToken,
+    amountPerChunk,
+    isInverted,
+    fromToken,
   } = useTriggerPricePanel();
 
   const { swapModule } = useSpotContext();
+
+  const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk});
+
+  const chunkText = useMemo(() => {
+    const token = isInverted ? fromToken : toToken;
+    return `${amountPerChunkFormatted} ${token?.symbol} per chunk`;
+  }, [isInverted, toToken, fromToken, amountPerChunkFormatted]);
 
   if (swapModule !== Module.TAKE_PROFIT && swapModule !== Module.STOP_LOSS) {
     return null;
@@ -531,6 +557,7 @@ const TriggerPricePanel = () => {
         <Label title={label} tooltip={tooltip} />
         <SpotPriceResetButton onClick={onReset} />
       </div>
+      <div className="flex flex-col gap-2 items-stretch">
       <SpotPriceInput
         usd={usd}
         symbol={toToken?.symbol}
@@ -538,7 +565,10 @@ const TriggerPricePanel = () => {
         onChange={(it) => onChange(it)}
         percentage={percentage}
         onPercentageChange={(it) => onPercentageChange(it)}
+        chunkText={chunkText}
       />
+      <p className="text-[13px] text-muted-foreground">{chunkText}</p>
+      </div>
     </div>
   );
 };

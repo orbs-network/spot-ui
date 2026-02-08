@@ -131,7 +131,7 @@ const OrderInfo = () => {
       <ChunksAmount />
       <MinDestAmount />
       <TradeInterval />
-      <TriggerPricePerChunk />
+      <TriggerPrice />
       <LimitPrice />
       <OrderDetails.Recipient />
     </OrderDetails>
@@ -198,14 +198,15 @@ const TradeInterval = () => {
   );
 };
 
-const TriggerPricePerChunk = () => {
+const TriggerPrice = () => {
   const { order } = useOrderContext();
   return (
-    <OrderDetails.TriggerPrice
+    <OrderDetails.Price
+      srcToken={order.srcToken}
       dstToken={order.dstToken}
-      price={order.triggerPricePerTrade.value}
-      label={order.triggerPricePerTrade.label}
-      tooltip={order.triggerPricePerTrade.tooltip}
+      price={order.triggerPrice.value}
+      label={order.triggerPrice.label}
+      tooltip={order.triggerPrice.tooltip}
     />
   );
 };
@@ -371,11 +372,12 @@ const LimitPrice = () => {
   if (!order.limitPrice.value) return null;
 
   return (
-    <Price
-      title={t("limitPrice") || ""}
+    <OrderDetails.Price
+      label={t("limitPrice") || ""}
       price={order.limitPrice.value}
       srcToken={order.srcToken}
       dstToken={order.dstToken}
+      tooltip={order.limitPrice.tooltip}
     />
   );
 };
@@ -384,36 +386,11 @@ const AvgExcecutionPrice = () => {
   const { order } = useOrderContext();
   if (!order.excecutionPrice.value) return null;
   return (
-    <Price
-      title={order.excecutionPrice.label}
+    <OrderDetails.Price
+      label={order.excecutionPrice.label}
       price={order.excecutionPrice.value}
       srcToken={order.srcToken}
       dstToken={order.dstToken}
     />
-  );
-};
-
-const Price = ({
-  price,
-  srcToken,
-  dstToken,
-  title,
-}: {
-  price?: string;
-  srcToken?: Token;
-  dstToken?: Token;
-  title: string;
-}) => {
-  const _price = useFormatNumber({ value: price, decimalScale: 3 });
-  return (
-    <OrderDetails.DetailRow title={title}>
-      {BN(price || 0).isZero() ? (
-        <p>-</p>
-      ) : (
-        <p>
-          1 {srcToken?.symbol} = {_price} {dstToken?.symbol}
-        </p>
-      )}
-    </OrderDetails.DetailRow>
   );
 };

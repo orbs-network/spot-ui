@@ -94,7 +94,7 @@ export const useOrderInfo = () => {
     totalTrades,
   } = useTrades();
 
-  const { amountUI: triggerPricePerTradeUI, usd: triggerPricePerTradeUsd } =
+  const { amountUI: triggerPrice, usd: triggerPriceUsd } =
     useTriggerPrice();
   const deadlineMillis = useDeadline();
   const { amountUI: limitPriceUI, usd: limitPriceUsd } = useLimitPrice();
@@ -123,8 +123,8 @@ export const useOrderInfo = () => {
     srcAmountPerTradeUsd: srcAmountPerTradeUsd,
     minDestAmountPerTrade: dstMinAmountPerTradeUI,
     minDestAmountPerTradeUsd: dstMinAmountPerTradeUsd,
-    triggerPricePerTrade: triggerPricePerTradeUI,
-    triggerPricePerTradeUsd: triggerPricePerTradeUsd,
+    triggerPrice: triggerPrice,
+    triggerPriceUsd,
     srcUsd: srcAmountUsd,
     dstUsd: dstAmountUsd,
     dstAmount: dstAmountUI,

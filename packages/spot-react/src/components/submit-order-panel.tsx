@@ -196,12 +196,21 @@ const Main = () => {
                 label={order.deadline.label}
                 tooltip={order.deadline.tooltip || ""}
               />
-              <OrderDetails.TriggerPrice
-                price={order.triggerPricePerTrade.value}
+              <OrderDetails.Price
+                srcToken={srcToken}
+                price={order.triggerPrice.value}
                 dstToken={dstToken}
-                label={order.triggerPricePerTrade.label}
-                tooltip={order.triggerPricePerTrade.tooltip || ""}
-                usd={order.triggerPricePerTrade.usd}
+                label={order.triggerPrice.label}
+                tooltip={order.triggerPrice.tooltip}
+                usd={order.triggerPrice.usd}
+              />
+               <OrderDetails.Price
+                srcToken={srcToken}
+                price={order.limitPrice.value}
+                dstToken={dstToken}
+                label={order.limitPrice.label}
+                usd={order.limitPrice.usd}
+                tooltip={order.limitPrice.tooltip}
               />
 
               <OrderDetails.MinDestAmount

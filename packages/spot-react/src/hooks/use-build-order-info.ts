@@ -18,8 +18,8 @@ type Props = {
   minDestAmountPerTrade?: string;
   minDestAmountPerTradeUsd?: string;
   tradeInterval?: number;
-  triggerPricePerTrade?: string;
-  triggerPricePerTradeUsd?: string;
+  triggerPrice?: string;
+  triggerPriceUsd?: string;
   srcUsd?: string;
   dstUsd?: string;
 };
@@ -42,11 +42,11 @@ export const useBuildOrderInfo = (props: Props) => {
     value: props.minDestAmountPerTradeUsd,
     decimalScale: 2,
   });
-  const triggerPricePerChunk = useFormatNumber({
-    value: props.triggerPricePerTrade,
+  const triggerPrice = useFormatNumber({
+    value: props.triggerPrice,
   });
-  const triggerPricePerChunkUsd = useFormatNumber({
-    value: props.triggerPricePerTradeUsd,
+  const triggerPriceUsd = useFormatNumber({
+    value: props.triggerPriceUsd,
     decimalScale: 2,
   });
 
@@ -62,6 +62,7 @@ export const useBuildOrderInfo = (props: Props) => {
       dstUsd: dstUsd || "",
       limitPrice: {
         label: t("limitPrice"),
+        tooltip: t("limitPriceTooltip"),
         value: limitPrice || "",
         usd: limitPriceUsd || "",
       },
@@ -101,11 +102,11 @@ export const useBuildOrderInfo = (props: Props) => {
         label: t("tradeIntervalLabel"),
         value: props.tradeInterval || 0,
       },
-      triggerPricePerTrade: {
+      triggerPrice: {
         tooltip: t("triggerPriceTooltip"),
-        label: t(props.totalTrades && props.totalTrades > 1 ? "triggerPricePerChunk" : "triggerPrice"),
-        value: triggerPricePerChunk || "",
-        usd: triggerPricePerChunkUsd,
+        label: t("triggerPrice"),
+        value: triggerPrice || "",
+        usd: triggerPriceUsd,
       },
       recipient: {
         label: t("recipient"),
@@ -120,8 +121,8 @@ export const useBuildOrderInfo = (props: Props) => {
     srcAmountPerTrade,
     srcAmountPerTradeUsd,
     dstMinAmountPerTrade,
-    triggerPricePerChunk,
-    triggerPricePerChunkUsd,
+    triggerPrice,
+    triggerPriceUsd,
     limitPrice,
     limitPriceUsd,
     dstAmount,

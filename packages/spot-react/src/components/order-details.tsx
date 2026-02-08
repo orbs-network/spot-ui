@@ -22,30 +22,15 @@ const Deadline = ({ deadline, label, tooltip }: { deadline?: number; label: stri
   );
 };
 
-const TriggerPrice = ({ price, dstToken, label, tooltip, usd }: { price?: string; dstToken?: Token; label: string; tooltip: string; usd?: string }) => {
+const Price = ({ price, dstToken, label, tooltip, usd , srcToken }: { price?: string; dstToken?: Token; label: string; tooltip?: string; usd?: string; srcTokenSymbol?: string, srcToken?: Token }) => {
   const priceF = useFormatNumber({ value: price });
   if (BN(price || 0).isZero()) return null;
 
   return (
     <DetailRow title={label} tooltip={tooltip}>
       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-        {`${priceF ? priceF : "-"} ${dstToken?.symbol}`}
+       1 {srcToken?.symbol} = {`${priceF ? priceF : "-"} ${dstToken?.symbol}`}
         <USD value={usd} />
-      </div>
-    </DetailRow>
-  );
-};
-
-const LimitPrice = ({ price, dstToken, percentage, isMarketOrder }: { price?: string; dstToken?: Token; percentage?: number; isMarketOrder?: boolean }) => {
-  const priceF = useFormatNumber({ value: price });
-  const t = useTranslations();
-  if (isMarketOrder) return null;
-
-  return (
-    <DetailRow title={t("limitPrice") || ""} tooltip={t("limitPriceTooltip") || ""}>
-      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-        {`${priceF ? priceF : "-"} ${dstToken?.symbol}`}
-        {percentage && <small>{`(${percentage}%)`}</small>}
       </div>
     </DetailRow>
   );
@@ -197,8 +182,7 @@ OrderDetails.TradesAmount = TradesAmount;
 OrderDetails.Recipient = Recipient;
 OrderDetails.TradeInterval = TradeInterval;
 OrderDetails.DetailRow = DetailRow;
-OrderDetails.TriggerPrice = TriggerPrice;
-OrderDetails.LimitPrice = LimitPrice;
+OrderDetails.Price = Price;
 OrderDetails.OrderID = OrderID;
 OrderDetails.Container = OrderDetailsContainer;
 OrderDetails.OrderVersion = OrderVersion;

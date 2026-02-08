@@ -8,7 +8,7 @@ import { useTriggerPrice } from "./use-trigger-price";
 import { useDefaultLimitPricePercent } from "./use-default-values";
 import { getStopLossLimitPriceError, getTakeProfitLimitPriceError } from "@orbs-network/spot-ui";
 import { useTranslations } from "./use-translations";
-import { useInvertTradePanel } from "./use-invert-trade-panel";
+
 
 export const useLimitPriceError = (limitPriceWei?: string) => {
   const { module, marketPrice, typedInputAmount } = useSpotContext();
@@ -102,47 +102,5 @@ export const useLimitPriceToggle = () => {
     isLimitPrice: !isMarketOrder,
     toggleLimitPrice,
     hide,
-  };
-};
-
-export const useLimitPricePanel = () => {
-  const { module, marketPriceLoading } = useSpotContext();
-  const t = useTranslations();
-  const { amountUI, onChange, onPercentageChange, usd, selectedPercentage, error } = useLimitPrice();
-
-  const updateState = useSpotStore((s) => s.updateState);
-  const defaultLimitPricePercent = useDefaultLimitPricePercent();
-  const { isLimitPrice, toggleLimitPrice } = useLimitPriceToggle();
-  const { isInverted, onInvert, fromToken, toToken } = useInvertTradePanel();
-
-  const reset = useCallback(() => {
-    updateState({ typedLimitPrice: undefined });
-    updateState({ limitPricePercent: defaultLimitPricePercent });
-  }, [updateState, module, defaultLimitPricePercent]);
-
-  const tooltip = useMemo(() => {
-    if (module === Module.STOP_LOSS) {
-      return t("stopLossLimitPriceTooltip");
-    }
-    return t("limitPriceTooltip");
-  }, [t, module]);
-
-  return {
-    price: amountUI,
-    error,
-    label: t("limitPrice"),
-    tooltip,
-    onChange,
-    onPercentageChange,
-    onReset: reset,
-    usd,
-    fromToken,
-    toToken,
-    percentage: selectedPercentage,
-    isInverted,
-    isLoading: marketPriceLoading,
-    isLimitPrice,
-    toggleLimitPrice,
-    onInvert,
   };
 };

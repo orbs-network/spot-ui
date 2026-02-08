@@ -2,6 +2,7 @@ import { SwapStatus } from "@orbs-network/swap-ui";
 import {
   analytics,
   Order,
+  OrderStatus,
   REPERMIT_ABI,
   TWAP_ABI,
 } from "@orbs-network/spot-ui";
@@ -10,11 +11,41 @@ import { useSpotContext } from "../spot-context";
 import { getExplorerUrl, isTxRejected } from "../utils";
 import { useGetTransactionReceipt } from "./use-get-transaction-receipt";
 import { useSpotStore } from "../store";
+import { useOrdersQuery } from "./order-hooks";
+
+const useRefetchUntilStatusSynced = () => {
+  const { refetch: refetchOrders } = useOrdersQuery();
+
+  return useMutation({
+    mutationFn: async (orderIds: string[]) => {
+      while (true) {
+        const orders = (await refetchOrders())?.data;
+
+        if (!orders) {
+          throw new Error("orders not found");
+        }
+
+        const allCanceled = orderIds.every((id) => {
+          const order = orders.find((o) => o.id === id);
+          return order?.status === OrderStatus.Canceled;
+        });
+
+        if (allCanceled) {
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    },
+  });
+};
 
 export const useCancelOrderMutation = () => {
   const { account, walletClient, publicClient, config, callbacks, chainId } =
     useSpotContext();
   const getTransactionReceipt = useGetTransactionReceipt();
+  const refetchUntilStatusSynced =
+    useRefetchUntilStatusSynced().mutateAsync;
   const updateState = useSpotStore((s) => s.updateState);
 
   const cancelOrdersV1 = async (orders: Order[]) => {
@@ -99,6 +130,7 @@ export const useCancelOrderMutation = () => {
           ordersV1.length ? cancelOrdersV1(ordersV1) : Promise.resolve(""),
           ordersV2.length ? cancelOrdersV2(ordersV2) : Promise.resolve(""),
         ]);
+        await refetchUntilStatusSynced(orders.map((o) => o.id));
         updateState({
           cancelOrderStatus: SwapStatus.SUCCESS,
           orderIdsToCancel: [],
