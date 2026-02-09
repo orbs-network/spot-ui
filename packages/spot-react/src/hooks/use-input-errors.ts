@@ -29,7 +29,7 @@ export const useBalanceError = () => {
 };
 
 export function useInputErrors() {
-  const { marketPrice, marketPriceLoading, typedInputAmount } = useSpotContext();
+  const { marketPrice, marketPriceLoading, typedInputAmount, srcUsd1Token } = useSpotContext();
   const status = useSpotStore((s) => s.state.swapExecution.status);
   const balanceError = useBalanceError();
   const { error: triggerPriceError } = useTriggerPrice();
@@ -46,6 +46,7 @@ export function useInputErrors() {
     if (
       BN(marketPrice || 0).isZero() ||
       BN(typedInputAmount || 0).isZero() ||
+      BN(srcUsd1Token || "0").isZero() ||
       marketPriceLoading ||
       ignoreErrors
     ) {
@@ -71,5 +72,6 @@ export function useInputErrors() {
     durationError,
     balanceError,
     status,
+    srcUsd1Token,
   ]);
 }

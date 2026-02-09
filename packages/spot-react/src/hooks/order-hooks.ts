@@ -111,7 +111,7 @@ const useOrderFilledCallback = () => {
         prevOrders.forEach((prevOrder) => {
           const currentOrder = orders.find((o) => o.id === prevOrder.id);
 
-          if (currentOrder && currentOrder.progress !== prevOrder.progress) {
+          if (!currentOrder?.twapAddress && prevOrder.twapAddress && currentOrder && currentOrder.progress !== prevOrder.progress) {
             isProgressUpdated = true;
             updatedOrders.push(currentOrder);
 

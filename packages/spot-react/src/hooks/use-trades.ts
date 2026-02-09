@@ -14,7 +14,7 @@ const useTradesError = (amount: number, maxAmount: number) => {
   const t = useTranslations();
 
   return useMemo((): InputError | undefined => {
-    if (BN(typedInputAmount || "0").isZero() || !marketPrice) return;
+    if (BN(typedInputAmount || "0").isZero() || !marketPrice || BN(srcUsd1Token || "0").isZero()) return;
     if (!amount) {
       return {
         type: InputErrors.MIN_CHUNKS,
