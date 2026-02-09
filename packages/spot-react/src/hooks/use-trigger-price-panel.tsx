@@ -5,6 +5,7 @@ import { useSpotStore } from "../store";
 import { useInvertTradePanel } from "./use-invert-trade-panel";
 import { useTranslations } from "./use-translations";
 import { useTriggerPrice } from "./use-trigger-price";
+import { useTrades } from "./use-trades";
 
 export const useTriggerPricePanel = () => {
     const { module, marketPrice, marketPriceLoading } = useSpotContext();
@@ -39,6 +40,7 @@ export const useTriggerPricePanel = () => {
       isInverted,
       hide,
       onInvert,
+      totalTrades: useTrades().totalTrades,
     };
   };
   

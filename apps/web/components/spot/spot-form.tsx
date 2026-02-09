@@ -103,9 +103,8 @@ const TwapButton = (props: ButtonProps) => {
 };
 
 const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
-  const { inputCurrency, outputCurrency, inputAmount } =
-    useDerivedSwap();
-  const {value: dstAmount, isLoading} = useDstTokenPanel();
+  const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
+  const { value: dstAmount, isLoading } = useDstTokenPanel();
   const { handleCurrencyChange, setInputAmount } = useActionHandlers();
   const onTokenChange = useCallback(
     (currency: string) => {
@@ -196,7 +195,7 @@ const Card = ({
 
 const Disclaimer = () => {
   const message = useDisclaimerPanel();
-  
+
   if (!message) {
     return null;
   }
@@ -381,8 +380,15 @@ const SubmitSwapMain = ({
 };
 
 const SubmitSwap = () => {
-  const { onSubmit, onOpenModal, onCloseModal, status, parsedError, orderTitle, allowanceLoading } =
-    useSubmitOrderPanel();
+  const {
+    onSubmit,
+    onOpenModal,
+    onCloseModal,
+    status,
+    parsedError,
+    orderTitle,
+    allowanceLoading,
+  } = useSubmitOrderPanel();
   const [isOpen, setIsOpen] = useState(false);
 
   const onOpen = useCallback(() => {
@@ -402,7 +408,11 @@ const SubmitSwap = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {parsedError ? "Error Creating Order" : !status ?   `${orderTitle} order` :' '}
+              {parsedError
+                ? "Error Creating Order"
+                : !status
+                ? `${orderTitle} order`
+                : " "}
             </DialogTitle>
           </DialogHeader>
           {parsedError ? (
@@ -412,7 +422,10 @@ const SubmitSwap = () => {
               onClose={onClose}
             />
           ) : (
-            <SubmitSwapMain onSubmitOrder={onSubmit} swapLoading={Boolean(allowanceLoading)} />
+            <SubmitSwapMain
+              onSubmitOrder={onSubmit}
+              swapLoading={Boolean(allowanceLoading)}
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -475,20 +488,19 @@ const LimitPricePanel = () => {
     amountPerChunk,
     isInverted,
     fromToken,
+    tradesAmount
   } = useLimitPricePanel();
 
-
-  const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk});
+  const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk });
 
   const chunkText = useMemo(() => {
     const token = isInverted ? fromToken : toToken;
-    return `${amountPerChunkFormatted} ${token?.symbol} per chunk`;
-  }, [isInverted, toToken, fromToken, amountPerChunkFormatted]);
+    return `${amountPerChunkFormatted} ${token?.symbol}  ${tradesAmount > 1 ? `per trade` : ''}`;
+  }, [isInverted, toToken, fromToken, amountPerChunkFormatted, tradesAmount]);
 
   const { swapModule } = useSpotContext();
 
-
-  if(swapModule === Module.TAKE_PROFIT) {
+  if (swapModule === Module.TAKE_PROFIT) {
     return null;
   }
 
@@ -504,8 +516,7 @@ const LimitPricePanel = () => {
         </div>
       </div>
       {isLimitPrice && (
-        <div className="flex flex-col gap-2 items-stretch">
-          <SpotPriceInput
+        <SpotPriceInput
           usd={usd}
           symbol={toToken?.symbol}
           value={price}
@@ -513,10 +524,8 @@ const LimitPricePanel = () => {
           percentage={percentage}
           onPercentageChange={(it) => onPercentageChange(it)}
           isLoading={isLoading}
-          chunkText={chunkText}
+          bottomContent={chunkText}
         />
-        <p className="text-[13px] text-muted-foreground">{chunkText}</p>
-        </div>
       )}
     </div>
   );
@@ -536,28 +545,28 @@ const TriggerPricePanel = () => {
     amountPerChunk,
     isInverted,
     fromToken,
+    totalTrades
   } = useTriggerPricePanel();
 
   const { swapModule } = useSpotContext();
 
-  const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk});
+  const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk });
 
   const chunkText = useMemo(() => {
     const token = isInverted ? fromToken : toToken;
-    return `${amountPerChunkFormatted} ${token?.symbol} per chunk`;
-  }, [isInverted, toToken, fromToken, amountPerChunkFormatted]);
+      return `${amountPerChunkFormatted} ${token?.symbol}  ${totalTrades > 1 ? `per trade` : ''}`;
+  }, [isInverted, toToken, fromToken, amountPerChunkFormatted, totalTrades]);
 
   if (swapModule !== Module.TAKE_PROFIT && swapModule !== Module.STOP_LOSS) {
     return null;
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 ">
       <div className="flex justify-between w-full items-center">
         <Label title={label} tooltip={tooltip} />
         <SpotPriceResetButton onClick={onReset} />
       </div>
-      <div className="flex flex-col gap-2 items-stretch">
       <SpotPriceInput
         usd={usd}
         symbol={toToken?.symbol}
@@ -565,10 +574,8 @@ const TriggerPricePanel = () => {
         onChange={(it) => onChange(it)}
         percentage={percentage}
         onPercentageChange={(it) => onPercentageChange(it)}
-        chunkText={chunkText}
+        bottomContent={chunkText}
       />
-      <p className="text-[13px] text-muted-foreground">{chunkText}</p>
-      </div>
     </div>
   );
 };
@@ -608,7 +615,7 @@ const Prices = () => {
 };
 
 export function SpotForm({ swapType }: { swapType: SwapType }) {
-  const { inputCurrency, outputCurrency, inputAmount, } = useDerivedSwap();
+  const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
   const { setInputAmount } = useActionHandlers();
   const { chainId, address } = useConnection();
   const { priceProtection } = useSettings();
@@ -628,7 +635,10 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const { wei: inputBalance } = useBalance(inputCurrency);
   const { wei: outputBalance } = useBalance(outputCurrency);
 
-  const resetTypedInputAmount = useCallback(() =>  setInputAmount(""), [setInputAmount]);
+  const resetTypedInputAmount = useCallback(
+    () => setInputAmount(""),
+    [setInputAmount]
+  );
 
   return (
     <Context.Provider value={{ swapModule }}>

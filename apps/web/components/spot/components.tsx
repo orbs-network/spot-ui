@@ -41,7 +41,7 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
     onPercentageChange,
     usd,
     isLoading,
-    chunkText,
+    bottomContent
   }: {
     symbol?: string;
     value: string;
@@ -50,11 +50,12 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
     onPercentageChange: (value: string) => void;
     usd: string;
     isLoading?: boolean;
-    chunkText?: string;
+    bottomContent?: React.ReactNode;
   }) => {
     const usdF = useFormatNumber({ value: usd });
     return (
-      <div className="flex flex-row gap-2 items-stretch">
+     <div className="flex flex-col gap-2 items-stretch bg-background/60 p-2 pb-2 rounded-xl">
+       <div className="flex flex-row gap-2 items-stretch">
         <div className="flex-1 flex justify-between bg-accent items-center px-3 py-2 rounded-[12px] gap-3">
           <p className="text-[15px] font-medium text-muted-foreground">
             {symbol}
@@ -66,7 +67,7 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
               onChange={(it) => onChange(it)}
               className="flex-1 text-right text-[21px]"
             />
-            <p className="text-[13px] text-muted-foreground">${usdF || "0"}</p>
+            <p className="text-[13px] text-muted-foreground ">${usdF || "0"}</p>
           </div>
         </div>
        
@@ -81,6 +82,8 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
           />
         </div>
       </div>
+      <p className="text-[13px] text-muted-foreground pl-1 font-medium">{bottomContent}</p>
+     </div>
     );
   };
   
