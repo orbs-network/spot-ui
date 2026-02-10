@@ -3,9 +3,9 @@ import BN from "bignumber.js";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { useInputWithPercentage } from "./use-input-with-percentage";
-import { InputError, InputErrors, Module } from "../types";
+import { Module } from "../types";
 import { useDefaultTriggerPricePercent } from "./use-default-values";
-import { getStopLossPriceError, getTakeProfitPriceError, getTriggerPricePerChunk } from "@orbs-network/spot-ui";
+import { getStopLossPriceError, getTakeProfitPriceError, getTriggerPricePerChunk, InputErrors } from "@orbs-network/spot-ui";
 import { useAmountUi, useUsdAmount } from "./helper-hooks";
 import { useTrades } from "./use-trades";
 import { useTranslations } from "./use-translations";
@@ -15,7 +15,7 @@ const useTriggerPriceError = (triggerPriceWei = "") => {
   const t = useTranslations();
 
 
-  return useMemo((): InputError | undefined => {
+  return useMemo(() => {
     if (BN(typedInputAmount || "0").isZero() || !marketPrice) return;
     if (module !== Module.STOP_LOSS && module !== Module.TAKE_PROFIT) return;
     const stopLossError = getStopLossPriceError(marketPrice || "", triggerPriceWei || "", module);

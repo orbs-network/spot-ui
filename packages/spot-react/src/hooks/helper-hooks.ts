@@ -1,17 +1,17 @@
-import { amountBN, amountUi, getNetwork } from "@orbs-network/spot-ui";
+import { getNetwork } from "@orbs-network/spot-ui";
 import { useCallback, useMemo } from "react";
 import { useSpotContext } from "../spot-context";
 import BN from "bignumber.js";
-import { formatDecimals, getExplorerUrl, shouldUnwrapOnly, shouldWrapOnly } from "../utils";
+import { formatDecimals, getExplorerUrl, shouldUnwrapOnly, shouldWrapOnly, toAmountUi, toAmountWei } from "../utils";
 import moment from "moment";
 import { useNumericFormat } from "react-number-format";
 
 export const useAmountBN = (decimals?: number, value?: string) => {
-  return useMemo(() => amountBN(decimals, value), [decimals, value]);
+  return useMemo(() => toAmountWei(value, decimals), [decimals, value]);
 };
 
 export const useAmountUi = (decimals?: number, value?: string) => {
-  return useMemo(() => amountUi(decimals, value), [decimals, value]);
+  return useMemo(() => toAmountUi(value, decimals), [decimals, value]);
 };
 
 export const useNetwork = () => {

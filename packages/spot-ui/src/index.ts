@@ -10,11 +10,8 @@ export { analytics, setUIVersion } from "./lib/analytics";
 export {
   isNativeAddress,
   getNetwork,
-  amountBN,
-  amountUi,
   eqIgnoreCase,
   getOrderFillDelayMillis,
-  getQueryParam,
   getPartnerChains,
   getOrderExcecutionRate,
   getOrderLimitPriceRate,

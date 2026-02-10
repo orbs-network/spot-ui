@@ -224,19 +224,21 @@ export function getFirstAndLastLetter(symbol?: string): string {
   return s.length <= 1 ? s : `${s[0]}${s[s.length - 1]}`;
 }
 
-export const toAmountWei  = (value?: string, decimals?: number) => {
 
+export const toAmountWei = (value?: string, decimals?: number) => {
   if (!decimals || !value) return "0";
   return parseUnits(value, decimals).toString();
-}
+};
 
-export const toAmountUI  = (value?: string, decimals?: number) => {
+export const toAmountUI = (value?: string, decimals?: number) => {
+ try {
   if (!decimals || !value) return "0";
   return formatUnits(BigInt(value), decimals);
-}
-
-
-
+ // eslint-disable-next-line @typescript-eslint/no-unused-vars
+ } catch (error) {
+  return "0";
+ }
+};
 
 
 export const getSpotPartnerDemoLink = (partner?: string) => {

@@ -12,7 +12,9 @@ import {
 } from "./consts";
 import {
   Config,
+  InputError,
   Module,
+  PartnerPayloadItem,
   Partners,
   SpotConfig,
   TimeDuration,
@@ -130,17 +132,12 @@ export const getMaxPossibleChunks = (
   return Math.max(1, Math.min(maxChunksBySize, maxChunksByTime));
 };
 
-export const getMinimumDelayMinutes = (config: Config) => {
-  return getEstimatedDelayBetweenChunksMillis(config) / 1000 / 60;
-};
-
 export const getDeadline = (
   currentTimeMillis: number,
   duration: TimeDuration
 ) => {
 
   const minute = 60_000;
-
   return currentTimeMillis + getTimeDurationMillis(duration) + minute;
 };
 
@@ -148,7 +145,7 @@ export const getEstimatedDelayBetweenChunksMillis = (config: Config) => {
   return config.bidDelaySeconds * 1000 * 2;
 };
 
-export const getSrcTokenChunkAmount = (srcAmount?: string, chunks?: number) => {
+export const getSrcTokenChunkAmount = (srcAmount = '', chunks = 0) => {
   if (!srcAmount || !chunks) return "0";
   return BN(srcAmount).div(chunks).integerValue(BN.ROUND_FLOOR).toFixed(0);
 };
@@ -297,11 +294,6 @@ export const getConfig = (
   return result;
 };
 
-export type PartnerPayloadItem = {
-  chainId: number;
-  name: string;
-  config: SpotConfig | undefined;
-};
 
 export const getPartners = (): PartnerPayloadItem[] => {
   const raw = Spot.raw as Record<string, any>;
@@ -320,3 +312,63 @@ export const getPartners = (): PartnerPayloadItem[] => {
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 };
+
+
+export const getMinChunkSizeUsd = (minChunkSizeUsd: number) => {
+  const minChunkSizeUsdFromQuery = getQueryParam(
+    QUERY_PARAMS.MIN_CHUNK_SIZE_USD
+  );
+  if (minChunkSizeUsdFromQuery) {
+    return parseInt(minChunkSizeUsdFromQuery);
+  }
+  return minChunkSizeUsd;
+};
+
+export const getErrors = ({
+  marketPrice,
+  typedInputAmount,
+  srcUsd1Token,
+  marketPriceLoading,
+  triggerPriceError,
+  limitPriceError,
+  tradesError,
+  fillDelayError,
+  durationError,
+  balanceError
+}: {
+  marketPrice?: string;
+  typedInputAmount?: string;
+  srcUsd1Token?: string;
+  marketPriceLoading?: boolean;
+  triggerPriceError?: InputError;
+  limitPriceError?: InputError;
+  tradesError?: InputError;
+  fillDelayError?: InputError;
+  durationError?: InputError;
+  balanceError?: InputError;
+}) => {
+
+  const ignoreErrors = getQueryParam(QUERY_PARAMS.IGNORE_ERRORS);
+
+  if(ignoreErrors) {
+    return undefined;
+  }
+
+  if (
+    BN(marketPrice || 0).isZero() ||
+    BN(typedInputAmount || 0).isZero() ||
+    BN(srcUsd1Token || "0").isZero() ||
+    marketPriceLoading
+  ) {
+    return undefined;
+  }
+
+  return (
+    triggerPriceError ||
+    limitPriceError ||
+    tradesError ||
+    fillDelayError ||
+    durationError ||
+    balanceError
+  );
+}

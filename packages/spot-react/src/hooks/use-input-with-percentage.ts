@@ -1,8 +1,7 @@
-import { amountBN, amountUi } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import BN from "bignumber.js";
 import { useSpotContext } from "../spot-context";
-import { formatDecimals } from "../utils";
+import { formatDecimals, toAmountUi, toAmountWei } from "../utils";
 import { useUsdAmount } from "./helper-hooks";
 import { useInvertTradePanel } from "./use-invert-trade-panel";
 
@@ -24,19 +23,22 @@ export const useInputWithPercentage = ({
   const { srcUsd1Token, dstUsd1Token } = useSpotContext();
   const { isInverted } = useInvertTradePanel();
   const priceWei = useMemo(() => {
-    if (typedValue !== undefined) {
-      const value = isInverted ? (BN(typedValue).isZero() ? BN(0) : BN(1).div(typedValue)) : BN(typedValue);
-      return amountBN(tokenDecimals, value.toFixed());
+    const getPriceWei = () => {
+      if (typedValue !== undefined) {
+        const value = isInverted ? (BN(typedValue).isZero() ? BN(0) : BN(1).div(typedValue)) : BN(typedValue);
+        return toAmountWei(value.toFixed(), tokenDecimals);
+      }
+  
+      if (percentage !== undefined && BN(initialPrice || "0").gt(0) && !BN(initialPrice || "0").isNaN()) {
+        const price = BN(initialPrice || "0");
+        const percentFactor = BN(percentage || 0).div(100);
+  
+        const adjusted = price.plus(price.multipliedBy(percentFactor));
+        return adjusted.decimalPlaces(0).toFixed();
+      }
+      return BN(initialPrice).gt(0) ? initialPrice : "";
     }
-
-    if (percentage !== undefined && BN(initialPrice || "0").gt(0) && !BN(initialPrice || "0").isNaN()) {
-      const price = BN(initialPrice || "0");
-      const percentFactor = BN(percentage || 0).div(100);
-
-      const adjusted = price.plus(price.multipliedBy(percentFactor));
-      return adjusted.decimalPlaces(0).toFixed();
-    }
-    return BN(initialPrice).gt(0) ? initialPrice : "";
+    return BN(getPriceWei()).decimalPlaces(0).toFixed();
   }, [typedValue, percentage, tokenDecimals, initialPrice, isInverted]);
 
   const onChange = useCallback(
@@ -77,7 +79,7 @@ export const useInputWithPercentage = ({
     if (typedValue !== undefined) {
       result = typedValue;
     } else {
-      const amount = amountUi(tokenDecimals, priceWei);
+      const amount = toAmountUi(priceWei, tokenDecimals);
       if (BN(amount || "0").isZero()) {
         return "";
       }

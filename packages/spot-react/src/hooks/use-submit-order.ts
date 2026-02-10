@@ -1,14 +1,13 @@
 import { SwapStatus } from "@orbs-network/swap-ui";
 import BN from "bignumber.js";
 import {
-  amountUi,
   analytics,
   isNativeAddress,
   IWETH_ABI,
   submitOrder,
 } from "@orbs-network/spot-ui";
 import { ParsedError, Steps, Token } from "../types";
-import { ensureWrappedToken, getExplorerUrl, isTxRejected } from "../utils";
+import { ensureWrappedToken, getExplorerUrl, isTxRejected, toAmountUi } from "../utils";
 import { useSrcAmount } from "./use-src-amount";
 import { useMutation } from "@tanstack/react-query";
 import { useSpotContext } from "../spot-context";
@@ -83,7 +82,7 @@ const useWrapToken = () => {
       callbacks?.onWrapSuccess?.({
         txHash: receipt.transactionHash,
         explorerUrl: getExplorerUrl(receipt.transactionHash, chainId),
-        amount: amountUi(wToken.decimals, srcAmountWei),
+        amount: toAmountUi(srcAmountWei, wToken.decimals),
       });
       refetchBalances?.();
       return receipt;
@@ -287,7 +286,7 @@ const useApproveToken = () => {
         txHash: receipt.transactionHash,
         explorerUrl: getExplorerUrl(receipt.transactionHash, chainId),
         token: token,
-        amount: amountUi(token.decimals, srcAmountWei),
+        amount: toAmountUi(srcAmountWei, token.decimals),
       });
       return receipt;
     },

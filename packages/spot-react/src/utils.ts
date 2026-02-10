@@ -1,17 +1,35 @@
 import { AddressPadding, OrderType, Token } from "./types";
+import {formatUnits, parseUnits} from 'viem'
 import {
   eqIgnoreCase,
   getNetwork,
   isNativeAddress,
   networks,
 } from "@orbs-network/spot-ui";
+import BN from "bignumber.js";
 export const removeCommas = (numStr: string): string => {
   return numStr.replace(/,/g, "");
 };
 
-type CopyFn = (text: string) => Promise<boolean>; // Return success
 
-export const copy: CopyFn = async (text) => {
+export const toAmountWei = (value?: string, decimals?: number) => {
+  if (!decimals || !value) return "0";
+  return parseUnits(value, decimals).toString();
+};
+
+export const toAmountUi = (value?: string, decimals?: number) => {
+ try {
+  if (!decimals || !value || BN(value).isNaN()) return "0";
+  const amount = BN(value).toFixed();
+  return formatUnits(BigInt(amount), decimals);
+ } catch (error) {
+  console.error(error);
+  return "0";
+ }
+};
+
+
+export const copy = async (text: string) => {
   if (!navigator?.clipboard) {
     console.warn("Clipboard not supported");
     return false;

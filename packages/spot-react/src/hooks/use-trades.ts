@@ -1,8 +1,7 @@
 import { useMemo, useCallback } from "react";
 import { useSpotContext } from "../spot-context";
-import { InputError, InputErrors } from "../types";
 import { useSpotStore } from "../store";
-import { getChunks, getMaxChunksError, getMaxPossibleChunks, getSrcTokenChunkAmount, getMinTradeSizeError } from "@orbs-network/spot-ui";
+import { getChunks, getMaxChunksError, getMaxPossibleChunks, getSrcTokenChunkAmount, getMinTradeSizeError, InputErrors } from "@orbs-network/spot-ui";
 import { useFillDelay } from "./use-fill-delay";
 import { useSrcAmount } from "./use-src-amount";
 import { useAmountUi, useFormatNumber } from "./helper-hooks";
@@ -13,7 +12,7 @@ const useTradesError = (amount: number, maxAmount: number) => {
   const { module, srcUsd1Token, marketPrice, minChunkSizeUsd, typedInputAmount } = useSpotContext();
   const t = useTranslations();
 
-  return useMemo((): InputError | undefined => {
+  return useMemo(() => {
     if (BN(typedInputAmount || "0").isZero() || !marketPrice || BN(srcUsd1Token || "0").isZero()) return;
     if (!amount) {
       return {

@@ -2,7 +2,6 @@ import { SwapStatus } from "@orbs-network/swap-ui";
 import { useMutation } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
 import { useSpotContext } from "../spot-context";
-import { InputErrors } from "../types";
 import { useSpotStore } from "../store";
 import { useInputErrors } from "./use-input-errors";
 import { useSrcAmount } from "./use-src-amount";
@@ -103,8 +102,6 @@ export const useSubmitOrderButton = () => {
   const buttonText = useMemo(() => {
     if (noLiquidity) return t("noLiquidity");
     if (BN(typedInputAmount || "0").isZero()) return t("enterAmount");
-    if (inputsError?.type === InputErrors.INSUFFICIENT_BALANCE)
-      return t("insufficientFunds");
     return t("placeOrder");
   }, [inputsError, t, typedInputAmount, noLiquidity]);
 

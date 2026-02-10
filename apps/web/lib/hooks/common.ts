@@ -11,7 +11,6 @@ export const useToAmountUI = (decimals?: number, value?: string) => {
 
 export const useFormatDecimals = (value?: string,decimals = 6) => {
     return useMemo(() => {
-        if (!decimals || !value) return "0";
         return formatDecimals(value, decimals);
     }, [decimals, value]);
 };

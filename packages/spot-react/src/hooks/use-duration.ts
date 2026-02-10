@@ -1,8 +1,7 @@
-import { getDuration, getMaxOrderDurationError, getMinOrderDurationError, Module, TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
+import { getDuration, getMaxOrderDurationError, getMinOrderDurationError, InputErrors, Module, TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
-import { InputError, InputErrors } from "../types";
 import { millisToDays, millisToMinutes } from "../utils";
 import { useTrades } from "./use-trades";
 import { useFillDelay } from "./use-fill-delay";
@@ -12,7 +11,7 @@ const useDurationError = (duration: TimeDuration) => {
   const { module, marketPrice } = useSpotContext();
   const t = useTranslations();
 
-  return useMemo((): InputError | undefined => {
+  return useMemo(() => {
     const maxError = getMaxOrderDurationError(module, duration);
     const minError = getMinOrderDurationError(duration);
     if (!marketPrice) return undefined;

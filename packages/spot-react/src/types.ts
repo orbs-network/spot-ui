@@ -121,29 +121,6 @@ export type USDProps = {
   isLoading: boolean;
 };
 
-export type InputError = {
-  type: InputErrors;
-  value: string | number;
-  message: string;
-};
-
-export enum InputErrors {
-  EMPTY_LIMIT_PRICE,
-  MAX_CHUNKS,
-  MIN_CHUNKS,
-  MIN_TRADE_SIZE,
-  MAX_FILL_DELAY,
-  MIN_FILL_DELAY,
-  MAX_ORDER_DURATION,
-  MIN_ORDER_DURATION,
-  MISSING_LIMIT_PRICE,
-  STOP_LOSS_TRIGGER_PRICE_GREATER_THAN_MARKET_PRICE,
-  TRIGGER_LIMIT_PRICE_GREATER_THAN_TRIGGER_PRICE,
-  TAKE_PROFIT_TRIGGER_PRICE_LESS_THAN_MARKET_PRICE,
-  EMPTY_TRIGGER_PRICE,
-  INSUFFICIENT_BALANCE,
-  MAX_ORDER_SIZE,
-}
 
 export interface Provider {
   request(...args: any): Promise<any>;

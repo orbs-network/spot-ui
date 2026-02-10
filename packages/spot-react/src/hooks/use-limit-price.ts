@@ -2,11 +2,11 @@ import { useCallback, useMemo } from "react";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { useInputWithPercentage } from "./use-input-with-percentage";
-import { InputErrors, InputError, Module } from "../types";
+import { Module } from "../types";
 import BN from "bignumber.js";
 import { useTriggerPrice } from "./use-trigger-price";
 import { useDefaultLimitPricePercent } from "./use-default-values";
-import { getStopLossLimitPriceError, getTakeProfitLimitPriceError } from "@orbs-network/spot-ui";
+import { getStopLossLimitPriceError, getTakeProfitLimitPriceError, InputErrors } from "@orbs-network/spot-ui";
 import { useTranslations } from "./use-translations";
 
 
@@ -16,7 +16,7 @@ export const useLimitPriceError = (limitPriceWei?: string) => {
   const { amountWei: triggerPrice } = useTriggerPrice();
 
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
-  return useMemo((): InputError | undefined => {
+  return useMemo(() => {
     if (BN(typedInputAmount || "0").isZero() || !triggerPrice || !marketPrice) return;
     const _stopLossError = getStopLossLimitPriceError(triggerPrice, limitPriceWei, isMarketOrder, module);
     const _takeProfitError = getTakeProfitLimitPriceError(triggerPrice, limitPriceWei, isMarketOrder, module);

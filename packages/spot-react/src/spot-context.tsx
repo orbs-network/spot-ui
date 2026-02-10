@@ -3,11 +3,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   getConfig,
   Module,
-  getQueryParam,
-  QUERY_PARAMS,
-  amountBN,
   analytics,
   getPartnerChains,
+  getMinChunkSizeUsd,
 } from "@orbs-network/spot-ui";
 import {
   TwapProps,
@@ -18,7 +16,7 @@ import {
 import { ErrorBoundary } from "react-error-boundary";
 import { useSpotStore } from "./store";
 import BN from "bignumber.js";
-import { shouldUnwrapOnly, shouldWrapOnly } from "./utils";
+import { shouldUnwrapOnly, shouldWrapOnly, toAmountWei } from "./utils";
 import * as chains from "viem/chains";
 import { Chain } from "viem";
 import { custom, createWalletClient, createPublicClient, http } from "viem";
@@ -155,7 +153,7 @@ const useParsedMarketPrice = ({
       return {
         isLoading: false,
         noLiquidity: false,
-        value: amountBN(srcToken?.decimals || 18, typedInputAmount || "0"),
+        value: toAmountWei(typedInputAmount || "0", srcToken?.decimals),
       };
     }
     if (
@@ -176,15 +174,7 @@ const useParsedMarketPrice = ({
   }, [marketReferencePrice, typedInputAmount, srcToken, dstToken, chainId]);
 };
 
-const getMinChunkSizeUsd = (minChunkSizeUsd: number) => {
-  const minChunkSizeUsdFromQuery = getQueryParam(
-    QUERY_PARAMS.MIN_CHUNK_SIZE_USD
-  );
-  if (minChunkSizeUsdFromQuery) {
-    return parseInt(minChunkSizeUsdFromQuery);
-  }
-  return minChunkSizeUsd;
-};
+
 
 const Content = (props: TwapProps) => {
   const acceptedMarketPrice = useSpotStore((s) => s.state.acceptedMarketPrice);

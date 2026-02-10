@@ -1,7 +1,7 @@
 import { getOrderFillDelayMillis, Order } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
 import { useSpotContext } from "../spot-context";
-import { useAmountUi, useFormatNumber } from "./helper-hooks";
+import { useAmountUi } from "./helper-hooks";
 import {
   useOrders,
   useOrderLimitPrice,
@@ -11,7 +11,6 @@ import {
 import { useTranslations } from "./use-translations";
 import BN from "bignumber.js";
 import { useBuildOrderInfo } from "./use-build-order-info";
-
 
 export const useHistoryOrder = (orderId?: string) => {
   const { orders } = useOrders();
@@ -28,16 +27,16 @@ export const useHistoryOrder = (orderId?: string) => {
   const srcAmount = useAmountUi(srcToken?.decimals, order?.srcAmount);
   const limitPrice = useOrderLimitPrice(srcToken, dstToken, order);
 
-  const excecutionPrice = useFormatNumber({
-    value: useOrderAvgExcecutionPrice(srcToken, dstToken, order),
-  });
-  const srcFilledAmount = useFormatNumber({
-    value: useAmountUi(srcToken?.decimals, order?.srcAmountFilled),
-  });
-  const dstFilledAmount = useFormatNumber({
-    value: useAmountUi(dstToken?.decimals, order?.dstAmountFilled),
-  });
-  const progress = useFormatNumber({ value: order?.progress, decimalScale: 2 });
+  const excecutionPrice = useOrderAvgExcecutionPrice(srcToken, dstToken, order);
+  const srcFilledAmount = useAmountUi(
+    srcToken?.decimals,
+    order?.srcAmountFilled
+  );
+  const dstFilledAmount = useAmountUi(
+    dstToken?.decimals,
+    order?.dstAmountFilled
+  );
+  const progress = order?.progress;
 
   const srcAmountPerTrade = useAmountUi(
     srcToken?.decimals,
@@ -49,17 +48,17 @@ export const useHistoryOrder = (orderId?: string) => {
   );
   const triggerPrice = useAmountUi(
     dstToken?.decimals,
-    BN(order?.triggerPricePerTrade).multipliedBy(order?.totalTradesAmount).toFixed()
+    BN(order?.triggerPricePerTrade)
+      .multipliedBy(order?.totalTradesAmount)
+      .toFixed()
   );
 
-  
-
   const tradeInterval = useMemo(() => {
-    if(!order) return 0;
-    if(order.version === 2) {
+    if (!order) return 0;
+    if (order.version === 2) {
       return order.fillDelay;
     }
-    if(config.twapConfig) {
+    if (config.twapConfig) {
       return getOrderFillDelayMillis(order, config.twapConfig);
     }
     return 0;

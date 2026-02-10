@@ -301,6 +301,7 @@ export enum QUERY_PARAMS {
   MIN_CHUNK_SIZE_USD = "minChunkSizeUsd",
   ENV = "env",
   DURATION = "duration",
+  IGNORE_ERRORS = "ignore-errors",
 }
 
 export const DEFAULT_STOP_LOSS_PERCENTAGE = "-5";
