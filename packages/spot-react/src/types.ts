@@ -17,7 +17,7 @@ export interface Translations {
   limitPriceTooltip: string;
   wrapMsg: string;
   cancelOrder: string;
-  tradeIntervalTootlip: string;
+  tradeIntervalTooltip: string;
   triggerPriceTooltip: string;
   createOrderActionSuccess: string;
   version: string;

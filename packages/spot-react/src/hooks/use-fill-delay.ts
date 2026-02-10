@@ -54,6 +54,6 @@ export const useFillDelayPanel = () => {
     fillDelay,
     error,
     label: t("tradeIntervalTitle"),
-    tooltip: t("tradeIntervalTootlip"),
+    tooltip: t("tradeIntervalTooltip"),
   };
 };

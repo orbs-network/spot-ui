@@ -98,7 +98,7 @@ export const useBuildOrderInfo = (props: Props) => {
         usd: dstMinAmountPerTradeUsd,
       },
       tradeInterval: {
-        tooltip: t("tradeIntervalTootlip"),
+        tooltip: t("tradeIntervalTooltip"),
         label: t("tradeIntervalLabel"),
         value: props.tradeInterval || 0,
       },

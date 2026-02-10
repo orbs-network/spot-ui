@@ -25,6 +25,7 @@ export * from "./utils";
 export { PRICE_PROTECTION_SETTINGS } from "./consts";
 export { useFormatNumber } from "./hooks/helper-hooks";
 import { useOrder, useOrderInfo } from "./hooks/use-order";
+import { Portal } from "./components/portal";
 
 // Set the UI version in spot-sdk for analytics
 setUIVersion(pkg.version);
@@ -35,6 +36,7 @@ setUIVersion(pkg.version);
 const Components = {
   SubmitOrderPanel,
   Orders,
+  Portal
 };
 
 
