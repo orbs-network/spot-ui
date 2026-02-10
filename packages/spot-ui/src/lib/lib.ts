@@ -8,6 +8,7 @@ import {
   MAX_ORDER_DURATION_MILLIS,
   MIN_FILL_DELAY_MILLIS,
   MIN_ORDER_DURATION_MILLIS,
+  QUERY_PARAMS,
 } from "./consts";
 import {
   Config,
@@ -17,7 +18,7 @@ import {
   TimeDuration,
   TimeUnit,
 } from "./types";
-import { findTimeUnit, getTimeDurationMillis } from "./utils";
+import { findTimeUnit, getQueryParam, getTimeDurationMillis } from "./utils";
 
 // values calculations
 
@@ -73,7 +74,15 @@ export const getDuration = (
   customDuration?: TimeDuration
 ): TimeDuration => {
   const minDuration = getTimeDurationMillis(fillDelay) * 2 * chunks;
-  const unit = findTimeUnit(minDuration);
+  const queryParam = getQueryParam(QUERY_PARAMS.DURATION);
+
+  
+  const unit = findTimeUnit(queryParam ? Number(queryParam) : minDuration);
+
+  if(queryParam) {
+    return { unit, value: Number(BN(Number(queryParam) / unit).toFixed(2)) };
+  }
+
 
   if (customDuration) {
     return customDuration;
@@ -129,6 +138,7 @@ export const getDeadline = (
   currentTimeMillis: number,
   duration: TimeDuration
 ) => {
+
   const minute = 60_000;
 
   return currentTimeMillis + getTimeDurationMillis(duration) + minute;

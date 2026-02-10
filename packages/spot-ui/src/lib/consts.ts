@@ -300,6 +300,7 @@ export enum QUERY_PARAMS {
   FRESHNESS = "freshness",
   MIN_CHUNK_SIZE_USD = "minChunkSizeUsd",
   ENV = "env",
+  DURATION = "duration",
 }
 
 export const DEFAULT_STOP_LOSS_PERCENTAGE = "-5";
