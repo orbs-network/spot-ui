@@ -277,7 +277,8 @@ export enum Partners {
   Swapx = "swapx",
   Teafi = "teafi",
   Thena = "thena",
-  Yowie = "yowie"
+  Yowie = "yowie",
+  Pangolin = "pangolin",
 }
 
 

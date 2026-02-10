@@ -13,7 +13,7 @@ export const useLimitPricePanel = () => {
     const { module, marketPriceLoading } = useSpotContext();
     const t = useTranslations();
     const { amountUI, onChange, onPercentageChange, usd, selectedPercentage, error } = useLimitPrice();
-  
+  const { amountUI: amountPerChunkUI, usd: amountPerChunkUsd } = useDstMinAmountPerTrade();
     const updateState = useSpotStore((s) => s.updateState);
     const defaultLimitPricePercent = useDefaultLimitPricePercent();
     const { isLimitPrice, toggleLimitPrice } = useLimitPriceToggle();
@@ -34,7 +34,8 @@ export const useLimitPricePanel = () => {
   
     return {
       price: amountUI,
-      amountPerChunk: useDstMinAmountPerTrade().amountUI,
+      amountPerChunk: amountPerChunkUI,
+      amountPerChunkUsd: amountPerChunkUsd,
       error,
       label: t("limitPrice"),
       tooltip,

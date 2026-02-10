@@ -6,7 +6,7 @@ import { useInputWithPercentage } from "./use-input-with-percentage";
 import { InputError, InputErrors, Module } from "../types";
 import { useDefaultTriggerPricePercent } from "./use-default-values";
 import { getStopLossPriceError, getTakeProfitPriceError, getTriggerPricePerChunk } from "@orbs-network/spot-ui";
-import { useAmountUi } from "./helper-hooks";
+import { useAmountUi, useUsdAmount } from "./helper-hooks";
 import { useTrades } from "./use-trades";
 import { useTranslations } from "./use-translations";
 
@@ -47,7 +47,7 @@ const useTriggerPriceError = (triggerPriceWei = "") => {
 };
 
 export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
-  const { srcToken, dstToken, module } = useSpotContext();
+  const { srcToken, dstToken, module, dstUsd1Token } = useSpotContext();
   const amountPerTrade = useTrades().amountPerTradeWei;
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
 
@@ -56,10 +56,12 @@ export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
   }, [triggerPrice, amountPerTrade, isMarketOrder, srcToken?.decimals, module]);
 
   
+  const amountUI = useAmountUi(dstToken?.decimals || 0, result);
 
   return {
     amountWei: result,
-    amountUI: useAmountUi(dstToken?.decimals || 0, result),
+    amountUI: amountUI,
+    usd: useUsdAmount(amountUI, dstUsd1Token),
   };
 };
 
@@ -90,7 +92,7 @@ export const useTriggerPrice = () => {
     ),
   });
   const error = useTriggerPriceError(result.amountWei);
-  const { amountWei: triggerAmountPerChunk, amountUI: triggerAmountPerChunkUI } = useTriggerAmountPerChunk(result.amountWei);
+  const { amountWei: triggerAmountPerChunk, amountUI: triggerAmountPerChunkUI,usd: triggerAmountPerChunkUsd } = useTriggerAmountPerChunk(result.amountWei);
 
   return useMemo(() => {
     return {
@@ -98,7 +100,8 @@ export const useTriggerPrice = () => {
       error,
       pricePerChunkWei: triggerAmountPerChunk,
       pricePerChunkUI: triggerAmountPerChunkUI,
+      pricePerChunkUsd: triggerAmountPerChunkUsd,
     };
-  }, [result, error, triggerAmountPerChunk, triggerAmountPerChunkUI]);
+  }, [result, error, triggerAmountPerChunk, triggerAmountPerChunkUI, triggerAmountPerChunkUsd]);
 };
 

@@ -2,12 +2,11 @@ import { useMemo } from "react";
 import BN from "bignumber.js";
 import { filterCurrencies, sortTokens } from "../utils";
 import { erc20Abi, isAddress } from "viem";
-import { useChainId, useConnection, useReadContracts } from "wagmi";
+import { useReadContracts } from "wagmi";
 import { useBalances } from "./use-balances";
 import { useUSDPrices } from "./use-usd-price";
 import { Currency } from "../types";
 import { useCurrenciesQuery } from "./use-currencies-query";
-import { useUserStore } from "./store";
 
 const useExternalCurrency = (address?: `0x${string}`) => {
   const { data: externalCurrency } = useReadContracts({
@@ -64,6 +63,7 @@ const useAllCurrencies = () => {
 
   const result = useMemo(() => {
     if (!currencies) return [];
+    
     const sorted = sortTokens(currencies, usdPrices, balances);
 
     

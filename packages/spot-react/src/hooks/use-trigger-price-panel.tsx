@@ -10,7 +10,7 @@ import { useTrades } from "./use-trades";
 export const useTriggerPricePanel = () => {
     const { module, marketPrice, marketPriceLoading } = useSpotContext();
     const t = useTranslations();
-    const { amountUI, onChange, onPercentageChange, usd, selectedPercentage, error, pricePerChunkUI } = useTriggerPrice();
+    const { amountUI, onChange, onPercentageChange, usd, selectedPercentage, error, pricePerChunkUI, pricePerChunkUsd: amountPerChunkUsd } = useTriggerPrice();
     const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
     const updateState = useSpotStore((s) => s.updateState);
     const { isInverted, onInvert, fromToken, toToken } = useInvertTradePanel();
@@ -24,6 +24,7 @@ export const useTriggerPricePanel = () => {
     return {
       price: amountUI,
       amountPerChunk: pricePerChunkUI,
+      amountPerChunkUsd: amountPerChunkUsd,
       error,
       label: t("stopLossLabel"),
       tooltip: module === Module.STOP_LOSS ? t("stopLossTooltip") : t("takeProfitTooltip"),

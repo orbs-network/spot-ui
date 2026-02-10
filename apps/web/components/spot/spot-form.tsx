@@ -478,7 +478,7 @@ const LimitPricePanel = () => {
     price,
     percentage,
     onPercentageChange,
-    usd,
+    amountPerChunkUsd,
     isLimitPrice,
     toggleLimitPrice,
     label,
@@ -492,11 +492,15 @@ const LimitPricePanel = () => {
   } = useLimitPricePanel();
 
   const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk });
-
-  const chunkText = useMemo(() => {
+  const amountPerChunkUsdFormatted = useFormatNumber({ value: amountPerChunkUsd });
+  const bottomContent = useMemo(() => {
     const token = isInverted ? fromToken : toToken;
-    return `${amountPerChunkFormatted} ${token?.symbol}  ${tradesAmount > 1 ? `per trade` : ''}`;
-  }, [isInverted, toToken, fromToken, amountPerChunkFormatted, tradesAmount]);
+    if(!token) return '';
+    const perTradeText = tradesAmount > 1 ? `per trade` : '';
+    return <>
+    {amountPerChunkFormatted} {token?.symbol}  {perTradeText} {amountPerChunkUsdFormatted && <small className="text-muted-foreground">(${amountPerChunkUsdFormatted})</small>}
+    </>;
+  }, [isInverted, toToken, fromToken, amountPerChunkFormatted, tradesAmount, amountPerChunkUsdFormatted]);
 
   const { swapModule } = useSpotContext();
 
@@ -517,14 +521,13 @@ const LimitPricePanel = () => {
       </div>
       {isLimitPrice && (
         <SpotPriceInput
-          usd={usd}
           symbol={toToken?.symbol}
           value={price}
           onChange={(it) => onChange(it)}
           percentage={percentage}
           onPercentageChange={(it) => onPercentageChange(it)}
           isLoading={isLoading}
-          bottomContent={chunkText}
+          bottomContent={bottomContent}
         />
       )}
     </div>
@@ -537,7 +540,7 @@ const TriggerPricePanel = () => {
     onChange,
     percentage,
     onPercentageChange,
-    usd,
+    amountPerChunkUsd,
     label,
     tooltip,
     onReset,
@@ -550,12 +553,17 @@ const TriggerPricePanel = () => {
 
   const { swapModule } = useSpotContext();
 
-  const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk });
+  const amountPerChunkF = useFormatNumber({ value: amountPerChunk });
+  const amountPerChunkUsdF = useFormatNumber({ value: amountPerChunkUsd });
 
-  const chunkText = useMemo(() => {
+  const bottomContent = useMemo(() => {
     const token = isInverted ? fromToken : toToken;
-      return `${amountPerChunkFormatted} ${token?.symbol}  ${totalTrades > 1 ? `per trade` : ''}`;
-  }, [isInverted, toToken, fromToken, amountPerChunkFormatted, totalTrades]);
+    if(!token) return '';
+    const perTradeText = totalTrades > 1 ? `per trade` : '';
+      return <>
+      {amountPerChunkF} {token?.symbol}  {perTradeText} {amountPerChunkUsdF && <small className="text-muted-foreground">(${amountPerChunkUsdF})</small>}
+      </>;
+  }, [isInverted, toToken, fromToken, amountPerChunkF, totalTrades, amountPerChunkUsdF]);
 
   if (swapModule !== Module.TAKE_PROFIT && swapModule !== Module.STOP_LOSS) {
     return null;
@@ -568,13 +576,12 @@ const TriggerPricePanel = () => {
         <SpotPriceResetButton onClick={onReset} />
       </div>
       <SpotPriceInput
-        usd={usd}
         symbol={toToken?.symbol}
         value={price}
         onChange={(it) => onChange(it)}
         percentage={percentage}
         onPercentageChange={(it) => onPercentageChange(it)}
-        bottomContent={chunkText}
+        bottomContent={bottomContent}
       />
     </div>
   );

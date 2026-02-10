@@ -39,7 +39,6 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
     onChange,
     percentage,
     onPercentageChange,
-    usd,
     isLoading,
     bottomContent
   }: {
@@ -48,11 +47,9 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
     onChange: (value: string) => void;
     percentage: string;
     onPercentageChange: (value: string) => void;
-    usd: string;
     isLoading?: boolean;
     bottomContent?: React.ReactNode;
   }) => {
-    const usdF = useFormatNumber({ value: usd });
     return (
      <div className="flex flex-col gap-2 items-stretch bg-background/60 p-2 pb-2 rounded-xl">
        <div className="flex flex-row gap-2 items-stretch">
@@ -60,15 +57,12 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
           <p className="text-[15px] font-medium text-muted-foreground">
             {symbol}
           </p>
-          <div className="flex-1 flex flex-col items-end">
-            <NumericInput
+          <NumericInput
               isLoading={isLoading}
               value={value}
               onChange={(it) => onChange(it)}
               className="flex-1 text-right text-[21px]"
             />
-            <p className="text-[13px] text-muted-foreground ">${usdF || "0"}</p>
-          </div>
         </div>
        
         <div className="w-[100px] bg-accent items-center px-3 py-2 rounded-[12px]">
@@ -82,7 +76,7 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
           />
         </div>
       </div>
-      <p className="text-[13px] text-muted-foreground pl-1 font-medium">{bottomContent}</p>
+      {bottomContent && <p className="text-[12px] text-muted-foreground pl-1 font-medium">{bottomContent}</p>}
      </div>
     );
   };
