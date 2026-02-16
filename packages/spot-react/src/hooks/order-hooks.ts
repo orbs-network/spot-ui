@@ -6,6 +6,7 @@ import {
   OrderType,
   getOrderExcecutionRate,
   getOrderLimitPriceRate,
+  getTriggerPricePerTrade,
 } from "@orbs-network/spot-ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
@@ -231,6 +232,17 @@ export const useOrderLimitPrice = (
       srcToken?.decimals,
       dstToken?.decimals,
     );
+  }, [order, srcToken, dstToken]);
+};
+
+export const useOrderTriggerPriceRate = (
+  srcToken?: Token,
+  dstToken?: Token,
+  order?: Order,
+) => {
+  return useMemo(() => {
+    if (!srcToken || !dstToken || !order) return;
+    return getTriggerPricePerTrade(order, srcToken.decimals, dstToken.decimals);
   }, [order, srcToken, dstToken]);
 };
 

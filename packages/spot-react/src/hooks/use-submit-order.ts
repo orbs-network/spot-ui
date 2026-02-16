@@ -14,7 +14,7 @@ import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 
 import { erc20Abi, maxUint256, numberToHex, parseSignature } from "viem";
-import { useAddNewOrder } from "./order-hooks";
+import { useOrdersQuery } from "./order-hooks";
 import { useNetwork } from "./helper-hooks";
 import { useGetTransactionReceipt } from "./use-get-transaction-receipt";
 import { useTriggerPrice } from "./use-trigger-price";
@@ -97,7 +97,7 @@ const useWrapToken = () => {
 const useSignAndSend = () => {
   const { account, walletClient, chainId, callbacks } = useSpotContext();
   const rePermitData = useOrder().rePermitData;
-  const addNewOrder = useAddNewOrder();
+  const {refetch: refetchOrders} = useOrdersQuery()
 
   return useMutation({
     mutationFn: async () => {
@@ -153,7 +153,7 @@ const useSignAndSend = () => {
 
       const newOrder = await submitOrder(order, signature);
       callbacks?.onOrderCreated?.(newOrder);
-      addNewOrder(newOrder);
+      await refetchOrders();
       return newOrder;
     },
   });
@@ -371,7 +371,7 @@ export const useSubmitOrderMutation = () => {
           throw new Error("missing chainId");
         }
         const srcWrappedToken = ensureWrappedToken(srcToken, chainId);
-        updateSwapExecution({ allowanceLoading: true });
+        updateSwapExecution({ allowanceLoading: true, wrapTxHash: undefined, approveTxHash: undefined });
         const { approvalRequired } = await hasAllowanceCallback({
           tokenAddress: srcWrappedToken.address,
           srcAmountWei,

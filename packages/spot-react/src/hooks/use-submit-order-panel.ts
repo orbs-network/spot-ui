@@ -40,6 +40,7 @@ export const useSubmitOrderPanel = () => {
         error: undefined,
         parsedError: undefined,
         status: undefined,
+        orderId: undefined,
       });
     }
   }, [updateState, srcToken, dstToken]);

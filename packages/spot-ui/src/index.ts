@@ -15,6 +15,7 @@ export {
   getPartnerChains,
   getOrderExcecutionRate,
   getOrderLimitPriceRate,
+  getTriggerPricePerTrade,
 } from "./lib/utils";
 export { networks } from "./lib/networks";
 

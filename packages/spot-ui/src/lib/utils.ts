@@ -248,3 +248,15 @@ export const getOrderLimitPriceRate = (
   const dstMinAmountUi = amountUi(dstTokenDecimals, order.dstMinAmountPerTrade);
   return BN(dstMinAmountUi).div(srcBidAmountUi).toFixed();
 };
+
+
+export const getTriggerPricePerTrade = (
+  order: Order,
+  srcTokenDecimals: number,
+  dstTokenDecimals: number,
+) => {
+  if (order.type === OrderType.TWAP_MARKET) return "";
+  const srcBidAmountUi = amountUi(srcTokenDecimals, order.srcAmountPerTrade);
+  const dstMinAmountUi = amountUi(dstTokenDecimals, order.triggerPricePerTrade);
+  return BN(dstMinAmountUi).div(srcBidAmountUi).toFixed();
+};

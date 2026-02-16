@@ -7,9 +7,9 @@ import {
   useOrderLimitPrice,
   useOrderAvgExcecutionPrice,
   useHistoryOrderTitle,
+  useOrderTriggerPriceRate,
 } from "./order-hooks";
 import { useTranslations } from "./use-translations";
-import BN from "bignumber.js";
 import { useBuildOrderInfo } from "./use-build-order-info";
 
 export const useHistoryOrder = (orderId?: string) => {
@@ -26,7 +26,7 @@ export const useHistoryOrder = (orderId?: string) => {
   const dstToken = useToken?.(order?.dstTokenAddress);
   const srcAmount = useAmountUi(srcToken?.decimals, order?.srcAmount);
   const limitPrice = useOrderLimitPrice(srcToken, dstToken, order);
-
+  const triggerPrice = useOrderTriggerPriceRate(srcToken, dstToken, order);
   const excecutionPrice = useOrderAvgExcecutionPrice(srcToken, dstToken, order);
   const srcFilledAmount = useAmountUi(
     srcToken?.decimals,
@@ -46,12 +46,7 @@ export const useHistoryOrder = (orderId?: string) => {
     dstToken?.decimals,
     order?.dstMinAmountPerTrade
   );
-  const triggerPrice = useAmountUi(
-    dstToken?.decimals,
-    BN(order?.triggerPricePerTrade)
-      .multipliedBy(order?.totalTradesAmount)
-      .toFixed()
-  );
+
 
   const tradeInterval = useMemo(() => {
     if (!order) return 0;

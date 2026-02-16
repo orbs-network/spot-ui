@@ -1,10 +1,10 @@
 import { Address, Module, Partners, RePermitOrder, SpotConfig } from "./types";
 
-import pkg from "../../package.json";
+import spotPkg from "@orbs-network/spot/package.json";
 
 const Version = 0.7;
 const BI_ENDPOINT = `https://bi.orbs.network/putes/twap-ui-${Version}`;
-const SPOT_VERSION = pkg.version;
+const SPOT_VERSION = spotPkg.version;
 
 // UI version is set by spot-react at runtime to avoid circular dependency
 let UI_VERSION = "unknown";

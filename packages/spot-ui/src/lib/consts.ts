@@ -76,7 +76,7 @@ export const THE_GRAPH_ORDERS_API = {
   [networks.avax
     .id]: `${THE_GRAPH_API}/FxZ1vMwE5Xy1qvKvZENUMz4vhW8Sh4vXJf9Vp7o17pTx`,
   [networks.bera
-    .id]: `${THE_GRAPH_API}/H7aY53mY1hgaSURwXj3ZVirwNSifExwjgEL5GNtTqmEj`,
+    .id]: getGfURL("berachain"),
 
   [networks.flare.id]: getGfURL("flare"),
   [networks.cronosZkEvm.id]: getGfURL("cronos-zkevm"),
