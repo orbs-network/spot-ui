@@ -3,6 +3,7 @@ import { setUIVersion } from "@orbs-network/spot-ui";
 import pkg from "../package.json";
 import { SpotProvider } from "./spot-context";
 import { DEFAULT_DURATION_OPTIONS } from "./consts";
+import { formatDecimals } from "./utils";
 import { Orders } from "./components/orders/orders";
 import { useTradesPanel } from "./hooks/use-trades";
 import { useFillDelayPanel } from "./hooks/use-fill-delay";
@@ -65,4 +66,5 @@ export {
   useSubmitOrderButton,
   useOrder,
   useOrderInfo,
+  formatDecimals,
 };

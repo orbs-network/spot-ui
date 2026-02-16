@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from "react";
 import BN from "bignumber.js";
 import { useSpotContext } from "../spot-context";
-import { formatDecimals, toAmountUi, toAmountWei } from "../utils";
+import { toAmountUi, toAmountWei } from "../utils";
 import { useUsdAmount } from "./helper-hooks";
 import { useInvertTradePanel } from "./use-invert-trade-panel";
 
@@ -87,7 +87,7 @@ export const useInputWithPercentage = ({
       result = isInverted ? BN(1).div(amount).toFixed() : amount;
     }
 
-    return formatDecimals(result, 6, tokenDecimals);
+    return result
   }, [typedValue, tokenDecimals, priceWei, isInverted]);
 
   const usd = useUsdAmount(isInverted ? srcUsd1Token : dstUsd1Token, amountUI || "0");
@@ -100,5 +100,6 @@ export const useInputWithPercentage = ({
     onPercentageChange,
     isInverted,
     usd: BN(usd).isNaN() ? "" : usd,
+    isTypedValue: typedValue !== undefined,
   };
 };

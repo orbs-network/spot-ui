@@ -57,7 +57,7 @@ export const useLimitPrice = () => {
   const result = useInputWithPercentage({
     typedValue: useSpotStore((s) => s.state.typedLimitPrice),
     percentage,
-    tokenDecimals: dstToken?.decimals,
+    tokenDecimals: dstToken?.decimals || 18,
     initialPrice: marketPrice,
     setValue: useCallback((typedLimitPrice?: string) => {
       updateState({ typedLimitPrice });

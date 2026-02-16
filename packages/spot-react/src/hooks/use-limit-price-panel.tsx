@@ -12,7 +12,7 @@ import { useTrades } from "./use-trades";
 export const useLimitPricePanel = () => {
     const { module, marketPriceLoading } = useSpotContext();
     const t = useTranslations();
-    const { amountUI, onChange, onPercentageChange, usd, selectedPercentage, error } = useLimitPrice();
+    const { amountUI, onChange, onPercentageChange, usd, selectedPercentage, error, isTypedValue } = useLimitPrice();
   const { amountUI: amountPerChunkUI, usd: amountPerChunkUsd } = useDstMinAmountPerTrade();
     const updateState = useSpotStore((s) => s.updateState);
     const defaultLimitPricePercent = useDefaultLimitPricePercent();
@@ -52,6 +52,7 @@ export const useLimitPricePanel = () => {
       isLimitPrice,
       toggleLimitPrice,
       onInvert,
+      isTypedValue,
     };
   };
   

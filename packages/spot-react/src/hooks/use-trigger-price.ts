@@ -77,7 +77,7 @@ export const useTriggerPrice = () => {
   const result = useInputWithPercentage({
     typedValue: useSpotStore((s) => s.state.typedTriggerPrice),
     percentage,
-    tokenDecimals: dstToken?.decimals,
+    tokenDecimals: dstToken?.decimals || 18,
     initialPrice: enabled ? marketPrice : undefined,
     setValue: useCallback((typedTriggerPrice?: string) => {
       updateState({ typedTriggerPrice });
