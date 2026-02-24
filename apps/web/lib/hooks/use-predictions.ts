@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import type { PredictionMarket, PolymarketEvent, PolymarketMarket } from "@/lib/types/polymarket";
 
 const API = "/api";
@@ -131,8 +132,9 @@ function isUpDownEvent(event: { slug?: string }): boolean {
 
 async function fetchMarketBySlug(slug: string): Promise<PolymarketMarket | null> {
   try {
-    const res = await fetch(`${API}/markets?slug=${encodeURIComponent(slug)}`);
-    const data = await res.json();
+    const { data } = await axios.get(`${API}/markets`, {
+      params: { slug },
+    });
     const markets = Array.isArray(data) ? data : [data];
     return (markets as PolymarketMarket[]).find((m) => m.slug === slug) ?? (markets[0] as PolymarketMarket) ?? null;
   } catch {
@@ -177,15 +179,27 @@ async function fetchUpDownItems(asset: string): Promise<PredictionMarket[]> {
 
   try {
     const [hourlyRes, tsRes] = await Promise.all([
-      fetch(
-        `${API}/events?closed=false&limit=12&order=endDate&ascending=true&tag_slug=1H`
-      ).then((r) => r.json()),
-      fetch(
-        `${API}/events?closed=false&limit=30&order=startDate&ascending=false&slug_contains=${asset}-updown`
-      ).then((r) => r.json()),
+      axios.get<PolymarketEvent[]>(`${API}/events`, {
+        params: {
+          closed: false,
+          limit: 12,
+          order: "endDate",
+          ascending: true,
+          tag_slug: "1H",
+        },
+      }),
+      axios.get<PolymarketEvent[]>(`${API}/events`, {
+        params: {
+          closed: false,
+          limit: 30,
+          order: "startDate",
+          ascending: false,
+          slug_contains: `${asset}-updown`,
+        },
+      }),
     ]);
 
-    const hourly = (hourlyRes as PolymarketEvent[]).find((e) =>
+    const hourly = (hourlyRes.data).find((e) =>
       e.slug?.startsWith(`${fullname}-up-or-down-`)
     );
     if (hourly) {
@@ -193,7 +207,7 @@ async function fetchUpDownItems(asset: string): Promise<PredictionMarket[]> {
       if (pred) results.push(pred);
     }
 
-    const tsEvents = tsRes as PolymarketEvent[];
+    const tsEvents = tsRes.data;
     const match4h = tsEvents.find((e) => e.slug?.match(new RegExp(`^${asset}-updown-4h-`)));
     if (match4h) {
       const pred = eventToPrediction(match4h);
@@ -210,12 +224,18 @@ type MarketFilter = "all" | "crypto" | "macro";
 
 async function fetchFilteredMarkets(filter: MarketFilter): Promise<PredictionMarket[]> {
   if (filter === "all") {
-    const res = await fetch(
-      `${API}/markets?closed=false&order=volume24hr&ascending=false&limit=80`
-    );
-    const markets = (await res.json()) as (PolymarketMarket & {
-      events?: { id?: string; tags?: { slug?: string }[] }[];
-    })[];
+    const { data: markets } = await axios.get<
+      (PolymarketMarket & {
+        events?: { id?: string; tags?: { slug?: string }[] }[];
+      })[]
+    >(`${API}/markets`, {
+      params: {
+        closed: false,
+        order: "volume24hr",
+        ascending: false,
+        limit: 80,
+      },
+    });
     const filtered = markets.filter((m) => {
       if ((m.slug || "").match(/updown-\d+[mh]-/)) return false;
       const tags = (m.events?.[0]?.tags || []).map((t) => t.slug);
@@ -236,10 +256,15 @@ async function fetchFilteredMarkets(filter: MarketFilter): Promise<PredictionMar
   }
 
   if (filter === "crypto") {
-    const res = await fetch(
-      `${API}/events?closed=false&order=volume24hr&ascending=false&limit=20&tag_slug=crypto`
-    );
-    const crypto = (await res.json()) as PolymarketEvent[];
+    const { data: crypto } = await axios.get<PolymarketEvent[]>(`${API}/events`, {
+      params: {
+        closed: false,
+        order: "volume24hr",
+        ascending: false,
+        limit: 20,
+        tag_slug: "crypto",
+      },
+    });
     const filtered = crypto.filter((e) => !isUpDownEvent(e));
   const top = dedupeEvents<PolymarketEvent>(
     filtered,
@@ -254,12 +279,18 @@ async function fetchFilteredMarkets(filter: MarketFilter): Promise<PredictionMar
   const tags = ["finance", "economy", "fed-rates"];
   const results = await Promise.all(
     tags.map((tag) =>
-      fetch(
-        `${API}/events?closed=false&order=volume24hr&ascending=false&limit=20&tag_slug=${tag}`
-      ).then((r) => r.json())
+      axios.get<PolymarketEvent[]>(`${API}/events`, {
+        params: {
+          closed: false,
+          order: "volume24hr",
+          ascending: false,
+          limit: 20,
+          tag_slug: tag,
+        },
+      })
     )
   );
-  const merged = results.flat() as PolymarketEvent[];
+  const merged = results.flatMap((r) => r.data);
   merged.sort((a, b) => (b.volume24hr ?? 0) - (a.volume24hr ?? 0));
   const top = dedupeEvents<PolymarketEvent>(
     merged,

@@ -169,6 +169,16 @@ export default function PredictionsPage() {
               ))
             )}
           </div>
+          <div className="mt-4 flex justify-center">
+            <a
+              href="https://polymarket.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg border border-[#2a2a2a] bg-transparent px-4 py-2 text-sm font-medium text-[#888] no-underline transition-colors hover:border-[#444] hover:text-[#e0e0e0]"
+            >
+              More markets →
+            </a>
+          </div>
         </section>
 
       </div>
