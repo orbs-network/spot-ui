@@ -23,11 +23,14 @@ import { Module } from "@orbs-network/spot-ui";
 
 
 export const useOrderTitle = (type?: OrderType) => {
+  
   const t = useTranslations();
   return useMemo(() => {
    switch (type) {
     case OrderType.TWAP_MARKET:
       return t("twapMarket");
+      case OrderType.LIMIT:
+        return t("limit");
     case OrderType.TWAP_LIMIT:
       return t("twapLimit");
     case OrderType.STOP_LOSS_MARKET:
@@ -51,7 +54,7 @@ const useOrderType = () => {
       return isMarketOrder ? OrderType.TWAP_MARKET : OrderType.TWAP_LIMIT;
     }
     if (module === Module.LIMIT) {
-      return isMarketOrder ? OrderType.LIMIT : OrderType.TWAP_LIMIT;
+      return OrderType.LIMIT;
     }
     if (module === Module.STOP_LOSS) {
       return isMarketOrder ? OrderType.STOP_LOSS_MARKET : OrderType.STOP_LOSS_LIMIT;

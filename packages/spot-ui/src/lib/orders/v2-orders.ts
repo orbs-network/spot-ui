@@ -26,7 +26,7 @@ const getOrderType = (order: OrderV2) => {
   if (!isLimit) {
     return OrderType.TWAP_MARKET;
   }
-  if (chunks >= 1 && isLimit) {
+  if (chunks > 1 && isLimit) {
     return OrderType.TWAP_LIMIT;
   }
 
