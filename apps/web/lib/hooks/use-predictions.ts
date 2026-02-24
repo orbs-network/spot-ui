@@ -34,6 +34,7 @@ function marketToPrediction(m: PolymarketMarket & { events?: { slug?: string }[]
   const volume = m.volumeNum ?? (typeof m.volume === "number" ? m.volume : parseFloat(String(m.volume ?? 0)));
   const volume24hr = m.volume24hr ?? (m as { volume24hrClob?: number }).volume24hrClob;
 
+  
   const slug = m.slug ?? m.id ?? "";
   const eventSlug = m.events?.[0]?.slug ?? slug;
   return {

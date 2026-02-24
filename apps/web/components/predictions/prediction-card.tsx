@@ -30,17 +30,14 @@ export function PredictionCard({ market }: PredictionCardProps) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-medium text-[#e0e0e0]">
+        <p className="break-words text-[14px] font-medium leading-snug text-[#e0e0e0]">
           {market.title}
         </p>
         <div className="mt-0.5 flex items-center gap-3 text-[12px] text-[#888]">
           <span className="font-medium text-[#4ade80]">
             {market.chancePercent}%
           </span>
-          <span>
-            {fmtVol(market.volume24hr ?? market.volume)}
-            {market.volume24hr != null ? " 24h" : " vol"}
-          </span>
+          <span>{fmtVol(market.volume)} vol</span>
         </div>
       </div>
       <span className="shrink-0 text-[12px] text-[#555] transition-colors group-hover:text-[#888]">

@@ -39,7 +39,7 @@ export default function PredictionsPage() {
 
   return (
     <div className="min-h-screen w-full bg-[#0d0d0d] text-[#e0e0e0]">
-      <div className="mx-auto max-w-[1440px] p-6">
+      <div className="mx-auto max-w-3xl p-6">
         <header className="mb-10">
           <div className="mb-2 flex items-center gap-2">
             <h1 className="text-3xl font-semibold tracking-tight text-white">
