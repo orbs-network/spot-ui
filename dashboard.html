@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predictions</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d0d0d;
+            color: #e0e0e0;
+        }
+
+        /* DEX-style nav bar */
+        .nav {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-bottom: 1px solid #1a1a1a;
+            background: #0d0d0d;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .nav-tab {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #888;
+            text-decoration: none;
+            cursor: pointer;
+            transition: color 0.15s, background 0.15s;
+        }
+        .nav-tab:hover { color: #e0e0e0; background: #1a1a1a; }
+        .nav-tab.active { color: #fff; background: #1f1f1f; }
+
+        .page { padding: 24px; max-width: 1440px; margin: 0 auto; }
+
+        .page-header { margin-bottom: 32px; }
+        .page-header h1 { font-size: 24px; color: #fff; margin-bottom: 6px; }
+        .page-header p { color: #666; font-size: 14px; line-height: 1.5; }
+
+        .pill-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .pill {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid #2a2a2a;
+            background: transparent;
+            color: #888;
+            transition: all 0.15s;
+        }
+        .pill:hover { color: #e0e0e0; border-color: #444; }
+        .pill.active { color: #fff; background: #2a2a2a; border-color: #444; }
+
+        .section { margin-bottom: 40px; }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #1a1a1a;
+        }
+        .section-header h2 { font-size: 16px; color: #fff; font-weight: 600; }
+        .section-header .badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: #1a2a1a;
+            color: #4ade80;
+            font-weight: 500;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(460px, 1fr));
+            gap: 16px;
+        }
+        .card {
+            background: #141414;
+            border: 1px solid #1f1f1f;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: border-color 0.15s;
+        }
+        .card:hover { border-color: #333; }
+        .card-label {
+            padding: 10px 14px 0;
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .card iframe { width: 100%; border: none; min-height: 380px; }
+        .card-sm iframe { min-height: 280px; }
+
+        .refresh-btn {
+            background: none;
+            color: #555;
+            border: none;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: color 0.15s;
+        }
+        .refresh-btn:hover { color: #e0e0e0; }
+
+        .loading { padding: 40px; text-align: center; color: #444; font-size: 13px; }
+        .error { color: #ff6b6b; }
+
+        .powered-by { text-align: center; padding: 24px; color: #333; font-size: 12px; }
+        .powered-by a { color: #555; text-decoration: none; }
+        .powered-by a:hover { color: #888; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a class="nav-tab" href="#">Swap</a>
+        <a class="nav-tab" href="#">Bridge</a>
+        <a class="nav-tab" href="#">Earn</a>
+        <a class="nav-tab active" href="#">Predictions</a>
+    </nav>
+
+    <div class="page">
+        <div class="page-header">
+            <h1>Predictions</h1>
+            <p>Trade real-time event odds with USDC. Start with crypto moves, then explore what the crowd is pricing.
+                </br>
+                Powered by Polymarket prediction markets.</p>
+        </div>
+
+        <!-- Live up/down -->
+        <div class="section">
+            <div class="section-header">
+                <h2>Live Price Predictions</h2>
+                <span class="badge">LIVE</span>
+            </div>
+            <div class="pill-row" id="updown-pills">
+                <button class="pill active" data-asset="btc">BTC</button>
+                <button class="pill" data-asset="eth">ETH</button>
+                <button class="pill" data-asset="sol">SOL</button>
+                <button class="pill" data-asset="xrp">XRP</button>
+            </div>
+            <div class="grid" id="updown-grid">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Markets: All / Crypto / Macro -->
+        <div class="section">
+            <div class="section-header">
+                <h2>Markets</h2>
+                <button class="refresh-btn" onclick="loadMarkets()">Refresh</button>
+            </div>
+            <div class="pill-row" id="market-pills">
+                <button class="pill active" data-filter="all">All</button>
+                <button class="pill" data-filter="crypto">Crypto</button>
+                <button class="pill" data-filter="macro">Macro</button>
+            </div>
+            <div class="grid" id="markets-grid">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <div class="powered-by">
+            Powered by <a href="https://polymarket.com" target="_blank">Polymarket</a>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api';
+        const EMBED = 'https://embed.polymarket.com/market.html';
+
+        function embedUrl(slug) {
+            return `${EMBED}?market=${slug}&theme=dark&features=volume`;
+        }
+
+        function fmtVol(v) {
+            const n = parseFloat(v);
+            if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+            if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+            if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
+            return `$${n.toFixed(0)}`;
+        }
+
+        function fmtTime(ts) {
+            return new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function renderCards(grid, items, small) {
+            if (!items.length) {
+                grid.innerHTML = '<div class="loading">No markets found</div>';
+                return;
+            }
+            grid.innerHTML = items.map(({ label, slug }) => `
+                <div class="card${small ? ' card-sm' : ''}">
+                    <div class="card-label">${label}</div>
+                    <iframe src="${embedUrl(slug)}" loading="lazy"></iframe>
+                </div>
+            `).join('');
+        }
+
+        // Dedupe events by id, keep highest volume (first in sorted list)
+        function dedupeEvents(events, limit) {
+            const seen = new Set();
+            const result = [];
+            for (const e of events) {
+                if (seen.has(e.id)) continue;
+                seen.add(e.id);
+                result.push(e);
+                if (result.length >= limit) break;
+            }
+            return result;
+        }
+
+        // Pick the highest-volume market from an event to use as embed slug
+        function bestMarketSlug(event) {
+            const markets = event.markets || [];
+            if (!markets.length) return event.slug;
+            // Sort by volume24hr desc, pick first non-updown
+            const sorted = [...markets].sort((a, b) => (b.volume24hr || 0) - (a.volume24hr || 0));
+            return sorted[0]?.slug || event.slug;
+        }
+
+        // ── Live up/down ──
+
+        let currentAsset = 'btc';
+
+        // Asset short code → full name used in 1H slugs
+        const ASSET_FULLNAMES = { btc: 'bitcoin', eth: 'ethereum', sol: 'solana', xrp: 'xrp' };
+
+        async function loadUpDown(asset) {
+            currentAsset = asset;
+            const grid = document.getElementById('updown-grid');
+            grid.innerHTML = '<div class="loading">Loading...</div>';
+
+            document.querySelectorAll('#updown-pills .pill').forEach(p => {
+                p.classList.toggle('active', p.dataset.asset === asset);
+            });
+
+            const now = Math.floor(Date.now() / 1000);
+            const fullname = ASSET_FULLNAMES[asset];
+
+            // 5m: always use computed timestamp (most time-sensitive, expires fast)
+            const w5 = now - (now % 300);
+            const items = [
+                { label: `${asset.toUpperCase()} 5M — ${fmtTime(w5)}`, slug: `${asset}-updown-5m-${w5}` },
+            ];
+
+            // 15m: computed timestamp
+            const w15 = now - (now % 900);
+            items.push({ label: `${asset.toUpperCase()} 15M — ${fmtTime(w15)}`, slug: `${asset}-updown-15m-${w15}` });
+
+            // 1h and 4h: fetch from API, append when ready
+            try {
+                const [hourlyEvents, tsEvents] = await Promise.all([
+                    fetch(`${API}/events?closed=false&limit=12&order=endDate&ascending=true&tag_slug=1H`)
+                        .then(r => r.json()),
+                    fetch(`${API}/events?closed=false&limit=30&order=startDate&ascending=false&slug_contains=${asset}-updown`)
+                        .then(r => r.json()),
+                ]);
+
+                // 1h: find by slug prefix (slug_contains is unreliable)
+                const hourly = hourlyEvents.find(e => e.slug.startsWith(`${fullname}-up-or-down-`));
+                if (hourly) {
+                    items.push({ label: `${asset.toUpperCase()} 1H — ${hourly.title}`, slug: hourly.slug });
+                }
+
+                // 4h: find from timestamp-based events
+                for (const e of tsEvents) {
+                    const match = e.slug.match(new RegExp(`^${asset}-updown-4h-`));
+                    if (match) {
+                        items.push({ label: `${asset.toUpperCase()} 4H — ${e.title}`, slug: e.slug });
+                        break;
+                    }
+                }
+            } catch {
+                // 1h/4h unavailable, just show 5m + 15m
+            }
+
+            renderCards(grid, items, true);
+        }
+
+        document.getElementById('updown-pills').addEventListener('click', e => {
+            if (e.target.dataset.asset) loadUpDown(e.target.dataset.asset);
+        });
+
+        // ── Markets section (tag-based, uses /events endpoint) ──
+
+        // Cache fetched data per filter to avoid re-fetching on pill click
+        const marketCache = {};
+        let currentFilter = 'all';
+
+        // Tag slugs for each filter (from Polymarket's /tags endpoint)
+        const FILTER_CONFIG = {
+            // "All" uses the general /markets endpoint (no tag), excluding crypto/macro tags
+            all: { tagSlugs: null },
+            // "Crypto" uses the crypto tag on /events
+            crypto: { tagSlugs: ['crypto'] },
+            // "Macro" uses multiple finance-related tags
+            macro: { tagSlugs: ['finance', 'economy', 'fed', 'fed-rates'] },
+        };
+
+        const CRYPTO_TAG_SLUGS = new Set(['crypto', 'bitcoin', 'ethereum', 'solana', 'xrp', 'ripple', 'crypto-prices', 'token-launch', 'fdv']);
+        const MACRO_TAG_SLUGS = new Set(['finance', 'economy', 'economic-policy', 'fed', 'fed-rates', 'business', 'commodities', 'gold', 'silver', 'big-tech', 'tariffs', 'trade-war']);
+
+        function eventHasTag(event, tagSet) {
+            return (event.tags || []).some(t => tagSet.has(t.slug));
+        }
+
+        function isUpDownEvent(event) {
+            return (event.slug || '').match(/updown-\d+[mh]-/);
+        }
+
+        async function fetchTaggedEvents(tagSlug) {
+            const res = await fetch(`${API}/events?closed=false&order=volume24hr&ascending=false&limit=20&tag_slug=${tagSlug}`);
+            return res.json();
+        }
+
+        async function loadFilteredMarkets(filter) {
+            const grid = document.getElementById('markets-grid');
+
+            if (filter === 'all') {
+                // Top 5 trending, non-crypto non-macro: use /markets endpoint
+                if (!marketCache.all) {
+                    const res = await fetch(`${API}/markets?closed=false&order=volume24hr&ascending=false&limit=80`);
+                    const markets = await res.json();
+                    // Filter out updown and anything with crypto/macro tags
+                    marketCache.all = markets.filter(m => {
+                        if ((m.slug || '').match(/updown-\d+[mh]-/)) return false;
+                        const eventTags = m.events?.[0]?.tags || [];
+                        // No tags available on market objects directly, but events are nested
+                        // Fall back to keyword exclusion for "all"
+                        return true;
+                    });
+                }
+                // Use nested event tags to exclude crypto/macro
+                const filtered = marketCache.all.filter(m => {
+                    const tags = (m.events?.[0]?.tags || []).map(t => t.slug);
+                    const hasCrypto = tags.some(s => CRYPTO_TAG_SLUGS.has(s));
+                    const hasMacro = tags.some(s => MACRO_TAG_SLUGS.has(s));
+                    return !hasCrypto && !hasMacro;
+                });
+                const seen = new Set();
+                const top = [];
+                for (const m of filtered) {
+                    const eid = m.events?.[0]?.id || m.slug;
+                    if (seen.has(eid)) continue;
+                    seen.add(eid);
+                    top.push(m);
+                    if (top.length >= 5) break;
+                }
+                renderCards(grid, top.map((m, i) => ({
+                    label: `#${i + 1} — ${m.question} (${fmtVol(m.volume24hr)} 24h)`,
+                    slug: m.slug,
+                })));
+
+            } else if (filter === 'crypto') {
+                if (!marketCache.crypto) {
+                    marketCache.crypto = await fetchTaggedEvents('crypto');
+                }
+                // Exclude up/down events
+                const filtered = marketCache.crypto.filter(e => !isUpDownEvent(e));
+                const top = dedupeEvents(filtered, 5);
+                renderCards(grid, top.map((e, i) => ({
+                    label: `#${i + 1} — ${e.title} (${fmtVol(e.volume24hr)} 24h)`,
+                    slug: bestMarketSlug(e),
+                })));
+
+            } else if (filter === 'macro') {
+                if (!marketCache.macro) {
+                    // Fetch multiple finance tags in parallel, merge & sort
+                    const tags = ['finance', 'economy', 'fed-rates'];
+                    const results = await Promise.all(tags.map(t => fetchTaggedEvents(t)));
+                    const merged = results.flat();
+                    // Sort by volume24hr desc
+                    merged.sort((a, b) => (b.volume24hr || 0) - (a.volume24hr || 0));
+                    marketCache.macro = merged;
+                }
+                const top = dedupeEvents(marketCache.macro, 5);
+                renderCards(grid, top.map((e, i) => ({
+                    label: `#${i + 1} — ${e.title} (${fmtVol(e.volume24hr)} 24h)`,
+                    slug: bestMarketSlug(e),
+                })));
+            }
+        }
+
+        async function loadMarkets() {
+            const grid = document.getElementById('markets-grid');
+            grid.innerHTML = '<div class="loading">Loading...</div>';
+            // Clear cache on refresh
+            delete marketCache[currentFilter];
+            try {
+                await loadFilteredMarkets(currentFilter);
+            } catch {
+                grid.innerHTML = '<div class="loading error">Failed to load. Is <code>node server.js</code> running?</div>';
+            }
+        }
+
+        document.getElementById('market-pills').addEventListener('click', async e => {
+            if (!e.target.dataset.filter) return;
+            currentFilter = e.target.dataset.filter;
+            document.querySelectorAll('#market-pills .pill').forEach(p => {
+                p.classList.toggle('active', p.dataset.filter === currentFilter);
+            });
+            const grid = document.getElementById('markets-grid');
+            grid.innerHTML = '<div class="loading">Loading...</div>';
+            try {
+                await loadFilteredMarkets(currentFilter);
+            } catch {
+                grid.innerHTML = '<div class="loading error">Failed to load.</div>';
+            }
+        });
+
+        // ── Init ──
+        loadUpDown('btc');
+        loadMarkets();
+    </script>
+</body>
+</html>
