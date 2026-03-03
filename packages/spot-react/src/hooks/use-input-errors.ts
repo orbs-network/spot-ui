@@ -10,6 +10,21 @@ import { useFillDelay } from "./use-fill-delay";
 import { useDuration } from "./use-duration";
 import { useTranslations } from "./use-translations";
 import { getErrors, InputErrors } from "@orbs-network/spot-ui";
+import { useUsdAmount } from "./helper-hooks";
+
+const useMinTradeSizeError = () => {
+  const { minChunkSizeUsd, typedInputAmount, srcUsd1Token } = useSpotContext();
+  const t = useTranslations();
+  const typedInputAmountUsd = useUsdAmount(typedInputAmount, srcUsd1Token)
+  return useMemo(() => {
+    
+    return BN(minChunkSizeUsd).gt(BN(typedInputAmountUsd || "0")) ? {
+      type: InputErrors.MIN_TRADE_SIZE_ERROR,
+      value: minChunkSizeUsd,
+      message: t("minTradeSizeError", { minTradeSize: `${minChunkSizeUsd}` }),
+    } : undefined;
+  }, [minChunkSizeUsd, typedInputAmountUsd, t]);
+};
 
 export function useInputErrors() {
   const {
@@ -28,6 +43,7 @@ export function useInputErrors() {
   const { error: tradesError } = useTrades();
   const { error: fillDelayError } = useFillDelay();
   const { error: durationError } = useDuration();
+  const minTradeSizeError = useMinTradeSizeError();
   const srcAmountWei = useSrcAmount().amountWei;
 
   const balanceError = useMemo(() => {
@@ -52,6 +68,7 @@ export function useInputErrors() {
       fillDelayError,
       durationError,
       balanceError,
+      minTradeSizeError,
     });
   }, [
     marketPrice,
@@ -65,5 +82,6 @@ export function useInputErrors() {
     balanceError,
     status,
     srcUsd1Token,
+    minTradeSizeError,
   ]);
 }

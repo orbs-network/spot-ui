@@ -16,7 +16,7 @@ import { useSrcAmount } from "../hooks/use-src-amount";
 import { useDstTokenAmount } from "../hooks/use-dst-amount";
 import { OrderDetails } from "../components/order-details";
 import { useTranslations } from "../hooks/use-translations";
-import { useOrderInfo } from "../hooks/use-order";
+import { useOrderDisplay } from "../hooks/use-order";
 import { useCurrentOrderTitle } from "../hooks/order-hooks";
 
 const Context = createContext({} as SubmitOrderPanelProps);
@@ -162,7 +162,8 @@ const Main = () => {
   const isSubmitted = useSpotStore((s) =>
     Boolean(s.state.swapExecution?.status),
   );
-  const order = useOrderInfo();
+  const order = useOrderDisplay();
+  
 
   const USD = components.USD;
   const MainView = components.SubmitOrderMainView;

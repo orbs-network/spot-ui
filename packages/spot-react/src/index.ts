@@ -10,7 +10,7 @@ import { useFillDelayPanel } from "./hooks/use-fill-delay";
 import { useDurationPanel } from "./hooks/use-duration";
 import { useDisclaimerPanel } from "./hooks/use-disclaimer-panel";
 import { useTriggerPricePanel } from "./hooks/use-trigger-price-panel";
-import { useOrderHistoryPanel } from "./hooks/order-hooks";
+import { useOrderHistoryPanel, useOrderType } from "./hooks/order-hooks";
 import { useDstTokenPanel } from "./hooks/use-dst-token-panel";
 import { useLimitPricePanel } from "./hooks/use-limit-price-panel";
 import { useInvertTradePanel } from "./hooks/use-invert-trade-panel";
@@ -25,8 +25,10 @@ export * from "./types";
 export * from "./utils";
 export { PRICE_PROTECTION_SETTINGS } from "./consts";
 export { useFormatNumber } from "./hooks/helper-hooks";
-import { useOrder, useOrderInfo } from "./hooks/use-order";
+import { useOrder, useOrderDisplay } from "./hooks/use-order";
 import { Portal } from "./components/portal";
+import { useSignOrder, useSubmitOrderMutation } from "./hooks/use-submit-order";
+import { useRePermitOrderData } from "./hooks/use-repermit-order-data";
 
 // Set the UI version in spot-sdk for analytics
 setUIVersion(pkg.version);
@@ -65,6 +67,10 @@ export {
   useAddresses,
   useSubmitOrderButton,
   useOrder,
-  useOrderInfo,
+  useOrderDisplay,
   formatDecimals,
+  useSubmitOrderMutation as useSubmitOrder,
+  useSignOrder,
+  useOrderType,
+  useRePermitOrderData,
 };

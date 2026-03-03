@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { Token } from "../types";
-import { useFormatNumber } from "./helper-hooks";
+import { OrderType, Token } from "../types";
 import { useTranslations } from "./use-translations";
+import BN from "bignumber.js";
 
 type Props = {
   srcToken?: Token;
@@ -9,6 +9,7 @@ type Props = {
   account?: string;
   limitPrice?: string;
   limitPriceUsd?: string;
+  createdAt?: number;
   deadline?: number;
   srcAmount?: string;
   dstAmount?: string;
@@ -22,37 +23,34 @@ type Props = {
   triggerPriceUsd?: string;
   srcUsd?: string;
   dstUsd?: string;
+  orderType?: OrderType;
 };
 
 export const useBuildOrderInfo = (props: Props) => {
   const t = useTranslations();
 
-  const srcAmount = useFormatNumber({ value: props.srcAmount });
-  const limitPrice = useFormatNumber({ value: props.limitPrice });
-  const limitPriceUsd = useFormatNumber({ value: props.limitPriceUsd });
-  const srcAmountPerTrade = useFormatNumber({ value: props.srcAmountPerTrade });
-  const srcAmountPerTradeUsd = useFormatNumber({
-    value: props.srcAmountPerTradeUsd,
-    decimalScale: 2,
-  });
-  const dstMinAmountPerTrade = useFormatNumber({
-    value: props.minDestAmountPerTrade,
-  });
-  const dstMinAmountPerTradeUsd = useFormatNumber({
-    value: props.minDestAmountPerTradeUsd,
-    decimalScale: 2,
-  });
-  const triggerPrice = useFormatNumber({
-    value: props.triggerPrice,
-  });
-  const triggerPriceUsd = useFormatNumber({
-    value: props.triggerPriceUsd,
-    decimalScale: 2,
-  });
+  const limitPriceUsd = props.limitPriceUsd
+  const srcAmountPerTrade = props.srcAmountPerTrade
+  const srcAmountPerTradeUsd = props.srcAmountPerTradeUsd
 
-  const srcUsd = useFormatNumber({ value: props.srcUsd, decimalScale: 2 });
-  const dstUsd = useFormatNumber({ value: props.dstUsd, decimalScale: 2 });
-  const dstAmount = useFormatNumber({ value: props.dstAmount });
+
+  const dstMinAmount = useMemo(() => {
+    if(!props.minDestAmountPerTrade || !props.totalTrades) return "";
+    return BN(props.minDestAmountPerTrade).multipliedBy(props.totalTrades).decimalPlaces(0).toFixed();
+  }, [props.minDestAmountPerTrade, props.totalTrades])
+
+
+  const dstMinAmountUsd = useMemo(() => {
+    if(! props.minDestAmountPerTradeUsd || !props.totalTrades) return "";
+    return BN( props.minDestAmountPerTradeUsd).multipliedBy(props.totalTrades).decimalPlaces(2).toFixed();
+  }, [ props.minDestAmountPerTradeUsd, props.totalTrades])
+
+  const triggerPrice = props.triggerPrice
+  const triggerPriceUsd = props.triggerPriceUsd
+
+  const srcUsd = props.srcUsd
+  const dstUsd = props.dstUsd
+  const dstAmount = props.dstAmount
 
   return useMemo(() => {
     return {
@@ -60,10 +58,13 @@ export const useBuildOrderInfo = (props: Props) => {
       dstToken: props.dstToken,
       srcUsd: srcUsd || "",
       dstUsd: dstUsd || "",
+      orderType: props.orderType,
+      dstMinAmount,
+      dstMinAmountUsd,
       limitPrice: {
         label: t("limitPrice"),
         tooltip: t("limitPriceTooltip"),
-        value: limitPrice || "",
+        value: props.limitPrice || "",
         usd: limitPriceUsd || "",
       },
       deadline: {
@@ -71,9 +72,13 @@ export const useBuildOrderInfo = (props: Props) => {
         label: t("expirationLabel"),
         value: props.deadline || 0,
       },
+      createdAt: {
+        label: t("createdAt"),
+        value: props.createdAt || 0,
+      },
       srcAmount: {
         label: t("amountOut"),
-        value: srcAmount || "",
+        value: props.srcAmount || "",
         usd: srcUsd || "",
       },
       dstAmount: {
@@ -94,8 +99,8 @@ export const useBuildOrderInfo = (props: Props) => {
       minDestAmountPerTrade: {
         tooltip: t("minDstAmountTooltip"),
         label: t(props.totalTrades && props.totalTrades > 1 ? "minReceivedPerTrade" : "minReceived"),
-        value: dstMinAmountPerTrade || "",
-        usd: dstMinAmountPerTradeUsd,
+        value: props.minDestAmountPerTrade || "",
+        usd: props.minDestAmountPerTradeUsd,
       },
       tradeInterval: {
         tooltip: t("tradeIntervalTooltip"),
@@ -114,19 +119,28 @@ export const useBuildOrderInfo = (props: Props) => {
       },
     };
   }, [
+    t,
+    props.srcToken,
+    props.dstToken,
     srcUsd,
     dstUsd,
-    limitPrice,
-    srcAmount,
+    props.orderType,
+    dstMinAmount,
+    dstMinAmountUsd,
+    props.limitPrice,
+    limitPriceUsd,
+    props.deadline,
+    props.srcAmount,
+    dstAmount,
     srcAmountPerTrade,
     srcAmountPerTradeUsd,
-    dstMinAmountPerTrade,
+    props.totalTrades,
+    props.minDestAmountPerTrade,
+    props.minDestAmountPerTradeUsd,
+    props.tradeInterval,
     triggerPrice,
     triggerPriceUsd,
-    limitPrice,
-    limitPriceUsd,
-    dstAmount,
-    dstUsd,
-    dstMinAmountPerTradeUsd,
+    props.account,
+    props.createdAt,
   ]);
 };

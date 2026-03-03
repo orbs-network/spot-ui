@@ -12,18 +12,18 @@ export const removeCommas = (numStr: string): string => {
 };
 
 export const toAmountWei = (value?: string, decimals?: number) => {
-  if (!decimals || !value || BN(value).isNaN()) return "0";
+  if (!decimals || !value || BN(value).isNaN()) return "";
   return parseUnits(value, decimals).toString();
 };
 
 export const toAmountUi = (value?: string, decimals?: number) => {
   try {
-    if (!decimals || !value || BN(value).isNaN()) return "0";
+    if (!decimals || !value || BN(value).isNaN()) return "";
     const amount = BN(value).toFixed();
     return formatUnits(BigInt(amount), decimals);
   } catch (error) {
     console.error(error);
-    return "0";
+    return "";
   }
 };
 

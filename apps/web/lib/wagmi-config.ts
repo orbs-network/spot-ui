@@ -48,6 +48,7 @@ const SPOT_CONFIG = getDefaultConfig({
     avalanche,
     monad,
     arbitrum,
+    mainnet
   ],
 });
 

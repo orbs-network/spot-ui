@@ -117,6 +117,7 @@ const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
     [handleCurrencyChange, isSrcToken]
   );
 
+  
   return (
     <CurrencyCard
       currency={isSrcToken ? inputCurrency : outputCurrency}

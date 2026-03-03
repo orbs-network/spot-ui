@@ -71,6 +71,7 @@ export const useHistoryOrder = (orderId?: string) => {
     srcAmountPerTrade: srcAmountPerTrade,
     minDestAmountPerTrade,
     triggerPrice,
+    orderType: order?.type,
   });
 
   return useMemo(() => {

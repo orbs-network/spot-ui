@@ -46,7 +46,7 @@ export const useOrderTitle = (type?: OrderType) => {
 };
 
 
-const useOrderType = () => {
+export const useOrderType = () => {
   const { module } = useSpotContext();
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   return useMemo(() => {

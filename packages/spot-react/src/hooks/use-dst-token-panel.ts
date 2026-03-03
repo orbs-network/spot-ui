@@ -1,5 +1,5 @@
 import { useSpotContext } from "../spot-context";
-import { useAmountBN, useFormatDecimals, useShouldWrapOrUnwrapOnly } from "./helper-hooks";
+import { useAmountBN, useShouldWrapOrUnwrapOnly } from "./helper-hooks";
 import { useDstTokenAmount } from "./use-dst-amount";
 
 
@@ -11,7 +11,7 @@ export const useDstTokenPanel = () => {
   const value = isWrapOrUnwrapOnly ? typedInputAmount : dstAmount
 
   return {
-    value: useFormatDecimals(value, 7),
+    value,
     valueWei: useAmountBN(dstToken?.decimals, value),
     isLoading: marketPriceLoading,
     usd,

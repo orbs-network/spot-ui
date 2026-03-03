@@ -279,6 +279,7 @@ export enum Partners {
   Thena = "thena",
   Yowie = "yowie",
   Pangolin = "pangolin",
+  Sushiswap = "sushiswap",
 }
 
 
@@ -317,6 +318,7 @@ export enum InputErrors {
   EMPTY_TRIGGER_PRICE,
   INSUFFICIENT_BALANCE,
   MAX_ORDER_SIZE,
+  MIN_TRADE_SIZE_ERROR,
 }
 
 export type PartnerPayloadItem = {

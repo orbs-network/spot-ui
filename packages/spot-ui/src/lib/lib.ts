@@ -334,7 +334,8 @@ export const getErrors = ({
   tradesError,
   fillDelayError,
   durationError,
-  balanceError
+  balanceError,
+    minTradeSizeError
 }: {
   marketPrice?: string;
   typedInputAmount?: string;
@@ -346,6 +347,7 @@ export const getErrors = ({
   fillDelayError?: InputError;
   durationError?: InputError;
   balanceError?: InputError;
+  minTradeSizeError?: InputError;
 }) => {
 
   const ignoreErrors = getQueryParam(QUERY_PARAMS.IGNORE_ERRORS);
@@ -364,6 +366,7 @@ export const getErrors = ({
   }
 
   return (
+    minTradeSizeError ||
     triggerPriceError ||
     limitPriceError ||
     tradesError ||

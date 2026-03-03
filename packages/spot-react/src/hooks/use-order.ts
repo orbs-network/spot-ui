@@ -10,17 +10,14 @@ import { useMemo } from "react";
 import { useAmountsUsd } from "./use-amounts-usd";
 import { useTranslations } from "./use-translations";
 import { useFees } from "./use-fees";
-import {
-  buildRePermitOrderData,
-  getNetwork,
-  isNativeAddress,
-} from "@orbs-network/spot-ui";
 import { useBuildOrderInfo } from "./use-build-order-info";
 import { useFormatNumber } from "./helper-hooks";
 import { useSpotStore } from "../store";
+import { useOrderType } from "./order-hooks";
+import { useRePermitOrderData } from "./use-repermit-order-data";
 
 export const useOrder = () => {
-  const { srcToken, dstToken, account, chainId, slippage, config, module } =
+  const { srcToken, dstToken, account } =
     useSpotContext();
   const { amountWei: srcAmount } = useSrcAmount();
   const { amountWei: limitPrice } = useLimitPrice();
@@ -29,6 +26,7 @@ export const useOrder = () => {
   const { amountWei: minDestAmountPerTrade } = useDstMinAmountPerTrade();
   const { pricePerChunkWei: triggerPricePerTrade } = useTriggerPrice();
   const { milliseconds: fillDelayMillis } = useFillDelay();
+  const rePermitData = useRePermitOrderData();
   
 
   return useMemo(() => {
@@ -44,24 +42,7 @@ export const useOrder = () => {
       tradeInterval: fillDelayMillis,
       triggerPricePerTrade,
       maker: account,
-      rePermitData: buildRePermitOrderData({
-        chainId,
-        srcToken: isNativeAddress(srcToken?.address || "")
-          ? getNetwork(chainId)?.wToken.address || ""
-          : srcToken?.address || "",
-        dstToken: dstToken?.address || "",
-        srcAmount,
-        deadlineMillis,
-        fillDelayMillis:
-          !totalTrades || totalTrades === 1 ? 0 : fillDelayMillis,
-        slippage: slippage * 100,
-        account: account as `0x${string}`,
-        srcAmountPerTrade,
-        dstMinAmountPerTrade: minDestAmountPerTrade,
-        triggerAmountPerTrade: triggerPricePerTrade,
-        config,
-        module,
-      }),
+      rePermitData
     };
   }, [
     srcToken,
@@ -72,17 +53,14 @@ export const useOrder = () => {
     srcAmountPerTrade,
     totalTrades,
     minDestAmountPerTrade,
+    fillDelayMillis,
     triggerPricePerTrade,
     account,
-    fillDelayMillis,
-    slippage,
-    chainId,
-    config,
-    module,
+    rePermitData,
   ]);
 };
 
-export const useOrderInfo = () => {
+export const useOrderDisplay = () => {
   const { srcToken, dstToken, account } = useSpotContext();
   const t = useTranslations();
   const { amountUI: dstMinAmountPerTradeUI, usd: dstMinAmountPerTradeUsd } =
@@ -128,6 +106,7 @@ export const useOrderInfo = () => {
     srcUsd: srcAmountUsd,
     dstUsd: dstAmountUsd,
     dstAmount: dstAmountUI,
+    orderType: useOrderType(),
   });
 
   const feesAmount = useFormatNumber({ value: feesAmountRaw });
@@ -145,3 +124,4 @@ export const useOrderInfo = () => {
     };
   }, [info, feesAmount, feesUsd, feesPercent]);
 };
+

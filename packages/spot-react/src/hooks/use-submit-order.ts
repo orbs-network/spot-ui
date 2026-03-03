@@ -94,9 +94,9 @@ const useWrapToken = () => {
   });
 };
 
-const useSignAndSend = () => {
+export const useSignOrder = () => {
   const { account, walletClient, chainId, callbacks } = useSpotContext();
-  const rePermitData = useOrder().rePermitData;
+  const {rePermitData} = useOrder();
   const {refetch: refetchOrders} = useOrdersQuery()
 
   return useMutation({
@@ -350,7 +350,7 @@ export const useSubmitOrderMutation = () => {
   const { srcToken, dstToken, chainId, callbacks } = useSpotContext();
   const approveCallback = useApproveToken().mutateAsync;
   const wrapCallback = useWrapToken().mutateAsync;
-  const createOrderCallback = useSignAndSend().mutateAsync;
+  const createOrderCallback = useSignOrder().mutateAsync;
   const { mutateAsync: hasAllowanceCallback } = useHasAllowanceCallback();
   const updateSwapExecution = useSpotStore((s) => s.updateSwapExecution);
   const { amountWei: srcAmountWei } = useSrcAmount();
