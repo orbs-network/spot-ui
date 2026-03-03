@@ -97,10 +97,7 @@ const Listeners = (props: TwapProps) => {
 
   useEffect(() => {
     updateStore({
-      isMarketOrder:
-        props.module !== Module.LIMIT
-          ? false
-          : props.overrides?.state?.isMarketOrder,
+      isMarketOrder: props.overrides?.state?.isMarketOrder,
       typedChunks: props.overrides?.state?.chunks,
       typedFillDelay: props.overrides?.state?.fillDelay,
       typedDuration: props.overrides?.state?.duration,
