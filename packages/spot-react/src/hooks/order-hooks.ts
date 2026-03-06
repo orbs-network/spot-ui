@@ -19,9 +19,6 @@ import { useTranslations } from "./use-translations";
 import { useHistoryOrder } from "./use-history-order";
 import { Module } from "@orbs-network/spot-ui";
 
-
-
-
 export const useOrderTitle = (type?: OrderType) => {
   
   const t = useTranslations();
@@ -322,8 +319,12 @@ export const useOrderHistoryPanel = () => {
     return [{ text: t("allOrders"), value: "" }, ...result];
   }, [t]);
 
-  const onSelectOrder = useSelectedOrderIdsToCancel();
+  const onSelectOrderToCancel = useSelectedOrderIdsToCancel();
   const selectedOrderID = useSpotStore((s) => s.state.selectedOrderID);
+  const onSelectOrder = useCallback(
+    (id: string) => updateState({ selectedOrderID: id }),
+    [updateState],
+  );
   const selectedOrder = useHistoryOrder(selectedOrderID);
   const ordersToCancel = useMemo(
     () => orders.all.filter((order) => orderIdsToCancel?.includes(order.id)),
@@ -335,10 +336,16 @@ export const useOrderHistoryPanel = () => {
     [updateState, orders],
   );
   const onCancelOrder = useCallback(
-    (order: Order) => {
+    async (order: Order) => {
       return cancelOrder({ orders: [order] }).then((it) => it?.[0] || "");
     },
     [cancelOrder],
+  );
+
+
+  const onCancelAllOrders = useCallback(
+    () => cancelOrder({ orders: orders.open }),
+    [cancelOrder, orders],
   );
   return {
     refetch,
@@ -347,7 +354,9 @@ export const useOrderHistoryPanel = () => {
     onCancelOrder,
     onSelectStatus,
     onToggleCancelOrdersMode,
+    onSelectOrderToCancel,
     onSelectOrder,
+    onCancelAllOrders,
     isRefetching,
     orders,
     ordersToDisplay,

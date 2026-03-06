@@ -86,7 +86,7 @@ export const useOrderDisplay = () => {
   const { srcAmountUsd, dstAmountUsd } = useAmountsUsd();
   const srcAmountUI = useSrcAmount().amountUI;
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
-
+const createdAt = useSpotStore((s) => s.state.currentTime);
   const info = useBuildOrderInfo({
     srcToken,
     dstToken,
@@ -107,6 +107,7 @@ export const useOrderDisplay = () => {
     dstUsd: dstAmountUsd,
     dstAmount: dstAmountUI,
     orderType: useOrderType(),
+    createdAt,
   });
 
   const feesAmount = useFormatNumber({ value: feesAmountRaw });

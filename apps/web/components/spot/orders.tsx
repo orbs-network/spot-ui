@@ -1,12 +1,14 @@
 import { useOrderHistoryPanel, SelectMeuItem, OrderStatus, Components } from "@orbs-network/spot-react";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
-import { ArrowLeftIcon, HistoryIcon, LinkIcon } from "lucide-react";
+import { ArrowLeftIcon, HistoryIcon, LinkIcon, TrashIcon } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "../ui/button";
+import { IconButton } from "../ui/icon-button";
 import { DialogHeader } from "../ui/dialog";
 import { SpotSelectMenu } from "./components";
 import { isDev } from "@/lib/consts";
+import { Spinner } from "../ui/spinner";
 
 export const SpotsOrders = () => {
     const {
@@ -16,6 +18,8 @@ export const SpotsOrders = () => {
       selectedStatus,
       onHideSelectedOrder,
       orders,
+      onCancelAllOrders,
+      isCancelOrdersLoading
     } = useOrderHistoryPanel();
     const [open, setOpen] = useState(false);
   
@@ -60,11 +64,24 @@ export const SpotsOrders = () => {
               <DialogTitle>{selectedOrder?.title ?? `Orders (${orders.all?.length})`}</DialogTitle>
             </DialogHeader>
             {!selectedOrder && (
-              <SpotSelectMenu
+              <div className="flex flex-row gap-2 items-center justify-between">
+                <SpotSelectMenu
                 selected={selectedItem}
                 items={menuItems}
                 onSelect={_onSelectStatus}
               />
+              <IconButton onClick={onCancelAllOrders} className="p-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <IconButton onClick={onCancelAllOrders}>
+                      {isCancelOrdersLoading ? <Spinner className="size-4" /> : <TrashIcon className="size-4" />}
+                    </IconButton>
+                  </TooltipTrigger>
+                  <TooltipContent>Cancel all orders</TooltipContent>
+                </Tooltip>
+                
+              </IconButton>
+              </div>
             )}
             <Components.Orders />
             {selectedOrder && isDev && <div className="flex flex-row gap-2 items-center justify-between">

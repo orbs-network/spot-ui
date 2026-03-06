@@ -467,6 +467,7 @@ export const getOrders = async ({
   limit?: number;
   filters?: GetV1OrdersFilters;
 }): Promise<Order[]> => {
+  
   try {
     const orders = await getCreatedOrders({
       chainId,
@@ -496,7 +497,12 @@ export const getOrders = async ({
         );
       })
       .sort((a, b) => b.createdAt - a.createdAt);
-    return parsedOrders;
+    const seenIds = new Set<string>();
+    return parsedOrders.filter((o) => {
+      if (seenIds.has(o.id)) return false;
+      seenIds.add(o.id);
+      return true;
+    });
   } catch (error) {
     return [];
   }

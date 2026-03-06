@@ -27,7 +27,7 @@ import { findTimeUnit, getQueryParam, getTimeDurationMillis } from "./utils";
 export const getDestTokenAmount = (
   srcAmount?: string,
   limitPrice?: string,
-  srcTokenDecimals?: number
+  srcTokenDecimals?: number,
 ) => {
   if (!srcAmount || !limitPrice || !srcTokenDecimals) return undefined;
 
@@ -40,7 +40,7 @@ export const getDestTokenMinAmountPerChunk = (
   srcChunkAmount?: string,
   limitPrice?: string,
   isMarketOrder?: boolean,
-  srcTokenDecimals?: number
+  srcTokenDecimals?: number,
 ) => {
   if (isMarketOrder || !srcTokenDecimals || !srcChunkAmount || !limitPrice)
     return BN(0).toString();
@@ -54,7 +54,7 @@ export const getTriggerPricePerChunk = (
   module: Module,
   srcChunkAmount?: string,
   triggerPrice?: string,
-  srcTokenDecimals?: number
+  srcTokenDecimals?: number,
 ) => {
   if (module === Module.TWAP || module === Module.LIMIT) {
     return "0";
@@ -73,18 +73,16 @@ export const getDuration = (
   module: Module,
   chunks: number,
   fillDelay: TimeDuration,
-  customDuration?: TimeDuration
+  customDuration?: TimeDuration,
 ): TimeDuration => {
   const minDuration = getTimeDurationMillis(fillDelay) * 2 * chunks;
   const queryParam = getQueryParam(QUERY_PARAMS.DURATION);
 
-  
   const unit = findTimeUnit(queryParam ? Number(queryParam) : minDuration);
 
-  if(queryParam) {
+  if (queryParam) {
     return { unit, value: Number(BN(Number(queryParam) / unit).toFixed(2)) };
   }
-
 
   if (customDuration) {
     return customDuration;
@@ -104,7 +102,7 @@ export const getDuration = (
 export const getChunks = (
   maxPossibleChunks: number,
   module: Module,
-  typedChunks?: number
+  typedChunks?: number,
 ) => {
   if (module !== Module.TWAP) return 1;
   if (typedChunks !== undefined) return typedChunks;
@@ -114,7 +112,7 @@ export const getMaxPossibleChunks = (
   fillDelay: TimeDuration,
   typedSrcAmount?: string,
   oneSrcTokenUsd?: string,
-  minChunkSizeUsd?: number
+  minChunkSizeUsd?: number,
 ) => {
   if (!typedSrcAmount || !oneSrcTokenUsd || !minChunkSizeUsd) return 1;
 
@@ -126,7 +124,7 @@ export const getMaxPossibleChunks = (
     .toNumber();
 
   const maxChunksByTime = Math.floor(
-    MAX_ORDER_DURATION_MILLIS / 2 / getTimeDurationMillis(fillDelay)
+    MAX_ORDER_DURATION_MILLIS / 2 / getTimeDurationMillis(fillDelay),
   );
 
   return Math.max(1, Math.min(maxChunksBySize, maxChunksByTime));
@@ -134,9 +132,8 @@ export const getMaxPossibleChunks = (
 
 export const getDeadline = (
   currentTimeMillis: number,
-  duration: TimeDuration
+  duration: TimeDuration,
 ) => {
-
   const minute = 60_000;
   return currentTimeMillis + getTimeDurationMillis(duration) + minute;
 };
@@ -145,7 +142,7 @@ export const getEstimatedDelayBetweenChunksMillis = (config: Config) => {
   return config.bidDelaySeconds * 1000 * 2;
 };
 
-export const getSrcTokenChunkAmount = (srcAmount = '', chunks = 0) => {
+export const getSrcTokenChunkAmount = (srcAmount = "", chunks = 0) => {
   if (!srcAmount || !chunks) return "0";
   return BN(srcAmount).div(chunks).integerValue(BN.ROUND_FLOOR).toFixed(0);
 };
@@ -153,7 +150,7 @@ export const getSrcTokenChunkAmount = (srcAmount = '', chunks = 0) => {
 // errors
 export const getMaxFillDelayError = (
   fillDelay: TimeDuration,
-  chunks: number
+  chunks: number,
 ) => {
   const isDefault =
     fillDelay.unit === DEFAULT_FILL_DELAY.unit &&
@@ -169,7 +166,7 @@ export const getMaxFillDelayError = (
 export const getStopLossPriceError = (
   marketPrice = "",
   triggerPrice = "",
-  module: Module
+  module: Module,
 ) => {
   if (module === Module.STOP_LOSS) {
     return {
@@ -182,7 +179,7 @@ export const getStopLossPriceError = (
 export const getTakeProfitPriceError = (
   marketPrice = "",
   triggerPrice = "",
-  module: Module
+  module: Module,
 ) => {
   if (module === Module.TAKE_PROFIT) {
     return {
@@ -196,7 +193,7 @@ export const getStopLossLimitPriceError = (
   triggerPrice = "",
   limitPrice = "",
   isMarketOrder = false,
-  module: Module
+  module: Module,
 ) => {
   if (!isMarketOrder && module === Module.STOP_LOSS) {
     return {
@@ -210,7 +207,7 @@ export const getTakeProfitLimitPriceError = (
   triggerPrice = "",
   limitPrice = "",
   isMarketOrder = false,
-  module: Module
+  module: Module,
 ) => {
   if (!isMarketOrder && module === Module.TAKE_PROFIT) {
     return {
@@ -222,7 +219,7 @@ export const getTakeProfitLimitPriceError = (
 
 export const getMaxOrderDurationError = (
   module: Module,
-  duration: TimeDuration
+  duration: TimeDuration,
 ) => {
   if (module === Module.STOP_LOSS || module === Module.TAKE_PROFIT) {
     const max = 60 * 24 * 60 * 60 * 1000; // 2 months
@@ -253,7 +250,7 @@ export const getMinFillDelayError = (fillDelay: TimeDuration) => {
 export const getMinTradeSizeError = (
   typedSrcAmount: string,
   oneSrcTokenUsd: string,
-  minChunkSizeUsd: number
+  minChunkSizeUsd: number,
 ) => {
   return {
     isError: BN(oneSrcTokenUsd || 0)
@@ -265,7 +262,7 @@ export const getMinTradeSizeError = (
 export const getMaxChunksError = (
   chunks: number,
   maxChunks: number,
-  module: Module
+  module: Module,
 ) => {
   return {
     isError: module === Module.TWAP && BN(chunks).isGreaterThan(maxChunks),
@@ -273,27 +270,102 @@ export const getMaxChunksError = (
   };
 };
 
-export const getConfig = (
-  _dex: Partners,
-  chainId = 0
-): SpotConfig => {
-  const twapConfig = Object.entries(Configs).find(
-    ([key, value]) =>
-      value.chainId === chainId &&
-      key.toLowerCase().indexOf(_dex.toLowerCase()) >= 0
-  )?.[1];
+const getTwapConfig = (partner: Partners, chainId: number) => {
+  if (partner === Partners.Pancake) {
+    switch (chainId) {
+      case 56:
+        return Configs.PancakeSwap;
+      case 42161:
+        return Configs.PancakeSwapArbitrum;
+      case 8453:
+        return Configs.PancakeSwapBase;
+      case 59144:
+        return Configs.PancakeSwapLinea;
+      default:
+        return Configs.PancakeSwap;
+    }
+  }
+  if(partner === Partners.Sushiswap) {
+    switch (chainId) {
+      case 1:
+        return Configs.SushiEth;
+        case 42161:
+        return Configs.SushiArb;
+      case 137:
+        return Configs.SushiBase;
+      case 747474:
+        return Configs.SushiKatana;
+      default:
+        return Configs.SushiEth;
+    }
+  }
+  if(partner === Partners.Quick) {
+    switch (chainId) {
+      case 137:
+        return Configs.QuickSwap;
+      case 8453:
+        return Configs.QuickSwapBase;
+      default:
+        return Configs.QuickSwap;
+    }
+  }
+  if(partner === Partners.Thena) {
+    switch (chainId) {
+      case 56:
+        return Configs.Thena;
+      default:
+        return Configs.Thena;
+    }
+  }
+
+  if(partner === Partners.Spooky) {
+    switch (chainId) {
+      case 250:
+        return Configs.SpookySwap;
+      case 146:
+        return Configs.SpookySwapSonic;
+      default:
+        return Configs.SpookySwap;
+    }
+  }
+  if(partner === Partners.Lynex) {
+    switch (chainId) {
+      case 59144:
+        return Configs.Lynex;
+      default:
+        return Configs.Lynex;
+    }
+  }
+  if(partner === Partners.Swapx) {
+    switch (chainId) {
+      case 146:
+        return Configs.SwapX;
+      default:
+        return Configs.SwapX;
+    }
+  }
+  if(partner === Partners.Blackhole) {
+    switch (chainId) {
+      case 43114:
+        return Configs.BlackholeAvax;
+      default:
+        return Configs.BlackholeAvax;
+    }
+  }
+};
+
+export const getConfig = (_dex: Partners, chainId = 0): SpotConfig => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { abi, ...dexConfig } = Spot.config(chainId, _dex);
 
   const result = {
     ...dexConfig,
     partner: _dex,
-    twapConfig: twapConfig as Config | undefined,
+    twapConfig: getTwapConfig(_dex, chainId) as Config | undefined,
   };
 
   return result;
 };
-
 
 export const getPartners = (): PartnerPayloadItem[] => {
   const raw = Spot.raw as Record<string, any>;
@@ -313,10 +385,9 @@ export const getPartners = (): PartnerPayloadItem[] => {
     .sort((a, b) => a.name.localeCompare(b.name));
 };
 
-
 export const getMinChunkSizeUsd = (minChunkSizeUsd: number) => {
   const minChunkSizeUsdFromQuery = getQueryParam(
-    QUERY_PARAMS.MIN_CHUNK_SIZE_USD
+    QUERY_PARAMS.MIN_CHUNK_SIZE_USD,
   );
   if (minChunkSizeUsdFromQuery) {
     return parseInt(minChunkSizeUsdFromQuery);
@@ -335,7 +406,7 @@ export const getErrors = ({
   fillDelayError,
   durationError,
   balanceError,
-    minTradeSizeError
+  minTradeSizeError,
 }: {
   marketPrice?: string;
   typedInputAmount?: string;
@@ -349,10 +420,9 @@ export const getErrors = ({
   balanceError?: InputError;
   minTradeSizeError?: InputError;
 }) => {
-
   const ignoreErrors = getQueryParam(QUERY_PARAMS.IGNORE_ERRORS);
 
-  if(ignoreErrors) {
+  if (ignoreErrors) {
     return undefined;
   }
 
@@ -374,4 +444,4 @@ export const getErrors = ({
     durationError ||
     balanceError
   );
-}
+};

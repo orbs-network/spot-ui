@@ -17,8 +17,7 @@ export const getAccountOrders = async ({
   chainId: number;
   config?: SpotConfig;
   account: string;
-}): Promise<Order[]> => {
-  
+}): Promise<Order[]> => {    
   const allOrders = await Promise.all([
     !config ? Promise.resolve([]) : getV1Orders({ chainId, signal, page, limit, filters: { accounts: [account], configs: config.twapConfig ? [config.twapConfig] : [] } }),
     getV2Orders({ chainId, signal, account, exchange: config?.adapter }),
