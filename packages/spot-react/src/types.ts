@@ -69,6 +69,11 @@ export interface Translations {
   noLiquidity: string;
   excecutionSummary: string;
   orderInfo: string;
+  orderFills: string;
+  noFills: string;
+  fillAmountOut: string;
+  fillAmountReceived: string;
+  fillTxHash: string;
   wrapAction: string;
   approveAction: string;
   createOrderAction: string;
@@ -444,6 +449,7 @@ export interface State {
   cancelOrderId?: number;
 
   selectedOrderID?: string;
+  showSelectedOrderFills?: boolean;
   orderHistoryStatusFilter?: OrderStatus;
 
   cancelOrdersMode?: boolean;
