@@ -77,6 +77,7 @@ export const useHistoryOrder = (orderId?: string) => {
   return useMemo(() => {
     return {
       original: order,
+      fills: order?.fills,
       title,
       ...info,
       createdAt: {

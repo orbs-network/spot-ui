@@ -24,7 +24,7 @@ import { ChevronDownIcon } from "lucide-react";
 import { Button } from "../ui/button";
 
 const partners = getPartners();
-const isProd = process.env.NEXT_PUBLIC_MODE === "prod";
+
 
 export function PartnerSelector() {
   const { partner, setPartner } = useSwapParams();
@@ -35,7 +35,7 @@ export function PartnerSelector() {
     return partners.find((p) => `${p.name}_${p.chainId}` === partner);
   }, [partner]);
 
-  if (!isSpotTab || isProd) {
+  if (!isSpotTab) {
     return null;
   }
 

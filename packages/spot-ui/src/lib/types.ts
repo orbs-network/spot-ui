@@ -270,6 +270,7 @@ export enum Partners {
   Yowie = "yowie",
   Pangolin = "pangolin",
   Sushiswap = "sushiswap",
+  Agent = "agent",
 }
 
 

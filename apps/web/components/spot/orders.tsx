@@ -1,4 +1,9 @@
-import { useOrderHistoryPanel, SelectMeuItem, OrderStatus, Components } from "@orbs-network/spot-react";
+import {
+  useOrderHistoryPanel,
+  SelectMeuItem,
+  OrderStatus,
+  Components,
+} from "@orbs-network/spot-react";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { ArrowLeftIcon, HistoryIcon, LinkIcon, TrashIcon } from "lucide-react";
@@ -11,61 +16,90 @@ import { isDev } from "@/lib/consts";
 import { Spinner } from "../ui/spinner";
 
 export const SpotsOrders = () => {
-    const {
-      selectedOrder,
-      onSelectStatus,
-      statuses,
-      selectedStatus,
-      onHideSelectedOrder,
-      orders,
-      onCancelAllOrders,
-      isCancelOrdersLoading
-    } = useOrderHistoryPanel();
-    const [open, setOpen] = useState(false);
-  
-    const menuItems = useMemo(() => {
-      return statuses.map((status) => ({
-        text: status.text,
-        value: status.value || "all",
-      }));
-    }, [statuses]);
-  
-    const selectedItem = useMemo(() => {
-      if (!selectedStatus || selectedStatus === "all") {
-        return menuItems.find((item) => item.value === "all");
-      }
-      return menuItems.find((item) => item.value === selectedStatus);
-    }, [menuItems, selectedStatus]);
-  
-    const _onSelectStatus = useCallback(
-      (it: SelectMeuItem) => {
-        onSelectStatus(
-          it.value === "all" ? undefined : (it.value as OrderStatus)
-        );
-      },
-      [onSelectStatus]
-    );
-  
-    return (
-      <>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent>
-            <DialogHeader className="flex flex-row gap-3 items-center">
-              {selectedOrder && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={onHideSelectedOrder}
-                  className="p-1"
-                >
-                  <ArrowLeftIcon className="size-4" />
-                </Button>
-              )}
-              <DialogTitle>{selectedOrder?.title ?? `Orders (${orders.all?.length})`}</DialogTitle>
-            </DialogHeader>
-            {!selectedOrder && (
-              <div className="flex flex-row gap-2 items-center justify-between">
-                <SpotSelectMenu
+  const {
+    selectedOrder,
+    onSelectStatus,
+    statuses,
+    selectedStatus,
+    onHideSelectedOrder,
+    orders,
+    onCancelAllOrders,
+    isCancelOrdersLoading,
+    showSelectedOrderFills,
+    onHideSelectedOrderFills,
+  } = useOrderHistoryPanel();
+  const [open, setOpen] = useState(false);
+
+  const menuItems = useMemo(() => {
+    return statuses.map((status) => ({
+      text: status.text,
+      value: status.value || "all",
+    }));
+  }, [statuses]);
+
+  const selectedItem = useMemo(() => {
+    if (!selectedStatus || selectedStatus === "all") {
+      return menuItems.find((item) => item.value === "all");
+    }
+    return menuItems.find((item) => item.value === selectedStatus);
+  }, [menuItems, selectedStatus]);
+
+  const _onSelectStatus = useCallback(
+    (it: SelectMeuItem) => {
+      onSelectStatus(
+        it.value === "all" ? undefined : (it.value as OrderStatus),
+      );
+    },
+    [onSelectStatus],
+  );
+
+  const title = useMemo(() => {
+    if (showSelectedOrderFills) {
+      return `${selectedOrder?.title} order fills`;
+    }
+    return selectedOrder?.title ?? `Orders (${orders.all?.length})`;
+  }, [showSelectedOrderFills, selectedOrder, orders.all?.length]);
+
+
+  const onBack = useCallback(() => {
+    if (showSelectedOrderFills) {
+      onHideSelectedOrderFills();
+    } else {
+      onHideSelectedOrder();
+    }
+  }, [onHideSelectedOrderFills, onHideSelectedOrder, showSelectedOrderFills]);
+
+
+  const onOpenChange = useCallback((open: boolean) => {
+    setOpen(open);
+    if (open) {
+      onHideSelectedOrderFills();
+      onHideSelectedOrder();
+    }
+  }, [onHideSelectedOrderFills, onHideSelectedOrder]);
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader className="flex flex-row gap-3 items-center">
+            {selectedOrder && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={onBack}
+                className="p-1"
+              >
+                <ArrowLeftIcon className="size-4" />
+              </Button>
+            )}
+            <DialogTitle>
+              {title}
+            </DialogTitle>
+          </DialogHeader>
+          {!selectedOrder && (
+            <div className="flex flex-row gap-2 items-center justify-between">
+              <SpotSelectMenu
                 selected={selectedItem}
                 items={menuItems}
                 onSelect={_onSelectStatus}
@@ -74,40 +108,52 @@ export const SpotsOrders = () => {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <IconButton onClick={onCancelAllOrders}>
-                      {isCancelOrdersLoading ? <Spinner className="size-4" /> : <TrashIcon className="size-4" />}
+                      {isCancelOrdersLoading ? (
+                        <Spinner className="size-4" />
+                      ) : (
+                        <TrashIcon className="size-4" />
+                      )}
                     </IconButton>
                   </TooltipTrigger>
                   <TooltipContent>Cancel all orders</TooltipContent>
                 </Tooltip>
-                
               </IconButton>
-              </div>
-            )}
-            <Components.Orders />
-            {selectedOrder && isDev && <div className="flex flex-row gap-2 items-center justify-between">
-                <p className="text-sm text-foreground flex-1 font-medium">Sink Url</p>
-                <a href={`https://order-sink-dev.orbs.network/?order=${selectedOrder.id.value}`} target="_blank" rel="noopener noreferrer">
-                  <LinkIcon className="size-4" />
-                </a>
-              </div>}
-          </DialogContent>
-        </Dialog>
-  
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              onClick={() => setOpen(true)}
-              variant="outline"
-              className="p-2"
-            >
-              <HistoryIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>View your order history</p>
-          </TooltipContent>
-        </Tooltip>
-      </>
-    );
-  };
+            </div>
+          )}
+          <Components.Orders />
+
+          {selectedOrder && isDev && (
+            <div className="flex flex-row gap-2 items-center justify-between">
+              <p className="text-sm text-foreground flex-1 font-medium">
+                Sink Url
+              </p>
+              <a
+                href={`https://order-sink-dev.orbs.network/?order=${selectedOrder.id.value}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <LinkIcon className="size-4" />
+              </a>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="icon"
+            onClick={() => onOpenChange(true)}
+            variant="outline"
+            className="p-2"
+          >
+            <HistoryIcon className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>View your order history</p>
+        </TooltipContent>
+      </Tooltip>
+    </>
+  );
+};

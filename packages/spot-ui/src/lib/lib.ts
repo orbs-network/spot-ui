@@ -369,7 +369,7 @@ export const getConfig = (_dex: Partners, chainId = 0): SpotConfig => {
 
 export const getPartners = (): PartnerPayloadItem[] => {
   const raw = Spot.raw as Record<string, any>;
-
+  
   return Object.entries(raw)
     .filter(([chainId]) => chainId !== "*")
     .flatMap(([chainId, chainCfg]) => {

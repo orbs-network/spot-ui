@@ -12,6 +12,10 @@ export interface Translations {
   stopLossDurationTooltip: string;
   stopLossTooltip: string;
   stopLossLimitPriceTooltip: string;
+  fillIndex: string;
+  fillTimestamp: string;
+  backToOrder: string;
+  fillTransactionHash: string;
   takeProfitTooltip: string;
   minDstAmountTooltip: string;
   limitPriceTooltip: string;

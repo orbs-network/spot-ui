@@ -19,19 +19,22 @@ import TokensPair from "@/components/tokens-pair";
 import { useCurrency } from "@/lib/hooks/use-currencies";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import * as chains from "viem/chains";
-import { getPartners } from "@orbs-network/spot-ui";
+import { getNetwork, getPartners } from "@orbs-network/spot-ui";
 import { DEFAULT_PARTNER } from "../consts";
+import { useActionHandlers } from "./use-action-handlers";
+import { Field } from "../types";
 
 const useCallbacks = () => {
   const wrapToastId = useRef<number>(null);
   const approveToastId = useRef<number>(null);
   const createOrderToastId = useRef<number>(null);
   const { inputCurrency, outputCurrency } = useDerivedSwap();
+  const { handleCurrencyChange } = useActionHandlers();
   const { chainId } = useConnection();
 
   const symbol = useMemo(() => {
     return isNativeAddress(inputCurrency?.address)
-      ? getWrappedNativeCurrency(chainId!)?.symbol ?? ""
+      ? (getWrappedNativeCurrency(chainId!)?.symbol ?? "")
       : inputCurrency?.symbol;
   }, [inputCurrency?.address, inputCurrency?.symbol, chainId]);
 
@@ -40,12 +43,15 @@ const useCallbacks = () => {
       `Wrapping ${inputCurrency?.symbol}...`,
       {
         description: "Proceed in wallet",
-      }
+      },
     ) as number;
   }, [inputCurrency?.symbol]);
 
   const onWrapSuccess = useCallback(
     async ({ explorerUrl }: OnWrapSuccessCallback) => {
+      const network = getNetwork(chainId);
+
+      handleCurrencyChange(network?.wToken.address ?? "", Field.INPUT);
       toast.success(`Wrapped ${inputCurrency?.symbol}`, {
         description: (
           <a
@@ -60,7 +66,7 @@ const useCallbacks = () => {
         id: wrapToastId.current as number,
       });
     },
-    [inputCurrency?.symbol]
+    [handleCurrencyChange, inputCurrency?.symbol, chainId],
   );
 
   const onApproveRequest = useCallback(() => {
@@ -85,7 +91,7 @@ const useCallbacks = () => {
         ),
       });
     },
-    [symbol]
+    [symbol],
   );
 
   const onSignOrderRequest = useCallback(() => {
@@ -97,7 +103,7 @@ const useCallbacks = () => {
       />,
       {
         description: "Proceed in wallet",
-      }
+      },
     ) as number;
   }, [inputCurrency?.address, outputCurrency?.address]);
 
@@ -113,7 +119,7 @@ const useCallbacks = () => {
         prefix="Order filled"
         srcTokenAddress={order.srcTokenAddress}
         dstTokenAddress={order.dstTokenAddress}
-      />
+      />,
     );
   }, []);
 
@@ -141,7 +147,7 @@ const useCallbacks = () => {
         duration: 10_000,
         closeButton: true,
         description: "",
-      }
+      },
     );
   }, []);
 
@@ -227,10 +233,8 @@ export const useSpotPartner = () => {
       case chains.linea.id:
         return Partners.Lynex;
       default:
-        return (
-          getPartners().find((p) => p.chainId === chainId)?.name ||
-          DEFAULT_PARTNER
-        ) as Partners;
+        return (getPartners().find((p) => p.chainId === chainId)?.name ||
+          DEFAULT_PARTNER) as Partners;
     }
   }, [chainId, partner]);
 };

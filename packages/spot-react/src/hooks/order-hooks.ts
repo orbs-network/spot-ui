@@ -291,13 +291,22 @@ export const useOrderHistoryPanel = () => {
   const selectedStatus = useSpotStore((s) => s.state.orderHistoryStatusFilter);
   const cancelOrdersMode = useSpotStore((s) => s.state.cancelOrdersMode);
   const orderIdsToCancel = useSpotStore((s) => s.state.orderIdsToCancel);
+  const showSelectedOrderFills = useSpotStore((s) => s.state.showSelectedOrderFills);
   const onToggleCancelOrdersMode = useCallback(
     (cancelOrdersMode: boolean) =>
       updateState({ cancelOrdersMode, orderIdsToCancel: [] }),
     [updateState],
   );
   const onHideSelectedOrder = useCallback(
-    () => updateState({ selectedOrderID: undefined }),
+    () => {
+      updateState({ showSelectedOrderFills: false });
+      updateState({ selectedOrderID: undefined })
+    },
+    [updateState, showSelectedOrderFills],
+  );
+
+  const onHideSelectedOrderFills = useCallback(
+    () => updateState({ showSelectedOrderFills: false }),
     [updateState],
   );
   const onCancelOrders = useCallback(
@@ -360,6 +369,8 @@ export const useOrderHistoryPanel = () => {
     isRefetching,
     orders,
     ordersToDisplay,
+    showSelectedOrderFills,
+    onHideSelectedOrderFills,
     isLoading: orderLoading,
     selectedOrder: selectedOrderID ? selectedOrder : undefined,
     openOrdersCount: orders?.open?.length || 0,

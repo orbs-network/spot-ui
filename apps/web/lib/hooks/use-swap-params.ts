@@ -45,9 +45,7 @@ export const useSwapParams = () => {
   }, [effectiveInput, effectiveOutput, setCurrencies]);
 
   const selectedPartner = useMemo(() => {
-    if(process.env.NEXT_PUBLIC_MODE === "prod") {
-      return undefined
-    }
+
     const p = partners.find((it) => {
       const value = `${it.name}_${it.chainId}`;            
       return value === partner
