@@ -8,7 +8,7 @@ export const useSrcAmount = () => {
   const { srcToken, typedInputAmount } = useSpotContext();
   const t = useTranslations();
 
-  const acceptedSrcAmount = useSpotStore((s) => s.state.acceptedSrcAmount);
+  const acceptedSrcAmount = useSpotStore((s) => s.state.swapExecution.acceptedSrcAmount);
 
   const value = acceptedSrcAmount || typedInputAmount;
 

@@ -69,6 +69,7 @@ import {
 import { SpotsOrders } from "./orders";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { SpotFooter } from "./footer";
+import { isDev } from "@/lib/consts";
 
 const { useCallbacks } = SpotHooks;
 const Context = createContext<{
@@ -489,7 +490,8 @@ const LimitPricePanel = () => {
     amountPerChunk,
     isInverted,
     fromToken,
-    tradesAmount
+    tradesAmount,
+    isTypedValue
   } = useLimitPricePanel();
 
   const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk });
@@ -505,7 +507,9 @@ const LimitPricePanel = () => {
 
   const { swapModule } = useSpotContext();
 
-  if (swapModule === Module.TAKE_PROFIT) {
+  
+
+  if ( !isDev &&  swapModule === Module.TAKE_PROFIT) {
     return null;
   }
 
@@ -523,7 +527,7 @@ const LimitPricePanel = () => {
       {isLimitPrice && (
         <SpotPriceInput
           symbol={toToken?.symbol}
-          value={price}
+          value={isTypedValue ? price : formatDecimals(price, 6)}
           onChange={(it) => onChange(it)}
           percentage={percentage}
           onPercentageChange={(it) => onPercentageChange(it)}
@@ -549,7 +553,8 @@ const TriggerPricePanel = () => {
     amountPerChunk,
     isInverted,
     fromToken,
-    totalTrades
+    totalTrades,
+    isTypedValue
   } = useTriggerPricePanel();
 
   const { swapModule } = useSpotContext();
@@ -578,7 +583,7 @@ const TriggerPricePanel = () => {
       </div>
       <SpotPriceInput
         symbol={toToken?.symbol}
-        value={price}
+        value={isTypedValue ? price : formatDecimals(price, 6)}
         onChange={(it) => onChange(it)}
         percentage={percentage}
         onPercentageChange={(it) => onPercentageChange(it)}

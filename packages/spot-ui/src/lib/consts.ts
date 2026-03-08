@@ -13,26 +13,29 @@ export const setApiMode = (mode: "prod" | "dev") => {
   _runtimeMode = mode;
 };
 
-export const getApiEndpoint = () => {
-  // 1. Query param override (highest priority, for testing)
+export const isDev = () => {
+
   const env = getQueryParam(QUERY_PARAMS.ENV);
   if (env === "prod") {
-    return PROD_API_URL;
+    return false;
   }
   if (env === "dev") {
-    return DEV_API_URL;
+    return true;
   }
 
   // 2. Runtime configuration (set via setApiMode)
   if (_runtimeMode === "prod") {
-    return PROD_API_URL;
+    return false;
   }
   if (_runtimeMode === "dev") {
-    return DEV_API_URL;
+    return true;
   }
+  return false;
 
-  // 3. Default to production
-  return PROD_API_URL;
+}
+
+export const getApiEndpoint = () => {
+  return isDev() ? DEV_API_URL : PROD_API_URL;
 };
 export const SUGGEST_CHUNK_VALUE = 100;
 
@@ -271,6 +274,139 @@ export const EIP712_TYPES = {
     { name: "token", type: "address" },
     { name: "limit", type: "uint256" },
     { name: "stop", type: "uint256" },
+    { name: "recipient", type: "address" },
+  ],
+  TokenPermissions: [
+    {
+      name: "token",
+      type: "address",
+    },
+    {
+      name: "amount",
+      type: "uint256",
+    },
+  ],
+};
+
+
+export const EIP712_TYPES_DEV = {
+  RePermitWitnessTransferFrom: [
+    {
+      name: "permitted",
+      type: "TokenPermissions",
+    },
+    {
+      name: "spender",
+      type: "address",
+    },
+    {
+      name: "nonce",
+      type: "uint256",
+    },
+    {
+      name: "deadline",
+      type: "uint256",
+    },
+    {
+      name: "witness",
+      type: "Order",
+    },
+  ],
+  Exchange: [
+    {
+      name: "adapter",
+      type: "address",
+    },
+    {
+      name: "ref",
+      type: "address",
+    },
+    {
+      name: "share",
+      type: "uint32",
+    },
+    {
+      name: "data",
+      type: "bytes",
+    },
+  ],
+  Input: [
+    {
+      name: "token",
+      type: "address",
+    },
+    {
+      name: "amount",
+      type: "uint256",
+    },
+    {
+      name: "maxAmount",
+      type: "uint256",
+    },
+  ],
+  Order: [
+    {
+      name: "reactor",
+      type: "address",
+    },
+    {
+      name: "executor",
+      type: "address",
+    },
+    {
+      name: "exchange",
+      type: "Exchange",
+    },
+    {
+      name: "swapper",
+      type: "address",
+    },
+    {
+      name: "nonce",
+      type: "uint256",
+    },
+    {
+      name: "start",
+      type: "uint256",
+    },
+    {
+      name: "deadline",
+      type: "uint256",
+    },
+    {
+      name: "chainid",
+      type: "uint256",
+    },
+    {
+      name: "exclusivity",
+      type: "uint32",
+    },
+    {
+      name: "epoch",
+      type: "uint32",
+    },
+    {
+      name: "slippage",
+      type: "uint32",
+    },
+    {
+      name: "freshness",
+      type: "uint32",
+    },
+    {
+      name: "input",
+      type: "Input",
+    },
+    {
+      name: "output",
+      type: "Output",
+    },
+  ],
+  Output: [
+    { name: "token", type: "address" },
+    { name: "limit", type: "uint256" },
+    { name: "triggerLower", type: "uint256" },
+    { name: "triggerUpper", type: "uint256" },
     { name: "recipient", type: "address" },
   ],
   TokenPermissions: [

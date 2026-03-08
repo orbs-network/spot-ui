@@ -118,10 +118,12 @@ const useCallbacks = () => {
   }, []);
 
   const onSubmitOrderFailed = useCallback(({ code }: ParsedError) => {
+    toast.dismiss(createOrderToastId.current as number);
     toast.error(`Failed to submit order: ${code}`);
   }, []);
 
   const onSubmitOrderRejected = useCallback(() => {
+    toast.dismiss(createOrderToastId.current as number);
     toast.error("Order submission rejected", {
       id: createOrderToastId.current as number,
     });

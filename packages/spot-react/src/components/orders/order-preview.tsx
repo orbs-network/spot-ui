@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import { IoIosArrowDown } from "@react-icons/all-files/io/IoIosArrowDown";
-import { IoIosArrowBack } from "@react-icons/all-files/io/IoIosArrowBack";
 import { IoIosArrowForward } from "@react-icons/all-files/io/IoIosArrowForward";
 import { Virtuoso } from "react-virtuoso";
 import { OrderStatus } from "@orbs-network/spot-ui";
@@ -27,7 +26,7 @@ import { useSpotContext } from "../../spot-context";
 import { makeElipsisAddress } from "../../utils";
 import { FormatNumber } from "../format-number";
 import TokenLogo from "../TokenLogo";
-import { Token } from "src/types";
+import { Token } from "../../types";
 import { HiArrowRight } from "@react-icons/all-files/hi/HiArrowRight";
 
 type Order = NonNullable<ReturnType<typeof useHistoryOrder>>;

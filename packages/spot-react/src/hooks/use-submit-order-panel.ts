@@ -14,11 +14,11 @@ export const useSubmitOrderPanel = () => {
   const { marketPrice, srcToken, dstToken, resetTypedInputAmount } =
     useSpotContext();
   const submitOrderMutation = useSubmitOrderMutation();
-  const updateState = useSpotStore((s) => s.updateState);
   const { amountUI: srcAmountUI } = useSrcAmount();
   const resetSwap = useSpotStore((s) => s.resetState);
   const swapExecution = useSpotStore((s) => s.state.swapExecution);
   const updateSwapExecution = useSpotStore((s) => s.updateSwapExecution);
+  const resetSwapExecution = useSpotStore((s) => s.resetSwapExecution);
   const orderTitle = useCurrentOrderTitle();
 
   const onCloseModal = useCallback(() => {
@@ -26,28 +26,24 @@ export const useSubmitOrderPanel = () => {
       resetTypedInputAmount();
       resetSwap();
     }
+    if(!swapExecution?.status || swapExecution?.status === SwapStatus.FAILED) {
+      resetSwap();
+    }
+  
   }, [swapExecution?.status, resetSwap, resetTypedInputAmount]);
 
   const onOpenModal = useCallback(() => {
     if (swapExecution?.status !== SwapStatus.LOADING) {
-      updateState({
-        acceptedSrcAmount: undefined,
-        acceptedMarketPrice: undefined,
-      });
-      updateSwapExecution({
+      resetSwapExecution({
         srcToken,
         dstToken,
-        error: undefined,
-        parsedError: undefined,
-        status: undefined,
-        orderId: undefined,
       });
     }
-  }, [updateState, srcToken, dstToken]);
+  }, [resetSwapExecution, srcToken, dstToken]);
 
   const submitSwapMutation = useMutation({
     mutationFn: async () => {
-      updateState({
+      updateSwapExecution({
         acceptedSrcAmount: srcAmountUI,
         acceptedMarketPrice: marketPrice,
       });

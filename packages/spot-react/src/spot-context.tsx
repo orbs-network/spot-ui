@@ -6,6 +6,7 @@ import {
   analytics,
   getPartnerChains,
   getMinChunkSizeUsd,
+  isDev,
 } from "@orbs-network/spot-ui";
 import {
   TwapProps,
@@ -121,7 +122,7 @@ const Listeners = (props: TwapProps) => {
     if (props.module === Module.LIMIT) {
       updateStore({ isMarketOrder: false });
     }
-    if (props.module === Module.TAKE_PROFIT) {
+    if (!isDev() && props.module === Module.TAKE_PROFIT) {
       updateStore({ isMarketOrder: true });
     }
   }, [props.module]);
@@ -131,6 +132,7 @@ const Listeners = (props: TwapProps) => {
       updateStore({ isInvertedTrade: false });
     }
   }, [isMarketOrder]);
+
 
   return null;
 };
@@ -174,11 +176,12 @@ const useParsedMarketPrice = ({
 
 
 const Content = (props: TwapProps) => {
-  const acceptedMarketPrice = useSpotStore((s) => s.state.acceptedMarketPrice);
+  const acceptedMarketPrice = useSpotStore((s) => s.state.swapExecution.acceptedMarketPrice);
   const { walletClient, publicClient } = useMemo(
     () => initiateWallet(props.chainId, props.provider),
     [props.chainId, props.provider]
   );
+
 
   const supportedChains = useMemo(
     () => getPartnerChains(props.partner),

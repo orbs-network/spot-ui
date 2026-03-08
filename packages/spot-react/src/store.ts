@@ -6,6 +6,7 @@ interface SpotStore {
   resetState: () => void;
   updateState: (value: Partial<State>) => void;
   updateSwapExecution: (value: Partial<SwapExecution>) => void;
+  resetSwapExecution: (value?: Partial<SwapExecution>) => void;
   state: State;
 }
 
@@ -19,6 +20,7 @@ export const useSpotStore = create<SpotStore>((set, get) => ({
   state: initialState,
   updateState: (value: Partial<State>) => set((state) => ({ state: { ...state.state, ...value } })),
   updateSwapExecution: (data: Partial<SwapExecution>) => set((state) => ({ state: { ...state.state, swapExecution: { ...state.state.swapExecution, ...data } } })),
+  resetSwapExecution: (data?: Partial<SwapExecution>) => set((state) => ({ state: { ...state.state, swapExecution: { ...initialState.swapExecution, ...data } } })),
   resetState: () => {
     set({
       state: {
@@ -26,10 +28,14 @@ export const useSpotStore = create<SpotStore>((set, get) => ({
         currentTime: Date.now(),
         swapExecution: {
           ...get().state.swapExecution,
-          status: undefined,
+          acceptedMarketPrice: undefined,
+          acceptedSrcAmount: undefined,
         },
         isMarketOrder: get().state.isMarketOrder,
       },
     });
+    setTimeout(() => {
+     get().resetSwapExecution();
+    }, 1_000);
   },
 }));

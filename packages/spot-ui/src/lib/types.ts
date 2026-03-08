@@ -1,4 +1,3 @@
-import { EIP712_TYPES, REPERMIT_PRIMARY_TYPE } from "./consts";
 
 export type Config = {
   chainName: string;
@@ -127,6 +126,7 @@ export interface RePermitOrder {
     nonce: string;
     deadline: string;
     chainid: number;
+    start?: string;
     exclusivity: number;
     epoch: number;
     slippage: number;
@@ -139,24 +139,14 @@ export interface RePermitOrder {
     output: {
       token: Address;
       limit: string;
-      stop: string;
+      stop?: string;
+      triggerLower?: string;
+      triggerUpper?: string;
       recipient: Address;
     };
   };
 }
 
-// Full typed-data container
-export interface RePermitTypedData {
-  domain: {
-    name: "RePermit";
-    version: "1";
-    chainId: number;
-    verifyingContract: Address;
-  };
-  primaryType: typeof REPERMIT_PRIMARY_TYPE;
-  types: typeof EIP712_TYPES;
-  message: RePermitOrder;
-}
 
 export type Signature = {
   v: `0x${string}`;

@@ -1,13 +1,15 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-constant-condition */
-import { getApiEndpoint, maxUint256 } from "../consts";
+import { getApiEndpoint, isDev, maxUint256 } from "../consts";
 import { OrderStatus, OrderType, OrderV2, Order, OrderFill } from "../types";
 import BN from "bignumber.js";
 
 const getOrderType = (order: OrderV2) => {
   const isLimit = BN(order.order.witness.output.limit || 0).gt(1);
   const stop = order.order.witness.output.stop;
-  const isTakeProfit = BN(stop || 0).eq(maxUint256);
+  const triggerUpper = order.order.witness.output.triggerUpper;
+
+  const isTakeProfit = BN(stop || 0).eq(maxUint256) || BN(triggerUpper || 0).gt(0);
   const isStopLoss = BN(stop || 0).gt(0);
   const chunks =
     order.metadata.chunks?.length ||
@@ -74,7 +76,7 @@ const getFills = (order: OrderV2): OrderFill[] => {
 
 const getFilledOrderTimestamp = (
   fills: OrderFill[],
-  totalTradesAmount: number
+  totalTradesAmount: number,
 ) => {
   const totalFilled = fills.length;
   if (totalFilled >= totalTradesAmount) {
@@ -89,14 +91,66 @@ const getOrderDollarValueIn = (order: OrderV2) => {
     .toFixed();
 };
 
-export const buildV2Order = (order: OrderV2): Order => {
-  const progress = getProgress(order);
+const getDstMinAmountPerTrade = (order: OrderV2) => {
+  return Number(order.order.witness.output.limit) === 1
+    ? ""
+    : order.order.witness.output.limit;
+};
+
+
+type Amounts = {
+  dstMinAmountPerTrade: string;
+  triggerPricePerTrade: string;
+  dstMinAmountTotal: string;
+};
+
+const getAmountsDev = (order: OrderV2): Amounts => {
+  const {
+    triggerLower = "0",
+    triggerUpper = "0",
+  } = order.order.witness.output;
+
+
+  const dstMinAmountPerTrade = getDstMinAmountPerTrade(order);
+  const totalTradesAmount = order.metadata.expectedChunks || 1;
+  const isTakeProfitOrder = BN(triggerUpper || 0).gt(0);
+
+  return {
+    dstMinAmountPerTrade,
+    triggerPricePerTrade: isTakeProfitOrder ? triggerUpper : triggerLower,
+    dstMinAmountTotal: BN(dstMinAmountPerTrade)
+      .multipliedBy(totalTradesAmount)
+      .toFixed(),
+  };
+};
+
+const getAmountsProd = (order: OrderV2): Amounts => {
+
+  const dstMinAmountPerTrade = getDstMinAmountPerTrade(order);
+
   const isTakeProfit = BN(order.order.witness.output.stop || 0).eq(maxUint256);
 
-  const dstMinAmountPerTrade =
-    Number(order.order.witness.output.limit) === 1
+  const totalTradesAmount = order.metadata.expectedChunks || 1;
+
+  return {
+    dstMinAmountPerTrade: isTakeProfit ? "" : dstMinAmountPerTrade,
+    triggerPricePerTrade: isTakeProfit
+      ? dstMinAmountPerTrade
+      : BN(order.order.witness.output.stop || "").toFixed(),
+    dstMinAmountTotal: isTakeProfit
       ? ""
-      : order.order.witness.output.limit;
+      : BN(dstMinAmountPerTrade).multipliedBy(totalTradesAmount).toFixed(),
+  };
+};
+
+const getAmounts = (order: OrderV2): Amounts => {
+  return isDev() ? getAmountsDev(order) : getAmountsProd(order);
+};
+
+export const buildV2Order = (order: OrderV2): Order => {
+  const progress = getProgress(order);
+
+  const dstMinAmountPerTrade = getDstMinAmountPerTrade(order);
   const totalTradesAmount = order.metadata.expectedChunks || 1;
   const fills = getFills(order);
   return {
@@ -122,11 +176,6 @@ export const buildV2Order = (order: OrderV2): Order => {
     deadline: Number(order.order.deadline) * 1000,
     createdAt: new Date(order.timestamp).getTime(),
     srcAmount: order.order.witness.input.maxAmount,
-    dstMinAmountPerTrade:isTakeProfit ? '': dstMinAmountPerTrade,
-    triggerPricePerTrade:isTakeProfit ? dstMinAmountPerTrade :  BN(order.order.witness.output.stop || "").toFixed(),
-    dstMinAmountTotal:isTakeProfit ? '':  BN(dstMinAmountPerTrade)
-      .multipliedBy(totalTradesAmount)
-      .toFixed(),
     srcAmountPerTrade: order.order.witness.input.amount,
     totalTradesAmount,
     isMarketPrice: BN(dstMinAmountPerTrade || 0).lte(1),
@@ -134,6 +183,7 @@ export const buildV2Order = (order: OrderV2): Order => {
     filledOrderTimestamp: getFilledOrderTimestamp(fills, totalTradesAmount),
     status: getStatus(order, progress),
     rawOrder: order,
+    ...getAmounts(order),
   };
 };
 
@@ -155,7 +205,7 @@ export const getOrders = async ({
       `${getApiEndpoint()}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
       {
         signal,
-      }
+      },
     );
 
     const payload = (await response.json()) as { orders: OrderV2[] };

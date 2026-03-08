@@ -428,6 +428,8 @@ export type SwapExecution = {
   dstToken?: Token;
   orderId?: string;
   allowanceLoading?: boolean;
+  acceptedMarketPrice?: string;
+  acceptedSrcAmount?: string;
 };
 
 export interface State {
@@ -456,8 +458,7 @@ export interface State {
   orderIdsToCancel?: string[];
 
   swapExecution: SwapExecution;
-  acceptedMarketPrice?: string;
-  acceptedSrcAmount?: string;
+ 
 }
 
 export { SwapStatus, Partners };
