@@ -26,6 +26,28 @@ type Props = {
   module: Module;
 };
 
+const getSharedOrderData = (
+  fillDelayMillis: number,
+  deadlineMillis: number,
+): {
+  nonce: string;
+  epoch: number;
+  deadline: string;
+  freshness: number;
+} => {
+  const nonce = Date.now().toString();
+  const epoch = parseInt((fillDelayMillis / 1000).toFixed(0));
+  const deadline = safeBNString(deadlineMillis / 1000);
+  const customFreshness = getQueryParam(QUERY_PARAMS.FRESHNESS);
+  const freshness = customFreshness ? parseInt(customFreshness) : 60;
+  return {
+    nonce,
+    epoch,
+    deadline,
+    freshness,
+  };
+};
+
 const buildRePermitOrderDataProd = ({
   chainId,
   srcToken,
@@ -41,18 +63,17 @@ const buildRePermitOrderDataProd = ({
   config,
   module,
 }: Props) => {
-  const nonce = Date.now().toString();
-  const epoch = parseInt((fillDelayMillis / 1000).toFixed(0));
-  const deadline = safeBNString(deadlineMillis / 1000);
-  const customFreshness = getQueryParam(QUERY_PARAMS.FRESHNESS);
-  const freshness = customFreshness ? parseInt(customFreshness) : 60;
+  const { nonce, epoch, deadline, freshness } = getSharedOrderData(
+    fillDelayMillis,
+    deadlineMillis,
+  );
+
   const stop =
     module === Module.TAKE_PROFIT ? maxUint256 : triggerAmountPerTrade;
   const limit =
     module === Module.TAKE_PROFIT
       ? triggerAmountPerTrade
       : dstMinAmountPerTrade;
-
 
   const orderData: RePermitOrder = {
     permitted: {
@@ -123,13 +144,22 @@ const buildRePermitOrderDataDev = ({
   config,
   module,
 }: Props) => {
-  const nonce = Date.now().toString();
-  const epoch = parseInt((fillDelayMillis / 1000).toFixed(0));
-  const deadline = safeBNString(deadlineMillis / 1000);
-  const customFreshness = getQueryParam(QUERY_PARAMS.FRESHNESS);
-  const freshness = customFreshness ? parseInt(customFreshness) : 60;
+  const { nonce, epoch, deadline, freshness } = getSharedOrderData(
+    fillDelayMillis,
+    deadlineMillis,
+  );
+
   const start = Math.floor(Date.now() / 1000).toString();
-  
+  const limit = dstMinAmountPerTrade
+
+  const triggerLower =
+    module === Module.STOP_LOSS
+      ? triggerAmountPerTrade
+      : "0";
+  const triggerUpper =
+    module === Module.TAKE_PROFIT
+      ? triggerAmountPerTrade
+      : "0";
 
   const orderData: RePermitOrder = {
     permitted: {
@@ -164,19 +194,10 @@ const buildRePermitOrderDataDev = ({
       },
       output: {
         token: dstToken as Address,
-        limit: BN(
-          module === Module.TAKE_PROFIT
-            ? triggerAmountPerTrade
-            : dstMinAmountPerTrade,
-        ).toFixed(),
+        limit: BN(limit || 0).toFixed(),
         triggerLower:
-          module === Module.STOP_LOSS
-            ? BN(triggerAmountPerTrade || 0).toFixed()
-            : "0",
-        triggerUpper:
-          module === Module.TAKE_PROFIT
-            ? BN(triggerAmountPerTrade || 0).toFixed()
-            : "0",
+          BN(triggerLower || 0).toFixed(),
+        triggerUpper: BN(triggerUpper || 0).toFixed(),
         recipient: account as Address,
       },
     },
