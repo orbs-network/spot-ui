@@ -13,10 +13,11 @@ import { TokensDisplay } from "@orbs-network/swap-ui";
 import { OrderDetails } from "../../components/order-details";
 import { useSpotStore } from "../../store";
 import { useCancelOrderMutation } from "../../hooks/use-cancel-order";
-import { useDateFormat, useFormatNumber } from "../../hooks/helper-hooks";
+import { useDateFormat } from "../../hooks/helper-hooks";
 import { useHistoryOrder } from "../../hooks/use-history-order";
 import { useTranslations } from "../../hooks/use-translations";
 import { useSpotContext } from "../../spot-context";
+import { FormatNumber } from "../format-number";
 
 type Order = NonNullable<ReturnType<typeof useHistoryOrder>>;
 
@@ -229,15 +230,11 @@ const ExcecutionSummary = () => {
 
 const AmountOutFilled = () => {
   const { order } = useOrderContext();
-  const amount = useFormatNumber({
-    value: order.amountOutFilled.value,
-    decimalScale: 3,
-  });
   if (!order.amountOutFilled.value) return null;
   return (
     <OrderDetails.DetailRow title={order.amountOutFilled.label}>
       <p>
-        {amount || "-"} {order.dstToken?.symbol}
+        <FormatNumber value={order.amountOutFilled.value}  /> {order.dstToken?.symbol}
       </p>
     </OrderDetails.DetailRow>
   );
@@ -286,15 +283,11 @@ const AmountIn = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
 
-  const amount = useFormatNumber({
-    value: order.srcAmount.value,
-    decimalScale: 3,
-  });
 
   return (
     <OrderDetails.DetailRow title={t("amountOut") || ""}>
       <p>
-        {amount || 0} {order.srcToken?.symbol}
+        <FormatNumber value={order.srcAmount.value} decimalScale={3} /> {order.srcToken?.symbol}
       </p>
     </OrderDetails.DetailRow>
   );
@@ -302,15 +295,11 @@ const AmountIn = () => {
 
 const AmountInFilled = () => {
   const { order } = useOrderContext();
-  const amount = useFormatNumber({
-    value: order.amountInFilled.value,
-    decimalScale: 3,
-  });
 
   return (
     <OrderDetails.DetailRow title={order.amountInFilled.label}>
       <p>
-        {amount || "-"} {order.srcToken?.symbol}
+        <FormatNumber value={order.amountInFilled.value} decimalScale={3} /> {order.srcToken?.symbol}
       </p>
     </OrderDetails.DetailRow>
   );
@@ -351,14 +340,10 @@ const OrderStatusComponent = () => {
 
 const Progress = () => {
   const { order } = useOrderContext();
-  const progress = useFormatNumber({
-    value: order.progress.value,
-    decimalScale: 2,
-  });
 
   return (
     <OrderDetails.DetailRow title={order.progress.label}>
-      <p>{progress || 0}%</p>
+      <p><FormatNumber value={order.progress.value || 0} decimalScale={2} />%</p>
     </OrderDetails.DetailRow>
   );
 };

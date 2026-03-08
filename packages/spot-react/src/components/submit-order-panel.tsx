@@ -18,6 +18,7 @@ import { OrderDetails } from "../components/order-details";
 import { useTranslations } from "../hooks/use-translations";
 import { useOrderDisplay } from "../hooks/use-order";
 import { useCurrentOrderTitle } from "../hooks/order-hooks";
+import { FormatNumber } from "./format-number";
 
 const Context = createContext({} as SubmitOrderPanelProps);
 
@@ -177,14 +178,14 @@ const Main = () => {
           USD ? (
             <USD value={order.srcUsd} isLoading={false} />
           ) : (
-            `$${order.srcUsd}`
+            <FormatNumber value={order.srcUsd} decimalScale={2} prefix="$" />
           )
         }
         outUsd={
           USD ? (
             <USD value={order.dstUsd} isLoading={false} />
           ) : (
-            `$${order.dstUsd}`
+            <FormatNumber value={order.dstUsd} decimalScale={2} prefix="$" />
           )
         }
       />

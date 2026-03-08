@@ -25,6 +25,7 @@ export * from "./types";
 export * from "./utils";
 export { PRICE_PROTECTION_SETTINGS } from "./consts";
 export { useFormatNumber } from "./hooks/helper-hooks";
+export { FormatNumber } from "./components/format-number";
 import { useOrder, useOrderDisplay } from "./hooks/use-order";
 import { Portal } from "./components/portal";
 import { useSignOrder, useSubmitOrderMutation } from "./hooks/use-submit-order";

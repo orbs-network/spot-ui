@@ -7,6 +7,7 @@ import { AiOutlineCopy } from "@react-icons/all-files/ai/AiOutlineCopy";
 import { useCopyToClipboard, useDateFormat, useFormatNumber, useNetwork } from "../hooks/helper-hooks";
 import BN from "bignumber.js";
 import { useTranslations } from "../hooks/use-translations";
+import { FormatNumber } from "./format-number";
 
 const USD = ({ value }: { value?: string }) => {
   const formattedValue = useFormatNumber({ value: value, decimalScale: 2 });
@@ -23,7 +24,7 @@ const Deadline = ({ deadline, label, tooltip }: { deadline?: number; label: stri
 };
 
 const Price = ({ price, dstToken, label, tooltip, usd , srcToken }: { price?: string; dstToken?: Token; label: string; tooltip?: string; usd?: string; srcTokenSymbol?: string, srcToken?: Token }) => {
-  const priceF = useFormatNumber({ value: price });
+  const priceF = useFormatNumber({ value: price, decimalScale: 3 });
   if (BN(price || 0).isZero()) return null;
 
   return (
@@ -41,13 +42,13 @@ const TradeSize = ({ tradeSize, srcToken, trades, label, tooltip }: { tradeSize?
 
   return (
     <DetailRow title={label} tooltip={tooltip}>
-      {`${tradeSize ? tradeSize : "-"} ${srcToken?.symbol || ""}`}
+      {tradeSize ? <FormatNumber value={tradeSize} decimalScale={3} /> : "-"} {srcToken?.symbol || ""}
     </DetailRow>
   );
 };
 
 const MinDestAmount = ({ dstToken, dstMinAmountOut, label, tooltip, usd }: { dstToken?: Token; dstMinAmountOut?: string; label: string; tooltip: string; usd?: string }) => {
-  const formattedValue = useFormatNumber({ value: dstMinAmountOut });
+  const formattedValue = useFormatNumber({ value: dstMinAmountOut});
 
   if (BN(dstMinAmountOut || 0).isZero()) return null;
 
