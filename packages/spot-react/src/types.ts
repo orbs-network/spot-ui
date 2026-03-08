@@ -38,7 +38,7 @@ export interface Translations {
   tradeIntervalLabel: string;
   expirationLabel: string;
   limitPrice: string;
-  finalExcecutionPrice: string;
+  finalExecutionPrice: string;
   marketPrice: string;
   from: string;
   to: string;
@@ -71,7 +71,7 @@ export interface Translations {
   minReceived: string;
   noOrders: string;
   noLiquidity: string;
-  excecutionSummary: string;
+  executionSummary: string;
   orderInfo: string;
   orderFills: string;
   noFills: string;
@@ -103,9 +103,9 @@ export interface Translations {
 }
 
 export type SelectMenuProps = {
-  items: SelectMeuItem[];
-  onSelect: (item: SelectMeuItem) => void;
-  selected?: SelectMeuItem;
+  items: SelectMenuItem[];
+  onSelect: (item: SelectMenuItem) => void;
+  selected?: SelectMenuItem;
 };
 
 export type TokenLogoProps = {
@@ -380,7 +380,7 @@ export interface SpotContextType {
   resetTypedInputAmount: () => void;
 }
 
-export type SelectMeuItem = { text: string; value: string | number };
+export type SelectMenuItem = { text: string; value: string | number };
 
 export type AddressPadding = {
   start: number;

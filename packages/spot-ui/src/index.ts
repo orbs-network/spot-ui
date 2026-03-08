@@ -13,6 +13,7 @@ export {
   eqIgnoreCase,
   getOrderFillDelayMillis,
   getPartnerChains,
+  getOrderExecutionRate,
   getOrderExcecutionRate,
   getOrderLimitPriceRate,
   getTriggerPricePerTrade,

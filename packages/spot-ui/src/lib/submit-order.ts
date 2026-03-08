@@ -11,16 +11,17 @@ export const submitOrder = async (order: RePermitOrder, signature: Signature): P
       status: "pending",
     };
 
-    console.log("body", body);
     analytics.onCreateOrderRequest();
 
     const response = await fetch(`${getApiEndpoint()}/orders/new`, {
       method: "POST",
       body: JSON.stringify(body),
     });
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(`error:${data.message}, code:${data.code}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data?.success) {
+      const message = data?.message ?? response.statusText ?? "Request failed";
+      const code = data?.code ?? response.status;
+      throw new Error(`error:${message}, code:${code}`);
     }
     const newOrder = buildV2Order(data.signedOrder);
     analytics.onCreateOrderSuccess(newOrder.id);

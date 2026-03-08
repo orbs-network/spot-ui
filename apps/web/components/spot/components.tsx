@@ -1,4 +1,4 @@
-import { SelectMenuProps, SelectMeuItem, useFormatNumber } from "@orbs-network/spot-react";
+import { SelectMenuProps, SelectMenuItem } from "@orbs-network/spot-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../ui/select";
 import { useCallback } from "react";
 import { NumericInput } from "../ui/numeric-input";
@@ -8,7 +8,7 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
       (it: string) => {
         const selected = props.items.find((item) => item.value.toString() === it);
         if (selected) {
-          props.onSelect(selected as SelectMeuItem);
+          props.onSelect(selected as SelectMenuItem);
         }
       },
       [props]

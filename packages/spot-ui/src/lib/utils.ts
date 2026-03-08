@@ -68,8 +68,8 @@ export const orderBy = <T>(
 
 export const amountUi = (decimals?: number, amount?: string) => {
   if (!decimals || !amount) return "";
-  const percision = BN(10).pow(decimals || 0);
-  return BN(amount).times(percision).idiv(percision).div(percision).toFixed();
+  const precision = BN(10).pow(decimals || 0);
+  return BN(amount).times(precision).idiv(precision).div(precision).toFixed();
 };
 
 export const amountBN = (decimals?: number, amount?: string) => {
@@ -222,7 +222,7 @@ export const getPartnerChains = (partner: Partners) => {
     .map((p) => p.chainId);
 };
 
-export const getOrderExcecutionRate = (
+export const getOrderExecutionRate = (
   order: Order,
   srcTokenDecimals: number,
   dstTokenDecimals: number,
@@ -237,6 +237,9 @@ export const getOrderExcecutionRate = (
 
   return BN(dstFilledAmountUi).div(srcFilledAmountUi).toFixed();
 };
+
+/** @deprecated Use getOrderExecutionRate */
+export const getOrderExcecutionRate = getOrderExecutionRate;
 
 export const getOrderLimitPriceRate = (
   order: Order,

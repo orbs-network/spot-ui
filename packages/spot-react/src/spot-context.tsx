@@ -77,7 +77,7 @@ function ErrorWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
-export const SpotContext = createContext({} as SpotContextType);
+export const SpotContext = createContext<SpotContextType | null>(null);
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -91,9 +91,10 @@ const Listeners = (props: TwapProps) => {
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   // update current time every minute, so the deadline will be updated when confirmation window is open
   useEffect(() => {
-    setInterval(() => {
+    const id = setInterval(() => {
       updateStore({ currentTime: Date.now() });
     }, 60_000);
+    return () => clearInterval(id);
   }, [updateStore]);
 
   useEffect(() => {
@@ -263,8 +264,9 @@ export const SpotProvider = (props: TwapProps) => {
 };
 
 export const useSpotContext = () => {
-  if (!SpotContext) {
-    throw new Error("useSpotContext must be used within a WidgetProvider");
+  const value = useContext(SpotContext);
+  if (value === null) {
+    throw new Error("useSpotContext must be used within SpotProvider");
   }
-  return useContext(SpotContext);
+  return value;
 };

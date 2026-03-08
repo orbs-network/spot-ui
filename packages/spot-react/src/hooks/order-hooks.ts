@@ -4,7 +4,7 @@ import {
   Order,
   OrderStatus,
   OrderType,
-  getOrderExcecutionRate,
+  getOrderExecutionRate,
   getOrderLimitPriceRate,
   getTriggerPricePerTrade,
 } from "@orbs-network/spot-ui";
@@ -246,14 +246,14 @@ export const useOrderTriggerPriceRate = (
   }, [order, srcToken, dstToken]);
 };
 
-export const useOrderAvgExcecutionPrice = (
+export const useOrderAvgExecutionPrice = (
   srcToken?: Token,
   dstToken?: Token,
   order?: Order,
 ) => {
   return useMemo(() => {
     if (!srcToken || !dstToken || !order) return;
-    return getOrderExcecutionRate(order, srcToken.decimals, dstToken.decimals);
+    return getOrderExecutionRate(order, srcToken.decimals, dstToken.decimals);
   }, [order, srcToken, dstToken]);
 };
 

@@ -5,7 +5,7 @@ import { useAmountUi } from "./helper-hooks";
 import {
   useOrders,
   useOrderLimitPrice,
-  useOrderAvgExcecutionPrice,
+  useOrderAvgExecutionPrice,
   useHistoryOrderTitle,
   useOrderTriggerPriceRate,
 } from "./order-hooks";
@@ -27,7 +27,7 @@ export const useHistoryOrder = (orderId?: string) => {
   const srcAmount = useAmountUi(srcToken?.decimals, order?.srcAmount);
   const limitPrice = useOrderLimitPrice(srcToken, dstToken, order);
   const triggerPrice = useOrderTriggerPriceRate(srcToken, dstToken, order);
-  const excecutionPrice = useOrderAvgExcecutionPrice(srcToken, dstToken, order);
+  const executionPrice = useOrderAvgExecutionPrice(srcToken, dstToken, order);
   const srcFilledAmount = useAmountUi(
     srcToken?.decimals,
     order?.srcAmountFilled
@@ -101,13 +101,13 @@ export const useHistoryOrder = (orderId?: string) => {
         label: t("progress"),
         value: progress,
       },
-      excecutionPrice: {
+      executionPrice: {
         label: t(
           order?.totalTradesAmount === 1
-            ? "finalExcecutionPrice"
+            ? "finalExecutionPrice"
             : "averageExecutionPrice"
         ),
-        value: excecutionPrice,
+        value: executionPrice,
       },
       version: {
         label: t("version"),
@@ -117,7 +117,7 @@ export const useHistoryOrder = (orderId?: string) => {
   }, [
     order,
     t,
-    excecutionPrice,
+    executionPrice,
     srcFilledAmount,
     dstFilledAmount,
     progress,

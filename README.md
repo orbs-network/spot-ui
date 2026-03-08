@@ -6,9 +6,9 @@ A monorepo containing the Spot SDK, UI components, and a demo web application.
 
 | Package | Description | Published |
 |---------|-------------|-----------|
-| `spot` | Core SDK for event tracking | ✅ npm |
-| `spot-ui` | React components consuming the Spot SDK | ✅ npm |
-| `web` | Next.js demo app for local testing | ❌ Private |
+| `@orbs-network/spot-ui` | Order building, config, types, submit, analytics (framework-agnostic) | ✅ npm |
+| `@orbs-network/spot-react` | React context, hooks, and UI (SubmitOrderPanel, Orders) consuming spot-ui | ✅ npm |
+| `web` | Next.js app integrating spot-react (SpotProvider, SpotForm, orders) | ❌ Private |
 
 ## Getting Started
 ### Prerequisites
@@ -70,21 +70,22 @@ cd packages/spot-ui && pnpm publish --access public
 
 ```
 ├── apps/
-│   └── web/              # Next.js demo app (private)
+│   └── web/                    # Next.js app (SpotProvider, SpotForm, orders)
 ├── packages/
-│   ├── spot/             # Core SDK (published)
-│   └── spot-ui/          # React components (published)
-├── package.json          # Root package.json
-├── pnpm-workspace.yaml   # Workspace configuration
-└── tsconfig.json         # Root TypeScript config
+│   ├── spot-ui/                # @orbs-network/spot-ui (config, order build, submit)
+│   ├── spot-react/             # @orbs-network/spot-react (context, hooks, components)
+│   └── liquidity-hub-ui/      # @orbs-network/liquidity-hub-sdk
+├── package.json
+├── pnpm-workspace.yaml
+└── tsconfig.json
 ```
 
 ## Package Dependencies
 
 ```
-web (Next.js app)
- └── spot-ui (React components)
-      └── spot (Core SDK)
+web
+ └── spot-react (SpotProvider, useSubmitOrderPanel, Components.SubmitOrderPanel, Orders)
+      └── spot-ui (getConfig, buildRePermitOrderData, submitOrder, types)
 ```
 
 ## License

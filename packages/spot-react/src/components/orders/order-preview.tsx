@@ -75,11 +75,11 @@ export const OrderPreview = () => {
         <div className="twap-orders__selected-order-bottom">
           <div className="twap-orders__selected-order-accordions">
             <AccordionContainer
-              title={t("excecutionSummary")}
+              title={t("executionSummary")}
               onClick={() => handleChange("panel1")}
               expanded={expanded === "panel1"}
             >
-              <ExcecutionSummary />
+              <ExecutionSummary />
             </AccordionContainer>
             <AccordionContainer
               title={t("orderInfo")}
@@ -231,14 +231,14 @@ const OrderID = () => {
   return <OrderDetails.OrderID id={order.id.value || ""} />;
 };
 
-const ExcecutionSummary = () => {
+const ExecutionSummary = () => {
   return (
     <OrderDetails>
       <OrderStatusComponent />
       <AmountInFilled />
       <AmountOutFilled />
       <Progress />
-      <AvgExcecutionPrice />
+      <AvgExecutionPrice />
     </OrderDetails>
   );
 };
@@ -384,13 +384,13 @@ const LimitPrice = () => {
   );
 };
 
-const AvgExcecutionPrice = () => {
+const AvgExecutionPrice = () => {
   const { order } = useOrderContext();
-  if (!order.excecutionPrice.value) return null;
+  if (!order.executionPrice.value) return null;
   return (
     <OrderDetails.Price
-      label={order.excecutionPrice.label}
-      price={order.excecutionPrice.value}
+      label={order.executionPrice.label}
+      price={order.executionPrice.value}
       srcToken={order.srcToken}
       dstToken={order.dstToken}
     />

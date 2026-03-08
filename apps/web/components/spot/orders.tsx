@@ -1,6 +1,6 @@
 import {
   useOrderHistoryPanel,
-  SelectMeuItem,
+  SelectMenuItem,
   OrderStatus,
   Components,
 } from "@orbs-network/spot-react";
@@ -45,7 +45,7 @@ export const SpotsOrders = () => {
   }, [menuItems, selectedStatus]);
 
   const _onSelectStatus = useCallback(
-    (it: SelectMeuItem) => {
+    (it: SelectMenuItem) => {
       onSelectStatus(
         it.value === "all" ? undefined : (it.value as OrderStatus),
       );

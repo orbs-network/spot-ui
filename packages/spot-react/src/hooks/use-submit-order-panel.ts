@@ -24,12 +24,11 @@ export const useSubmitOrderPanel = () => {
   const onCloseModal = useCallback(() => {
     if (swapExecution?.status === SwapStatus.SUCCESS) {
       resetTypedInputAmount();
+    }
+    // Reset execution state when closing unless submit is in progress
+    if (swapExecution?.status !== SwapStatus.LOADING) {
       resetSwap();
     }
-    if(!swapExecution?.status || swapExecution?.status === SwapStatus.FAILED) {
-      resetSwap();
-    }
-  
   }, [swapExecution?.status, resetSwap, resetTypedInputAmount]);
 
   const onOpenModal = useCallback(() => {
