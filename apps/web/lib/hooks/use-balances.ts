@@ -10,13 +10,13 @@ import { useDerivedSwap } from "./use-derived-swap";
 const useQueryKey = () => {
   const { chainId, address } = useConnection();
   const { data: currencies } = useCurrenciesQuery();
-  const addresses = useMemo(
-    () => currencies?.map((it) => it.address) ?? [],
-    [currencies]
-  );
+  const addressesKey = useMemo(() => {
+    const addrs = currencies?.map((it) => it.address) ?? [];
+    return [...addrs].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())).join(",");
+  }, [currencies]);
   return useMemo(
-    () => ["balances", chainId, address, addresses.join(",") ?? ""],
-    [chainId, address, addresses]
+    () => ["balances", chainId, address, addressesKey],
+    [chainId, address, addressesKey]
   );
 };
 
@@ -36,12 +36,11 @@ export const useBalances = () => {
         address,
         tokens: addresses,
       });
-
       return response.data;
     },
-    enabled: !!chainId && !!address && !!addresses && addresses.length > 0,
+    enabled: !!chainId && !!address && addresses.length > 0,
     refetchInterval: 60_000,
-    staleTime: Infinity,
+    staleTime: 60_000,
     gcTime: Infinity,
   });
 };

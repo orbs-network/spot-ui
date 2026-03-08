@@ -58,38 +58,33 @@ export const sortTokens = (
   usdPrices?: USDPrices,
   balances?: Balances
 ) => {
-  const valueMap = new Map<string, number>(); // keep as number (you said losing precision is ok)
+  const valueMap = new Map<string, number>();
+  const hasBalanceMap = new Map<string, boolean>();
 
-  // Pre-compute USD values
   for (const currency of currencies) {
     const raw = balances?.[currency.address] ?? "0";
+    hasBalanceMap.set(currency.address, BN(raw.toString()).gt(0));
 
-    // Format balance -> decimal string -> number
     const balance = Number(
       BN(formatUnits(BigInt(raw.toString()), currency.decimals))
         .decimalPlaces(6)
         .toString()
     );
-
     const usdPrice = usdPrices?.[currency.address] ?? 0;
-    const usdValue = balance * usdPrice;
-
-    valueMap.set(currency.address, usdValue);
+    valueMap.set(currency.address, balance * usdPrice);
   }
 
   const res = [...currencies].sort((a, b) => {
+    const hasBalanceA = hasBalanceMap.get(a.address) ?? false;
+    const hasBalanceB = hasBalanceMap.get(b.address) ?? false;
+    if (hasBalanceA !== hasBalanceB) return hasBalanceA ? -1 : 1;
+
     const valueA = valueMap.get(a.address) ?? 0;
     const valueB = valueMap.get(b.address) ?? 0;
-
-    // 1. Primary: USD value DESC
-    if (valueA !== valueB) {
-      return valueB - valueA; // DESC
-    }
-
-    return 0;
+    return valueB - valueA;
   });
-  const uniqueRes = _.uniqBy(res, (t) => t.address.toLowerCase());
 
+  const uniqueRes = _.uniqBy(res, (t) => t.address.toLowerCase());
   const nativeIndex = uniqueRes.findIndex((t) => isNativeAddress(t.address));
   if (nativeIndex !== -1) {
     const native = uniqueRes[nativeIndex];
