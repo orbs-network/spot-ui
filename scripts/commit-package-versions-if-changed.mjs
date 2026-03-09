@@ -5,11 +5,13 @@
  */
 
 import { execSync } from 'child_process';
-import { dirname, join } from 'path';
+import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDir = join(__dirname, '..');
+const rootDir =
+  process.env.GIT_ROOT ||
+  execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
 
 const VERSION_FILES = [
   'packages/spot-ui/package.json',
@@ -34,6 +36,7 @@ function main() {
   if (!hasUncommittedChanges()) {
     return 0;
   }
+  console.log('[pre-push] Committing package version changes...');
   run('git add ' + VERSION_FILES.join(' '));
   try {
     run('git commit -m "chore: commit package versions [spot-ui, spot-react, liquidity-hub-sdk]"', {
