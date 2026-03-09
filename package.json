@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "prepare": "node scripts/setup-git-hooks.mjs",
     "dev": "pnpm --filter web dev",
     "prod": "NEXT_PUBLIC_MODE=prod pnpm --filter web dev",
     "start": "pnpm --filter web start",

@@ -129,7 +129,7 @@ export const SpotsOrders = () => {
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>View your order history</p>
+          <p>View orders</p>
         </TooltipContent>
       </Tooltip>
     </>
