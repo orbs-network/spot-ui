@@ -3,23 +3,26 @@ import { useMemo } from "react";
 import { useSpotContext } from "../spot-context";
 import { useAmountUi } from "./helper-hooks";
 import {
-  useOrders,
   useOrderLimitPrice,
   useOrderAvgExecutionPrice,
   useHistoryOrderTitle,
   useOrderTriggerPriceRate,
+  useOrdersQuery,
 } from "./order-hooks";
 import { useTranslations } from "./use-translations";
 import { useBuildOrderInfo } from "./use-build-order-info";
+import { SelectedOrder } from "../types";
 
-export const useHistoryOrder = (orderId?: string) => {
-  const { orders } = useOrders();
+export const useSelectedOrder = (
+  orderId?: string,
+): SelectedOrder | undefined => {
+  const { data: orders } = useOrdersQuery();
   const { useToken, config } = useSpotContext();
   const t = useTranslations();
   const order =
     useMemo(
-      () => orders?.all.find((order) => order.id === orderId),
-      [orders, orderId]
+      () => orders?.find((order) => order.id === orderId),
+      [orders, orderId],
     ) || ({} as Order);
   const title = useHistoryOrderTitle(order);
   const srcToken = useToken?.(order?.srcTokenAddress);
@@ -30,23 +33,22 @@ export const useHistoryOrder = (orderId?: string) => {
   const executionPrice = useOrderAvgExecutionPrice(srcToken, dstToken, order);
   const srcFilledAmount = useAmountUi(
     srcToken?.decimals,
-    order?.srcAmountFilled
+    order?.srcAmountFilled,
   );
   const dstFilledAmount = useAmountUi(
     dstToken?.decimals,
-    order?.dstAmountFilled
+    order?.dstAmountFilled,
   );
   const progress = order?.progress;
 
   const srcAmountPerTrade = useAmountUi(
     srcToken?.decimals,
-    order?.srcAmountPerTrade
+    order?.srcAmountPerTrade,
   );
   const minDestAmountPerTrade = useAmountUi(
     dstToken?.decimals,
-    order?.dstMinAmountPerTrade
+    order?.dstMinAmountPerTrade,
   );
-
 
   const tradeInterval = useMemo(() => {
     if (!order) return 0;
@@ -74,9 +76,10 @@ export const useHistoryOrder = (orderId?: string) => {
     orderType: order?.type,
   });
 
-  return useMemo(() => {
+  return useMemo((): SelectedOrder | undefined => {
+    if (!order?.id) return undefined;
     return {
-      original: order,
+      original: order as Order,
       fills: order?.fills,
       title,
       ...info,
@@ -90,11 +93,11 @@ export const useHistoryOrder = (orderId?: string) => {
       },
       amountInFilled: {
         label: t("amountOut"),
-        value: srcFilledAmount,
+        value: srcFilledAmount ?? "",
       },
       amountOutFilled: {
         label: t("amountReceived"),
-        value: dstFilledAmount,
+        value: dstFilledAmount ?? "",
         token: dstToken,
       },
       progress: {
@@ -105,7 +108,7 @@ export const useHistoryOrder = (orderId?: string) => {
         label: t(
           order?.totalTradesAmount === 1
             ? "finalExecutionPrice"
-            : "averageExecutionPrice"
+            : "averageExecutionPrice",
         ),
         value: executionPrice,
       },

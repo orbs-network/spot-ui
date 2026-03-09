@@ -48,7 +48,7 @@
   "stopLossLimit": "Stop-loss limit",
   "takeProfit": "Take-profit",
   "minReceived": "Min. received",
-  "noOrders": "No {status} Orders",
+  "noOrders": "No {status} orders",
   "noLiquidity": "No liquidity for this pair",
   "executionSummary": "Execution summary",
   "orderInfo": "Order info",

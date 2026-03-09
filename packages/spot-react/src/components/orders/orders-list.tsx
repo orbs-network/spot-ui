@@ -4,7 +4,7 @@ import * as React from "react";
 import { Virtuoso } from "react-virtuoso";
 import TokenLogo from "../../components/TokenLogo";
 import { useSpotStore } from "../../store";
-import { useHistoryOrderTitle, useOrders, useOrderToDisplay, useSelectedOrderIdsToCancel } from "../../hooks/order-hooks";
+import { useGetOrderFilterText, useHistoryOrderTitle, useOrdersQuery, useOrderToDisplay, useSelectedOrderIdsToCancel } from "../../hooks/order-hooks";
 import { useDateFormat } from "../../hooks/helper-hooks";
 import { useTranslations } from "../../hooks/use-translations";
 import { useSpotContext } from "../../spot-context";
@@ -14,7 +14,7 @@ const ListLoader = () => {
 };
 
 export const OrdersList = () => {
-  const { isLoading } = useOrders();
+  const { isLoading } = useOrdersQuery();
   const ordersToDisplay = useOrderToDisplay();
   const orderIdsToCancel = useSpotStore((s) => s.state.orderIdsToCancel);
   const cancelOrdersMode = useSpotStore((s) => s.state.cancelOrdersMode);
@@ -84,13 +84,9 @@ const ListOrder = ({ order, selectOrder, selected, cancelOrdersMode }: { order: 
 
 const EmptyList = () => {
   const status = useSpotStore((s) => s.state.orderHistoryStatusFilter);
+  const getOrderFilterText = useGetOrderFilterText();
   const t = useTranslations();
-  const name = React.useMemo(() => {
-    if (!status) {
-      return "";
-    }
-    return status;
-  }, [status]);
+  const name = getOrderFilterText(status);
 
   return (
     <div className="twap-orders__list-empty">

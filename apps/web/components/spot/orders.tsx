@@ -1,8 +1,7 @@
 import {
   useOrderHistoryPanel,
-  SelectMenuItem,
-  OrderStatus,
   Components,
+  OrderFilter,
 } from "@orbs-network/spot-react";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
@@ -18,65 +17,44 @@ import { Spinner } from "../ui/spinner";
 export const SpotsOrders = () => {
   const {
     selectedOrder,
-    onSelectStatus,
-    statuses,
-    selectedStatus,
-    onHideSelectedOrder,
-    orders,
-    onCancelAllOrders,
-    isCancelOrdersLoading,
-    showSelectedOrderFills,
-    onHideSelectedOrderFills,
+    onSelectOrderFilter,
+    orderFilters,
+    selectedOrderFilter,
+    allOrders,
+    onCancelAllOpenOrders,
+    isCancelOrderLoading,
+    isDisplayingOrderFills,
+    onHideOrderFills,
+    onDisplayOrder,
+    openOrdersCount,
   } = useOrderHistoryPanel();
   const [open, setOpen] = useState(false);
 
-  const menuItems = useMemo(() => {
-    return statuses.map((status) => ({
-      text: status.text,
-      value: status.value || "all",
-    }));
-  }, [statuses]);
-
-  const selectedItem = useMemo(() => {
-    if (!selectedStatus || selectedStatus === "all") {
-      return menuItems.find((item) => item.value === "all");
-    }
-    return menuItems.find((item) => item.value === selectedStatus);
-  }, [menuItems, selectedStatus]);
-
-  const _onSelectStatus = useCallback(
-    (it: SelectMenuItem) => {
-      onSelectStatus(
-        it.value === "all" ? undefined : (it.value as OrderStatus),
-      );
-    },
-    [onSelectStatus],
-  );
 
   const title = useMemo(() => {
-    if (showSelectedOrderFills) {
+    if (isDisplayingOrderFills) {
       return `${selectedOrder?.title} order fills`;
     }
-    return selectedOrder?.title ?? `Orders (${orders.all?.length})`;
-  }, [showSelectedOrderFills, selectedOrder, orders.all?.length]);
-
+    return selectedOrder?.title ?? `Orders (${allOrders?.length})`;
+  }, [isDisplayingOrderFills, selectedOrder, allOrders?.length]);
 
   const onBack = useCallback(() => {
-    if (showSelectedOrderFills) {
-      onHideSelectedOrderFills();
+    if (isDisplayingOrderFills) {
+      onHideOrderFills();
     } else {
-      onHideSelectedOrder();
+      onDisplayOrder(undefined);
     }
-  }, [onHideSelectedOrderFills, onHideSelectedOrder, showSelectedOrderFills]);
+  }, [onHideOrderFills, onDisplayOrder, isDisplayingOrderFills]);
 
-
-  const onOpenChange = useCallback((open: boolean) => {
-    setOpen(open);
-    if (open) {
-      onHideSelectedOrderFills();
-      onHideSelectedOrder();
-    }
-  }, [onHideSelectedOrderFills, onHideSelectedOrder]);
+  const onOpenChange = useCallback(
+    (open: boolean) => {
+      setOpen(open);
+      if (open) {
+        onDisplayOrder(undefined);
+      }
+    },
+    [onDisplayOrder],
+  );
 
   return (
     <>
@@ -93,31 +71,31 @@ export const SpotsOrders = () => {
                 <ArrowLeftIcon className="size-4" />
               </Button>
             )}
-            <DialogTitle>
-              {title}
-            </DialogTitle>
+            <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
           {!selectedOrder && (
             <div className="flex flex-row gap-2 items-center justify-between">
               <SpotSelectMenu
-                selected={selectedItem}
-                items={menuItems}
-                onSelect={_onSelectStatus}
+                selected={selectedOrderFilter}
+                items={orderFilters}
+                onSelect={(it) => onSelectOrderFilter(it.value as OrderFilter)}
               />
-              <IconButton onClick={onCancelAllOrders} className="p-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <IconButton onClick={onCancelAllOrders}>
-                      {isCancelOrdersLoading ? (
-                        <Spinner className="size-4" />
-                      ) : (
-                        <TrashIcon className="size-4" />
-                      )}
-                    </IconButton>
-                  </TooltipTrigger>
-                  <TooltipContent>Cancel all orders</TooltipContent>
-                </Tooltip>
-              </IconButton>
+              {openOrdersCount > 0 && (
+                <IconButton onClick={onCancelAllOpenOrders} className="p-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <IconButton onClick={onCancelAllOpenOrders}>
+                        {isCancelOrderLoading ? (
+                          <Spinner className="size-4" />
+                        ) : (
+                          <TrashIcon className="size-4" />
+                        )}
+                      </IconButton>
+                    </TooltipTrigger>
+                    <TooltipContent>Cancel all orders</TooltipContent>
+                  </Tooltip>
+                </IconButton>
+              )}
             </div>
           )}
           <Components.Orders />

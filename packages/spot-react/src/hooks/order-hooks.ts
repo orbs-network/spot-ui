@@ -7,6 +7,7 @@ import {
   getOrderExecutionRate,
   getOrderLimitPriceRate,
   getTriggerPricePerTrade,
+  OrderFilter,
 } from "@orbs-network/spot-ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
@@ -16,32 +17,30 @@ import { Token } from "../types";
 import { useCancelOrderMutation } from "./use-cancel-order";
 import { useSpotStore } from "../store";
 import { useTranslations } from "./use-translations";
-import { useHistoryOrder } from "./use-history-order";
 import { Module } from "@orbs-network/spot-ui";
+import { useSelectedOrder } from "./use-history-order";
 
 export const useOrderTitle = (type?: OrderType) => {
-  
   const t = useTranslations();
   return useMemo(() => {
-   switch (type) {
-    case OrderType.TWAP_MARKET:
-      return t("twapMarket");
+    switch (type) {
+      case OrderType.TWAP_MARKET:
+        return t("twapMarket");
       case OrderType.LIMIT:
         return t("limit");
-    case OrderType.TWAP_LIMIT:
-      return t("twapLimit");
-    case OrderType.STOP_LOSS_MARKET:
-      return t("stopLossMarket");
-    case OrderType.STOP_LOSS_LIMIT:
-      return t("stopLossLimit");
-    case OrderType.TAKE_PROFIT:
-      return t("takeProfit");
-    default:
-      return t("twapMarket");
-   }
+      case OrderType.TWAP_LIMIT:
+        return t("twapLimit");
+      case OrderType.STOP_LOSS_MARKET:
+        return t("stopLossMarket");
+      case OrderType.STOP_LOSS_LIMIT:
+        return t("stopLossLimit");
+      case OrderType.TAKE_PROFIT:
+        return t("takeProfit");
+      default:
+        return t("twapMarket");
+    }
   }, [t, type]);
 };
-
 
 export const useOrderType = () => {
   const { module } = useSpotContext();
@@ -54,15 +53,16 @@ export const useOrderType = () => {
       return OrderType.LIMIT;
     }
     if (module === Module.STOP_LOSS) {
-      return isMarketOrder ? OrderType.STOP_LOSS_MARKET : OrderType.STOP_LOSS_LIMIT;
+      return isMarketOrder
+        ? OrderType.STOP_LOSS_MARKET
+        : OrderType.STOP_LOSS_LIMIT;
     }
     if (module === Module.TAKE_PROFIT) {
-      return  OrderType.TAKE_PROFIT
+      return OrderType.TAKE_PROFIT;
     }
     return OrderType.TWAP_MARKET;
   }, [module, isMarketOrder]);
 };
-
 
 export const useCurrentOrderTitle = () => {
   const orderType = useOrderType();
@@ -72,7 +72,6 @@ export const useCurrentOrderTitle = () => {
 export const useHistoryOrderTitle = (order?: Order) => {
   return useOrderTitle(order?.type);
 };
-
 
 const useOrdersQueryKey = () => {
   const { account, config, chainId } = useSpotContext();
@@ -112,7 +111,12 @@ const useOrderFilledCallback = () => {
         prevOrders.forEach((prevOrder) => {
           const currentOrder = orders.find((o) => o.id === prevOrder.id);
 
-          if (!currentOrder?.twapAddress && prevOrder.twapAddress && currentOrder && currentOrder.progress !== prevOrder.progress) {
+          if (
+            !currentOrder?.twapAddress &&
+            prevOrder.twapAddress &&
+            currentOrder &&
+            currentOrder.progress !== prevOrder.progress
+          ) {
             isProgressUpdated = true;
             updatedOrders.push(currentOrder);
 
@@ -152,8 +156,6 @@ export const useOrdersQuery = () => {
         account,
       });
 
-      
-
       orderFilledCallback(orders);
       return orders.map((order) => {
         if (config?.twapConfig) {
@@ -166,58 +168,39 @@ export const useOrdersQuery = () => {
       });
     },
   });
-  
+
   return query;
 };
 
-export const useOrders = () => {
-  const {
-    data: orders,
-    isLoading,
-    error,
-    refetch,
-    isRefetching,
-  } = useOrdersQuery();
-  const { mutateAsync: cancelOrder } = useCancelOrderMutation();
-
-  return useMemo(() => {
-    return {
-      orders: {
-        all: orders ?? [],
-        open: filterAndSortOrders(orders ?? [], OrderStatus.Open),
-        completed: filterAndSortOrders(orders ?? [], OrderStatus.Completed),
-        expired: filterAndSortOrders(orders ?? [], OrderStatus.Expired),
-        canceled: filterAndSortOrders(orders ?? [], OrderStatus.Canceled),
-      },
-      isLoading,
-      error,
-      refetch: () => refetch().then((it) => it.data),
-      cancelOrder,
-      isRefetching,
-    };
-  }, [orders, isLoading, error, refetch, cancelOrder, isRefetching]);
+const filterAndSortOrders = (
+  orders = [] as Order[],
+  filter = OrderFilter.All,
+) => {
+  let _orders = orders ?? [];
+  if (filter === OrderFilter.Open) {
+    _orders = _orders.filter((order) => order.status === OrderStatus.Open);
+  }
+  if (filter === OrderFilter.Completed) {
+    _orders = _orders.filter((order) => order.status === OrderStatus.Completed);
+  }
+  if (filter === OrderFilter.Canceled) {
+    _orders = _orders.filter((order) => order.status === OrderStatus.Canceled);
+  }
+  if (filter === OrderFilter.Expired) {
+    _orders = _orders.filter((order) => order.status === OrderStatus.Expired);
+  }
+  return _orders.sort((a, b) => b.createdAt - a.createdAt);
 };
 
 export const useOrderToDisplay = () => {
-  const selectedStatus = useSpotStore((s) => s.state.orderHistoryStatusFilter);
-  const { orders } = useOrders();
-  return useMemo(() => {
-    if (!selectedStatus) {
-      return orders.all;
-    }
-
-    return (
-      orders.all.filter(
-        (order) => order.status.toLowerCase() === selectedStatus.toLowerCase(),
-      ) || []
-    );
-  }, [selectedStatus, orders]);
-};
-
-const filterAndSortOrders = (orders: Order[], status: OrderStatus) => {
-  return orders
-    .filter((order) => order.status === status)
-    .sort((a, b) => b.createdAt - a.createdAt);
+  const selectedOrderFilter = useSpotStore(
+    (s) => s.state.orderHistoryStatusFilter,
+  );
+  const { data: orders } = useOrdersQuery();
+  return useMemo(
+    () => filterAndSortOrders(orders, selectedOrderFilter),
+    [selectedOrderFilter, orders],
+  );
 };
 
 export const useOrderLimitPrice = (
@@ -276,74 +259,94 @@ export const useSelectedOrderIdsToCancel = () => {
   );
 };
 
-export const useOrderHistoryPanel = () => {
+export const useGetOrderFilterText = () => {
   const t = useTranslations();
-  const {
-    orders,
-    isLoading: orderLoading,
-    refetch,
-    isRefetching,
-  } = useOrders();
-  const { mutateAsync: cancelOrder, isPending: isCancelOrdersLoading } =
-    useCancelOrderMutation();
-  const ordersToDisplay = useOrderToDisplay();
-  const updateState = useSpotStore((s) => s.updateState);
-  const selectedStatus = useSpotStore((s) => s.state.orderHistoryStatusFilter);
-  const cancelOrdersMode = useSpotStore((s) => s.state.cancelOrdersMode);
-  const orderIdsToCancel = useSpotStore((s) => s.state.orderIdsToCancel);
-  const showSelectedOrderFills = useSpotStore((s) => s.state.showSelectedOrderFills);
-  const onToggleCancelOrdersMode = useCallback(
-    (cancelOrdersMode: boolean) =>
-      updateState({ cancelOrdersMode, orderIdsToCancel: [] }),
-    [updateState],
-  );
-  const onHideSelectedOrder = useCallback(
-    () => {
-      updateState({ showSelectedOrderFills: false });
-      updateState({ selectedOrderID: undefined })
+
+  return useCallback(
+    (filter?: OrderFilter) => {
+      if (!filter) return t("allOrders");
+      switch (filter) {
+        case OrderFilter.Open:
+          return t("Open");
+        case OrderFilter.Completed:
+          return t("Completed");
+        case OrderFilter.Expired:
+          return t("Expired");
+        case OrderFilter.Canceled:
+          return t("Canceled");
+        default:
+          return t("allOrders");
+      }
     },
-    [updateState, showSelectedOrderFills],
+    [t],
   );
+};
 
-  const onHideSelectedOrderFills = useCallback(
-    () => updateState({ showSelectedOrderFills: false }),
-    [updateState],
-  );
-  const onCancelOrders = useCallback(
-    (orders: Order[]) => cancelOrder({ orders }),
-    [cancelOrder],
-  );
-  const onSelectStatus = useCallback(
-    (status?: OrderStatus) => updateState({ orderHistoryStatusFilter: status }),
-    [],
-  );
-
-  const statuses = useMemo(() => {
-    const result = Object.keys(OrderStatus).map((it) => {
+const useOrderFilters = () => {
+  const getOrderFilterText = useGetOrderFilterText();
+  return useMemo(() => {
+    return Object.values(OrderFilter).map((it) => {
       return {
-        text: it,
+        text: getOrderFilterText(it),
         value: it,
       };
     });
-    return [{ text: t("allOrders"), value: "" }, ...result];
-  }, [t]);
+  }, [getOrderFilterText]);
+};
 
-  const onSelectOrderToCancel = useSelectedOrderIdsToCancel();
+export const useOrderHistoryPanel = () => {
+  const {
+    data: orders,
+    isLoading: orderLoading,
+    refetch,
+    isRefetching,
+  } = useOrdersQuery();
+  const { mutateAsync: cancelOrder, isPending: isCancelOrderLoading } =
+    useCancelOrderMutation();
   const selectedOrderID = useSpotStore((s) => s.state.selectedOrderID);
-  const onSelectOrder = useCallback(
-    (id: string) => updateState({ selectedOrderID: id }),
+
+  const updateState = useSpotStore((s) => s.updateState);
+  const selectedOrderFilter = useSpotStore(
+    (s) => s.state.orderHistoryStatusFilter,
+  );
+  const isDisplayingOrderFills = useSpotStore(
+    (s) => s.state.showSelectedOrderFills,
+  );
+
+  const onSelectOrderFilter = useCallback(
+    (orderHistoryStatusFilter: OrderFilter) =>
+      updateState({ orderHistoryStatusFilter }),
+    [],
+  );
+
+  const orderFilters = useOrderFilters();
+  const selectedOrders = useOrderToDisplay();
+
+  const selectedOrder = useSelectedOrder(selectedOrderID);
+  const openOrders = useMemo(
+    () => filterAndSortOrders(orders, OrderFilter.Open),
+    [orders],
+  );
+
+  const onDisplayOrder = useCallback(
+    (id?: string) => {
+      if (!id) {
+        updateState({
+          selectedOrderID: undefined,
+          showSelectedOrderFills: false,
+        });
+      } else {
+        updateState({ selectedOrderID: id });
+      }
+    },
     [updateState],
   );
-  const selectedOrder = useHistoryOrder(selectedOrderID);
-  const ordersToCancel = useMemo(
-    () => orders.all.filter((order) => orderIdsToCancel?.includes(order.id)),
-    [orders, orderIdsToCancel],
+
+  const refetchOrders = useCallback(
+    () => refetch().then((it) => it.data),
+    [refetch],
   );
-  const onSelectAllOrdersToCancel = useCallback(
-    () =>
-      updateState({ orderIdsToCancel: orders.open.map((order) => order.id) }),
-    [updateState, orders],
-  );
+
   const onCancelOrder = useCallback(
     async (order: Order) => {
       return cancelOrder({ orders: [order] }).then((it) => it?.[0] || "");
@@ -351,34 +354,37 @@ export const useOrderHistoryPanel = () => {
     [cancelOrder],
   );
 
-
-  const onCancelAllOrders = useCallback(
-    () => cancelOrder({ orders: orders.open }),
+  const onCancelAllOpenOrders = useCallback(
+    () => cancelOrder({ orders: openOrders }),
     [cancelOrder, orders],
   );
+
+  const onHideOrderFills = useCallback(
+    () => updateState({ showSelectedOrderFills: false }),
+    [updateState],
+  );
+  
+  const selectedFilter = useMemo(() => {
+    const value = selectedOrderFilter || orderFilters[0]!.value as OrderFilter;
+    return orderFilters.find((item) => item.value === value)!;
+  }, [orderFilters, selectedOrderFilter]);
+
   return {
-    refetch,
-    onHideSelectedOrder,
-    onCancelOrders,
+    refetchOrders,
     onCancelOrder,
-    onSelectStatus,
-    onToggleCancelOrdersMode,
-    onSelectOrderToCancel,
-    onSelectOrder,
-    onCancelAllOrders,
+    onSelectOrderFilter,
+    onDisplayOrder,
+    onCancelAllOpenOrders,
+    onHideOrderFills,
     isRefetching,
-    orders,
-    ordersToDisplay,
-    showSelectedOrderFills,
-    onHideSelectedOrderFills,
+    allOrders: orders ?? [],
+    selectedOrders,
+    isDisplayingOrderFills,
     isLoading: orderLoading,
     selectedOrder: selectedOrderID ? selectedOrder : undefined,
-    openOrdersCount: orders?.open?.length || 0,
-    isCancelOrdersLoading,
-    selectedStatus: selectedStatus || statuses[0]?.value || "",
-    statuses,
-    cancelOrdersMode,
-    ordersToCancel,
-    onSelectAllOrdersToCancel,
+    openOrdersCount: openOrders?.length || 0,
+    isCancelOrderLoading,
+    selectedOrderFilter: selectedFilter,
+    orderFilters,
   };
 };

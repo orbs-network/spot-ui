@@ -14,16 +14,16 @@ import { OrderDetails } from "../../components/order-details";
 import { useSpotStore } from "../../store";
 import { useCancelOrderMutation } from "../../hooks/use-cancel-order";
 import { useDateFormat } from "../../hooks/helper-hooks";
-import { useHistoryOrder } from "../../hooks/use-history-order";
 import { useTranslations } from "../../hooks/use-translations";
 import { useSpotContext } from "../../spot-context";
 import { FormatNumber } from "../format-number";
 import { FillsButton, FillsView } from "./order-fills";
+import { SelectedOrder } from "../../types";
+import { useSelectedOrder } from "../../hooks/use-history-order";
 
-type Order = NonNullable<ReturnType<typeof useHistoryOrder>>;
 
 type ContextType = {
-  order: Order;
+  order: SelectedOrder;
 };
 
 const Context = createContext({} as ContextType);
@@ -34,7 +34,7 @@ const useOrderContext = () => {
 
 export const OrderPreview = () => {
   const selectedOrderID = useSpotStore((s) => s.state.selectedOrderID);
-  const order = useHistoryOrder(selectedOrderID);
+  const order = useSelectedOrder(selectedOrderID);
 
   const t = useTranslations();
   const [expanded, setExpanded] = useState<string | false>("panel1");
@@ -48,7 +48,7 @@ export const OrderPreview = () => {
   useEffect(() => {
     setExpanded("panel1");
     updateState({ showSelectedOrderFills: false });
-  }, [order.id.value]);
+  }, [order?.id.value]);
 
   const handleChange = (panel: string) => {
     setExpanded(expanded === panel ? false : panel);
@@ -156,11 +156,11 @@ const ChunkSize = () => {
   const { order } = useOrderContext();
   return (
     <OrderDetails.TradeSize
-      tradeSize={order.sizePerTrade.value}
+      tradeSize={order.sizePerTrade.value as string}
       srcToken={order.srcToken}
       label={order.sizePerTrade.label}
-      tooltip={order.sizePerTrade.tooltip}
-      trades={order.totalTrades.value}
+      tooltip={order.sizePerTrade.tooltip as string}
+      trades={order.totalTrades.value as number}
     />
   );
 };
@@ -169,9 +169,9 @@ const ChunksAmount = () => {
   const { order } = useOrderContext();
   return (
     <OrderDetails.TradesAmount
-      trades={order.totalTrades.value}
+      trades={order.totalTrades.value as number}
       label={order.totalTrades.label}
-      tooltip={order.totalTrades.tooltip}
+      tooltip={order.totalTrades.tooltip as string}
     />
   );
 };
@@ -182,9 +182,9 @@ const MinDestAmount = () => {
   return (
     <OrderDetails.MinDestAmount
       dstToken={order.dstToken}
-      dstMinAmountOut={order.minDestAmountPerTrade.value}
+      dstMinAmountOut={order.minDestAmountPerTrade.value as string}
       label={order.minDestAmountPerTrade.label}
-      tooltip={order.minDestAmountPerTrade.tooltip}
+      tooltip={order.minDestAmountPerTrade.tooltip as string}
     />
   );
 };
@@ -193,9 +193,9 @@ const Expiry = () => {
   const { order } = useOrderContext();
   return (
     <OrderDetails.Deadline
-      deadline={order.deadline.value}
+      deadline={order.deadline.value as number}
       label={order.deadline.label}
-      tooltip={order.deadline.tooltip}
+      tooltip={order.deadline.tooltip as string}
     />
   );
 };
@@ -204,10 +204,10 @@ const TradeInterval = () => {
   const { order } = useOrderContext();
   return (
     <OrderDetails.TradeInterval
-      fillDelayMillis={order.tradeInterval.value}
-      chunks={order.totalTrades.value}
+      fillDelayMillis={order.tradeInterval.value as number}
+      chunks={order.totalTrades.value as number}
       label={order.tradeInterval.label}
-      tooltip={order.tradeInterval.tooltip}
+      tooltip={order.tradeInterval.tooltip as string}
     />
   );
 };
@@ -218,9 +218,9 @@ const TriggerPrice = () => {
     <OrderDetails.Price
       srcToken={order.srcToken}
       dstToken={order.dstToken}
-      price={order.triggerPrice.value}
+      price={order.triggerPrice.value as string}
       label={order.triggerPrice.label}
-      tooltip={order.triggerPrice.tooltip}
+      tooltip={order.triggerPrice.tooltip as string}
     />
   );
 };
@@ -376,7 +376,7 @@ const LimitPrice = () => {
   return (
     <OrderDetails.Price
       label={t("limitPrice") || ""}
-      price={order.limitPrice.value}
+      price={order.limitPrice.value as string}
       srcToken={order.srcToken}
       dstToken={order.dstToken}
       tooltip={order.limitPrice.tooltip}

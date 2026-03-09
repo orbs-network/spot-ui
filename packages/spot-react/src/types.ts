@@ -1,9 +1,57 @@
 import { CSSProperties, FC, ReactNode } from "react";
-import { Partners, Module, Order, OrderStatus, SpotConfig, TimeDuration } from "@orbs-network/spot-ui";
+import { Partners, Module, Order, OrderFill, OrderType, SpotConfig, TimeDuration, OrderFilter } from "@orbs-network/spot-ui";
 import { SwapStatus } from "@orbs-network/swap-ui";
 import { createPublicClient, createWalletClient, TransactionReceipt as _TransactionReceipt, Abi } from "viem";
 export type { Order } from "@orbs-network/spot-ui";
 export { OrderStatus, type OrderFill, OrderType, Module } from "@orbs-network/spot-ui";
+
+/** Label/value pair used for order detail rows (e.g. id, createdAt, progress). */
+export type OrderDetailField<T = string | number | undefined> = {
+  label: string;
+  value: T;
+};
+
+/** Order detail row that can include a token (e.g. amountOutFilled). */
+export type OrderDetailFieldWithToken = OrderDetailField<string> & {
+  token?: Token;
+};
+
+/** Detail field with optional tooltip and USD. */
+export type OrderDetailFieldWithMeta = OrderDetailField<string | number> & {
+  tooltip?: string;
+  usd?: string;
+};
+
+/** Return type of useHistoryOrder. */
+export type SelectedOrder = {
+  original: Order;
+  fills?: OrderFill[];
+  title: string;
+  srcToken?: Token;
+  dstToken?: Token;
+  srcUsd: string;
+  dstUsd: string;
+  orderType?: OrderType;
+  dstMinAmount: string;
+  dstMinAmountUsd: string;
+  limitPrice: OrderDetailFieldWithMeta;
+  deadline: OrderDetailFieldWithMeta;
+  srcAmount: OrderDetailFieldWithMeta;
+  dstAmount: { value: string; usd: string };
+  sizePerTrade: OrderDetailFieldWithMeta;
+  totalTrades: OrderDetailFieldWithMeta;
+  minDestAmountPerTrade: OrderDetailFieldWithMeta;
+  tradeInterval: OrderDetailFieldWithMeta;
+  triggerPrice: OrderDetailFieldWithMeta;
+  recipient: OrderDetailField<string>;
+  createdAt: OrderDetailField<number | undefined>;
+  id: OrderDetailField<string | undefined>;
+  amountInFilled: OrderDetailField<string>;
+  amountOutFilled: OrderDetailFieldWithToken;
+  progress: OrderDetailField<number | undefined>;
+  executionPrice: OrderDetailField<string | undefined>;
+  version: OrderDetailField<number | undefined>;
+};
 
 export interface Translations {
   expirationTooltip: string;
@@ -456,7 +504,7 @@ export interface State {
 
   selectedOrderID?: string;
   showSelectedOrderFills?: boolean;
-  orderHistoryStatusFilter?: OrderStatus;
+  orderHistoryStatusFilter?: OrderFilter;
 
   cancelOrdersMode?: boolean;
   orderIdsToCancel?: string[];

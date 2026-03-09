@@ -9,12 +9,11 @@ import { useTranslations } from "../../hooks/use-translations";
 import { makeElipsisAddress } from "../../utils";
 import { FormatNumber } from "../format-number";
 import TokenLogo from "../TokenLogo";
-import { Token } from "../../types";
+import { SelectedOrder, Token } from "../../types";
 import { HiArrowRight } from "@react-icons/all-files/hi/HiArrowRight";
 import { IoIosArrowForward } from "@react-icons/all-files/io/IoIosArrowForward";
 import { OrderDetails } from "../order-details";
 import { OrderFill } from "@orbs-network/spot-ui";
-import { useHistoryOrder } from "../../hooks/use-history-order";
 import { useSpotStore } from "../../store";
 
 export const FillsButton = ({ count }: { count: number }) => {
@@ -137,7 +136,7 @@ const FillItem = ({
 export const FillsView = ({
   order,
 }: {
-  order: ReturnType<typeof useHistoryOrder>;
+  order:  SelectedOrder;
 }) => {
   const t = useTranslations();
   const fills = order.original?.fills ?? [];

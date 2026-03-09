@@ -27,6 +27,15 @@ export enum OrderStatus {
   Expired = "EXPIRED",
 }
 
+export enum OrderFilter {
+  All = "ALL",
+  Open = "OPEN",
+  Canceled = "CANCELED",
+  Completed = "COMPLETED",
+  Expired = "EXPIRED",
+}
+
+
 export enum TimeUnit {
   Minutes = 60 * 1000,
   Hours = Minutes * 60,
