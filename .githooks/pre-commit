@@ -1,4 +1,7 @@
 #!/bin/sh
 # Ensure git hooks path is set (e.g. after clone without pnpm install)
-node "$(dirname "$0")/../scripts/setup-git-hooks.mjs" || true
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" && node scripts/setup-git-hooks.mjs || true
+# Always stage version files if changed, so they're included in this commit
+cd "$root" && node scripts/stage-version-files-if-changed.mjs || exit 1
 exit 0
