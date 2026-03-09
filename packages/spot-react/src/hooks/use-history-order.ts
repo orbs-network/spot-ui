@@ -1,7 +1,7 @@
-import { getOrderFillDelayMillis, Order } from "@orbs-network/spot-ui";
+import { getOrderFillDelayMillis, Order, OrderFill } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
 import { useSpotContext } from "../spot-context";
-import { useAmountUi } from "./helper-hooks";
+import { useAmountUi, useNetwork } from "./helper-hooks";
 import {
   useOrderLimitPrice,
   useOrderAvgExecutionPrice,
@@ -11,7 +11,23 @@ import {
 } from "./order-hooks";
 import { useTranslations } from "./use-translations";
 import { useBuildOrderInfo } from "./use-build-order-info";
-import { SelectedOrder } from "../types";
+import { SelectedOrder, Token } from "../types";
+import { getExplorerUrl, toAmountUi } from "../utils";
+
+
+const useFills = (fills?: OrderFill[], srcToken?: Token, dstToken?: Token) => {
+  const network = useNetwork();
+
+  return useMemo(() => {
+    return fills?.map((fill) => ({
+      srcAmount: toAmountUi(fill.inAmount, srcToken?.decimals),
+      dstAmount: toAmountUi(fill.outAmount, dstToken?.decimals),
+      timestamp: fill.timestamp,
+      txHash: fill.txHash,
+      explorerUrl: getExplorerUrl(fill.txHash, network?.id),
+    }));
+  }, [fills, srcToken, dstToken, network])
+}
 
 export const useSelectedOrder = (
   orderId?: string,
@@ -76,11 +92,14 @@ export const useSelectedOrder = (
     orderType: order?.type,
   });
 
+  const fills = useFills(order?.fills, srcToken, dstToken) ?? [];
+  
+
   return useMemo((): SelectedOrder | undefined => {
     if (!order?.id) return undefined;
     return {
       original: order as Order,
-      fills: order?.fills,
+      fills,
       title,
       ...info,
       createdAt: {

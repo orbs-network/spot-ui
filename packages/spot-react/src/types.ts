@@ -1,5 +1,5 @@
 import { CSSProperties, FC, ReactNode } from "react";
-import { Partners, Module, Order, OrderFill, OrderType, SpotConfig, TimeDuration, OrderFilter } from "@orbs-network/spot-ui";
+import { Partners, Module, Order, OrderType, SpotConfig, TimeDuration, OrderFilter } from "@orbs-network/spot-ui";
 import { SwapStatus } from "@orbs-network/swap-ui";
 import { createPublicClient, createWalletClient, TransactionReceipt as _TransactionReceipt, Abi } from "viem";
 export type { Order } from "@orbs-network/spot-ui";
@@ -25,7 +25,12 @@ export type OrderDetailFieldWithMeta = OrderDetailField<string | number> & {
 /** Return type of useHistoryOrder. */
 export type SelectedOrder = {
   original: Order;
-  fills?: OrderFill[];
+  fills?: {
+    srcAmount: string;
+    dstAmount: string;
+    timestamp: number;
+    txHash: string;
+  }[];
   title: string;
   srcToken?: Token;
   dstToken?: Token;
