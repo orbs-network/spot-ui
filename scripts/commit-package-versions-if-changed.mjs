@@ -5,7 +5,8 @@
  */
 
 import { execSync } from 'child_process';
-import { dirname } from 'path';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -14,9 +15,9 @@ const rootDir =
   execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
 
 const VERSION_FILES = [
-  'packages/spot-ui/package.json',
-  'packages/spot-react/package.json',
-  'packages/liquidity-hub-ui/package.json',
+  { path: 'packages/spot-ui/package.json', name: 'spot-ui' },
+  { path: 'packages/spot-react/package.json', name: 'spot-react' },
+  { path: 'packages/liquidity-hub-ui/package.json', name: 'liquidity-hub-sdk' },
 ];
 
 function run(cmd, opts = {}) {
@@ -25,11 +26,20 @@ function run(cmd, opts = {}) {
 
 function hasUncommittedChanges() {
   try {
-    const status = run('git status --porcelain -- ' + VERSION_FILES.join(' ')).trim();
+    const paths = VERSION_FILES.map((f) => f.path).join(' ');
+    const status = run('git status --porcelain -- ' + paths).trim();
     return status.length > 0;
   } catch {
     return false;
   }
+}
+
+function getVersionMessage() {
+  const parts = VERSION_FILES.map(({ path, name }) => {
+    const pkg = JSON.parse(readFileSync(join(rootDir, path), 'utf-8'));
+    return `${name}@${pkg.version}`;
+  });
+  return parts.join(', ');
 }
 
 function main() {
@@ -37,9 +47,11 @@ function main() {
     return 0;
   }
   console.log('[pre-push] Committing package version changes...');
-  run('git add ' + VERSION_FILES.join(' '));
+  run('git add ' + VERSION_FILES.map((f) => f.path).join(' '));
+  const versionMsg = getVersionMessage();
+  const commitMsg = `chore: commit package versions [${versionMsg}]`;
   try {
-    run('git commit -m "chore: commit package versions [spot-ui, spot-react, liquidity-hub-sdk]"', {
+    run(`git commit -m ${JSON.stringify(commitMsg)}`, {
       stdio: 'inherit',
     });
   } catch {
