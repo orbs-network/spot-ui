@@ -1,0 +1,4 @@
+#!/bin/sh
+# Ensure git hooks path is set (e.g. after clone without pnpm install)
+node "$(dirname "$0")/../scripts/setup-git-hooks.mjs" || true
+exit 0
