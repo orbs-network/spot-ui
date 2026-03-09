@@ -236,7 +236,7 @@ export const useOrderAvgExecutionPrice = (
 ) => {
   return useMemo(() => {
     if (!srcToken || !dstToken || !order) return;
-    return getOrderExecutionRate(order, srcToken.decimals, dstToken.decimals);
+    return getOrderExecutionRate(order.srcAmountFilled, order.dstAmountFilled, srcToken.decimals, dstToken.decimals);
   }, [order, srcToken, dstToken]);
 };
 

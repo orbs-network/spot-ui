@@ -14,7 +14,6 @@ export {
   getOrderFillDelayMillis,
   getPartnerChains,
   getOrderExecutionRate,
-  getOrderExcecutionRate,
   getOrderLimitPriceRate,
   getTriggerPricePerTrade,
 } from "./lib/utils";

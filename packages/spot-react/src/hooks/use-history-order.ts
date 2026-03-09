@@ -1,4 +1,4 @@
-import { getOrderFillDelayMillis, Order, OrderFill } from "@orbs-network/spot-ui";
+import { getOrderExecutionRate, getOrderFillDelayMillis, Order, OrderFill } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
 import { useSpotContext } from "../spot-context";
 import { useAmountUi, useNetwork } from "./helper-hooks";
@@ -25,6 +25,7 @@ const useFills = (fills?: OrderFill[], srcToken?: Token, dstToken?: Token) => {
       timestamp: fill.timestamp,
       txHash: fill.txHash,
       explorerUrl: getExplorerUrl(fill.txHash, network?.id),
+      executionRate: getOrderExecutionRate(fill.inAmount, fill.outAmount, srcToken?.decimals, dstToken?.decimals),
     }));
   }, [fills, srcToken, dstToken, network])
 }

@@ -30,6 +30,8 @@ export type SelectedOrder = {
     dstAmount: string;
     timestamp: number;
     txHash: string;
+    explorerUrl: string;
+    executionRate: string;
   }[];
   title: string;
   srcToken?: Token;

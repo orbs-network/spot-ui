@@ -223,23 +223,22 @@ export const getPartnerChains = (partner: Partners) => {
 };
 
 export const getOrderExecutionRate = (
-  order: Order,
-  srcTokenDecimals: number,
-  dstTokenDecimals: number,
+  srcAmountFilled = "",
+  dstAmountFilled = "",
+  srcTokenDecimals = 18,
+  dstTokenDecimals = 18,
 ) => {
   if (
-    !BN(order.srcAmountFilled || 0).gt(0) ||
-    !BN(order.dstAmountFilled || 0).gt(0)
+    !BN(srcAmountFilled || 0).gt(0) ||
+    !BN(dstAmountFilled || 0).gt(0)
   )
     return "";
-  const srcFilledAmountUi = amountUi(srcTokenDecimals, order.srcAmountFilled);
-  const dstFilledAmountUi = amountUi(dstTokenDecimals, order.dstAmountFilled);
+  const srcFilledAmountUi = amountUi(srcTokenDecimals, srcAmountFilled);
+  const dstFilledAmountUi = amountUi(dstTokenDecimals, dstAmountFilled);
 
   return BN(dstFilledAmountUi).div(srcFilledAmountUi).toFixed();
 };
 
-/** @deprecated Use getOrderExecutionRate */
-export const getOrderExcecutionRate = getOrderExecutionRate;
 
 export const getOrderLimitPriceRate = (
   order: Order,
