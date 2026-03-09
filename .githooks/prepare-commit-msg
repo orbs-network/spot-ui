@@ -1,0 +1,9 @@
+#!/bin/sh
+# Append package versions to commit message when version files are staged
+# $1 = commit message file path, $2 = source (empty, "message", "merge", "squash", etc.)
+if [ -z "$1" ] || [ "$2" = "merge" ] || [ "$2" = "squash" ]; then
+  exit 0
+fi
+root=$(git rev-parse --show-toplevel) || exit 0
+cd "$root" && node scripts/append-versions-to-commit-msg.mjs "$1" || true
+exit 0

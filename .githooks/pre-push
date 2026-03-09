@@ -1,5 +1,0 @@
-#!/bin/sh
-# On every push, commit any uncommitted version changes to spot-ui, spot-react, liquidity-hub-sdk
-root=$(git rev-parse --show-toplevel) || exit 1
-cd "$root" && node scripts/commit-package-versions-if-changed.mjs || exit 1
-exit 0
