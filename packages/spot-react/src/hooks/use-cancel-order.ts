@@ -13,7 +13,7 @@ import { useGetTransactionReceipt } from "./use-get-transaction-receipt";
 import { useSpotStore } from "../store";
 import { useOrdersQuery } from "./order-hooks";
 
-const useRefetchUntilStatusSynced = () => {
+export const useRefetchUntilStatusSynced = () => {
   const { refetch: refetchOrders } = useOrdersQuery();
 
   return useMutation({

@@ -30,6 +30,7 @@ import { useOrder, useOrderDisplay } from "./hooks/use-order";
 import { Portal } from "./components/portal";
 import { useSignOrder, useSubmitOrderMutation } from "./hooks/use-submit-order";
 import { useRePermitOrderData } from "./hooks/use-repermit-order-data";
+import { useRefetchUntilStatusSynced } from "./hooks/use-cancel-order";
 
 // Set the UI version in spot-sdk for analytics
 setUIVersion(pkg.version);
@@ -74,4 +75,5 @@ export {
   useSignOrder,
   useOrderType,
   useRePermitOrderData,
+  useRefetchUntilStatusSynced
 };
