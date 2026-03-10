@@ -1,7 +1,6 @@
 import Configs from "@orbs-network/twap/configs.json";
 import { networks } from "./networks";
 import { Config, TimeDuration, TimeUnit } from "./types";
-import { getQueryParam } from "./utils";
 
 const DEV_API_URL = "https://order-sink-dev.orbs.network";
 const PROD_API_URL = "https://order-sink.orbs.network";
@@ -14,14 +13,6 @@ export const setApiMode = (mode: "prod" | "dev") => {
 };
 
 export const isDev = () => {
-
-  const env = getQueryParam(QUERY_PARAMS.ENV);
-  if (env === "prod") {
-    return false;
-  }
-  if (env === "dev") {
-    return true;
-  }
 
   // 2. Runtime configuration (set via setApiMode)
   if (_runtimeMode === "prod") {
