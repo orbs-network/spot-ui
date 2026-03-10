@@ -81,7 +81,6 @@ export const THE_GRAPH_ORDERS_API = {
     .id]: `${THE_GRAPH_API}/FxZ1vMwE5Xy1qvKvZENUMz4vhW8Sh4vXJf9Vp7o17pTx`,
   [networks.bera
     .id]: getGfURL("berachain"),
-
   [networks.flare.id]: getGfURL("flare"),
   [networks.cronosZkEvm.id]: getGfURL("cronos-zkevm"),
 };
