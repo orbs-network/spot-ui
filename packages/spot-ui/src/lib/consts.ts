@@ -79,6 +79,7 @@ export const THE_GRAPH_ORDERS_API = {
 export const zeroAddress = "0x0000000000000000000000000000000000000000";
 
 export const nativeTokenAddresses = [
+  
   zeroAddress,
   "0x0000000000000000000000000000000000001010",
   "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
