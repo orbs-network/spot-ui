@@ -83,6 +83,7 @@ export const THE_GRAPH_ORDERS_API = {
     .id]: getGfURL("berachain"),
   [networks.flare.id]: getGfURL("flare"),
   [networks.cronosZkEvm.id]: getGfURL("cronos-zkevm"),
+  
 };
 
 export const zeroAddress = "0x0000000000000000000000000000000000000000";
