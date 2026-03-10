@@ -20,13 +20,15 @@ const useFills = (fills?: OrderFill[], srcToken?: Token, dstToken?: Token) => {
 
   return useMemo(() => {
     return fills?.map((fill) => ({
+      srcToken: srcToken!,
+      dstToken: dstToken!,
       srcAmount: toAmountUi(fill.inAmount, srcToken?.decimals),
       dstAmount: toAmountUi(fill.outAmount, dstToken?.decimals),
       timestamp: fill.timestamp,
       txHash: fill.txHash,
       explorerUrl: getExplorerUrl(fill.txHash, network?.id),
       executionRate: getOrderExecutionRate(fill.inAmount, fill.outAmount, srcToken?.decimals, dstToken?.decimals),
-    }));
+    })).filter((fill) => fill.srcToken !== undefined && fill.dstToken !== undefined);
   }, [fills, srcToken, dstToken, network])
 }
 

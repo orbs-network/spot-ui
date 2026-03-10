@@ -29,7 +29,7 @@ export const SpotsOrders = () => {
     openOrdersCount,
   } = useOrderHistoryPanel();
   const [open, setOpen] = useState(false);
-
+  
 
   const title = useMemo(() => {
     if (isDisplayingOrderFills) {

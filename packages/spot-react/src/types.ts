@@ -32,6 +32,8 @@ export type SelectedOrder = {
     txHash: string;
     explorerUrl: string;
     executionRate: string;
+    srcToken: Token;
+    dstToken: Token;
   }[];
   title: string;
   srcToken?: Token;

@@ -13,7 +13,7 @@ import {
 } from "@orbs-network/spot-ui";
 
 export const useRePermitOrderData = () => {
-  const { srcToken, dstToken, account, chainId, slippage, config, module } =
+  const { srcToken, dstToken, account, chainId, slippage, config, module, fees } =
     useSpotContext();
   const { amountWei: srcAmount } = useSrcAmount();
   const { amountPerTradeWei: srcAmountPerTrade, totalTrades } = useTrades();
@@ -39,6 +39,7 @@ export const useRePermitOrderData = () => {
       triggerAmountPerTrade: triggerPricePerTrade,
       config,
       module,
+      feePercentage: fees,
     });
   }, [
     srcToken,
@@ -54,5 +55,6 @@ export const useRePermitOrderData = () => {
     fillDelayMillis,
     minDestAmountPerTrade,
     triggerPricePerTrade,
+    fees,
   ]);
 };
