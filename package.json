@@ -10,11 +10,7 @@
     "build:spot-ui": "pnpm --filter @orbs-network/spot-ui build",
     "build:liquidity-hub": "pnpm --filter @orbs-network/liquidity-hub-sdk build",
     "build:spot-react": "pnpm --filter @orbs-network/spot-react build",
-    "build:web": "pnpm --filter web build",
-    "publish:spot-ui": "node scripts/publish-spot-ui.mjs",
-    "publish:spot-react": "node scripts/publish-spot-react.mjs",
-    "publish:liquidity-hub-sdk": "node scripts/publish-liquidity-hub.mjs",
-    "login-npm": "npm login --auth-type=web"
+    "build:web": "pnpm --filter web build"
   },
   "devDependencies": {
     "@inquirer/prompts": "^7.2.0",
