@@ -12,7 +12,7 @@ import {
 import BN from "bignumber.js";
 import { eqIgnoreCase, getExchanges } from "../utils";
 import { THE_GRAPH_ORDERS_API } from "../consts";
-type RawStatus = "CANCELED" | "COMPLETED" | null;
+type RawStatus = "CANCELLED" | "COMPLETED" | null;
 
 const normalizeSubgraphList = <T>(list?: T[], transform?: (val: T) => string) =>
   list && list.length ? list.map(transform || ((v) => `${v}`)) : undefined;
@@ -543,7 +543,7 @@ const parseOrderStatus = (
   status?: RawStatus
 ): OrderStatus => {
   if (progress === 100) return OrderStatus.Completed;
-  if (status === "CANCELED") return OrderStatus.Canceled;
+  if (status === "CANCELLED") return OrderStatus.Cancelled;
   if (status === "COMPLETED") return OrderStatus.Completed;
 
   if (deadline > Date.now()) return OrderStatus.Open;

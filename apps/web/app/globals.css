@@ -476,7 +476,7 @@
   font-weight: 500;
 }
 
-.twap-orders__list-item-CANCELED   .twap-orders__list-item-header-status {
+.twap-orders__list-item-CANCELLED   .twap-orders__list-item-header-status {
   color: var(--destructive);
 }
 

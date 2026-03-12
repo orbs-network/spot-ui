@@ -58,7 +58,7 @@ const getStatus = (order: OrderV2, progress: number) => {
   if (["pending", "eligible"].includes(order.metadata.status))
     return OrderStatus.Open;
   if (order.metadata.description.toLowerCase() === "cancelled by contract")
-    return OrderStatus.Canceled;
+    return OrderStatus.Cancelled;
 
   return OrderStatus.Expired;
 };

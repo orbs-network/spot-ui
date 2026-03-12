@@ -21,7 +21,7 @@
   "Open": "Open",
   "Completed": "Completed",
   "Expired": "Expired",
-  "Canceled": "Canceled",
+  "Cancelled": "Cancelled",
   "cancelOrder": "Cancel Order",
   "minReceivedPerTrade": "Min. received per trade",
   "triggerPricePerChunk": "Trigger Price per trade",

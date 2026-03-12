@@ -27,7 +27,7 @@ export const useRefetchUntilStatusSynced = () => {
 
         const allCanceled = orderIds.every((id) => {
           const order = orders.find((o) => o.id === id);
-          return order?.status === OrderStatus.Canceled;
+          return order?.status === OrderStatus.Cancelled;
         });
 
         if (allCanceled) {

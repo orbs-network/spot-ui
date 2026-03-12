@@ -102,7 +102,7 @@ export interface Translations {
   Open: string;
   Completed: string;
   Expired: string;
-  Canceled: string;
+  Cancelled: string;
   minReceivedPerTrade: string;
   triggerPricePerChunk: string;
   maxChunksError: string;

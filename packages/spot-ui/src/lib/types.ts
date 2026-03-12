@@ -22,7 +22,7 @@ export enum Module {
 
 export enum OrderStatus {
   Open = "OPEN",
-  Canceled = "CANCELED",
+  Cancelled = "CANCELLED",
   Completed = "COMPLETED",
   Expired = "EXPIRED",
 }
@@ -30,7 +30,7 @@ export enum OrderStatus {
 export enum OrderFilter {
   All = "ALL",
   Open = "OPEN",
-  Canceled = "CANCELED",
+  Cancelled = "CANCELLED",
   Completed = "COMPLETED",
   Expired = "EXPIRED",
 }

@@ -183,8 +183,8 @@ const filterAndSortOrders = (
   if (filter === OrderFilter.Completed) {
     _orders = _orders.filter((order) => order.status === OrderStatus.Completed);
   }
-  if (filter === OrderFilter.Canceled) {
-    _orders = _orders.filter((order) => order.status === OrderStatus.Canceled);
+  if (filter === OrderFilter.Cancelled) {
+    _orders = _orders.filter((order) => order.status === OrderStatus.Cancelled);
   }
   if (filter === OrderFilter.Expired) {
     _orders = _orders.filter((order) => order.status === OrderStatus.Expired);
@@ -272,8 +272,8 @@ export const useGetOrderFilterText = () => {
           return t("Completed");
         case OrderFilter.Expired:
           return t("Expired");
-        case OrderFilter.Canceled:
-          return t("Canceled");
+        case OrderFilter.Cancelled:
+          return t("Cancelled");
         default:
           return t("allOrders");
       }

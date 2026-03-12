@@ -333,8 +333,8 @@ const useOrderStatusText = () => {
         return t("Completed") || "";
       case OrderStatus.Expired:
         return t("Expired") || "";
-      case OrderStatus.Canceled:
-        return t("Canceled") || "";
+      case OrderStatus.Cancelled:
+        return t("Cancelled") || "";
 
         break;
 
