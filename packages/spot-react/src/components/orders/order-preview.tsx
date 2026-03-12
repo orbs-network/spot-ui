@@ -98,7 +98,7 @@ export const OrderPreview = () => {
 
   return (
     <Context.Provider value={{ order }}>
-      <div className="twap-orders__selected-order">{content}</div>
+      <div className={`twap-orders__selected-order ${`twap-orders__selected-order-${order.original.status.toLowerCase()}`}`}>{content}</div>
     </Context.Provider>
   );
 };

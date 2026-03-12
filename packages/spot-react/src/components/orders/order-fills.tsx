@@ -11,7 +11,7 @@ import { FormatNumber } from "../format-number";
 import TokenLogo from "../TokenLogo";
 import { SelectedOrder, Token } from "../../types";
 import { HiArrowRight } from "@react-icons/all-files/hi/HiArrowRight";
-import { IoIosArrowForward } from "@react-icons/all-files/io/IoIosArrowForward";
+import { IoIosArrowDown } from "@react-icons/all-files/io/IoIosArrowDown";
 import { OrderDetails } from "../order-details";
 import { OrderFill } from "@orbs-network/spot-ui";
 import { useSpotStore } from "../../store";
@@ -30,7 +30,7 @@ export const FillsButton = ({ count }: { count: number }) => {
           ({count})
         </span>
       </p>
-      <IoIosArrowForward />
+      <IoIosArrowDown />
     </div>
   );
 };
