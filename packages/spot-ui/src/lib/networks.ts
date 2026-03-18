@@ -392,7 +392,7 @@ export const networks = {
     },
     wToken: {
       symbol: "WETH",
-      address: "0x4200000000000000000000000000000000000006", // standard L2 WETH address (example, verify if custom)
+      address: "0xee7d8bcfb72bc1880d0cf19822eb0a2e6577ab62", // standard L2 WETH address (example, verify if custom)
       decimals: 18,
       logoUrl: "https://katana.network/assets/weth-logo.svg",
     },

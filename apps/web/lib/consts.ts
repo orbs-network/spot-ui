@@ -4,6 +4,7 @@ import {
   base,
   berachain,
   bsc,
+  katana,
   linea,
   mainnet,
   monad,
@@ -123,6 +124,10 @@ export const POPULAR_TOKENS = {
     "0x549943e04f40284185054145c6e4e9568c1d3241",
     "0x0555e30da8f98308edb960aa94c0db47230d2b9c",
     "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+  ],
+  [katana.id]: [
+    "0xee7d8bcfb72bc1880d0cf19822eb0a2e6577ab62",
+    "0x203a662b0bd271a6ed5a60edfbd04bfce608fd36"
   ],
 };
 

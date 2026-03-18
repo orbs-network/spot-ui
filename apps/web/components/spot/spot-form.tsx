@@ -28,7 +28,6 @@ import {
   useTriggerPricePanel,
   useInvertTradePanel,
   useSubmitOrderButton,
-  useOrder,
   formatDecimals,
   useFormatNumber,
 } from "@orbs-network/spot-react";

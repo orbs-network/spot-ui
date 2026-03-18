@@ -26,7 +26,7 @@ export const useSubmitOrderPanel = () => {
       resetTypedInputAmount();
     }
     // Reset execution state when closing unless submit is in progress
-    if (swapExecution?.status !== SwapStatus.LOADING) {
+    if (swapExecution?.status && swapExecution?.status !== SwapStatus.LOADING) {
       resetSwap();
     }
   }, [swapExecution?.status, resetSwap, resetTypedInputAmount]);

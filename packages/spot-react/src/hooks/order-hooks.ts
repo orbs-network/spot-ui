@@ -108,23 +108,23 @@ const useOrderFilledCallback = () => {
       const updatedOrders: Order[] = [];
 
       if (prevOrders) {
-        prevOrders.forEach((prevOrder) => {
-          const currentOrder = orders.find((o) => o.id === prevOrder.id);
+        
+        prevOrders
+          .filter((o) => o.version === 2)
+          .forEach((prevOrder) => {
+            const currentOrder = orders.find((o) => o.id === prevOrder.id);
+            
+            if (!currentOrder) return;
 
-          if (
-            !currentOrder?.twapAddress &&
-            prevOrder.twapAddress &&
-            currentOrder &&
-            currentOrder.progress !== prevOrder.progress
-          ) {
-            isProgressUpdated = true;
-            updatedOrders.push(currentOrder);
-
-            if (currentOrder.status === OrderStatus.Completed) {
-              callbacks?.onOrderFilled?.(currentOrder);
+            if (currentOrder.progress !== prevOrder.progress) {
+              isProgressUpdated = true;
+              updatedOrders.push(currentOrder);
+              if (currentOrder.status === OrderStatus.Completed) {
+                
+                callbacks?.onOrderFilled?.(currentOrder);
+              }
             }
-          }
-        });
+          });
       }
       // refetch balances when orders progress is updated
       if (isProgressUpdated) {
@@ -236,7 +236,12 @@ export const useOrderAvgExecutionPrice = (
 ) => {
   return useMemo(() => {
     if (!srcToken || !dstToken || !order) return;
-    return getOrderExecutionRate(order.srcAmountFilled, order.dstAmountFilled, srcToken.decimals, dstToken.decimals);
+    return getOrderExecutionRate(
+      order.srcAmountFilled,
+      order.dstAmountFilled,
+      srcToken.decimals,
+      dstToken.decimals,
+    );
   }, [order, srcToken, dstToken]);
 };
 
@@ -293,10 +298,6 @@ const useOrderFilters = () => {
     });
   }, [getOrderFilterText]);
 };
-
-
-
-
 
 export const useOrderHistoryPanel = () => {
   const {
@@ -367,9 +368,10 @@ export const useOrderHistoryPanel = () => {
     () => updateState({ showSelectedOrderFills: false }),
     [updateState],
   );
-  
+
   const selectedFilter = useMemo(() => {
-    const value = selectedOrderFilter || orderFilters[0]!.value as OrderFilter;
+    const value =
+      selectedOrderFilter || (orderFilters[0]!.value as OrderFilter);
     return orderFilters.find((item) => item.value === value)!;
   }, [orderFilters, selectedOrderFilter]);
 

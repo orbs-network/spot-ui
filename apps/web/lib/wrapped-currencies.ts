@@ -130,7 +130,7 @@ export const wCurrencies: Record<number, Currency> = {
     },
     747474: {
       symbol: "WETH",
-      address: "0x4200000000000000000000000000000000000006",
+      address: "0xee7d8bcfb72bc1880d0cf19822eb0a2e6577ab62",
       decimals: 18,
       logoUrl: "https://katana.network/assets/weth-logo.svg",
       name: "Wrapped Ether",

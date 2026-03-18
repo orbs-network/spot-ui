@@ -3,7 +3,7 @@ import { State, SwapExecution } from "./types";
 
 
 interface SpotStore {
-  resetState: () => void;
+  resetState: (data?: Partial<State>) => void;
   updateState: (value: Partial<State>) => void;
   updateSwapExecution: (value: Partial<SwapExecution>) => void;
   resetSwapExecution: (value?: Partial<SwapExecution>) => void;
@@ -21,7 +21,7 @@ export const useSpotStore = create<SpotStore>((set, get) => ({
   updateState: (value: Partial<State>) => set((state) => ({ state: { ...state.state, ...value } })),
   updateSwapExecution: (data: Partial<SwapExecution>) => set((state) => ({ state: { ...state.state, swapExecution: { ...state.state.swapExecution, ...data } } })),
   resetSwapExecution: (data?: Partial<SwapExecution>) => set((state) => ({ state: { ...state.state, swapExecution: { ...initialState.swapExecution, ...data } } })),
-  resetState: () => {
+  resetState: (data?: Partial<State>) => {
     set({
       state: {
         ...initialState,
@@ -32,6 +32,7 @@ export const useSpotStore = create<SpotStore>((set, get) => ({
           acceptedSrcAmount: undefined,
         },
         isMarketOrder: get().state.isMarketOrder,
+        ...data,
       },
     });
     setTimeout(() => {
