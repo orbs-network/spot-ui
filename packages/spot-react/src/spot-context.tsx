@@ -214,6 +214,8 @@ const Content = (props: TwapProps) => {
     analytics.init(config, minChunkSizeUsd, chainId);
   }, [config, chainId, minChunkSizeUsd]);
 
+  
+
   return (
     <SpotContext.Provider
       value={{

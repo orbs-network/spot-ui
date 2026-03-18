@@ -357,6 +357,7 @@ const getTwapConfig = (partner: Partners, chainId: number) => {
 export const getConfig = (_dex: Partners, chainId = 0): SpotConfig => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { abi, ...dexConfig } = Spot.config(chainId, _dex);
+console.log({dexConfig});
 
   const result = {
     ...dexConfig,

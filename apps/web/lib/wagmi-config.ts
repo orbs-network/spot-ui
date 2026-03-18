@@ -15,6 +15,8 @@ import {
 } from "viem/chains";
 import { useIsSpotTab } from "./hooks/use-tabs";
 import { useMemo } from "react";
+import { katanaChain } from "./chains";
+
 
 const MAIN_CONFIG = getDefaultConfig({
   pollingInterval: 60_0000,
@@ -48,7 +50,8 @@ const SPOT_CONFIG = getDefaultConfig({
     avalanche,
     monad,
     arbitrum,
-    mainnet
+    mainnet,
+    katanaChain
   ],
 });
 
