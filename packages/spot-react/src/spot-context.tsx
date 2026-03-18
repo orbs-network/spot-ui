@@ -125,7 +125,7 @@ const Listeners = (props: TwapProps) => {
     if (props.module === Module.LIMIT) {
       updateStore({ isMarketOrder: false });
     }
-    if (Number(SPOT_VERSION) >= 2 && props.module === Module.TAKE_PROFIT) {
+    if (Number(SPOT_VERSION) <= 2 && props.module === Module.TAKE_PROFIT) {
       updateStore({ isMarketOrder: true });
     }
   }, [props.module]);
