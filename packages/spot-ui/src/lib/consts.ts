@@ -9,7 +9,7 @@ const PROD_API_URL = "https://order-sink.orbs.network";
 const PROD_API_URL_V2 = "https://order-sink-v2.orbs.network";
 
 
-export const SPOT_VERSION = spotPkg.version;
+export const SPOT_VERSION = spotPkg.version.split(".")[0];
 
 
 export const getApiEndpoint = (isDev: boolean) => {
