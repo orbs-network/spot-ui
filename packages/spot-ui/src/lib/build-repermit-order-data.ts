@@ -24,7 +24,7 @@ type Props = {
   triggerAmountPerTrade?: string;
   config: SpotConfig;
   module: Module;
-  feePercentage: number
+  feePercentage?: number
 };
 
 const getSharedOrderData = (
@@ -146,7 +146,6 @@ const buildRePermitOrderDataDev = ({
   triggerAmountPerTrade = "0",
   config,
   module,
-  feePercentage
 }: Props) => {
   const { nonce, epoch, deadline, freshness } = getSharedOrderData(
     fillDelayMillis,
@@ -156,7 +155,6 @@ const buildRePermitOrderDataDev = ({
   const start = Math.floor(Date.now() / 1000).toString();
   const limit = dstMinAmountPerTrade
 
-  const feeBps = feePercentage * 100;
 
   const triggerLower =
     module === Module.STOP_LOSS
@@ -181,7 +179,7 @@ const buildRePermitOrderDataDev = ({
       exchange: {
         adapter: config.adapter,
         ref: config.fee,
-        share: feeBps,
+        share: 0,
         data: "0x",
       },
       swapper: account as Address,
