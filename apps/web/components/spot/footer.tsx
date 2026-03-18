@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
-import { getPartners } from "@orbs-network/spot-ui";
+import { getPartners, SPOT_VERSION } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
 import dynamic from "next/dynamic";
 import { Skeleton } from "../ui/skeleton";
@@ -19,8 +19,6 @@ const ReactJson = dynamic(() => import("react-json-view"), {
   ssr: false,
   loading: () => <Skeleton className="w-full h-[200px]" />,
 });
-
-const SPOT_VERSION = pkg.version;
 
 const ConfigDialog = () => {
   const { partner } = useSwapParams();
