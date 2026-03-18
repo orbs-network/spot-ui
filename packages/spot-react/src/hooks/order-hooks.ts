@@ -137,7 +137,7 @@ const useOrderFilledCallback = () => {
 };
 
 export const useOrdersQuery = () => {
-  const { account, config, chainId } = useSpotContext();
+  const { account, config, chainId, isDev } = useSpotContext();
 
   const queryKey = useOrdersQueryKey();
   const orderFilledCallback = useOrderFilledCallback();
@@ -154,6 +154,7 @@ export const useOrdersQuery = () => {
         chainId,
         config,
         account,
+        isDev,
       });
 
       orderFilledCallback(orders);

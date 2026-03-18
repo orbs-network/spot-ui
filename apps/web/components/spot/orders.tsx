@@ -11,7 +11,6 @@ import { Button } from "../ui/button";
 import { IconButton } from "../ui/icon-button";
 import { DialogHeader } from "../ui/dialog";
 import { SpotSelectMenu } from "./components";
-import { SPOT_VERSION } from "@/lib/consts";
 import { Spinner } from "../ui/spinner";
 
 export const SpotsOrders = () => {

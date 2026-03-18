@@ -75,8 +75,10 @@ export const SpotFooter = () => {
       <p className="text-[16px] font-bold text-foreground/80">
         Spot: v{SPOT_VERSION} 
       </p>
-      <div className="w-px h-4 bg-foreground/80" />
-      <p className="text-[16px] font-bold text-foreground/80">Env: {envMode === 'prod' ? 'Prod' : 'Dev'}</p>
+      {Number(SPOT_VERSION) >= 2 &&  <>
+        <div className="w-px h-4 bg-foreground/80" />
+        <p className="text-[16px] font-bold text-foreground/80">Env: {envMode === 'prod' ? 'Prod' : 'Dev'}</p>
+      </>}
       {demo && (
         <Button variant="secondary" onClick={() => window.open(demo, "_blank")}>
           Demo

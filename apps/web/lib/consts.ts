@@ -62,8 +62,6 @@ export const DEFAULT_TOKENS = {
   },
 };
 
-export const SPOT_VERSION = process.env.NEXT_PUBLIC_SPOT_VERSION as '1' | '2' || '1';
-
 export const POPULAR_TOKENS = {
   [bsc.id]: [
     "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",

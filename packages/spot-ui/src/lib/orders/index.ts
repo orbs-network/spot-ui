@@ -10,6 +10,7 @@ export const getAccountOrders = async ({
   limit,
   config,
   account,
+  isDev = false,
 }: {
   signal?: AbortSignal;
   page?: number;
@@ -17,10 +18,11 @@ export const getAccountOrders = async ({
   chainId: number;
   config?: SpotConfig;
   account: string;
+  isDev?: boolean;
 }): Promise<Order[]> => {    
   const allOrders = await Promise.all([
     !config ? Promise.resolve([]) : getV1Orders({ chainId, signal, page, limit, filters: { accounts: [account], configs: config.twapConfig ? [config.twapConfig] : [] } }),
-    getV2Orders({ chainId, signal, account, exchange: config?.adapter }),
+    getV2Orders({ chainId, signal, account, exchange: config?.adapter, isDev }),
   ]).then(([graphOrders, apiOrders]) => {
     return [...graphOrders, ...apiOrders];
   });

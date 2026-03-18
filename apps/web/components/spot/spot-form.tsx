@@ -30,6 +30,7 @@ import {
   useSubmitOrderButton,
   formatDecimals,
   useFormatNumber,
+  SPOT_VERSION,
 } from "@orbs-network/spot-react";
 import { Currency, Field, SwapType } from "@/lib/types";
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
@@ -68,7 +69,6 @@ import {
 import { SpotsOrders } from "./orders";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { SpotFooter } from "./footer";
-import { SPOT_VERSION } from "@/lib/consts";
 
 const { useCallbacks } = SpotHooks;
 const Context = createContext<{
@@ -509,7 +509,7 @@ const LimitPricePanel = () => {
 
   
 
-  if ( SPOT_VERSION === '1' &&  swapModule === Module.TAKE_PROFIT) {
+  if ( Number(SPOT_VERSION) < 2 &&  swapModule === Module.TAKE_PROFIT) {
     return null;
   }
 

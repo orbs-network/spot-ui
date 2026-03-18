@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SPOT_VERSION } from "@orbs-network/spot-ui";
 
 const NAV_ITEMS = [
   { label: "Swap", path: "/", external: false },
@@ -51,7 +52,7 @@ export function Navigation() {
         );
       })}
       </div>
-      <Select value={envMode} onValueChange={(v) => setEnvMode(v)}>
+     {Number(SPOT_VERSION) >= 2 && <Select value={envMode} onValueChange={(v) => setEnvMode(v)}>
         <SelectTrigger size="sm">
           <SelectValue />
         </SelectTrigger>
@@ -59,7 +60,7 @@ export function Navigation() {
           <SelectItem value="prod">Prod</SelectItem>
           <SelectItem value="dev">Dev</SelectItem>
         </SelectContent>
-      </Select>
+      </Select>}
       <ConnectButton showBalance={false} />
     </nav>
   );

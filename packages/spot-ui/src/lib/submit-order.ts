@@ -13,6 +13,9 @@ export const submitOrder = async (order: RePermitOrder, signature: Signature, is
 
     analytics.onCreateOrderRequest();
 
+    console.log(`${getApiEndpoint(isDev)}/orders/new`);
+    
+
     const response = await fetch(`${getApiEndpoint(isDev)}/orders/new`, {
       method: "POST",
       body: JSON.stringify(body),

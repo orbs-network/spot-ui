@@ -6,12 +6,21 @@ import spotPkg from "@orbs-network/spot/package.json";
 
 const DEV_API_URL = "https://order-sink-dev.orbs.network";
 const PROD_API_URL = "https://order-sink.orbs.network";
+const PROD_API_URL_V2 = "https://order-sink-v2.orbs.network";
+
 
 export const SPOT_VERSION = spotPkg.version;
 
 
 export const getApiEndpoint = (isDev: boolean) => {
-  return isDev ? DEV_API_URL : PROD_API_URL;
+  const isSpotV2 = Number(SPOT_VERSION) >= 2;
+  if(isDev) {
+    return DEV_API_URL
+  }
+  if(isSpotV2) {
+    return PROD_API_URL_V2;
+  }
+  return PROD_API_URL;
 };
 export const SUGGEST_CHUNK_VALUE = 100;
 
