@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useSwapParams } from "@/lib/hooks/use-swap-params";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const NAV_ITEMS = [
   { label: "Swap", path: "/", external: false },
@@ -12,6 +20,7 @@ const NAV_ITEMS = [
 
 export function Navigation() {
   const pathname = usePathname();
+  const { envMode, setEnvMode } = useSwapParams();
 
   return (
     <nav className="sticky top-0 z-50 flex items-center gap-2 border-b border-border bg-background px-4 py-3">
@@ -42,6 +51,15 @@ export function Navigation() {
         );
       })}
       </div>
+      <Select value={envMode} onValueChange={(v) => setEnvMode(v)}>
+        <SelectTrigger size="sm">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="prod">Prod</SelectItem>
+          <SelectItem value="dev">Dev</SelectItem>
+        </SelectContent>
+      </Select>
       <ConnectButton showBalance={false} />
     </nav>
   );

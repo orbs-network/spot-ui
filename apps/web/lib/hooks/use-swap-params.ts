@@ -15,6 +15,7 @@ export const useSwapParams = () => {
   });
   const [swapType, setSwapType] = useQueryParam("swapType", StringParam);
   const [partner, setPartner] = useQueryParam("partner", StringParam);
+  const [envMode, setEnvMode] = useQueryParam("env", StringParam);
 
   const { chainId } = useConnection();
   const defaultTokens = useMemo(() => {
@@ -64,6 +65,8 @@ export const useSwapParams = () => {
     partner: selectedPartner,
     setPartner,
     setCurrencies,
-    parsedPartner: selectedPartner?.split("_")[0]
+    parsedPartner: selectedPartner?.split("_")[0],
+    envMode: (envMode === "dev" ? "dev" : "prod") as "prod" | "dev",
+    setEnvMode,
   };
 };

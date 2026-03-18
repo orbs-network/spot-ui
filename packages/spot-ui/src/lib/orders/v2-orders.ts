@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-constant-condition */
-import { getApiEndpoint, isDev, maxUint256 } from "../consts";
+import { getApiEndpoint, maxUint256, SPOT_VERSION } from "../consts";
 import { OrderStatus, OrderType, OrderV2, Order, OrderFill } from "../types";
 import BN from "bignumber.js";
+
 
 const getOrderType = (order: OrderV2) => {
   const isLimit = BN(order.order.witness.output.limit || 0).gt(1);
@@ -104,7 +105,7 @@ type Amounts = {
   dstMinAmountTotal: string;
 };
 
-const getAmountsDev = (order: OrderV2): Amounts => {
+const getAmountsSpotV2 = (order: OrderV2): Amounts => {
   const {
     triggerLower = "0",
     triggerUpper = "0",
@@ -144,7 +145,7 @@ const getAmountsProd = (order: OrderV2): Amounts => {
 };
 
 const getAmounts = (order: OrderV2): Amounts => {
-  return isDev() ? getAmountsDev(order) : getAmountsProd(order);
+  return Number(SPOT_VERSION) >= 2 ? getAmountsSpotV2(order) : getAmountsProd(order);
 };
 
 export const buildV2Order = (order: OrderV2): Order => {
@@ -192,17 +193,19 @@ export const getOrders = async ({
   signal,
   account,
   exchange,
+  isDev = false,
 }: {
   chainId: number;
   signal?: AbortSignal;
   account?: string;
   exchange?: string;
+  isDev?: boolean;
 }): Promise<Order[]> => {
   try {
     if (!account) return [];
     const exchangeQuery = exchange ? `&exchange=${exchange}` : "";
     const response = await fetch(
-      `${getApiEndpoint()}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
+      `${getApiEndpoint(isDev)}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
       {
         signal,
       },

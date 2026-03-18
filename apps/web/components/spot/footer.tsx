@@ -61,21 +61,22 @@ const ConfigDialog = () => {
 };
 
 export const SpotFooter = () => {
-  const { parsedPartner } = useSwapParams();
+  const { parsedPartner, envMode } = useSwapParams();
 
-  if (process.env.NEXT_PUBLIC_MODE === "prod" || !parsedPartner) {
+  if (!parsedPartner) {
     return null;
   }
 
   const demo = getSpotPartnerDemoLink(parsedPartner);
-  
   const prod = getSpotPartnerProdLink(parsedPartner);
 
   return (
-    <div className="flex flex-row gap-2 items-center  fixed z-10 bottom-0 left-8 right-0 p-4">
-      <p className="text-sm font-medium text-foreground/80">
-        Spot: {SPOT_VERSION}
+    <div className="flex flex-row gap-2 items-center  fixed z-10 bottom-0 left-12 right-0 p-4">
+      <p className="text-[16px] font-bold text-foreground/80">
+        Spot: v{SPOT_VERSION} 
       </p>
+      <div className="w-px h-4 bg-foreground/80" />
+      <p className="text-[16px] font-bold text-foreground/80">Env: {envMode === 'prod' ? 'Prod' : 'Dev'}</p>
       {demo && (
         <Button variant="secondary" onClick={() => window.open(demo, "_blank")}>
           Demo

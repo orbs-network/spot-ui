@@ -396,7 +396,7 @@ export const networks = {
       decimals: 18,
       logoUrl: "https://katana.network/assets/weth-logo.svg",
     },
-    publicRpcUrl: "https://rpc.katana.network",
+    publicRpcUrl: "https://rpc.katanarpc.com",
     logoUrl: "https://katana.network/assets/katana-logo.svg",
     explorer: "https://explorer.katana.garden", // placeholder — replace with actual if known
     eip1559: true,

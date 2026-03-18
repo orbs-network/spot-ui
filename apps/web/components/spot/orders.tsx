@@ -11,7 +11,7 @@ import { Button } from "../ui/button";
 import { IconButton } from "../ui/icon-button";
 import { DialogHeader } from "../ui/dialog";
 import { SpotSelectMenu } from "./components";
-import { isDev } from "@/lib/consts";
+import { SPOT_VERSION } from "@/lib/consts";
 import { Spinner } from "../ui/spinner";
 
 export const SpotsOrders = () => {
@@ -100,7 +100,7 @@ export const SpotsOrders = () => {
           )}
           <Components.Orders />
 
-          {selectedOrder && isDev && (
+          {selectedOrder && (
             <div className="flex flex-row gap-2 items-center justify-between">
               <p className="text-sm text-foreground flex-1 font-medium">
                 Sink Url

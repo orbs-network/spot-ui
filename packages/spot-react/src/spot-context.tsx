@@ -6,7 +6,7 @@ import {
   analytics,
   getPartnerChains,
   getMinChunkSizeUsd,
-  isDev,
+  SPOT_VERSION,
 } from "@orbs-network/spot-ui";
 import {
   TwapProps,
@@ -110,6 +110,8 @@ const Listeners = (props: TwapProps) => {
     });
   }, [props.overrides?.state, props.module]);
 
+  
+
   useEffect(() => {
     updateStore({
       typedLimitPrice: props.overrides?.state?.limitPrice,
@@ -123,7 +125,7 @@ const Listeners = (props: TwapProps) => {
     if (props.module === Module.LIMIT) {
       updateStore({ isMarketOrder: false });
     }
-    if (!isDev() && props.module === Module.TAKE_PROFIT) {
+    if (Number(SPOT_VERSION) >= 2 && props.module === Module.TAKE_PROFIT) {
       updateStore({ isMarketOrder: true });
     }
   }, [props.module]);
@@ -249,6 +251,7 @@ const Content = (props: TwapProps) => {
         dstBalance: props.dstBalance,
         srcToken: props.srcToken,
         dstToken: props.dstToken,
+        isDev: props.isDev,
       }}
     >
       <Listeners {...props} />

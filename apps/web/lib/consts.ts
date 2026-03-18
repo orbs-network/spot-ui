@@ -62,7 +62,7 @@ export const DEFAULT_TOKENS = {
   },
 };
 
-export const isDev = process.env.NEXT_PUBLIC_MODE === "dev";
+export const SPOT_VERSION = process.env.NEXT_PUBLIC_SPOT_VERSION as '1' | '2' || '1';
 
 export const POPULAR_TOKENS = {
   [bsc.id]: [

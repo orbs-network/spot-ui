@@ -1,42 +1,17 @@
 import Configs from "@orbs-network/twap/configs.json";
 import { networks } from "./networks";
 import { Config, TimeDuration, TimeUnit } from "./types";
-import { getQueryParam } from "./utils";
+import spotPkg from "@orbs-network/spot/package.json";
 
 
 const DEV_API_URL = "https://order-sink-dev.orbs.network";
 const PROD_API_URL = "https://order-sink.orbs.network";
 
-// Runtime mode configuration - can be set by consuming apps
-let _runtimeMode: "prod" | "dev" | undefined;
+export const SPOT_VERSION = spotPkg.version;
 
-export const setApiMode = (mode: "prod" | "dev") => {
-  _runtimeMode = mode;
-};
 
-export const isDev = () => {
-
-  const env = getQueryParam(QUERY_PARAMS.ENV);
-  if (env === "prod") {
-    return false;
-  }
-  if (env === "dev") {
-    return true;
-  }
-
-  // 2. Runtime configuration (set via setApiMode)
-  if (_runtimeMode === "prod") {
-    return false;
-  }
-  if (_runtimeMode === "dev") {
-    return true;
-  }
-  return false;
-
-}
-
-export const getApiEndpoint = () => {
-  return isDev() ? DEV_API_URL : PROD_API_URL;
+export const getApiEndpoint = (isDev: boolean) => {
+  return isDev ? DEV_API_URL : PROD_API_URL;
 };
 export const SUGGEST_CHUNK_VALUE = 100;
 

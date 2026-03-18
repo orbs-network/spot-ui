@@ -3,7 +3,7 @@ import { getApiEndpoint } from "./consts";
 import { buildV2Order } from "./orders/v2-orders";
 import { Order, RePermitOrder, Signature } from "./types";
 
-export const submitOrder = async (order: RePermitOrder, signature: Signature): Promise<Order> => {
+export const submitOrder = async (order: RePermitOrder, signature: Signature, isDev = false): Promise<Order> => {
   try {
     const body = {
       signature,
@@ -13,7 +13,7 @@ export const submitOrder = async (order: RePermitOrder, signature: Signature): P
 
     analytics.onCreateOrderRequest();
 
-    const response = await fetch(`${getApiEndpoint()}/orders/new`, {
+    const response = await fetch(`${getApiEndpoint(isDev)}/orders/new`, {
       method: "POST",
       body: JSON.stringify(body),
     });

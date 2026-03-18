@@ -68,7 +68,7 @@ import {
 import { SpotsOrders } from "./orders";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { SpotFooter } from "./footer";
-import { isDev } from "@/lib/consts";
+import { SPOT_VERSION } from "@/lib/consts";
 
 const { useCallbacks } = SpotHooks;
 const Context = createContext<{
@@ -315,6 +315,7 @@ const SubmitSwapError = ({
   code: number;
   onClose: () => void;
 }) => {
+  const { envMode } = useSwapParams();
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 bg-destructive/50 p-2 rounded-md">
@@ -324,7 +325,7 @@ const SubmitSwapError = ({
             Error code: {code}
           </p>
         </div>
-        {process.env.NEXT_PUBLIC_MODE === "dev" && (
+        {envMode === "dev" && (
           <p className="text-sm text-foreground flex-1 font-medium max-h-[200px] overflow-y-auto">
             {message}
           </p>
@@ -508,7 +509,7 @@ const LimitPricePanel = () => {
 
   
 
-  if ( !isDev &&  swapModule === Module.TAKE_PROFIT) {
+  if ( SPOT_VERSION === '1' &&  swapModule === Module.TAKE_PROFIT) {
     return null;
   }
 
@@ -628,6 +629,7 @@ const Prices = () => {
 
 export function SpotForm({ swapType }: { swapType: SwapType }) {
   const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
+  const { envMode } = useSwapParams();
   const { setInputAmount } = useActionHandlers();
   const { chainId, address } = useConnection();
   const { priceProtection } = useSettings();
@@ -675,6 +677,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           refetchBalances={refetchBalances}
           useToken={useSpotToken}
           callbacks={callbacks}
+          isDev={envMode === "dev"}
           components={{
             Button: TwapButton,
             Tooltip: TwapTooltip,

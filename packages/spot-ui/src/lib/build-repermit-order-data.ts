@@ -3,12 +3,12 @@ import { getQueryParam, safeBNString } from "./utils";
 import {
   EIP712_TYPES,
   EIP712_TYPES_DEV,
-  isDev,
   maxUint256,
   QUERY_PARAMS,
   REPERMIT_PRIMARY_TYPE,
 } from "./consts";
 import BN from "bignumber.js";
+import { SPOT_VERSION } from "./consts";
 
 type Props = {
   chainId: number;
@@ -132,7 +132,7 @@ const buildRePermitOrderDataProd = ({
   };
 };
 
-const buildRePermitOrderDataDev = ({
+const buildRePermitOrderDataSpotV2 = ({
   chainId,
   srcToken,
   dstToken,
@@ -223,7 +223,7 @@ const buildRePermitOrderDataDev = ({
 };
 
 export const buildRePermitOrderData = (props: Props) => {
-  return isDev()
-    ? buildRePermitOrderDataDev(props)
+  return Number(SPOT_VERSION) >= 2
+    ? buildRePermitOrderDataSpotV2(props)
     : buildRePermitOrderDataProd(props);
 };

@@ -12,7 +12,7 @@ export const katanaChain: Chain = defineChain({
   },
   rpcUrls: {
     default: {
-      http: [`${process.env.RPC_URL}?chainId=747474&appId=twap-ui`],
+      http: [`https://rpc.katanarpc.com`],
     },
   },
   contracts: {

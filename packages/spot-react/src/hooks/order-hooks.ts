@@ -74,10 +74,10 @@ export const useHistoryOrderTitle = (order?: Order) => {
 };
 
 const useOrdersQueryKey = () => {
-  const { account, config, chainId } = useSpotContext();
+  const { account, config, chainId, isDev } = useSpotContext();
   return useMemo(
-    () => ["useTwapOrderHistoryManager", account, config?.adapter, chainId],
-    [account, config, chainId],
+    () => ["useTwapOrderHistoryManager", account, config?.adapter, chainId, isDev],
+    [account, config, chainId, isDev],
   );
 };
 

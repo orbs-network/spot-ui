@@ -403,6 +403,7 @@ export interface TwapProps {
   components: Components;
   typedInputAmount: string;
   resetTypedInputAmount: () => void;
+  isDev?: boolean;
 }
 
 export interface SpotContextType {
@@ -435,6 +436,7 @@ export interface SpotContextType {
   useToken?: UseToken;
   refetchBalances?: () => void;
   resetTypedInputAmount: () => void;
+  isDev?: boolean;
 }
 
 export type SelectMenuItem = { text: string; value: string | number };
