@@ -22,6 +22,8 @@ const chainIdToName: { [key: number]: string } = {
   [chains.monad.id]: "monad",
   [chains.avalanche.id]: "avax",
   [chains.berachain.id]: "berachain",
+  [chains.optimism.id]: "optimism",
+  [chains.mantle.id]: "mantle",
 };
 
 export interface LlamaPriceResult {
@@ -56,6 +58,7 @@ export async function getUSDPrice(
       }
       return `${chainName}:${tokenAddress}`;
     });
+
 
     // ---- batching (20 tokens per request) ----
     const BATCH_SIZE = 20;

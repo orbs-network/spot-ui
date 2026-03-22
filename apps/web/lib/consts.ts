@@ -7,7 +7,9 @@ import {
   katana,
   linea,
   mainnet,
+  mantle,
   monad,
+  optimism,
   polygon,
   sei,
   sonic,
@@ -59,6 +61,14 @@ export const DEFAULT_TOKENS = {
   [berachain.id]: {
     input: "0x6969696969696969696969696969696969696969",
     output: "0x549943e04f40284185054145c6e4e9568c1d3241",
+  },
+  [optimism.id]: {
+    input: "0x4200000000000000000000000000000000000006",
+    output: "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+  },
+  [mantle.id]: {
+    input: "0x78c1b0c915c4faa5fffa6cabf0219da63d7f4cb8",
+    output: "0x09bc4e0d864854c6afb6eb9a9cdf58ac190d0df9",
   },
 };
 
@@ -127,6 +137,10 @@ export const POPULAR_TOKENS = {
     "0xee7d8bcfb72bc1880d0cf19822eb0a2e6577ab62",
     "0x203a662b0bd271a6ed5a60edfbd04bfce608fd36"
   ],
+  [mantle.id]: [
+    "0x78c1b0c915c4faa5fffa6cabf0219da63d7f4cb8",
+    "0x0555e30da8f98308edb960aa94c0db47230d2b9c",
+  ],
 };
 
 export const NATIVE_TOKENS_LOGO_URLS = {
@@ -144,6 +158,8 @@ export const NATIVE_TOKENS_LOGO_URLS = {
   [monad.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/30495.png",
   [avalanche.id]:
     "https://s2.coinmarketcap.com/static/img/coins/128x128/5805.png",
+  [optimism.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/1027.png",
+  [mantle.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/27075.png",
 };
 
 export const DEFAULT_PRICE_PROTECTION = 5;

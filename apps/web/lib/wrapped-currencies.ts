@@ -148,6 +148,20 @@ export const wCurrencies: Record<number, Currency> = {
       decimals: 18,
       logoUrl: "https://s2.coinmarketcap.com/static/img/coins/128x128/30495.png",
       name: "Wrapped Monad",
-    }
+    },
+    10: {
+      symbol: "WETH",
+      address: "0x4200000000000000000000000000000000000006",
+      decimals: 18,
+      logoUrl: "https://s2.coinmarketcap.com/static/img/coins/128x128/1027.png",
+      name: "Wrapped Ether",
+    },
+    5000: {
+      symbol: "WMNT",
+      address: "0x78c1b0c915c4faa5fffa6cabf0219da63d7f4cb8",
+      decimals: 18,
+      logoUrl: "https://s2.coinmarketcap.com/static/img/coins/128x128/27614.png",
+      name: "Wrapped Mantle",
+    },
   };
   

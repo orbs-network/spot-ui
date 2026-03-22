@@ -12,6 +12,8 @@ import {
   flare,
   avalanche,
   monad,
+  optimism,
+  mantle,
 } from "viem/chains";
 import { useIsSpotTab } from "./hooks/use-tabs";
 import { useMemo } from "react";
@@ -51,7 +53,9 @@ const SPOT_CONFIG = getDefaultConfig({
     monad,
     arbitrum,
     mainnet,
-    katanaChain
+    katanaChain,
+    optimism,
+    mantle
   ],
 });
 

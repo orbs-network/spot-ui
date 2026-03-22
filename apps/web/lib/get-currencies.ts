@@ -26,6 +26,8 @@ const coingekoChainToName = {
   [chains.berachain.id]: "berachain",
   [chains.monad.id]: "monad",
   [chains.avalanche.id]: "avalanche",
+  [chains.optimism.id]: "optimistic-ethereum",
+  [chains.mantle.id]: "mantle",
 };
 
 export const getCurrencies = async (

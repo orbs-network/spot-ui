@@ -104,7 +104,7 @@ const PartnerDisplay = ({
       <span>-</span>
       <p>{chain?.shortname}</p>
       <Avatar className="size-4">
-        <AvatarImage src={chain?.native.logoUrl} />
+        <AvatarImage src={chain?.logoUrl} />
       </Avatar>
       {prodLink && !isSelector ? (
         <small className="text-xs text-gray-500">Prod</small>
