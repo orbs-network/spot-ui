@@ -55,7 +55,7 @@ const SpotSettings = () => {
     <div className="flex flex-col gap-2 w-full">
       <FormItem
         label="Price Protection"
-        tooltip="   The protocol uses an oracle price to help protect users from unfavorable executions. If the execution
+        tooltip="The protocol uses an oracle price to help protect users from unfavorable executions. If the execution
                 price is worse than the oracle price by more than the allowed percentage, the transaction will not be
                 executed."
       >
