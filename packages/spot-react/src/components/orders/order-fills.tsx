@@ -6,7 +6,7 @@ import {
   useExplorerLink,
 } from "../../hooks/helper-hooks";
 import { useTranslations } from "../../hooks/use-translations";
-import { makeElipsisAddress } from "../../utils";
+import { makeEllipsisAddress } from "../../utils";
 import { FormatNumber } from "../format-number";
 import TokenLogo from "../TokenLogo";
 import { SelectedOrder, Token } from "../../types";
@@ -125,7 +125,7 @@ const FillItem = ({
             rel="noopener noreferrer"
             title={fill.txHash}
           >
-            {makeElipsisAddress(fill.txHash)}
+            {makeEllipsisAddress(fill.txHash)}
           </a>
         </OrderDetails.DetailRow>
       )}

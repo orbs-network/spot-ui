@@ -331,7 +331,7 @@ export const networks = {
       symbol: "WETH",
       address: "0x4200000000000000000000000000000000000006",
       decimals: 18,
-      logoUrl: "hhttps://tokens-data.1inch.io/images/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.png",
+      logoUrl: "https://tokens-data.1inch.io/images/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.png",
     },
     publicRpcUrl: "https://zircuit-mainnet.drpc.org",
     logoUrl: "https://app.1inch.io/assets/images/network-logos/ethereum.svg",

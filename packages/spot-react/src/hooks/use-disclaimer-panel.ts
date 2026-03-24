@@ -20,7 +20,7 @@ export const useDisclaimerPanel = () => {
   }, [isMarketOrder, t, module]);
 
   const spotWarning = useMemo(() => {
-    if(module !== Module.LIMIT && module !== Module.TWAP) return;
+    if (module !== Module.LIMIT && module !== Module.TWAP) return;
     return {
       text: isMarketOrder ? t("marketOrderWarning") : t("limitPriceMessage"),
       url: "https://www.orbs.com/dtwap-and-dlimit-faq/",

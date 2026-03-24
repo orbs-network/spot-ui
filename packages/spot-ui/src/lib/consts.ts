@@ -14,10 +14,10 @@ export const SPOT_VERSION = spotPkg.version.split(".")[0];
 
 export const getApiEndpoint = (isDev: boolean) => {
   const isSpotV2 = Number(SPOT_VERSION) >= 2;
-  if(isDev) {
-    return DEV_API_URL
+  if (isDev) {
+    return DEV_API_URL;
   }
-  if(isSpotV2) {
+  if (isSpotV2) {
     return PROD_API_URL_V2;
   }
   return PROD_API_URL;

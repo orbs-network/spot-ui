@@ -115,18 +115,6 @@ export const useSignOrder = () => {
 
       analytics.onSignOrderRequest(order);
       callbacks?.onSignOrderRequest?.();
-      console.log({
-        domain,
-        types,
-        primaryType,
-        message: order,
-        account: account as `0x${string}`,
-      });
-
-      console.log(`Using domain:`, domain);
-      console.log(`Using types:`, types);
-      console.log(`Order data to sign:`, JSON.stringify(order, null, 2));
-      console.log(`Account address: ${account}`);
       let signatureStr: `0x${string}`;
       try {
         signatureStr = await walletClient?.signTypedData({

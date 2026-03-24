@@ -13,12 +13,14 @@ import { useGetTransactionReceipt } from "./use-get-transaction-receipt";
 import { useSpotStore } from "../store";
 import { useOrdersQuery } from "./order-hooks";
 
+const MAX_CANCEL_POLL_ATTEMPTS = 60;
+
 export const useRefetchUntilStatusSynced = () => {
   const { refetch: refetchOrders } = useOrdersQuery();
 
   return useMutation({
     mutationFn: async (orderIds: string[]) => {
-      while (true) {
+      for (let attempt = 0; attempt < MAX_CANCEL_POLL_ATTEMPTS; attempt++) {
         const orders = (await refetchOrders())?.data;
 
         if (!orders) {
@@ -31,11 +33,12 @@ export const useRefetchUntilStatusSynced = () => {
         });
 
         if (allCanceled) {
-          break;
+          return;
         }
 
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
+      throw new Error("Timed out waiting for order cancellation to be confirmed");
     },
   });
 };
@@ -135,7 +138,7 @@ export const useCancelOrderMutation = () => {
           cancelOrderStatus: SwapStatus.SUCCESS,
           orderIdsToCancel: [],
         });
-        return [...(v1Results || []), v2Result];
+        return [v1Results, v2Result].filter(Boolean);
       } catch (error) {
         console.error("cancel order error", error);
         callbacks?.onCancelOrderFailed?.(error as Error);

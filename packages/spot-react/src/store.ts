@@ -35,8 +35,5 @@ export const useSpotStore = create<SpotStore>((set, get) => ({
         ...data,
       },
     });
-    setTimeout(() => {
-     get().resetSwapExecution();
-    }, 1_000);
   },
 }));

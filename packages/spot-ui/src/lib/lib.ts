@@ -222,7 +222,7 @@ export const getMaxOrderDurationError = (
   duration: TimeDuration,
 ) => {
   if (module === Module.STOP_LOSS || module === Module.TAKE_PROFIT) {
-    const max = 60 * 24 * 60 * 60 * 1000; // 2 months
+    const max = 60 * 24 * 60 * 60 * 1000; // 60 days
     return {
       isError: getTimeDurationMillis(duration) > max,
       value: max,
@@ -285,13 +285,13 @@ const getTwapConfig = (partner: Partners, chainId: number) => {
         return Configs.PancakeSwap;
     }
   }
-  if(partner === Partners.Sushiswap) {
+  if (partner === Partners.Sushiswap) {
     switch (chainId) {
       case 1:
         return Configs.SushiEth;
-        case 42161:
+      case 42161:
         return Configs.SushiArb;
-      case 137:
+      case 8453:
         return Configs.SushiBase;
       case 747474:
         return Configs.SushiKatana;
@@ -299,7 +299,7 @@ const getTwapConfig = (partner: Partners, chainId: number) => {
         return Configs.SushiEth;
     }
   }
-  if(partner === Partners.Quick) {
+  if (partner === Partners.Quick) {
     switch (chainId) {
       case 137:
         return Configs.QuickSwap;
@@ -309,7 +309,7 @@ const getTwapConfig = (partner: Partners, chainId: number) => {
         return Configs.QuickSwap;
     }
   }
-  if(partner === Partners.Thena) {
+  if (partner === Partners.Thena) {
     switch (chainId) {
       case 56:
         return Configs.Thena;
@@ -318,7 +318,7 @@ const getTwapConfig = (partner: Partners, chainId: number) => {
     }
   }
 
-  if(partner === Partners.Spooky) {
+  if (partner === Partners.Spooky) {
     switch (chainId) {
       case 250:
         return Configs.SpookySwap;
@@ -328,7 +328,7 @@ const getTwapConfig = (partner: Partners, chainId: number) => {
         return Configs.SpookySwap;
     }
   }
-  if(partner === Partners.Lynex) {
+  if (partner === Partners.Lynex) {
     switch (chainId) {
       case 59144:
         return Configs.Lynex;
@@ -336,7 +336,7 @@ const getTwapConfig = (partner: Partners, chainId: number) => {
         return Configs.Lynex;
     }
   }
-  if(partner === Partners.Swapx) {
+  if (partner === Partners.Swapx) {
     switch (chainId) {
       case 146:
         return Configs.SwapX;
@@ -344,7 +344,7 @@ const getTwapConfig = (partner: Partners, chainId: number) => {
         return Configs.SwapX;
     }
   }
-  if(partner === Partners.Blackhole) {
+  if (partner === Partners.Blackhole) {
     switch (chainId) {
       case 43114:
         return Configs.BlackholeAvax;
@@ -354,14 +354,20 @@ const getTwapConfig = (partner: Partners, chainId: number) => {
   }
 };
 
-export const getConfig = (_dex: Partners, chainId = 0): SpotConfig => {
+export const getConfig = (partner: Partners, chainId = 0): SpotConfig => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { abi, ...dexConfig } = Spot.config(chainId, _dex);
+  const { abi, ...dexConfig } = Spot.config(chainId, partner);
+
+  if (!dexConfig.reactor) {
+    throw new Error(
+      `Missing config for partner "${partner}" on chain ${chainId}: reactor address not found`,
+    );
+  }
 
   const result = {
     ...dexConfig,
-    partner: _dex,
-    twapConfig: getTwapConfig(_dex, chainId) as Config | undefined,
+    partner,
+    twapConfig: getTwapConfig(partner, chainId) as Config | undefined,
   };
 
   return result;

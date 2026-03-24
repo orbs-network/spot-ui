@@ -13,9 +13,6 @@ export const submitOrder = async (order: RePermitOrder, signature: Signature, is
 
     analytics.onCreateOrderRequest();
 
-    console.log(`${getApiEndpoint(isDev)}/orders/new`);
-    
-
     const response = await fetch(`${getApiEndpoint(isDev)}/orders/new`, {
       method: "POST",
       body: JSON.stringify(body),
@@ -25,6 +22,9 @@ export const submitOrder = async (order: RePermitOrder, signature: Signature, is
       const message = data?.message ?? response.statusText ?? "Request failed";
       const code = data?.code ?? response.status;
       throw new Error(`error:${message}, code:${code}`);
+    }
+    if (!data.signedOrder || typeof data.signedOrder !== "object") {
+      throw new Error("Invalid API response: missing signedOrder");
     }
     const newOrder = buildV2Order(data.signedOrder);
     analytics.onCreateOrderSuccess(newOrder.id);

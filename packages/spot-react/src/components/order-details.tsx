@@ -1,6 +1,6 @@
 import React, { CSSProperties, ReactNode, useMemo } from "react";
 
-import { fillDelayText, makeElipsisAddress } from "../utils";
+import { fillDelayText, makeEllipsisAddress } from "../utils";
 import { Token } from "../types";
 import { useSpotContext } from "../spot-context";
 import { AiOutlineCopy } from "@react-icons/all-files/ai/AiOutlineCopy";
@@ -74,7 +74,7 @@ const Recipient = () => {
   const t = useTranslations();
   const { account } = useSpotContext();
   const explorerUrl = useNetwork()?.explorer;
-  const makerAddress = makeElipsisAddress(account);
+  const makerAddress = makeEllipsisAddress(account);
 
   return (
     <DetailRow title={t("recipient") || ""}>
@@ -142,7 +142,7 @@ const OrderID = ({ id }: { id: string }) => {
         {Tooltip && (
           <Tooltip tooltipText={id}>
             <div className="twap-order-details__detail-row-value-id">
-              <p>{makeElipsisAddress(id)}</p>
+              <p>{makeEllipsisAddress(id)}</p>
               <AiOutlineCopy />
             </div>
           </Tooltip>
