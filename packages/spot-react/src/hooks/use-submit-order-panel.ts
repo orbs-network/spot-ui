@@ -38,7 +38,7 @@ export const useSubmitOrderPanel = () => {
         dstToken,
       });
     }
-  }, [resetSwapExecution, srcToken, dstToken]);
+  }, [resetSwapExecution, srcToken, dstToken, swapExecution?.status]);
 
   const submitSwapMutation = useMutation({
     mutationFn: async () => {
