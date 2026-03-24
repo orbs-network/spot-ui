@@ -73,7 +73,7 @@ export const fillDelayText = (value?: number) => {
   return arr.join(" ");
 };
 
-export const makeElipsisAddress = (
+export const makeEllipsisAddress = (
   address?: string,
   padding?: AddressPadding
 ): string => {
@@ -87,7 +87,7 @@ export const parseError = (error?: any) => {
   const defaultText = "An error occurred.";
   if (!error || !error.message) return defaultText;
   try {
-    if (error.message.toLowerCase().indexOf("rejected")) {
+    if (error.message.toLowerCase().includes("rejected")) {
       return "Transaction Rejected";
     }
     return defaultText;

@@ -70,7 +70,6 @@ const useStep = () => {
   );
   const network = useNetwork();
   const wrapExplorerUrl = useExplorerLink(wrapTxHash);
-  const unwrapExplorerUrl = useExplorerLink(wrapTxHash);
   const approveExplorerUrl = useExplorerLink(approveTxHash);
   const status = useSpotStore((s) => s.state.swapExecution.status);
   const isNativeIn = isNativeAddress(srcToken?.address || "");
@@ -111,7 +110,6 @@ const useStep = () => {
     swapTitle,
     t,
     wrapExplorerUrl,
-    unwrapExplorerUrl,
     wSymbol,
     status,
   ]);

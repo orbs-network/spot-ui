@@ -376,7 +376,7 @@ export type Components = {
   SubmitOrderMainView?: FC<{ children: ReactNode }>;
 };
 
-export interface TwapProps {
+export interface SpotProps {
   children?: React.ReactNode;
   provider?: Provider;
   chainId?: number;

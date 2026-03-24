@@ -116,7 +116,7 @@ export const getTxDetails = async (
   if (!chainId) {
     throw new Error("chainId is missing in constructSDK");
   }
-  devLog("fething tx details", { txHash });
+  devLog("fetching tx details", { txHash });
 
   const apiUrl = getApiUrl(chainId);
   for (let i = 0; i < 10; ++i) {

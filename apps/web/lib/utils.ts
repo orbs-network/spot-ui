@@ -169,7 +169,7 @@ export const getPopularTokenForChain = (chainId?: number) => {
   return POPULAR_TOKENS[chainId as keyof typeof POPULAR_TOKENS] ?? [];
 };
 
-export const makeElipsisAddress = (
+export const makeEllipsisAddress = (
   address?: string,
   padding?: { start: number; end: number }
 ): string => {

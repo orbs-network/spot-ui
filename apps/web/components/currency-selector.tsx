@@ -21,7 +21,7 @@ import {
   filterCurrencies,
   getPopularTokenForChain,
   isNativeAddress,
-  makeElipsisAddress,
+  makeEllipsisAddress,
 } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { AvatarImage } from "@radix-ui/react-avatar";
@@ -202,7 +202,7 @@ const CurrencyItem = ({
               {currency.symbol}
               {!isNativeAddress(currency.address) && (
                 <span className="text-[12px] text-muted-foreground/80 ml-1">
-                  {makeElipsisAddress(currency.address, { start: 6, end: 4 })}
+                  {makeEllipsisAddress(currency.address, { start: 6, end: 4 })}
                 </span>
               )}
             </p>

@@ -9,7 +9,7 @@ import {
   SPOT_VERSION,
 } from "@orbs-network/spot-ui";
 import {
-  TwapProps,
+  SpotProps,
   SpotContextType,
   MarketReferencePrice,
   Provider,
@@ -48,7 +48,7 @@ const initiateWallet = (chainId?: number, provider?: Provider) => {
   };
 };
 
-const TwapFallbackUI = () => {
+const SpotFallbackUI = () => {
   return (
     <div className="twap-error-fallback">
       <p
@@ -69,7 +69,7 @@ const TwapFallbackUI = () => {
 function ErrorWrapper({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary
-      FallbackComponent={TwapFallbackUI}
+      FallbackComponent={SpotFallbackUI}
       onError={(error) => analytics.onCrash(error)}
     >
       <>{children}</>
@@ -86,7 +86,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const Listeners = (props: TwapProps) => {
+const Listeners = (props: SpotProps) => {
   const updateStore = useSpotStore((s) => s.updateState);
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   // update current time every minute, so the deadline will be updated when confirmation window is open
@@ -146,7 +146,7 @@ const useParsedMarketPrice = ({
   dstToken,
   chainId,
   typedInputAmount,
-}: TwapProps) => {
+}: SpotProps) => {
   return useMemo((): MarketReferencePrice => {
     if (
       shouldWrapOnly(srcToken, dstToken, chainId) ||
@@ -178,7 +178,7 @@ const useParsedMarketPrice = ({
 
 
 
-const Content = (props: TwapProps) => {
+const Content = (props: SpotProps) => {
   const acceptedMarketPrice = useSpotStore((s) => s.state.swapExecution.acceptedMarketPrice);
   const { walletClient, publicClient } = useMemo(
     () => initiateWallet(props.chainId, props.provider),
@@ -260,7 +260,7 @@ const Content = (props: TwapProps) => {
   );
 };
 
-export const SpotProvider = (props: TwapProps) => {
+export const SpotProvider = (props: SpotProps) => {
   return (
     <QueryClientProvider client={queryClient}>
       <Content {...props} />

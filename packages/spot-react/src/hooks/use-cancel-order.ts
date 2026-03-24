@@ -135,7 +135,7 @@ export const useCancelOrderMutation = () => {
           cancelOrderStatus: SwapStatus.SUCCESS,
           orderIdsToCancel: [],
         });
-        return [...(v1Results || []), v2Result];
+        return [v1Results, v2Result].filter(Boolean);
       } catch (error) {
         console.error("cancel order error", error);
         callbacks?.onCancelOrderFailed?.(error as Error);
