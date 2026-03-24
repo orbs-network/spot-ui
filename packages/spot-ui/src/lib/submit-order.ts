@@ -23,6 +23,9 @@ export const submitOrder = async (order: RePermitOrder, signature: Signature, is
       const code = data?.code ?? response.status;
       throw new Error(`error:${message}, code:${code}`);
     }
+    if (!data.signedOrder || typeof data.signedOrder !== "object") {
+      throw new Error("Invalid API response: missing signedOrder");
+    }
     const newOrder = buildV2Order(data.signedOrder);
     analytics.onCreateOrderSuccess(newOrder.id);
     return newOrder;

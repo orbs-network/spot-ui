@@ -66,6 +66,13 @@ cd packages/spot && pnpm publish --access public
 cd packages/spot-ui && pnpm publish --access public
 ```
 
+## Skills
+
+| Skill | Description |
+|-------|-------------|
+| [`spot-react-integration`](skills/spot-react-integration/SKILL.md) | Integrating `@orbs-network/spot-react` into a DEX frontend. Covers SpotProvider setup, hook-driven panels, order submission, and DEX-native styling. |
+| [`liquidity-hub-integration`](skills/liquidity-hub-integration/SKILL.md) | Integrating `@orbs-network/liquidity-hub-sdk` into a DEX. Routes swaps through Liquidity Hub for better prices via on-chain and off-chain solvers. |
+
 ## Project Structure
 
 ```
@@ -75,6 +82,8 @@ cd packages/spot-ui && pnpm publish --access public
 │   ├── spot-ui/                # @orbs-network/spot-ui (config, order build, submit)
 │   ├── spot-react/             # @orbs-network/spot-react (context, hooks, components)
 │   └── liquidity-hub-ui/      # @orbs-network/liquidity-hub-sdk
+├── skills/
+│   └── spot-react-integration/ # AI-agent integration skill
 ├── package.json
 ├── pnpm-workspace.yaml
 └── tsconfig.json

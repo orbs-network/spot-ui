@@ -358,6 +358,12 @@ export const getConfig = (partner: Partners, chainId = 0): SpotConfig => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { abi, ...dexConfig } = Spot.config(chainId, partner);
 
+  if (!dexConfig.reactor) {
+    throw new Error(
+      `Missing config for partner "${partner}" on chain ${chainId}: reactor address not found`,
+    );
+  }
+
   const result = {
     ...dexConfig,
     partner,

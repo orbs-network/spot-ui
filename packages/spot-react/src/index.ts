@@ -35,18 +35,70 @@ import { useRefetchUntilStatusSynced } from "./hooks/use-cancel-order";
 // Set the UI version in spot-sdk for analytics
 setUIVersion(pkg.version);
 
-
-
-
 const Components = {
   SubmitOrderPanel,
   Orders,
   Portal
 };
 
+// Re-export public API from spot-ui (explicit, not wildcard)
+export {
+  // Types
+  type Config,
+  type SpotConfig,
+  type TimeDuration,
+  type PartnerPayloadItem,
+  type RePermitOrder,
+  type Signature,
+  type Address,
+  type Hex,
+  type InputError,
 
-export * from "@orbs-network/spot-ui";
+  // Enums
+  Module,
+  OrderStatus,
+  OrderFilter,
+  OrderType,
+  TimeUnit,
+  Partners,
+  InputErrors,
 
+  // Functions
+  getConfig,
+  getPartners,
+  getMinChunkSizeUsd,
+  getAccountOrders,
+  buildRePermitOrderData,
+  submitOrder,
+  getNetwork,
+  getPartnerChains,
+  isNativeAddress,
+  eqIgnoreCase,
+  getOrderExecutionRate,
+  getOrderLimitPriceRate,
+  getOrderFillDelayMillis,
+  getTriggerPricePerTrade,
+
+  // Constants
+  SPOT_VERSION,
+  DISCLAIMER_URL,
+  ORBS_TWAP_FAQ_URL,
+  ORBS_SLTP_FAQ_URL,
+  ORBS_LOGO,
+  ORBS_WEBSITE_URL,
+  FEES,
+  networks,
+  Configs,
+
+  // ABIs
+  IWETH_ABI,
+  ERC20_ABI,
+  REPERMIT_ABI,
+  TWAP_ABI,
+
+  // Analytics
+  analytics,
+} from "@orbs-network/spot-ui";
 
 export {
   SpotProvider,

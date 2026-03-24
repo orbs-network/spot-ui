@@ -211,9 +211,13 @@ export const getOrders = async ({
       },
     );
 
-    const payload = (await response.json()) as { orders: OrderV2[] };
+    const payload = await response.json();
 
-    return payload.orders.map(buildV2Order);
+    if (!payload || !Array.isArray(payload.orders)) {
+      return [];
+    }
+
+    return (payload.orders as OrderV2[]).map(buildV2Order);
   } catch (error) {
     return [];
   }
