@@ -1,5 +1,5 @@
-import { SPOT_VERSION } from "./consts";
 import { Address, Module, Partners, RePermitOrder, SpotConfig } from "./types";
+import spotPkg from "@orbs-network/spot/package.json";
 
 
 const Version = 0.7;
@@ -7,6 +7,7 @@ const BI_ENDPOINT = `https://bi.orbs.network/putes/twap-ui-${Version}`;
 
 // UI version is set by spot-react at runtime to avoid circular dependency
 let UI_VERSION = "unknown";
+
 
 export function setUIVersion(version: string) {
   UI_VERSION = version;
@@ -26,7 +27,7 @@ interface Token {
 
 const getConfigDetails = (config: SpotConfig, minChunkSizeUsd: number, chainId?: number) => {
   return {
-    spotVersion: SPOT_VERSION,
+    spotVersion: spotPkg.version,
     partner: config.partner,
     adapter: config.adapter,
     cosigner: config.cosigner,
@@ -312,6 +313,7 @@ class Analytics {
       action: "create order",
     });
   }
+  
 
   async onCreateOrderSuccess(orderHash?: string) {
     this.updateAndSend(
@@ -326,7 +328,7 @@ class Analytics {
           action: "reset",
           uiVersion: UI_VERSION,
           origin: this.data.origin,
-          spotVersion: SPOT_VERSION,
+          spotVersion: spotPkg.version,
           partner: this.data.partner,
           adapter: this.data.adapter,
           cosigner: this.data.cosigner,
