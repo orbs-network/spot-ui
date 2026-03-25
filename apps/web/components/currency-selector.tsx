@@ -179,12 +179,14 @@ const CurrencyItem = ({
   onCurrencyChange: (currency: Currency) => void;
 }) => {
   const { ui: balance, isLoading: isLoadingBalance } = useBalance(currency);
+  
   const formattedBalance = useFormatNumber({ value: balance });
   const { formatted: usdPrice, isLoading: isLoadingUsdPrice } = useUSDPrice({
     token: currency.address,
     amount: balance,
     disabled: BN(balance).lte(0),
   });
+
 
   return (
     <DialogClose className="w-full px-2">
@@ -211,7 +213,7 @@ const CurrencyItem = ({
         {isLoadingBalance || isLoadingUsdPrice ? (
           <Skeleton className="h-4 w-[50px]" />
         ) : (
-          BN(formattedBalance ?? "0").gt(0) && (
+          BN(balance ?? "0").gt(0) && (
             <div className="flex flex-col items-end gap-0">
               <p className="text-[17px] font-semibold">${usdPrice}</p>
 

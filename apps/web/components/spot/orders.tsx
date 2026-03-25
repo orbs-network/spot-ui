@@ -2,6 +2,7 @@ import {
   useOrderHistoryPanel,
   Components,
   OrderFilter,
+  SPOT_VERSION,
 } from "@orbs-network/spot-react";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
@@ -12,6 +13,13 @@ import { IconButton } from "../ui/icon-button";
 import { DialogHeader } from "../ui/dialog";
 import { SpotSelectMenu } from "./components";
 import { Spinner } from "../ui/spinner";
+
+const getSinkUrl = (orderId: string) => {
+  if(Number(SPOT_VERSION) >= 2) {
+    return `https://order-sink-v2.orbs.network/?order=${orderId}`;
+  }
+  return `https://order-sink-dev.orbs.network/?order=${orderId}`;
+}
 
 export const SpotsOrders = () => {
   const {
@@ -105,7 +113,7 @@ export const SpotsOrders = () => {
                 Sink Url
               </p>
               <a
-                href={`https://order-sink-dev.orbs.network/?order=${selectedOrder.id.value}`}
+                href={getSinkUrl(selectedOrder.id.value ?? "")}
                 target="_blank"
                 rel="noopener noreferrer"
               >

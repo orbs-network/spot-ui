@@ -7,7 +7,9 @@ import {
   katana,
   linea,
   mainnet,
+  mantle,
   monad,
+  optimism,
   polygon,
   sei,
   sonic,
@@ -144,6 +146,9 @@ export const NATIVE_TOKENS_LOGO_URLS = {
   [monad.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/30495.png",
   [avalanche.id]:
     "https://s2.coinmarketcap.com/static/img/coins/128x128/5805.png",
+  [optimism.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/1027.png",
+  [mantle.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/27075.png",
+  [katana.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/1027.png",
 };
 
 export const DEFAULT_PRICE_PROTECTION = 5;
