@@ -68,5 +68,6 @@ export const useSwapParams = () => {
     parsedPartner: selectedPartner?.split("_")[0],
     envMode: (envMode === "dev" ? "dev" : "prod") as "prod" | "dev",
     setEnvMode,
+    targetChainId: selectedPartner?.split("_")[1],
   };
 };

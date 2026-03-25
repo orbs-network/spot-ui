@@ -160,6 +160,7 @@ export const NATIVE_TOKENS_LOGO_URLS = {
     "https://s2.coinmarketcap.com/static/img/coins/128x128/5805.png",
   [optimism.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/1027.png",
   [mantle.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/27075.png",
+  [katana.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/1027.png",
 };
 
 export const DEFAULT_PRICE_PROTECTION = 5;

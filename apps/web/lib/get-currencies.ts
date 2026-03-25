@@ -88,7 +88,7 @@ export const getCurrencies = async (
         ...res,
       ];
     }
-    const CURRENCY_LIST_LIMIT = 200;
+    const CURRENCY_LIST_LIMIT = 2000;
     return res.slice(0, CURRENCY_LIST_LIMIT);
   } catch (error) {
     console.error("Error fetching tokens:", error);

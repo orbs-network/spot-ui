@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   getNetwork,
   getPartners,
@@ -34,6 +34,8 @@ export function PartnerSelector() {
   const selectedPartner = useMemo(() => {
     return partners.find((p) => `${p.name}_${p.chainId}` === partner);
   }, [partner]);
+
+
 
   if (!isSpotTab) {
     return null;
