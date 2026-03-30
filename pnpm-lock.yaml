@@ -270,8 +270,8 @@ importers:
         version: 2.7.28
     devDependencies:
       '@orbs-network/spot':
-        specifier: ^2.3.0
-        version: 2.3.0
+        specifier: ^2.3.2
+        version: 2.3.2
       bignumber.js:
         specifier: ^9.3.1
         version: 9.3.1
@@ -1358,8 +1358,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@orbs-network/spot@2.3.0':
-    resolution: {integrity: sha512-Xt+pE4sikmr4EB+0qQW22DIsoZtDxwVckzjHFzg2+coHlnnHLVsRvIrIcnCB5N/OKCpZS6zlLI0OCJFKjeegOw==}
+  '@orbs-network/spot@2.3.2':
+    resolution: {integrity: sha512-LvcFmSw1XUaV1nZ8P6pMGXkzRXKgYsuLbzeHqjkjVpanhBwyD83NDTqzn4lKNo15zdbMWFB6koacsH7r2dYMew==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -7063,7 +7063,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@orbs-network/spot@2.3.0':
+  '@orbs-network/spot@2.3.2':
     dependencies:
       '@modelcontextprotocol/sdk': 1.27.1(zod@4.3.6)
       zod: 4.3.6
@@ -10301,8 +10301,8 @@ snapshots:
       '@babel/parser': 7.28.5
       eslint: 9.39.2(jiti@2.6.1)
       hermes-parser: 0.25.1
-      zod: 3.25.76
-      zod-validation-error: 4.0.2(zod@3.25.76)
+      zod: 4.3.6
+      zod-validation-error: 4.0.2(zod@4.3.6)
     transitivePeerDependencies:
       - supports-color
 
@@ -12762,9 +12762,9 @@ snapshots:
     dependencies:
       zod: 4.3.6
 
-  zod-validation-error@4.0.2(zod@3.25.76):
+  zod-validation-error@4.0.2(zod@4.3.6):
     dependencies:
-      zod: 3.25.76
+      zod: 4.3.6
 
   zod@3.22.4: {}
 
