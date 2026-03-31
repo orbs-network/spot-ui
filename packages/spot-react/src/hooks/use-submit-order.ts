@@ -1,4 +1,4 @@
-import { SwapStatus } from "@orbs-network/swap-ui";
+import { SwapStatus } from "../types";
 import BN from "bignumber.js";
 import {
   analytics,

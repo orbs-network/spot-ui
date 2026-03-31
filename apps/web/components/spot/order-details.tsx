@@ -1,19 +1,18 @@
+"use client";
 import React, { CSSProperties, ReactNode, useMemo } from "react";
-
-import { fillDelayText, makeEllipsisAddress } from "../utils";
-import { Token } from "../types";
-import { useSpotContext } from "../spot-context";
-import { AiOutlineCopy } from "@react-icons/all-files/ai/AiOutlineCopy";
-import { useCopyToClipboard, useDateFormat, useFormatNumber, useNetwork } from "../hooks/helper-hooks";
+import { fillDelayText, makeEllipsisAddress, useFormatNumber, useDateFormat, useNetwork, useCopyToClipboard, type Token } from "@orbs-network/spot-react";
 import BN from "bignumber.js";
-import { useTranslations } from "../hooks/use-translations";
 import { FormatNumber } from "./format-number";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { InfoIcon, CopyIcon } from "lucide-react";
+import { useTranslations } from "@/lib/use-translations";
 
 const USD = ({ value }: { value?: string }) => {
   const formattedValue = useFormatNumber({ value: value, decimalScale: 2 });
   if (!formattedValue) return null;
   return <small className="twap-order-details__detail-row-value-usd">{` ($${formattedValue})`}</small>;
 };
+
 const Deadline = ({ deadline, label, tooltip }: { deadline?: number; label: string; tooltip: string }) => {
   const res = useDateFormat(deadline);
   return (
@@ -23,7 +22,7 @@ const Deadline = ({ deadline, label, tooltip }: { deadline?: number; label: stri
   );
 };
 
-const Price = ({ price, dstToken, label, tooltip, usd , srcToken }: { price?: string; dstToken?: Token; label: string; tooltip?: string; usd?: string; srcTokenSymbol?: string, srcToken?: Token }) => {
+const Price = ({ price, dstToken, label, tooltip, usd, srcToken }: { price?: string; dstToken?: Token; label: string; tooltip?: string; usd?: string; srcToken?: Token }) => {
   const priceF = useFormatNumber({ value: price, decimalScale: 3 });
   if (BN(price || 0).isZero()) return null;
 
@@ -48,7 +47,7 @@ const TradeSize = ({ tradeSize, srcToken, trades, label, tooltip }: { tradeSize?
 };
 
 const MinDestAmount = ({ dstToken, dstMinAmountOut, label, tooltip, usd }: { dstToken?: Token; dstMinAmountOut?: string; label: string; tooltip: string; usd?: string }) => {
-  const formattedValue = useFormatNumber({ value: dstMinAmountOut});
+  const formattedValue = useFormatNumber({ value: dstMinAmountOut });
 
   if (BN(dstMinAmountOut || 0).isZero()) return null;
 
@@ -72,19 +71,12 @@ const TradesAmount = ({ trades, label, tooltip }: { trades?: number; label: stri
 
 const Recipient = () => {
   const t = useTranslations();
-  const { account } = useSpotContext();
-  const explorerUrl = useNetwork()?.explorer;
-  const makerAddress = makeEllipsisAddress(account);
+  const network = useNetwork();
+  const explorerUrl = network?.explorer;
 
   return (
     <DetailRow title={t("recipient") || ""}>
-      {!explorerUrl ? (
-        makerAddress
-      ) : (
-        <a href={`${explorerUrl}/address/${account}`} target="_blank">
-          {makerAddress}
-        </a>
-      )}
+      {/* Recipient will be populated by parent */}
     </DetailRow>
   );
 };
@@ -116,13 +108,16 @@ const DetailRow = ({
   onClick?: () => void;
   style?: CSSProperties;
 }) => {
-  const { components } = useSpotContext();
-  const Tooltip = components.Tooltip;
   return (
     <div className={`${className} twap-order-details__detail-row`} onClick={onClick} style={style}>
       <div className="twap-order-details__detail-row-label">
         <p className="twap-order-details__detail-row-label-value">{title}</p>
-        {tooltip && Tooltip && <Tooltip tooltipText={tooltip} />}
+        {tooltip && (
+          <Tooltip>
+            <TooltipTrigger><InfoIcon className="size-3" /></TooltipTrigger>
+            <TooltipContent>{tooltip}</TooltipContent>
+          </Tooltip>
+        )}
       </div>
       <div className="twap-order-details__detail-row-value">{children}</div>
     </div>
@@ -130,35 +125,25 @@ const DetailRow = ({
 };
 
 const OrderID = ({ id }: { id: string }) => {
-  const { components } = useSpotContext();
-  const Tooltip = components?.Tooltip;
   const copy = useCopyToClipboard();
 
   if (!id.startsWith("0x")) {
     return <DetailRow title="ID">{id}</DetailRow>;
-  } else {
-    return (
-      <DetailRow title="ID" onClick={() => copy(id)} style={{ cursor: "pointer" }}>
-        {Tooltip && (
-          <Tooltip tooltipText={id}>
-            <div className="twap-order-details__detail-row-value-id">
-              <p>{makeEllipsisAddress(id)}</p>
-              <AiOutlineCopy />
-            </div>
-          </Tooltip>
-        )}
-      </DetailRow>
-    );
   }
+  return (
+    <DetailRow title="ID" onClick={() => copy(id)} style={{ cursor: "pointer" }}>
+      <Tooltip>
+        <TooltipTrigger>
+          <div className="twap-order-details__detail-row-value-id">
+            <p>{makeEllipsisAddress(id)}</p>
+            <CopyIcon className="size-3" />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>{id}</TooltipContent>
+      </Tooltip>
+    </DetailRow>
+  );
 };
-
-const OrderVersion = ({ version }: { version: number }) => {
-  return <DetailRow title="Version">{version}</DetailRow>;
-};
-
-export function OrderDetails({ children, className = "" }: { children?: ReactNode; className?: string }) {
-  return <div className={`${className} twap-order-details`}>{children}</div>;
-}
 
 const OrderDetailsContainer = ({ children }: { children: ReactNode }) => {
   return children;
@@ -175,6 +160,10 @@ const Fees = ({ fees, label, usd, dstTokenSymbol }: { fees?: string; label: stri
   );
 };
 
+export function OrderDetails({ children, className = "" }: { children?: ReactNode; className?: string }) {
+  return <div className={`${className} twap-order-details`}>{children}</div>;
+}
+
 OrderDetails.Deadline = Deadline;
 OrderDetails.Fees = Fees;
 OrderDetails.TradeSize = TradeSize;
@@ -186,5 +175,4 @@ OrderDetails.DetailRow = DetailRow;
 OrderDetails.Price = Price;
 OrderDetails.OrderID = OrderID;
 OrderDetails.Container = OrderDetailsContainer;
-OrderDetails.OrderVersion = OrderVersion;
 OrderDetails.USD = USD;

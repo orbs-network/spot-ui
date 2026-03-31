@@ -333,4 +333,5 @@ export type InputError = {
   type: InputErrors;
   value: string | number;
   message: string;
+  args?: Record<string, string>;
 };

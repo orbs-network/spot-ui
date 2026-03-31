@@ -1,9 +1,15 @@
 import {
   useOrderHistoryPanel,
-  Components,
   OrderFilter,
+  OrderStatus,
+  OrderType,
   SPOT_VERSION,
+  useCancelOrderMutation,
+  type Order,
 } from "@orbs-network/spot-react";
+import { OrdersView } from "./orders-view";
+import { OrdersProvider, useOrdersUIState } from "./orders-context";
+import { useTranslations } from "@/lib/use-translations";
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { ArrowLeftIcon, HistoryIcon, LinkIcon, TrashIcon } from "lucide-react";
@@ -14,6 +20,50 @@ import { DialogHeader } from "../ui/dialog";
 import { SpotSelectMenu } from "./components";
 import { Spinner } from "../ui/spinner";
 
+const filterAndSortOrders = (orders: Order[], filter: OrderFilter): Order[] => {
+  const filtered = filter === OrderFilter.All
+    ? orders
+    : orders.filter((o) => o.status === (filter as unknown as OrderStatus));
+  return [...filtered].sort((a, b) => b.createdAt - a.createdAt);
+};
+
+const getOrderFilterText = (filter: OrderFilter): string => {
+  switch (filter) {
+    case OrderFilter.All:
+      return "All";
+    case OrderFilter.Open:
+      return "Open";
+    case OrderFilter.Completed:
+      return "Completed";
+    case OrderFilter.Cancelled:
+      return "Cancelled";
+    case OrderFilter.Expired:
+      return "Expired";
+    default:
+      return filter;
+  }
+};
+
+const getHistoryOrderTitle = (order?: Order): string => {
+  if (!order) return "";
+  switch (order.type) {
+    case OrderType.LIMIT:
+      return "Limit";
+    case OrderType.TWAP_LIMIT:
+      return "TWAP Limit";
+    case OrderType.TWAP_MARKET:
+      return "TWAP Market";
+    case OrderType.TAKE_PROFIT:
+      return "Take Profit";
+    case OrderType.STOP_LOSS_LIMIT:
+      return "Stop Loss Limit";
+    case OrderType.STOP_LOSS_MARKET:
+      return "Stop Loss Market";
+    default:
+      return order.type || "";
+  }
+};
+
 const getSinkUrl = (orderId: string) => {
   if(Number(SPOT_VERSION) >= 2) {
     return `https://order-sink-v2.orbs.network/?order=${orderId}`;
@@ -21,29 +71,65 @@ const getSinkUrl = (orderId: string) => {
   return `https://order-sink-dev.orbs.network/?order=${orderId}`;
 }
 
+const useOrderFilters = () => {
+  return useMemo(() => {
+    return Object.values(OrderFilter).map((it) => ({
+      text: getOrderFilterText(it),
+      value: it,
+    }));
+  }, []);
+};
+
 export const SpotsOrders = () => {
+  const panelData = useOrderHistoryPanel();
+  const { orders } = panelData;
+  const uiState = useOrdersUIState();
   const {
-    selectedOrder,
-    onSelectOrderFilter,
-    orderFilters,
-    selectedOrderFilter,
-    allOrders,
-    onCancelAllOpenOrders,
-    isCancelOrderLoading,
+    selectedOrderID,
+    onDisplayOrder,
     isDisplayingOrderFills,
     onHideOrderFills,
-    onDisplayOrder,
-    openOrdersCount,
-  } = useOrderHistoryPanel();
+  } = uiState;
+  const { mutateAsync: cancelOrders, isPending: isCancelOrderLoading } = useCancelOrderMutation();
+  const t = useTranslations();
   const [open, setOpen] = useState(false);
-  
+  const [selectedFilter, setSelectedFilter] = useState<OrderFilter>(OrderFilter.All);
+
+  const orderFilters = useOrderFilters();
+  const filteredOrders = useMemo(
+    () => filterAndSortOrders(orders, selectedFilter),
+    [orders, selectedFilter],
+  );
+  const openOrders = useMemo(
+    () => filterAndSortOrders(orders, OrderFilter.Open),
+    [orders],
+  );
+
+  const selectedRawOrder = useMemo(
+    () => orders?.find((o: Order) => o.id === selectedOrderID),
+    [orders, selectedOrderID],
+  );
+  const selectedOrderTitle = getHistoryOrderTitle(selectedRawOrder);
+
+  const selectedOrder = selectedOrderID
+    ? { title: selectedOrderTitle, id: selectedRawOrder?.id }
+    : undefined;
+
+  const selectedFilterItem = useMemo(() => {
+    return orderFilters.find((item) => item.value === selectedFilter) || orderFilters[0];
+  }, [orderFilters, selectedFilter]);
+
+  const onCancelAllOpenOrders = useCallback(
+    () => cancelOrders({ orders: openOrders }),
+    [cancelOrders, openOrders],
+  );
 
   const title = useMemo(() => {
     if (isDisplayingOrderFills) {
-      return `${selectedOrder?.title} order fills`;
+      return `${t(selectedOrder?.title || "")} order fills`;
     }
-    return selectedOrder?.title ?? `Orders (${allOrders?.length})`;
-  }, [isDisplayingOrderFills, selectedOrder, allOrders?.length]);
+    return selectedOrder?.title ? t(selectedOrder.title) : `Orders (${orders?.length})`;
+  }, [isDisplayingOrderFills, selectedOrder, orders?.length]);
 
   const onBack = useCallback(() => {
     if (isDisplayingOrderFills) {
@@ -83,11 +169,11 @@ export const SpotsOrders = () => {
           {!selectedOrder && (
             <div className="flex flex-row gap-2 items-center justify-between">
               <SpotSelectMenu
-                selected={selectedOrderFilter}
+                selected={selectedFilterItem}
                 items={orderFilters}
-                onSelect={(it) => onSelectOrderFilter(it.value as OrderFilter)}
+                onSelect={(it) => setSelectedFilter(it.value as OrderFilter)}
               />
-              {openOrdersCount > 0 && (
+              {openOrders.length > 0 && (
                 <IconButton onClick={onCancelAllOpenOrders} className="p-2">
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -105,7 +191,9 @@ export const SpotsOrders = () => {
               )}
             </div>
           )}
-          <Components.Orders />
+          <OrdersProvider value={{ ...panelData, ...uiState, filteredOrders }}>
+            <OrdersView />
+          </OrdersProvider>
 
           {selectedOrder && (
             <div className="flex flex-row gap-2 items-center justify-between">
@@ -113,7 +201,7 @@ export const SpotsOrders = () => {
                 Sink Url
               </p>
               <a
-                href={getSinkUrl(selectedOrder.id.value ?? "")}
+                href={getSinkUrl(selectedOrder.id ?? "")}
                 target="_blank"
                 rel="noopener noreferrer"
               >

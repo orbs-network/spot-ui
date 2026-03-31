@@ -1,4 +1,4 @@
-import { SwapStatus } from "@orbs-network/swap-ui";
+import { SwapStatus } from "../types";
 import {
   analytics,
   Order,
@@ -15,7 +15,7 @@ import { useOrdersQuery } from "./order-hooks";
 
 const MAX_CANCEL_POLL_ATTEMPTS = 60;
 
-export const useRefetchUntilStatusSynced = () => {
+export const useCancelOrderRefetchUntilStatusSynced = () => {
   const { refetch: refetchOrders } = useOrdersQuery();
 
   return useMutation({
@@ -48,7 +48,7 @@ export const useCancelOrderMutation = () => {
     useSpotContext();
   const getTransactionReceipt = useGetTransactionReceipt();
   const refetchUntilStatusSynced =
-    useRefetchUntilStatusSynced().mutateAsync;
+  useCancelOrderRefetchUntilStatusSynced().mutateAsync;
   const updateState = useSpotStore((s) => s.updateState);
 
   const cancelOrdersV1 = async (orders: Order[]) => {
@@ -136,7 +136,6 @@ export const useCancelOrderMutation = () => {
         await refetchUntilStatusSynced(orders.map((o) => o.id));
         updateState({
           cancelOrderStatus: SwapStatus.SUCCESS,
-          orderIdsToCancel: [],
         });
         return [v1Results, v2Result].filter(Boolean);
       } catch (error) {

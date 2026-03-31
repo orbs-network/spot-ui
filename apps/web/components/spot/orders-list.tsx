@@ -1,24 +1,19 @@
-import { HiArrowRight } from "@react-icons/all-files/hi/HiArrowRight";
-import { Order } from "@orbs-network/spot-ui";
+"use client";
+import { ArrowRightIcon } from "lucide-react";
+import { Order, OrderType, useDateFormat } from "@orbs-network/spot-react";
 import * as React from "react";
 import { Virtuoso } from "react-virtuoso";
-import TokenLogo from "../../components/TokenLogo";
-import { useSpotStore } from "../../store";
-import { useGetOrderFilterText, useHistoryOrderTitle, useOrdersQuery, useOrderToDisplay, useSelectedOrderIdsToCancel } from "../../hooks/order-hooks";
-import { useDateFormat } from "../../hooks/helper-hooks";
-import { useTranslations } from "../../hooks/use-translations";
-import { useSpotContext } from "../../spot-context";
+import { useTranslations } from "@/lib/use-translations";
+import { useSpotToken } from "@/lib/hooks/spot-hooks";
+import { SpotTokenLogo } from "./components";
+import { useOrdersPanelContext } from "./orders-context";
 
 const ListLoader = () => {
   return <div className="twap-orders__loader">{<p>Loading...</p>}</div>;
 };
 
 export const OrdersList = () => {
-  const { isLoading } = useOrdersQuery();
-  const ordersToDisplay = useOrderToDisplay();
-  const orderIdsToCancel = useSpotStore((s) => s.state.orderIdsToCancel);
-  const cancelOrdersMode = useSpotStore((s) => s.state.cancelOrdersMode);
-  const onSelectOrder = useSelectedOrderIdsToCancel();
+  const { isLoading, orderIdsToCancel, cancelOrdersMode, filteredOrders: ordersToDisplay, onToggleCancelOrderId } = useOrdersPanelContext();
 
   return (
     <>
@@ -36,7 +31,7 @@ export const OrdersList = () => {
                 cancelOrdersMode={Boolean(cancelOrdersMode)}
                 selected={orderIdsToCancel?.includes(order.id) || false}
                 key={index}
-                selectOrder={onSelectOrder}
+                selectOrder={onToggleCancelOrderId}
                 order={order}
               />
             )}
@@ -48,11 +43,11 @@ export const OrdersList = () => {
 };
 
 const ListOrder = ({ order, selectOrder, selected, cancelOrdersMode }: { order: Order; selectOrder: (id: string) => void; selected: boolean; cancelOrdersMode: boolean }) => {
-  const updateState = useSpotStore((s) => s.updateState);
+  const { onDisplayOrder } = useOrdersPanelContext();
 
   const onShowOrder = React.useCallback(() => {
-    updateState({ selectedOrderID: order?.id });
-  }, [updateState, order?.id]);
+    onDisplayOrder(order?.id);
+  }, [onDisplayOrder, order?.id]);
 
   const onClick = React.useCallback(() => {
     if (cancelOrdersMode) {
@@ -74,7 +69,7 @@ const ListOrder = ({ order, selectOrder, selected, cancelOrdersMode }: { order: 
         <LinearProgressWithLabel value={order.progress || 0} />
         <div className="twap-orders__list-item-tokens">
           <TokenDisplay address={order.srcTokenAddress} />
-          <HiArrowRight className="twap-orders__list-item-tokens-arrow" />
+          <ArrowRightIcon className="twap-orders__list-item-tokens-arrow size-4" />
           <TokenDisplay address={order.dstTokenAddress} />
         </div>
       </div>
@@ -83,21 +78,38 @@ const ListOrder = ({ order, selectOrder, selected, cancelOrdersMode }: { order: 
 };
 
 const EmptyList = () => {
-  const status = useSpotStore((s) => s.state.orderHistoryStatusFilter);
-  const getOrderFilterText = useGetOrderFilterText();
   const t = useTranslations();
-  const name = getOrderFilterText(status);
 
   return (
     <div className="twap-orders__list-empty">
-      <p>{t("noOrders", { status: name })}</p>
+      <p>{t("noOrders", { status: "" })}</p>
     </div>
   );
 };
 
+const getHistoryOrderTitle = (order?: Order): string => {
+  if (!order) return "";
+  switch (order.type) {
+    case OrderType.LIMIT:
+      return "Limit";
+    case OrderType.TWAP_LIMIT:
+      return "TWAP Limit";
+    case OrderType.TWAP_MARKET:
+      return "TWAP Market";
+    case OrderType.TAKE_PROFIT:
+      return "Take Profit";
+    case OrderType.STOP_LOSS_LIMIT:
+      return "Stop Loss Limit";
+    case OrderType.STOP_LOSS_MARKET:
+      return "Stop Loss Market";
+    default:
+      return order.type || "";
+  }
+};
+
 const ListItemHeader = ({ order }: { order: Order }) => {
   const status = order && order.status;
-  const name = useHistoryOrderTitle(order);
+  const name = getHistoryOrderTitle(order);
   const formattedDate = useDateFormat(order.createdAt);
 
   return (
@@ -110,9 +122,8 @@ const ListItemHeader = ({ order }: { order: Order }) => {
   );
 };
 
-const TokenDisplay = (props: { address?: string; amount?: string }) => {
-  const { useToken, components } = useSpotContext();
-  const token = useToken?.(props.address);
+const TokenDisplay = (props: { address?: string }) => {
+  const token = useSpotToken(props.address);
 
   return (
     <div className="twap-orders__list-item-token">
@@ -120,7 +131,9 @@ const TokenDisplay = (props: { address?: string; amount?: string }) => {
         <div />
       ) : (
         <>
-          <div className="twap-orders__list-item-token-logo">{components.TokenLogo ? <components.TokenLogo token={token} /> : <TokenLogo logo={token?.logoUrl} />}</div>
+          <div className="twap-orders__list-item-token-logo">
+            <SpotTokenLogo token={token} />
+          </div>
           <p className="twap-orders__list-item-token-symbol">{token?.symbol}</p>
         </>
       )}

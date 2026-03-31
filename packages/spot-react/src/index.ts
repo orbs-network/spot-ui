@@ -4,42 +4,32 @@ import pkg from "../package.json";
 import { SpotProvider } from "./spot-context";
 import { DEFAULT_DURATION_OPTIONS } from "./consts";
 import { formatDecimals } from "./utils";
-import { Orders } from "./components/orders/orders";
 import { useTradesPanel } from "./hooks/use-trades";
 import { useFillDelayPanel } from "./hooks/use-fill-delay";
 import { useDurationPanel } from "./hooks/use-duration";
 import { useDisclaimerPanel } from "./hooks/use-disclaimer-panel";
 import { useTriggerPricePanel } from "./hooks/use-trigger-price-panel";
-import { useOrderHistoryPanel, useOrderType } from "./hooks/order-hooks";
+import { useOrderHistoryPanel } from "./hooks/order-hooks";
+import { useDisplayHistoryOrder } from "./hooks/use-history-order";
 import { useDstTokenPanel } from "./hooks/use-dst-token-panel";
 import { useLimitPricePanel } from "./hooks/use-limit-price-panel";
 import { useInvertTradePanel } from "./hooks/use-invert-trade-panel";
 import { useInputErrors } from "./hooks/use-input-errors";
 import { useTogglePricePanel } from "./hooks/use-toggle-price";
-import { SubmitOrderPanel } from "./components/submit-order-panel";
-import { useTranslations } from "./hooks/use-translations";
 import { usePartnerChains } from "./hooks/use-partner-chains";
 import { useAddresses } from "./hooks/use-addresses";
 import { useSubmitOrderButton, useSubmitOrderPanel } from "./hooks/use-submit-order-panel";
 export * from "./types";
 export * from "./utils";
 export { PRICE_PROTECTION_SETTINGS } from "./consts";
-export { useFormatNumber } from "./hooks/helper-hooks";
-export { FormatNumber } from "./components/format-number";
-import { useOrder, useOrderDisplay } from "./hooks/use-order";
-import { Portal } from "./components/portal";
+export { useFormatNumber, useAmountUi, useDateFormat, useExplorerLink, useCopyToClipboard, useNetwork } from "./hooks/helper-hooks";
+import { useOrder } from "./hooks/use-order";
 import { useSignOrder, useSubmitOrderMutation } from "./hooks/use-submit-order";
-import { useRePermitOrderData } from "./hooks/use-repermit-order-data";
-import { useRefetchUntilStatusSynced } from "./hooks/use-cancel-order";
+import { useCancelOrderRefetchUntilStatusSynced, useCancelOrderMutation } from "./hooks/use-cancel-order";
 
 // Set the UI version in spot-sdk for analytics
 setUIVersion(pkg.version);
 
-const Components = {
-  SubmitOrderPanel,
-  Orders,
-  Portal
-};
 
 // Re-export public API from spot-ui (explicit, not wildcard)
 export {
@@ -67,7 +57,6 @@ export {
   getConfig,
   getPartners,
   getMinChunkSizeUsd,
-  getAccountOrders,
   buildRePermitOrderData,
   submitOrder,
   getNetwork,
@@ -100,10 +89,10 @@ export {
   analytics,
 } from "@orbs-network/spot-ui";
 
+
 export {
   SpotProvider,
   DEFAULT_DURATION_OPTIONS,
-  Components,
   useTradesPanel,
   useDurationPanel,
   useFillDelayPanel,
@@ -116,16 +105,14 @@ export {
   useInvertTradePanel,
   useInputErrors,
   useTogglePricePanel,
-  useTranslations,
   usePartnerChains,
   useAddresses,
   useSubmitOrderButton,
   useOrder,
-  useOrderDisplay,
   formatDecimals,
-  useSubmitOrderMutation as useSubmitOrder,
+  useCancelOrderRefetchUntilStatusSynced,
+  useDisplayHistoryOrder,
+  useSubmitOrderMutation,
+  useCancelOrderMutation,
   useSignOrder,
-  useOrderType,
-  useRePermitOrderData,
-  useRefetchUntilStatusSynced
 };

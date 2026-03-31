@@ -8,22 +8,20 @@ import { useLimitPrice } from "./use-limit-price";
 import { useTrades } from "./use-trades";
 import { useFillDelay } from "./use-fill-delay";
 import { useDuration } from "./use-duration";
-import { useTranslations } from "./use-translations";
 import { getErrors, InputErrors } from "@orbs-network/spot-ui";
 import { useUsdAmount } from "./helper-hooks";
 
 const useMinTradeSizeError = () => {
   const { minChunkSizeUsd, typedInputAmount, srcUsd1Token } = useSpotContext();
-  const t = useTranslations();
   const typedInputAmountUsd = useUsdAmount(typedInputAmount, srcUsd1Token)
   return useMemo(() => {
-    
+
     return BN(minChunkSizeUsd).gt(BN(typedInputAmountUsd || "0")) ? {
       type: InputErrors.MIN_TRADE_SIZE_ERROR,
       value: minChunkSizeUsd,
-      message: t("minTradeSizeError", { minTradeSize: `${minChunkSizeUsd}` }),
+      message: "minTradeSizeError", args: { minTradeSize: `${minChunkSizeUsd}` },
     } : undefined;
-  }, [minChunkSizeUsd, typedInputAmountUsd, t]);
+  }, [minChunkSizeUsd, typedInputAmountUsd]);
 };
 
 export function useInputErrors() {
@@ -36,7 +34,6 @@ export function useInputErrors() {
     chainId,
   } = useSpotContext();
   const status = useSpotStore((s) => s.state.swapExecution.status);
-  const t = useTranslations();
 
   const { error: triggerPriceError } = useTriggerPrice();
   const { error: limitPriceError } = useLimitPrice();
@@ -50,11 +47,11 @@ export function useInputErrors() {
     if (srcBalance && BN(srcAmountWei).gt(srcBalance)) {
       return {
         type: InputErrors.INSUFFICIENT_BALANCE,
-        message: t("insufficientFunds"),
+        message: "insufficientFunds",
         value: srcBalance || "",
       };
     }
-  }, [srcBalance, srcAmountWei, t, chainId]);
+  }, [srcBalance, srcAmountWei, chainId]);
 
   return useMemo(() => {
     return getErrors({

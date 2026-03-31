@@ -1,4 +1,4 @@
-import { SwapStatus } from "@orbs-network/swap-ui";
+import { SwapStatus } from "../types";
 import { useMutation } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
 import { useSpotContext } from "../spot-context";
@@ -6,9 +6,7 @@ import { useSpotStore } from "../store";
 import { useInputErrors } from "./use-input-errors";
 import { useSrcAmount } from "./use-src-amount";
 import { useSubmitOrderMutation } from "./use-submit-order";
-import { useTranslations } from "./use-translations";
 import BN from "bignumber.js";
-import { useCurrentOrderTitle } from "./order-hooks";
 
 export const useSubmitOrderPanel = () => {
   const { marketPrice, srcToken, dstToken, resetTypedInputAmount } =
@@ -19,7 +17,6 @@ export const useSubmitOrderPanel = () => {
   const swapExecution = useSpotStore((s) => s.state.swapExecution);
   const updateSwapExecution = useSpotStore((s) => s.updateSwapExecution);
   const resetSwapExecution = useSpotStore((s) => s.resetSwapExecution);
-  const orderTitle = useCurrentOrderTitle();
 
   const onCloseModal = useCallback(() => {
     if (swapExecution?.status === SwapStatus.SUCCESS) {
@@ -62,17 +59,15 @@ export const useSubmitOrderPanel = () => {
       onCloseModal,
       onOpenModal,
       onSubmit: onSubmitOrder,
-      orderTitle,
       ...swapExecution,
       isLoading: swapExecution?.status === SwapStatus.LOADING,
       isSuccess: swapExecution?.status === SwapStatus.SUCCESS,
       isFailed: swapExecution?.status === SwapStatus.FAILED,
     };
-  }, [resetSwap, onCloseModal, onSubmitOrder, swapExecution, orderTitle]);
+  }, [resetSwap, onCloseModal, onSubmitOrder, swapExecution]);
 };
 
 export const useSubmitOrderButton = () => {
-  const t = useTranslations();
   const {
     marketPrice,
     srcToken,
@@ -96,10 +91,10 @@ export const useSubmitOrderButton = () => {
   const inputsError = useInputErrors();
 
   const buttonText = useMemo(() => {
-    if (noLiquidity) return t("noLiquidity");
-    if (BN(typedInputAmount || "0").isZero()) return t("enterAmount");
-    return t("placeOrder");
-  }, [inputsError, t, typedInputAmount, noLiquidity]);
+    if (noLiquidity) return "noLiquidity";
+    if (BN(typedInputAmount || "0").isZero()) return "enterAmount";
+    return "placeOrder";
+  }, [inputsError, typedInputAmount, noLiquidity]);
 
   const disabled = Boolean(
     inputsError ||

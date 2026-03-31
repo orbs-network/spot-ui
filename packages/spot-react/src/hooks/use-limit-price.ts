@@ -7,12 +7,10 @@ import BN from "bignumber.js";
 import { useTriggerPrice } from "./use-trigger-price";
 import { useDefaultLimitPricePercent } from "./use-default-values";
 import { getStopLossLimitPriceError, getTakeProfitLimitPriceError, InputErrors } from "@orbs-network/spot-ui";
-import { useTranslations } from "./use-translations";
 
 
 export const useLimitPriceError = (limitPriceWei?: string) => {
   const { module, marketPrice, typedInputAmount } = useSpotContext();
-  const t = useTranslations();
   const { amountWei: triggerPrice } = useTriggerPrice();
 
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
@@ -24,7 +22,7 @@ export const useLimitPriceError = (limitPriceWei?: string) => {
     if (_stopLossError?.isError) {
       return {
         type: InputErrors.TRIGGER_LIMIT_PRICE_GREATER_THAN_TRIGGER_PRICE,
-        message: t("triggerLimitPriceError") || "",
+        message: "triggerLimitPriceError",
         value: _stopLossError.value,
       };
     }
@@ -32,7 +30,7 @@ export const useLimitPriceError = (limitPriceWei?: string) => {
     if (_takeProfitError?.isError) {
       return {
         type: InputErrors.TRIGGER_LIMIT_PRICE_GREATER_THAN_TRIGGER_PRICE,
-        message: t("triggerLimitPriceError") || "",
+        message: "triggerLimitPriceError",
         value: _takeProfitError.value,
       };
     }
@@ -40,11 +38,11 @@ export const useLimitPriceError = (limitPriceWei?: string) => {
     if (limitPriceWei && BN(limitPriceWei || 0).isZero()) {
       return {
         type: InputErrors.MISSING_LIMIT_PRICE,
-        message: t("emptyLimitPrice") || "",
+        message: "emptyLimitPrice",
         value: limitPriceWei || "",
       };
     }
-  }, [limitPriceWei, t, triggerPrice, module, isMarketOrder, typedInputAmount, marketPrice]);
+  }, [limitPriceWei, triggerPrice, module, isMarketOrder, typedInputAmount, marketPrice]);
 };
 
 export const useLimitPrice = () => {

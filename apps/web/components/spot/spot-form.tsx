@@ -8,7 +8,6 @@ import React, {
 } from "react";
 import { FormContainer } from "../form-container";
 import {
-  ButtonProps,
   Module,
   Token,
   SpotProvider as Spot,
@@ -18,11 +17,9 @@ import {
   DEFAULT_DURATION_OPTIONS,
   useFillDelayPanel,
   useSubmitOrderPanel,
-  Components,
   DISCLAIMER_URL,
   TooltipProps,
   useInputErrors,
-  TokenLogoProps,
   useDisclaimerPanel,
   useLimitPricePanel,
   useTriggerPricePanel,
@@ -51,15 +48,12 @@ import {
   useBalance,
   useRefetchSelectedCurrenciesBalances,
 } from "@/lib/hooks/use-balances";
-import { Avatar, AvatarImage } from "../ui/avatar";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { Portal } from "../ui/portal";
-import { Spinner } from "../ui/spinner";
 import {
   SpotHooks,
   useSpotMarketReferencePrice,
   useSpotPartner,
-  useSpotToken,
 } from "@/lib/hooks/spot-hooks";
 import {
   SpotPriceInput,
@@ -67,8 +61,10 @@ import {
   SpotSelectMenu,
 } from "./components";
 import { SpotsOrders } from "./orders";
+import { SubmitOrderPanel } from "./submit-order-panel";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { SpotFooter } from "./footer";
+import { useTranslations } from "@/lib/use-translations";
 
 const { useCallbacks } = SpotHooks;
 const Context = createContext<{
@@ -92,14 +88,6 @@ const useParseSpotTokens = (currency?: Currency) => {
       logoUrl: currency.logoUrl,
     };
   }, [currency]);
-};
-
-const TwapButton = (props: ButtonProps) => {
-  return (
-    <Button isLoading={props.loading} onClick={props.onClick}>
-      {props.children}
-    </Button>
-  );
 };
 
 const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
@@ -195,6 +183,7 @@ const Card = ({
 };
 
 const Disclaimer = () => {
+  const t = useTranslations();
   const message = useDisclaimerPanel();
 
   if (!message) {
@@ -205,7 +194,7 @@ const Disclaimer = () => {
     <div className="text-sm bg-card p-2 rounded-md flex flex-row gap-2">
       <InfoIcon className="size-4 text-muted-foreground relative top-0.5" />
       <p className="text-sm text-foreground/70 flex-1">
-        {message.text}{" "}
+        {t(message.text)}{" "}
         <a
           href={message.url}
           target="_blank"
@@ -220,11 +209,12 @@ const Disclaimer = () => {
 };
 
 const TradesPanel = () => {
-  const { totalTrades, onChange, label, tooltip, error } = useTradesPanel();
+  const t = useTranslations();
+  const { totalTrades, onChange, error } = useTradesPanel();
   return (
     <Card
-      title={label}
-      tooltip={tooltip}
+      title={t("tradesAmountTitle")}
+      tooltip={t("totalTradesTooltip")}
       className="flex flex-col gap-2"
       error={Boolean(error)}
     >
@@ -240,10 +230,11 @@ const TradesPanel = () => {
 };
 
 const DurationPanel = () => {
-  const { duration, onInputChange, onUnitSelect, label, tooltip } =
+  const t = useTranslations();
+  const { duration, onInputChange, onUnitSelect } =
     useDurationPanel();
   return (
-    <Card title={label} tooltip={tooltip} className="flex flex-col gap-2">
+    <Card title={t("expiry")} tooltip={t("maxDurationTooltip")} className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <NumericInput
           value={duration.value ? duration.value.toString() : ""}
@@ -262,10 +253,11 @@ const DurationPanel = () => {
 };
 
 const FillDelayPanel = () => {
-  const { fillDelay, onInputChange, onUnitSelect, label, tooltip } =
+  const t = useTranslations();
+  const { fillDelay, onInputChange, onUnitSelect } =
     useFillDelayPanel();
   return (
-    <Card title={label} tooltip={tooltip} className="flex flex-col gap-2">
+    <Card title={t("tradeIntervalTitle")} tooltip={t("tradeIntervalTooltip")} className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <NumericInput
           value={fillDelay.value ? fillDelay.value.toString() : ""}
@@ -296,14 +288,6 @@ const ModuleInputs = () => {
   }
 
   return <DurationPanel />;
-};
-
-const TokenLogo = ({ token }: TokenLogoProps) => {
-  return (
-    <Avatar className="size-10 twap-token-logo">
-      <AvatarImage src={token?.logoUrl ?? ""} />
-    </Avatar>
-  );
 };
 
 const SubmitSwapError = ({
@@ -341,14 +325,17 @@ const SubmitSwapError = ({
 const SubmitSwapMain = ({
   onSubmitOrder,
   swapLoading,
+  orderTitle,
 }: {
   onSubmitOrder: () => void;
   swapLoading: boolean;
+  orderTitle: string;
 }) => {
   const [disclaimerAccept, setDisclaimerAccept] = useState(true);
 
   return (
-    <Components.SubmitOrderPanel
+    <SubmitOrderPanel
+      orderTitle={orderTitle}
       reviewDetails={
         <>
           <div className="flex  gap-2 justify-between">
@@ -388,9 +375,18 @@ const SubmitSwap = () => {
     onCloseModal,
     status,
     parsedError,
-    orderTitle,
     allowanceLoading,
   } = useSubmitOrderPanel();
+  const { swapModule } = useSpotContext();
+  const orderTitle = useMemo(() => {
+    switch (swapModule) {
+      case Module.TWAP: return "TWAP";
+      case Module.LIMIT: return "Limit";
+      case Module.STOP_LOSS: return "Stop Loss";
+      case Module.TAKE_PROFIT: return "Take Profit";
+      default: return "Order";
+    }
+  }, [swapModule]);
   const [isOpen, setIsOpen] = useState(false);
 
   const onOpen = useCallback(() => {
@@ -427,6 +423,7 @@ const SubmitSwap = () => {
             <SubmitSwapMain
               onSubmitOrder={onSubmit}
               swapLoading={Boolean(allowanceLoading)}
+              orderTitle={orderTitle}
             />
           )}
         </DialogContent>
@@ -436,6 +433,7 @@ const SubmitSwap = () => {
 };
 
 const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
+  const t = useTranslations();
   const { partner } = useSwapParams();
 
   const { disabled, text, loading } = useSubmitOrderButton();
@@ -450,13 +448,14 @@ const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
       onClick={onClick}
       disabled={disabled}
       isLoading={loading}
-      text={text}
+      text={t(text)}
       chainId={partnerChainId}
     />
   );
 };
 
 const InputsErrorPanel = () => {
+  const t = useTranslations();
   const error = useInputErrors();
 
   if (!error) {
@@ -467,13 +466,14 @@ const InputsErrorPanel = () => {
     <div className="flex flex-row gap-2 bg-destructive/50 p-2 rounded-md">
       <AlertTriangleIcon className="size-4 text-foreground relative top-0.5" />
       <p className="text-sm text-foreground flex-1 font-medium">
-        {error.message}
+        {t(error.message, error.args)}
       </p>
     </div>
   );
 };
 
 const LimitPricePanel = () => {
+  const t = useTranslations();
   const {
     toToken,
     onChange,
@@ -483,8 +483,6 @@ const LimitPricePanel = () => {
     amountPerChunkUsd,
     isLimitPrice,
     toggleLimitPrice,
-    label,
-    tooltip,
     onReset,
     isLoading,
     amountPerChunk,
@@ -520,7 +518,7 @@ const LimitPricePanel = () => {
           <Switch checked={isLimitPrice} onCheckedChange={toggleLimitPrice} />
         )}
         <div className="flex justify-between w-full items-center">
-          <Label title={label} tooltip={tooltip} />
+          <Label title={t("limitPrice")} tooltip={t("limitPriceTooltip")} />
           {isLimitPrice && <SpotPriceResetButton onClick={onReset} />}
         </div>
       </div>
@@ -540,14 +538,13 @@ const LimitPricePanel = () => {
 };
 
 const TriggerPricePanel = () => {
+  const t = useTranslations();
   const {
     price,
     onChange,
     percentage,
     onPercentageChange,
     amountPerChunkUsd,
-    label,
-    tooltip,
     onReset,
     toToken,
     amountPerChunk,
@@ -578,7 +575,7 @@ const TriggerPricePanel = () => {
   return (
     <div className="flex flex-col gap-2 ">
       <div className="flex justify-between w-full items-center">
-        <Label title={label} tooltip={tooltip} />
+        <Label title={t("stopLossLabel")} tooltip={t(swapModule === Module.STOP_LOSS ? "stopLossTooltip" : "takeProfitTooltip")} />
         <SpotPriceResetButton onClick={onReset} />
       </div>
       <SpotPriceInput
@@ -675,14 +672,10 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           marketReferencePrice={useSpotMarketReferencePrice()}
           minChunkSizeUsd={5}
           refetchBalances={refetchBalances}
-          useToken={useSpotToken}
           callbacks={callbacks}
           isDev={envMode === "dev"}
           components={{
-            Button: TwapButton,
             Tooltip: TwapTooltip,
-            TokenLogo,
-            Spinner: <Spinner className="size-18" />,
           }}
           fees={0.25}
         >

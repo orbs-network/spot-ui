@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(find /Users/denis/Documents/projects/spot-ui -maxdepth 3 -name *swap-ui* -type d)",
+      "Bash(pnpm --filter @orbs-network/spot-react build)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm --filter web build)"
     ]
   }
 }

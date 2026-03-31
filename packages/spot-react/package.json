@@ -36,14 +36,12 @@
   },
   "dependencies": {
     "@orbs-network/spot-ui": "workspace:*",
-    "@orbs-network/swap-ui": "^0.0.61",
     "@react-icons/all-files": "^4.1.0",
     "@tanstack/react-query": "^5.90.12",
     "bignumber.js": "^9.3.1",
     "moment": "^2.30.1",
     "react-error-boundary": "^6.0.0",
     "react-number-format": "^5.4.4",
-    "react-virtuoso": "^4.17.0",
     "viem": "^2.43.3",
     "zustand": "^5.0.9"
   },

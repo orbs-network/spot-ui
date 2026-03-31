@@ -8,11 +8,9 @@ import { useDefaultTriggerPricePercent } from "./use-default-values";
 import { getStopLossPriceError, getTakeProfitPriceError, getTriggerPricePerChunk, InputErrors } from "@orbs-network/spot-ui";
 import { useAmountUi, useUsdAmount } from "./helper-hooks";
 import { useTrades } from "./use-trades";
-import { useTranslations } from "./use-translations";
 
 const useTriggerPriceError = (triggerPriceWei = "") => {
   const { module, marketPrice, typedInputAmount } = useSpotContext();
-  const t = useTranslations();
 
 
   return useMemo(() => {
@@ -23,7 +21,7 @@ const useTriggerPriceError = (triggerPriceWei = "") => {
       return {
         type: InputErrors.STOP_LOSS_TRIGGER_PRICE_GREATER_THAN_MARKET_PRICE,
         value: stopLossError.value,
-        message: t("StopLossTriggerPriceError") || "",
+        message: "StopLossTriggerPriceError",
       };
     }
     const takeProfitError = getTakeProfitPriceError(marketPrice || "", triggerPriceWei || "", module);
@@ -32,7 +30,7 @@ const useTriggerPriceError = (triggerPriceWei = "") => {
       return {
         type: InputErrors.TAKE_PROFIT_TRIGGER_PRICE_LESS_THAN_MARKET_PRICE,
         value: takeProfitError.value,
-        message: t("TakeProfitTriggerPriceError") || "",
+        message: "TakeProfitTriggerPriceError",
       };
     }
 
@@ -40,10 +38,10 @@ const useTriggerPriceError = (triggerPriceWei = "") => {
       return {
         type: InputErrors.EMPTY_TRIGGER_PRICE,
         value: triggerPriceWei,
-        message: t("emptyTriggerPrice") || "",
+        message: "emptyTriggerPrice",
       };
     }
-  }, [marketPrice, triggerPriceWei, module, t, typedInputAmount]);
+  }, [marketPrice, triggerPriceWei, module, typedInputAmount]);
 };
 
 export const useTriggerAmountPerChunk = (triggerPrice?: string) => {

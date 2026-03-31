@@ -11,7 +11,6 @@ interface SpotStore {
 }
 
 const initialState = {
-  disclaimerAccepted: true,
   currentTime: Date.now(),
   swapExecution: {} as SwapExecution,
 } as State;

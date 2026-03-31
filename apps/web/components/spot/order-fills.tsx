@@ -1,28 +1,28 @@
+"use client";
 import { Virtuoso } from "react-virtuoso";
-import { useSpotContext } from "../../spot-context";
 import {
   useAmountUi,
   useDateFormat,
   useExplorerLink,
-} from "../../hooks/helper-hooks";
-import { useTranslations } from "../../hooks/use-translations";
-import { makeEllipsisAddress } from "../../utils";
-import { FormatNumber } from "../format-number";
-import TokenLogo from "../TokenLogo";
-import { SelectedOrder, Token } from "../../types";
-import { HiArrowRight } from "@react-icons/all-files/hi/HiArrowRight";
-import { IoIosArrowDown } from "@react-icons/all-files/io/IoIosArrowDown";
-import { OrderDetails } from "../order-details";
-import { OrderFill } from "@orbs-network/spot-ui";
-import { useSpotStore } from "../../store";
+  makeEllipsisAddress,
+  type SelectedOrder,
+  type Token,
+  type OrderFill,
+} from "@orbs-network/spot-react";
+import { FormatNumber } from "./format-number";
+import { OrderDetails } from "./order-details";
+import { SpotTokenLogo } from "./components";
+import { useTranslations } from "@/lib/use-translations";
+import { useOrdersPanelContext } from "./orders-context";
+import { ArrowRightIcon, ChevronDownIcon } from "lucide-react";
 
 export const FillsButton = ({ count }: { count: number }) => {
   const t = useTranslations();
-  const updateState = useSpotStore((s) => s.updateState);
+  const { onShowOrderFills } = useOrdersPanelContext();
   return (
     <div
       className="twap-orders__selected-order-fills-button"
-      onClick={() => updateState({ showSelectedOrderFills: true })}
+      onClick={onShowOrderFills}
     >
       <p>
         {t("orderFills")}{" "}
@@ -30,21 +30,15 @@ export const FillsButton = ({ count }: { count: number }) => {
           ({count})
         </span>
       </p>
-      <IoIosArrowDown />
+      <ChevronDownIcon className="size-4" />
     </div>
   );
 };
 
 const FillsTokensDisplayToken = ({ token }: { token?: Token }) => {
-  const { components } = useSpotContext();
-
   return (
     <div className="twap-orders__selected-order-fills-token">
-      {components.TokenLogo ? (
-        <components.TokenLogo token={token} />
-      ) : (
-        <TokenLogo logo={token?.logoUrl} />
-      )}
+      <SpotTokenLogo token={token} />
       <p className="twap-orders__selected-order-fills-token-symbol">
         {token?.symbol}
       </p>
@@ -63,7 +57,7 @@ const FillsTokensDisplay = ({
     <div className="twap-orders__selected-order-fills-tokens">
       <FillsTokensDisplayToken token={srcToken} />
       <span className="twap-orders__selected-order-fills-token-separator">
-        <HiArrowRight />
+        <ArrowRightIcon className="size-4" />
       </span>
       <FillsTokensDisplayToken token={dstToken} />
     </div>
@@ -136,7 +130,7 @@ const FillItem = ({
 export const FillsView = ({
   order,
 }: {
-  order:  SelectedOrder;
+  order: SelectedOrder;
 }) => {
   const t = useTranslations();
   const fills = order.original?.fills ?? [];

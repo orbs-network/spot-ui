@@ -1,15 +1,13 @@
-import { getDuration, getMaxOrderDurationError, getMinOrderDurationError, InputErrors, Module, TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
+import { getDuration, getMaxOrderDurationError, getMinOrderDurationError, InputErrors, TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { millisToDays, millisToMinutes } from "../utils";
 import { useTrades } from "./use-trades";
 import { useFillDelay } from "./use-fill-delay";
-import { useTranslations } from "./use-translations";
 
 const useDurationError = (duration: TimeDuration) => {
   const { module, marketPrice } = useSpotContext();
-  const t = useTranslations();
 
   return useMemo(() => {
     const maxError = getMaxOrderDurationError(module, duration);
@@ -20,17 +18,17 @@ const useDurationError = (duration: TimeDuration) => {
       return {
         type: InputErrors.MAX_ORDER_DURATION,
         value: maxError.value,
-        message: t("maxDurationError", { duration: `${Math.floor(millisToDays(maxError.value)).toFixed(0)} ${t("days")}` }),
+        message: "maxDurationError", args: { duration: `${Math.floor(millisToDays(maxError.value)).toFixed(0)} days` },
       };
     }
     if (minError.isError) {
       return {
         type: InputErrors.MIN_ORDER_DURATION,
         value: minError.value,
-        message: t("minDurationError", { duration: `${Math.floor(millisToMinutes(minError.value)).toFixed(0)} ${t("minutes")}` }),
+        message: "minDurationError", args: { duration: `${Math.floor(millisToMinutes(minError.value)).toFixed(0)} minutes` },
       };
     }
-  }, [duration, t, module, marketPrice]);
+  }, [duration, module, marketPrice]);
 };
 
 export const useDuration = () => {
@@ -53,8 +51,6 @@ export const useDuration = () => {
 };
 
 export const useDurationPanel = () => {
-  const { module } = useSpotContext();
-  const t = useTranslations();
   const { duration, setDuration, error } = useDuration();
 
   const onInputChange = useCallback(
@@ -71,21 +67,12 @@ export const useDurationPanel = () => {
     [setDuration, duration],
   );
 
-  const tooltip = useMemo(() => {
-    if (module === Module.STOP_LOSS) {
-      return t("stopLossDurationTooltip");
-    }
-    return t("maxDurationTooltip");
-  }, [t, module]);
-
   return {
     duration,
     onChange: setDuration,
     milliseconds: duration.unit * duration.value,
     onInputChange,
     onUnitSelect,
-    label: t("expiry"),
-    tooltip,
     error,
   };
 };

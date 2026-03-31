@@ -1,3 +1,4 @@
+"use client";
 import {
   createContext,
   ReactNode,
@@ -7,20 +8,24 @@ import {
   useMemo,
   useState,
 } from "react";
-import { IoIosArrowDown } from "@react-icons/all-files/io/IoIosArrowDown";
-import { OrderStatus } from "@orbs-network/spot-ui";
+import { ChevronDownIcon } from "lucide-react";
 import { TokensDisplay } from "@orbs-network/swap-ui";
-import { OrderDetails } from "../../components/order-details";
-import { useSpotStore } from "../../store";
-import { useCancelOrderMutation } from "../../hooks/use-cancel-order";
-import { useDateFormat } from "../../hooks/helper-hooks";
-import { useTranslations } from "../../hooks/use-translations";
-import { useSpotContext } from "../../spot-context";
-import { FormatNumber } from "../format-number";
+import {
+  OrderStatus,
+  useCancelOrderMutation,
+  useDateFormat,
+  useDisplayHistoryOrder,
+  useOrderHistoryPanel,
+  type SelectedOrder,
+} from "@orbs-network/spot-react";
+import { FormatNumber } from "./format-number";
+import { OrderDetails } from "./order-details";
+import { useSpotToken } from "@/lib/hooks/spot-hooks";
 import { FillsButton, FillsView } from "./order-fills";
-import { SelectedOrder } from "../../types";
-import { useSelectedOrder } from "../../hooks/use-history-order";
-
+import { useTranslations } from "@/lib/use-translations";
+import { useOrdersPanelContext } from "./orders-context";
+import { SpotTokenLogo } from "./components";
+import { Button } from "../ui/button";
 
 type ContextType = {
   order: SelectedOrder;
@@ -33,22 +38,23 @@ const useOrderContext = () => {
 };
 
 export const OrderPreview = () => {
-  const selectedOrderID = useSpotStore((s) => s.state.selectedOrderID);
-  const order = useSelectedOrder(selectedOrderID);
+  const { selectedOrderID, isDisplayingOrderFills, onHideOrderFills } = useOrdersPanelContext();
+  const { orders } = useOrderHistoryPanel();
+  const rawOrder = useMemo(
+    () => orders?.find((o) => o.id === selectedOrderID),
+    [orders, selectedOrderID],
+  );
+  const srcToken = useSpotToken(rawOrder?.srcTokenAddress);
+  const dstToken = useSpotToken(rawOrder?.dstTokenAddress);
+  const order = useDisplayHistoryOrder(rawOrder!, srcToken, dstToken);
 
   const t = useTranslations();
   const [expanded, setExpanded] = useState<string | false>("panel1");
-  const updateState = useSpotStore((s) => s.updateState);
-  const showSelectedOrderFills = useSpotStore(
-    (s) => s.state.showSelectedOrderFills,
-  );
-  const { components } = useSpotContext();
-  const TokenLogo = components.TokenLogo;
 
   useEffect(() => {
     setExpanded("panel1");
-    updateState({ showSelectedOrderFills: false });
-  }, [order?.id.value]);
+    if (isDisplayingOrderFills) onHideOrderFills();
+  }, [order?.id]);
 
   const handleChange = (panel: string) => {
     setExpanded(expanded === panel ? false : panel);
@@ -58,13 +64,13 @@ export const OrderPreview = () => {
 
   const fills = order.fills ?? [];
 
-  const content = showSelectedOrderFills ? (
+  const content = isDisplayingOrderFills ? (
     <FillsView order={order} />
   ) : (
     <>
       <TokensDisplay
-        SrcTokenLogo={TokenLogo && <TokenLogo token={order.srcToken} />}
-        DstTokenLogo={TokenLogo && <TokenLogo token={order.dstToken} />}
+        SrcTokenLogo={<SpotTokenLogo token={order.srcToken} />}
+        DstTokenLogo={<SpotTokenLogo token={order.dstToken} />}
         fromTitle={t("from")}
         inToken={order.srcToken}
         toTitle={t("to")}
@@ -121,7 +127,7 @@ const AccordionContainer = ({
         className="twap-orders__selected-order-accordion-trigger"
       >
         <p>{title}</p>
-        <IoIosArrowDown
+        <ChevronDownIcon
           style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
         />
       </div>
@@ -154,73 +160,78 @@ const OrderInfo = () => {
 
 const ChunkSize = () => {
   const { order } = useOrderContext();
+  const t = useTranslations();
   return (
     <OrderDetails.TradeSize
-      tradeSize={order.sizePerTrade.value as string}
+      tradeSize={order.sizePerTradeUI}
       srcToken={order.srcToken}
-      label={order.sizePerTrade.label}
-      tooltip={order.sizePerTrade.tooltip as string}
-      trades={order.totalTrades.value as number}
+      label={t("individualTradeSize")}
+      tooltip={t("tradeSizeTooltip")}
+      trades={order.totalTrades}
     />
   );
 };
 
 const ChunksAmount = () => {
   const { order } = useOrderContext();
+  const t = useTranslations();
   return (
     <OrderDetails.TradesAmount
-      trades={order.totalTrades.value as number}
-      label={order.totalTrades.label}
-      tooltip={order.totalTrades.tooltip as string}
+      trades={order.totalTrades}
+      label={t("numberOfTrades")}
+      tooltip={t("totalTradesTooltip")}
     />
   );
 };
 
 const MinDestAmount = () => {
   const { order } = useOrderContext();
-
+  const t = useTranslations();
   return (
     <OrderDetails.MinDestAmount
       dstToken={order.dstToken}
-      dstMinAmountOut={order.minDestAmountPerTrade.value as string}
-      label={order.minDestAmountPerTrade.label}
-      tooltip={order.minDestAmountPerTrade.tooltip as string}
+      dstMinAmountOut={order.minDestAmountPerTradeUI}
+      label={t("minReceivedPerTrade")}
+      tooltip={t("minDstAmountTooltip")}
     />
   );
 };
 
 const Expiry = () => {
   const { order } = useOrderContext();
+  const t = useTranslations();
   return (
     <OrderDetails.Deadline
-      deadline={order.deadline.value as number}
-      label={order.deadline.label}
-      tooltip={order.deadline.tooltip as string}
+      deadline={order.deadline}
+      label={t("expirationLabel")}
+      tooltip={t("expirationTooltip")}
     />
   );
 };
 
 const TradeInterval = () => {
   const { order } = useOrderContext();
+  const t = useTranslations();
   return (
     <OrderDetails.TradeInterval
-      fillDelayMillis={order.tradeInterval.value as number}
-      chunks={order.totalTrades.value as number}
-      label={order.tradeInterval.label}
-      tooltip={order.tradeInterval.tooltip as string}
+      fillDelayMillis={order.tradeInterval}
+      chunks={order.totalTrades}
+      label={t("tradeIntervalLabel")}
+      tooltip={t("tradeIntervalTooltip")}
     />
   );
 };
 
 const TriggerPrice = () => {
   const { order } = useOrderContext();
+  const t = useTranslations();
   return (
     <OrderDetails.Price
       srcToken={order.srcToken}
       dstToken={order.dstToken}
-      price={order.triggerPrice.value as string}
-      label={order.triggerPrice.label}
-      tooltip={order.triggerPrice.tooltip as string}
+      price={order.triggerPriceUI}
+      label={t("triggerPrice")}
+      tooltip={t("triggerPriceTooltip")}
     />
   );
 };
@@ -228,7 +239,7 @@ const TriggerPrice = () => {
 const OrderID = () => {
   const { order } = useOrderContext();
 
-  return <OrderDetails.OrderID id={order.id.value || ""} />;
+  return <OrderDetails.OrderID id={order.id || ""} />;
 };
 
 const ExecutionSummary = () => {
@@ -245,11 +256,12 @@ const ExecutionSummary = () => {
 
 const AmountOutFilled = () => {
   const { order } = useOrderContext();
-  if (!order.amountOutFilled.value) return null;
+  const t = useTranslations();
+  if (!order.amountOutFilled) return null;
   return (
-    <OrderDetails.DetailRow title={order.amountOutFilled.label}>
+    <OrderDetails.DetailRow title={t("amountReceived")}>
       <p>
-        <FormatNumber value={order.amountOutFilled.value} />{" "}
+        <FormatNumber value={order.amountOutFilled} />{" "}
         {order.dstToken?.symbol}
       </p>
     </OrderDetails.DetailRow>
@@ -261,23 +273,19 @@ export const CancelOrderButton = () => {
   const t = useTranslations();
   const { mutateAsync: cancelOrder, isPending: isLoading } =
     useCancelOrderMutation();
-  const { components } = useSpotContext();
-  const Button = components.Button;
 
   const onCancelOrder = useCallback(async () => {
     return cancelOrder({ orders: [order.original] });
   }, [cancelOrder, order]);
 
   if (!order || order.original.status !== OrderStatus.Open) return null;
-  if (!Button) return null;
 
   return (
     <Button
-      loading={isLoading}
+      isLoading={isLoading}
       onClick={onCancelOrder}
       disabled={isLoading}
       className="twap-cancel-order"
-      text={t("cancelOrder")}
     >
       {t("cancelOrder")}
     </Button>
@@ -287,7 +295,7 @@ export const CancelOrderButton = () => {
 const CreatedAt = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
-  const createdAtUi = useDateFormat(order.createdAt.value);
+  const createdAtUi = useDateFormat(order.createdAt);
   return (
     <OrderDetails.DetailRow title={t("createdAt") || ""}>
       <p>{createdAtUi}</p>
@@ -302,7 +310,7 @@ const AmountIn = () => {
   return (
     <OrderDetails.DetailRow title={t("amountOut") || ""}>
       <p>
-        <FormatNumber value={order.srcAmount.value} decimalScale={3} />{" "}
+        <FormatNumber value={order.srcAmountUI} decimalScale={3} />{" "}
         {order.srcToken?.symbol}
       </p>
     </OrderDetails.DetailRow>
@@ -311,11 +319,11 @@ const AmountIn = () => {
 
 const AmountInFilled = () => {
   const { order } = useOrderContext();
-
+  const t = useTranslations();
   return (
-    <OrderDetails.DetailRow title={order.amountInFilled.label}>
+    <OrderDetails.DetailRow title={t("amountOut")}>
       <p>
-        <FormatNumber value={order.amountInFilled.value} decimalScale={3} />{" "}
+        <FormatNumber value={order.amountInFilled} decimalScale={3} />{" "}
         {order.srcToken?.symbol}
       </p>
     </OrderDetails.DetailRow>
@@ -357,11 +365,11 @@ const OrderStatusComponent = () => {
 
 const Progress = () => {
   const { order } = useOrderContext();
-
+  const t = useTranslations();
   return (
-    <OrderDetails.DetailRow title={order.progress.label}>
+    <OrderDetails.DetailRow title={t("progress")}>
       <p>
-        <FormatNumber value={order.progress.value || 0} decimalScale={2} />%
+        <FormatNumber value={order.progress || 0} decimalScale={2} />%
       </p>
     </OrderDetails.DetailRow>
   );
@@ -371,26 +379,27 @@ const LimitPrice = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
 
-  if (!order.limitPrice.value) return null;
+  if (!order.limitPriceUI) return null;
 
   return (
     <OrderDetails.Price
       label={t("limitPrice") || ""}
-      price={order.limitPrice.value as string}
+      price={order.limitPriceUI}
       srcToken={order.srcToken}
       dstToken={order.dstToken}
-      tooltip={order.limitPrice.tooltip}
+      tooltip={t("limitPriceTooltip")}
     />
   );
 };
 
 const AvgExecutionPrice = () => {
   const { order } = useOrderContext();
-  if (!order.executionPrice.value) return null;
+  const t = useTranslations();
+  if (!order.executionPrice) return null;
   return (
     <OrderDetails.Price
-      label={order.executionPrice.label}
-      price={order.executionPrice.value}
+      label={t(order.original.totalTradesAmount === 1 ? "finalExecutionPrice" : "averageExecutionPrice")}
+      price={order.executionPrice}
       srcToken={order.srcToken}
       dstToken={order.dstToken}
     />

@@ -3,13 +3,11 @@ import { useCallback } from "react";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { useInvertTradePanel } from "./use-invert-trade-panel";
-import { useTranslations } from "./use-translations";
 import { useTriggerPrice } from "./use-trigger-price";
 import { useTrades } from "./use-trades";
 
 export const useTriggerPricePanel = () => {
     const { module, marketPrice, marketPriceLoading } = useSpotContext();
-    const t = useTranslations();
     const { amountUI, onChange, onPercentageChange, usd, selectedPercentage, error, pricePerChunkUI, pricePerChunkUsd: amountPerChunkUsd, isTypedValue } = useTriggerPrice();
     const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
     const updateState = useSpotStore((s) => s.updateState);
@@ -26,8 +24,6 @@ export const useTriggerPricePanel = () => {
       amountPerChunk: pricePerChunkUI,
       amountPerChunkUsd: amountPerChunkUsd,
       error,
-      label: t("stopLossLabel"),
-      tooltip: module === Module.STOP_LOSS ? t("stopLossTooltip") : t("takeProfitTooltip"),
       onChange,
       onPercentageChange,
       percentage: selectedPercentage,

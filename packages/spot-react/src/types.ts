@@ -1,28 +1,15 @@
-import { CSSProperties, FC, ReactNode } from "react";
-import { Partners, Module, Order, OrderType, SpotConfig, TimeDuration, OrderFilter } from "@orbs-network/spot-ui";
-import { SwapStatus } from "@orbs-network/swap-ui";
+import { FC, ReactNode } from "react";
+import { Partners, Module, Order, OrderType, SpotConfig, TimeDuration } from "@orbs-network/spot-ui";
+export enum SwapStatus {
+  LOADING = 1,
+  SUCCESS = 2,
+  FAILED = 3,
+}
 import { createPublicClient, createWalletClient, TransactionReceipt as _TransactionReceipt, Abi } from "viem";
 export type { Order } from "@orbs-network/spot-ui";
 export { OrderStatus, type OrderFill, OrderType, Module } from "@orbs-network/spot-ui";
 
-/** Label/value pair used for order detail rows (e.g. id, createdAt, progress). */
-export type OrderDetailField<T = string | number | undefined> = {
-  label: string;
-  value: T;
-};
-
-/** Order detail row that can include a token (e.g. amountOutFilled). */
-export type OrderDetailFieldWithToken = OrderDetailField<string> & {
-  token?: Token;
-};
-
-/** Detail field with optional tooltip and USD. */
-export type OrderDetailFieldWithMeta = OrderDetailField<string | number> & {
-  tooltip?: string;
-  usd?: string;
-};
-
-/** Return type of useHistoryOrder. */
+/** Return type of useDisplayHistoryOrder. */
 export type SelectedOrder = {
   original: Order;
   fills?: {
@@ -35,156 +22,59 @@ export type SelectedOrder = {
     srcToken: Token;
     dstToken: Token;
   }[];
-  title: string;
   srcToken?: Token;
   dstToken?: Token;
-  srcUsd: string;
-  dstUsd: string;
   orderType?: OrderType;
-  dstMinAmount: string;
-  dstMinAmountUsd: string;
-  limitPrice: OrderDetailFieldWithMeta;
-  deadline: OrderDetailFieldWithMeta;
-  srcAmount: OrderDetailFieldWithMeta;
-  dstAmount: { value: string; usd: string };
-  sizePerTrade: OrderDetailFieldWithMeta;
-  totalTrades: OrderDetailFieldWithMeta;
-  minDestAmountPerTrade: OrderDetailFieldWithMeta;
-  tradeInterval: OrderDetailFieldWithMeta;
-  triggerPrice: OrderDetailFieldWithMeta;
-  recipient: OrderDetailField<string>;
-  createdAt: OrderDetailField<number | undefined>;
-  id: OrderDetailField<string | undefined>;
-  amountInFilled: OrderDetailField<string>;
-  amountOutFilled: OrderDetailFieldWithToken;
-  progress: OrderDetailField<number | undefined>;
-  executionPrice: OrderDetailField<string | undefined>;
-  version: OrderDetailField<number | undefined>;
-};
-
-export interface Translations {
-  expirationTooltip: string;
-  tradeSizeTooltip: string;
-  totalTradesTooltip: string;
-  stopLossDurationTooltip: string;
-  stopLossTooltip: string;
-  stopLossLimitPriceTooltip: string;
-  fillIndex: string;
-  fillTimestamp: string;
-  backToOrder: string;
-  fillTransactionHash: string;
-  takeProfitTooltip: string;
-  minDstAmountTooltip: string;
-  limitPriceTooltip: string;
-  wrapMsg: string;
-  cancelOrder: string;
-  tradeIntervalTooltip: string;
-  triggerPriceTooltip: string;
-  createOrderActionSuccess: string;
-  version: string;
-  viewOnExplorer: string;
-  proceedInWallet: string;
-  maxOrderSizeError: string;
-  maxDurationTooltip: string;
-  stopLossMarket: string;
-  stopLossLimit: string;
-  placeOrder: string;
-  enterAmount: string;
-  emptyLimitPrice: string;
-  insufficientFunds: string;
-  tradeIntervalLabel: string;
-  expirationLabel: string;
-  limitPrice: string;
-  finalExecutionPrice: string;
-  marketPrice: string;
-  from: string;
-  to: string;
-  Open: string;
-  Completed: string;
-  Expired: string;
-  Cancelled: string;
-  minReceivedPerTrade: string;
-  triggerPricePerChunk: string;
-  maxChunksError: string;
-  minChunksError: string;
-  minTradeSizeError: string;
-  allOrders: string;
-  minFillDelayError: string;
-  maxFillDelayError: string;
+  createdAt?: number;
+  deadline: number;
+  totalTrades: number;
+  tradeInterval: number;
   recipient: string;
-  marketOrderWarning: string;
-  limitPriceMessage: string;
-  limit: string;
-  maxDurationError: string;
-  minDurationError: string;
-  expiry: string;
-  individualTradeSize: string;
-  numberOfTrades: string;
-  averageExecutionPrice: string;
-  twapMarket: string;
-  twapLimit: string;
-  stopLoss: string;
-  takeProfit: string;
-  minReceived: string;
-  noOrders: string;
-  noLiquidity: string;
-  executionSummary: string;
-  orderInfo: string;
-  orderFills: string;
-  noFills: string;
-  fillAmountOut: string;
-  fillAmountReceived: string;
-  fillTxHash: string;
-  wrapAction: string;
-  approveAction: string;
-  createOrderAction: string;
-  amountReceived: string;
-  createdAt: string;
-  amountOut: string;
-  status: string;
-  progress: string;
-  tradeIntervalTitle: string;
-  tradesAmountTitle: string;
-  stopLossLabel: string;
-  StopLossTriggerPriceError: string;
-  TakeProfitTriggerPriceError: string;
-  triggerLimitPriceError: string;
+
+  srcAmount: string;
+  srcAmountUI: string;
+  srcAmountUsd: string;
+
+  dstAmount: string;
+  dstAmountUI: string;
+  dstAmountUsd: string;
+
+  limitPrice: string;
+  limitPriceUI: string;
+  limitPriceUsd: string;
+
+  sizePerTrade: string;
+  sizePerTradeUI: string;
+  sizePerTradeUsd?: string;
+
+  minDestAmountPerTrade: string;
+  minDestAmountPerTradeUI: string;
+  minDestAmountPerTradeUsd?: string;
+
+  dstMinAmount: string;
+  dstMinAmountUI: string;
+  dstMinAmountUsd: string;
+
   triggerPrice: string;
-  tradePrice: string;
-  triggerMarketPriceDisclaimer: string;
-  emptyTriggerPrice: string;
-  id: string;
-  fees: string;
-  minutes: string;
-  days: string;
-}
+  triggerPriceUI: string;
+  triggerPriceUsd?: string;
+
+  id?: string;
+  amountInFilled: string;
+  amountOutFilled: string;
+  amountOutFilledToken?: Token;
+  progress?: number;
+  executionPrice?: string;
+  version?: number;
+  feesAmount?: string;
+  feesUsd?: string;
+  feesPercentage?: number;
+};
 
 export type SelectMenuProps = {
   items: SelectMenuItem[];
   onSelect: (item: SelectMenuItem) => void;
   selected?: SelectMenuItem;
-};
-
-export type TokenLogoProps = {
-  token?: Token;
-  size?: number;
-  className?: string;
-};
-
-export type OrdersButtonProps = {
-  onClick: () => void;
-  openOrdersCount: number;
-  isLoading: boolean;
-};
-
-export type LinkProps = {
-  href: string;
-  children: ReactNode;
-};
-
-export type USDProps = {
-  value: string;
-  isLoading: boolean;
 };
 
 
@@ -232,11 +122,7 @@ export type InitialState = {
   triggerPrice?: string;
 };
 
-export type UseToken = (value?: string) => Token | undefined;
 
-export type SubmitOrderPanelProps = {
-  reviewDetails?: ReactNode;
-};
 
 export type OrderDetails = {
   limitPrice: {
@@ -345,16 +231,6 @@ export type Callbacks = {
   onChunksChange?: (typedChunks: number) => void;
 };
 
-export type SubmitOrderSuccessViewProps = {
-  children: ReactNode;
-  newOrderId?: string;
-};
-
-export type SubmitOrderErrorViewProps = {
-  wrapTxHash?: string;
-  children: ReactNode;
-  error?: ParsedError;
-};
 
 export type MarketReferencePrice = {
   value?: string;
@@ -363,17 +239,7 @@ export type MarketReferencePrice = {
 };
 
 export type Components = {
-  Button?: FC<ButtonProps>;
   Tooltip?: FC<TooltipProps>;
-  TokenLogo?: FC<TokenLogoProps>;
-  Spinner?: ReactNode;
-  SuccessIcon?: ReactNode;
-  ErrorIcon?: ReactNode;
-  Link?: FC<LinkProps>;
-  USD?: FC<USDProps>;
-  SubmitOrderSuccessView?: FC<SubmitOrderSuccessViewProps>;
-  SubmitOrderErrorView?: FC<SubmitOrderErrorViewProps>;
-  SubmitOrderMainView?: FC<{ children: ReactNode }>;
 };
 
 export interface SpotProps {
@@ -396,9 +262,6 @@ export interface SpotProps {
   fees?: number;
   callbacks?: Callbacks;
   refetchBalances?: () => void;
-  getTranslation?: (key: string, args?: Record<string, string>) => string | undefined;
-  translations?: Partial<Translations> | undefined;
-  useToken?: UseToken;
   minChunkSizeUsd: number;
   components: Components;
   typedInputAmount: string;
@@ -431,9 +294,6 @@ export interface SpotContextType {
   components: Components;
   overrides?: Overrides;
   callbacks?: Callbacks;
-  getTranslation?: (key: string, args?: Record<string, string>) => string | undefined;
-  translations?: Partial<Translations> | undefined;
-  useToken?: UseToken;
   refetchBalances?: () => void;
   resetTypedInputAmount: () => void;
   isDev?: boolean;
@@ -458,15 +318,6 @@ export interface TooltipProps {
   tooltipText?: string;
 }
 
-export interface ButtonProps extends React.HTMLAttributes<HTMLElement> {
-  children: ReactNode;
-  style?: CSSProperties;
-  disabled?: boolean;
-  onClick: () => void;
-  loading?: boolean;
-  text?: string;
-  allowClickWhileLoading?: boolean;
-}
 
 export type ToggleProps = {
   checked: boolean;
@@ -496,7 +347,6 @@ export type SwapExecution = {
 };
 
 export interface State {
-  unwrapTxHash?: string;
   typedChunks?: number;
   typedFillDelay?: TimeDuration;
   typedDuration?: TimeDuration;
@@ -513,15 +363,8 @@ export interface State {
   cancelOrderError?: string;
   cancelOrderId?: number;
 
-  selectedOrderID?: string;
-  showSelectedOrderFills?: boolean;
-  orderHistoryStatusFilter?: OrderFilter;
-
-  cancelOrdersMode?: boolean;
-  orderIdsToCancel?: string[];
-
   swapExecution: SwapExecution;
  
 }
 
-export { SwapStatus, Partners };
+export { Partners };

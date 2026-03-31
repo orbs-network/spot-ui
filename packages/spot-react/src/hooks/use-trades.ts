@@ -1,24 +1,22 @@
 import { useMemo, useCallback } from "react";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
-import { getChunks, getMaxChunksError, getMaxPossibleChunks, getSrcTokenChunkAmount, getMinTradeSizeError, InputErrors } from "@orbs-network/spot-ui";
+import { getChunks, getMaxChunksError, getMaxPossibleChunks, getSrcTokenChunkAmount, getMinTradeSizeError, InputErrors, InputError } from "@orbs-network/spot-ui";
 import { useFillDelay } from "./use-fill-delay";
 import { useSrcAmount } from "./use-src-amount";
 import { useAmountUi, useFormatNumber } from "./helper-hooks";
 import BN from "bignumber.js";
-import { useTranslations } from "./use-translations";
 
 const useTradesError = (amount: number, maxAmount: number) => {
   const { module, srcUsd1Token, marketPrice, minChunkSizeUsd, typedInputAmount } = useSpotContext();
-  const t = useTranslations();
 
-  return useMemo(() => {
+  return useMemo((): InputError | undefined => {
     if (BN(typedInputAmount || "0").isZero() || !marketPrice || BN(srcUsd1Token || "0").isZero()) return;
     if (!amount) {
       return {
         type: InputErrors.MIN_CHUNKS,
         value: 1,
-        message: t("minChunksError", { minChunks: '1' }),
+        message: "minChunksError", args: { minChunks: '1' },
       };
     }
     const { isError: maxChunksError } = getMaxChunksError(amount, maxAmount, module);
@@ -26,7 +24,7 @@ const useTradesError = (amount: number, maxAmount: number) => {
       return {
         type: InputErrors.MAX_CHUNKS,
         value: maxAmount,
-        message: t("maxChunksError", { maxChunks: `${maxAmount}` }),
+        message: "maxChunksError", args: { maxChunks: `${maxAmount}` },
       };
     }
     const { isError: minTradeSizeError, value: minTradeSizeValue } = getMinTradeSizeError(typedInputAmount || "", srcUsd1Token || "", minChunkSizeUsd || 0);
@@ -35,10 +33,10 @@ const useTradesError = (amount: number, maxAmount: number) => {
       return {
         type: InputErrors.MIN_TRADE_SIZE,
         value: minTradeSizeValue,
-        message: t("minTradeSizeError", { minTradeSize: `${minTradeSizeValue}` }),
+        message: "minTradeSizeError", args: { minTradeSize: `${minTradeSizeValue}` },
       };
     }
-  }, [amount, maxAmount, module, typedInputAmount, srcUsd1Token, minChunkSizeUsd, t, marketPrice]);
+  }, [amount, maxAmount, module, typedInputAmount, srcUsd1Token, minChunkSizeUsd, marketPrice]);
 };
 
 export const useTrades = () => {
@@ -86,7 +84,6 @@ export const useTrades = () => {
 
 export const useTradesPanel = () => {
   const { srcToken, dstToken } = useSpotContext();
-  const t = useTranslations();
   const { onChange, totalTrades, amountPerTradeUsd, amountPerTradeUI, error, maxTrades, amountPerTradeWei } = useTrades();
   const amountPerTradeUIF = useFormatNumber({ value: amountPerTradeUI });
   const usdF = useFormatNumber({ value: amountPerTradeUsd });
@@ -97,8 +94,6 @@ export const useTradesPanel = () => {
     amountPerTrade: amountPerTradeUIF,
     amountPerTradeWei,
     onChange,
-    label: t("tradesAmountTitle"),
-    tooltip: t("totalTradesTooltip"),
     amountPerTradeUsd: usdF,
     fromToken: srcToken,
     toToken: dstToken,

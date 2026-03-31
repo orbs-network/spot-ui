@@ -1,6 +1,15 @@
-import { SelectMenuProps, SelectMenuItem } from "@orbs-network/spot-react";
+import { SelectMenuProps, SelectMenuItem, type Token } from "@orbs-network/spot-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../ui/select";
 import { useCallback } from "react";
+import { Avatar, AvatarImage } from "../ui/avatar";
+
+export const SpotTokenLogo = ({ token }: { token?: Token }) => {
+  return (
+    <Avatar className="size-10 twap-token-logo">
+      <AvatarImage src={token?.logoUrl ?? ""} />
+    </Avatar>
+  );
+};
 import { NumericInput } from "../ui/numeric-input";
 
 export const SpotSelectMenu = (props: SelectMenuProps) => {
