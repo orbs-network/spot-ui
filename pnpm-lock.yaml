@@ -270,8 +270,8 @@ importers:
         version: 2.7.28
     devDependencies:
       '@orbs-network/spot':
-        specifier: ^2.3.2
-        version: 2.3.2
+        specifier: ^2.3.3
+        version: 2.3.3
       bignumber.js:
         specifier: ^9.3.1
         version: 9.3.1
@@ -1358,8 +1358,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@orbs-network/spot@2.3.2':
-    resolution: {integrity: sha512-LvcFmSw1XUaV1nZ8P6pMGXkzRXKgYsuLbzeHqjkjVpanhBwyD83NDTqzn4lKNo15zdbMWFB6koacsH7r2dYMew==}
+  '@orbs-network/spot@2.3.3':
+    resolution: {integrity: sha512-FNGHsC/hGPpUTmxy7jj383S6YCKTqxJFpfY9lejc/ozd0TFwb4/kjn5WsHDXbzBq8BO1Y0moZ1lnT4EqnR8gPA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -7063,7 +7063,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@orbs-network/spot@2.3.2':
+  '@orbs-network/spot@2.3.3':
     dependencies:
       '@modelcontextprotocol/sdk': 1.27.1(zod@4.3.6)
       zod: 4.3.6
