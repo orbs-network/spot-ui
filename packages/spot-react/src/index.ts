@@ -2,7 +2,7 @@
 import { setUIVersion } from "@orbs-network/spot-ui";
 import pkg from "../package.json";
 import { SpotProvider } from "./spot-context";
-import { DEFAULT_DURATION_OPTIONS } from "./consts";
+import { DEFAULT_DURATIONS } from "./consts";
 import { useTradesPanel } from "./hooks/use-trades";
 import { useFillDelayPanel } from "./hooks/use-fill-delay";
 import { useDurationPanel } from "./hooks/use-duration";
@@ -86,7 +86,7 @@ export {
 
 export {
   SpotProvider,
-  DEFAULT_DURATION_OPTIONS,
+  DEFAULT_DURATIONS,
   useTradesPanel,
   useDurationPanel,
   useFillDelayPanel,

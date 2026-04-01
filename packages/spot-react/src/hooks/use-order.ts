@@ -41,9 +41,9 @@ export const useOrder = () => {
   const { amountWei: dstAmountWei, amountUI: dstAmountUI } = useDstTokenAmount();
   const { srcAmountUsd, dstAmountUsd } = useAmountsUsd();
   const {
-    amount: feesAmountRaw,
+    amount: feesAmount,
     percent: feesPercent,
-    usd: feesUsdRaw,
+    usd: feesUsd,
   } = useFees();
   const rePermitData = useRePermitOrderData();
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
@@ -84,16 +84,14 @@ export const useOrder = () => {
     triggerPriceUsd,
   });
 
-  const feesAmount = useFormatNumber({ value: feesAmountRaw });
-  const feesUsd = useFormatNumber({ value: feesUsdRaw });
 
   return useMemo(() => {
     return {
       ...info,
-      rePermitData,
       feesAmount,
       feesUsd: feesUsd || "",
       feesPercentage: feesPercent,
+      rePermitData,
     };
   }, [info, rePermitData, feesAmount, feesUsd, feesPercent]);
 };

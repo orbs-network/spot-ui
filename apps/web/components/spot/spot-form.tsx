@@ -14,7 +14,7 @@ import {
   useDstTokenPanel,
   useDurationPanel,
   useTradesPanel,
-  DEFAULT_DURATION_OPTIONS,
+  DEFAULT_DURATIONS,
   useFillDelayPanel,
   useSubmitOrderPanel,
   DISCLAIMER_URL,
@@ -241,10 +241,10 @@ const DurationPanel = () => {
           onChange={(it) => onInputChange(it)}
         />
         <SpotSelectMenu
-          selected={DEFAULT_DURATION_OPTIONS.find(
+          selected={DEFAULT_DURATIONS.find(
             (it) => it.value === duration.unit
           )}
-          items={DEFAULT_DURATION_OPTIONS}
+          items={DEFAULT_DURATIONS}
           onSelect={(it) => onUnitSelect(it.value as number)}
         />
       </div>
@@ -264,10 +264,10 @@ const FillDelayPanel = () => {
           onChange={(it) => onInputChange(it)}
         />
         <SpotSelectMenu
-          selected={DEFAULT_DURATION_OPTIONS.find(
+          selected={DEFAULT_DURATIONS.find(
             (it) => it.value === fillDelay.unit
           )}
-          items={DEFAULT_DURATION_OPTIONS}
+          items={DEFAULT_DURATIONS}
           onSelect={(it) => onUnitSelect(it.value as number)}
         />
       </div>
