@@ -1,1 +1,0 @@
-/Users/denis/.cursor/skills/spot-react-integration/SKILL.md

@@ -237,7 +237,6 @@ const Content = (props: SpotProps) => {
         partner: props.partner,
         module: props.module,
         fees: props.fees || 0,
-        components: props.components,
         overrides: props.overrides,
         callbacks: props.callbacks,
         refetchBalances: props.refetchBalances,

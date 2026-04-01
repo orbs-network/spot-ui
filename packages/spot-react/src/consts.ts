@@ -15,6 +15,3 @@ export const DEFAULT_DURATION_OPTIONS: { text: string; value: TimeUnit }[] = [
     value: TimeUnit.Days,
   },
 ];
-
-export const PRICE_PROTECTION_SETTINGS =
-  "The protocol uses an oracle price to help protect users from unfavorable executions. If the execution price is worse than the oracle price by more than the allowed percentage, the transaction will not be executed.";

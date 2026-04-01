@@ -1,4 +1,7 @@
-import { SelectMenuProps, SelectMenuItem, type Token } from "@orbs-network/spot-react";
+import { type Token } from "@orbs-network/spot-react";
+
+type SelectMenuItem = { value: string | number; text: string };
+type SelectMenuProps = { items: SelectMenuItem[]; onSelect: (item: SelectMenuItem) => void; selected?: SelectMenuItem };
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../ui/select";
 import { useCallback } from "react";
 import { Avatar, AvatarImage } from "../ui/avatar";

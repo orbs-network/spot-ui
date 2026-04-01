@@ -3,7 +3,6 @@ import { setUIVersion } from "@orbs-network/spot-ui";
 import pkg from "../package.json";
 import { SpotProvider } from "./spot-context";
 import { DEFAULT_DURATION_OPTIONS } from "./consts";
-import { formatDecimals } from "./utils";
 import { useTradesPanel } from "./hooks/use-trades";
 import { useFillDelayPanel } from "./hooks/use-fill-delay";
 import { useDurationPanel } from "./hooks/use-duration";
@@ -15,13 +14,11 @@ import { useDstTokenPanel } from "./hooks/use-dst-token-panel";
 import { useLimitPricePanel } from "./hooks/use-limit-price-panel";
 import { useInvertTradePanel } from "./hooks/use-invert-trade-panel";
 import { useInputErrors } from "./hooks/use-input-errors";
-import { useTogglePricePanel } from "./hooks/use-toggle-price";
 import { usePartnerChains } from "./hooks/use-partner-chains";
 import { useAddresses } from "./hooks/use-addresses";
 import { useSubmitOrderButton, useSubmitOrderPanel } from "./hooks/use-submit-order-panel";
 export * from "./types";
 export * from "./utils";
-export { PRICE_PROTECTION_SETTINGS } from "./consts";
 export { useFormatNumber, useAmountUi, useDateFormat, useExplorerLink, useCopyToClipboard, useNetwork } from "./hooks/helper-hooks";
 import { useOrder } from "./hooks/use-order";
 import { useSignOrder, useSubmitOrderMutation } from "./hooks/use-submit-order";
@@ -75,9 +72,7 @@ export {
   ORBS_SLTP_FAQ_URL,
   ORBS_LOGO,
   ORBS_WEBSITE_URL,
-  FEES,
   networks,
-  Configs,
 
   // ABIs
   IWETH_ABI,
@@ -86,7 +81,6 @@ export {
   TWAP_ABI,
 
   // Analytics
-  analytics,
 } from "@orbs-network/spot-ui";
 
 
@@ -104,12 +98,10 @@ export {
   useDisclaimerPanel,
   useInvertTradePanel,
   useInputErrors,
-  useTogglePricePanel,
   usePartnerChains,
   useAddresses,
   useSubmitOrderButton,
   useOrder,
-  formatDecimals,
   useCancelOrderRefetchUntilStatusSynced,
   useDisplayHistoryOrder,
   useSubmitOrderMutation,

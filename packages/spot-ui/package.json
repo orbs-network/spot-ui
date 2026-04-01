@@ -30,14 +30,13 @@
     "bignumber.js": "^9.0.0"
   },
   "devDependencies": {
-    "@orbs-network/spot": "^2.3.2",
     "bignumber.js": "^9.3.1",
-    "dotenv": "^17.2.3",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "vite-plugin-dts": "^4.4.0"
   },
   "dependencies": {
+    "@orbs-network/spot": "^2.3.2",
     "@orbs-network/twap": "^2.7.28"
   }
 }

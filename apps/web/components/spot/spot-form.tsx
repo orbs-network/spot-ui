@@ -18,14 +18,12 @@ import {
   useFillDelayPanel,
   useSubmitOrderPanel,
   DISCLAIMER_URL,
-  TooltipProps,
   useInputErrors,
   useDisclaimerPanel,
   useLimitPricePanel,
   useTriggerPricePanel,
   useInvertTradePanel,
   useSubmitOrderButton,
-  formatDecimals,
   useFormatNumber,
   SPOT_VERSION,
 } from "@orbs-network/spot-react";
@@ -35,7 +33,7 @@ import { Button } from "../ui/button";
 import { CurrencyCard } from "../currency-card";
 import { useActionHandlers } from "@/lib/hooks/use-action-handlers";
 import { ToggleCurrencies } from "../toggle-currencies";
-import { cn } from "@/lib/utils";
+import { cn, formatDecimals } from "@/lib/utils";
 import { NumericInput } from "../ui/numeric-input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { AlertTriangleIcon, ArrowLeftRightIcon, InfoIcon } from "lucide-react";
@@ -131,6 +129,8 @@ const getModule = (swapType: SwapType) => {
   }
   return Module.TWAP;
 };
+
+type TooltipProps = { tooltipText?: string; children?: React.ReactNode };
 
 const TwapTooltip = (props: TooltipProps) => {
   if (!props.tooltipText) {

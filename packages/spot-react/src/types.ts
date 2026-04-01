@@ -1,5 +1,4 @@
-import { FC, ReactNode } from "react";
-import { Partners, Module, Order, OrderType, SpotConfig, TimeDuration } from "@orbs-network/spot-ui";
+import { Partners, Module, Order, SpotConfig, TimeDuration } from "@orbs-network/spot-ui";
 export enum SwapStatus {
   LOADING = 1,
   SUCCESS = 2,
@@ -9,73 +8,6 @@ import { createPublicClient, createWalletClient, TransactionReceipt as _Transact
 export type { Order } from "@orbs-network/spot-ui";
 export { OrderStatus, type OrderFill, OrderType, Module } from "@orbs-network/spot-ui";
 
-/** Return type of useDisplayHistoryOrder. */
-export type SelectedOrder = {
-  original: Order;
-  fills?: {
-    srcAmount: string;
-    dstAmount: string;
-    timestamp: number;
-    txHash: string;
-    explorerUrl: string;
-    executionRate: string;
-    srcToken: Token;
-    dstToken: Token;
-  }[];
-  srcToken?: Token;
-  dstToken?: Token;
-  orderType?: OrderType;
-  createdAt?: number;
-  deadline: number;
-  totalTrades: number;
-  tradeInterval: number;
-  recipient: string;
-
-  srcAmount: string;
-  srcAmountUI: string;
-  srcAmountUsd: string;
-
-  dstAmount: string;
-  dstAmountUI: string;
-  dstAmountUsd: string;
-
-  limitPrice: string;
-  limitPriceUI: string;
-  limitPriceUsd: string;
-
-  sizePerTrade: string;
-  sizePerTradeUI: string;
-  sizePerTradeUsd?: string;
-
-  minDestAmountPerTrade: string;
-  minDestAmountPerTradeUI: string;
-  minDestAmountPerTradeUsd?: string;
-
-  dstMinAmount: string;
-  dstMinAmountUI: string;
-  dstMinAmountUsd: string;
-
-  triggerPrice: string;
-  triggerPriceUI: string;
-  triggerPriceUsd?: string;
-
-  id?: string;
-  amountInFilled: string;
-  amountOutFilled: string;
-  amountOutFilledToken?: Token;
-  progress?: number;
-  executionPrice?: string;
-  version?: number;
-  feesAmount?: string;
-  feesUsd?: string;
-  feesPercentage?: number;
-};
-
-export type SelectMenuProps = {
-  items: SelectMenuItem[];
-  onSelect: (item: SelectMenuItem) => void;
-  selected?: SelectMenuItem;
-};
 
 
 export interface Provider {
@@ -124,51 +56,6 @@ export type InitialState = {
 
 
 
-export type OrderDetails = {
-  limitPrice: {
-    label: string;
-    value: string;
-  };
-
-  deadline: {
-    tooltip: string;
-    label: string;
-    value: number;
-  };
-  amountIn: {
-    label: string;
-    value: string;
-  };
-  chunkSize: {
-    tooltip: string;
-    label: string;
-    value: string;
-  };
-  chunksAmount: {
-    tooltip: string;
-    label: string;
-    value: number;
-  };
-  minDestAmountPerChunk: {
-    tooltip: string;
-    label: string;
-    value: string;
-  };
-  tradeInterval: {
-    tooltip: string;
-    label: string;
-    value: number;
-  };
-  triggerPricePerChunk: {
-    tooltip: string;
-    label: string;
-    value: string;
-  };
-  recipient: {
-    label: string;
-    value: string;
-  };
-};
 
 export type Overrides = {
   wrap?: (amountWei: string) => Promise<`0x${string}`>;
@@ -238,9 +125,6 @@ export type MarketReferencePrice = {
   noLiquidity?: boolean;
 };
 
-export type Components = {
-  Tooltip?: FC<TooltipProps>;
-};
 
 export interface SpotProps {
   children?: React.ReactNode;
@@ -263,10 +147,10 @@ export interface SpotProps {
   callbacks?: Callbacks;
   refetchBalances?: () => void;
   minChunkSizeUsd: number;
-  components: Components;
   typedInputAmount: string;
   resetTypedInputAmount: () => void;
   isDev?: boolean;
+  components?: Record<string, any>;
 }
 
 export interface SpotContextType {
@@ -291,7 +175,6 @@ export interface SpotContextType {
   slippage: number;
   fees: number;
   module: Module;
-  components: Components;
   overrides?: Overrides;
   callbacks?: Callbacks;
   refetchBalances?: () => void;
@@ -299,29 +182,12 @@ export interface SpotContextType {
   isDev?: boolean;
 }
 
-export type SelectMenuItem = { text: string; value: string | number };
-
-export type AddressPadding = {
-  start: number;
-  end: number;
-};
 
 export type Token = {
   address: string;
   symbol: string;
   decimals: number;
   logoUrl: string;
-};
-
-export interface TooltipProps {
-  children?: ReactNode;
-  tooltipText?: string;
-}
-
-
-export type ToggleProps = {
-  checked: boolean;
-  onChange: () => void;
 };
 
 export enum Steps {

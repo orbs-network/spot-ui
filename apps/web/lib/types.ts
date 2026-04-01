@@ -1,4 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useDisplayHistoryOrder } from "@orbs-network/spot-react";
+
+export type SelectedOrder = NonNullable<ReturnType<typeof useDisplayHistoryOrder>>;
+
 export type Currency = {
     address: string;
     symbol: string;

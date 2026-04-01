@@ -4,11 +4,11 @@ import {
   useAmountUi,
   useDateFormat,
   useExplorerLink,
-  makeEllipsisAddress,
-  type SelectedOrder,
   type Token,
   type OrderFill,
 } from "@orbs-network/spot-react";
+import { type SelectedOrder } from "@/lib/types";
+import { makeEllipsisAddress } from "@/lib/utils";
 import { FormatNumber } from "./format-number";
 import { OrderDetails } from "./order-details";
 import { SpotTokenLogo } from "./components";

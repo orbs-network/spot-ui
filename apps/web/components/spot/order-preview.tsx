@@ -16,8 +16,8 @@ import {
   useDateFormat,
   useDisplayHistoryOrder,
   useOrderHistoryPanel,
-  type SelectedOrder,
 } from "@orbs-network/spot-react";
+import { type SelectedOrder } from "@/lib/types";
 import { FormatNumber } from "./format-number";
 import { OrderDetails } from "./order-details";
 import { useSpotToken } from "@/lib/hooks/spot-hooks";

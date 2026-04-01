@@ -1,10 +1,9 @@
-import { AddressPadding, OrderType, Token } from "./types";
+import { OrderType, Token } from "./types";
 import { formatUnits, parseUnits } from "viem";
 import {
   eqIgnoreCase,
   getNetwork,
   isNativeAddress,
-  networks,
 } from "@orbs-network/spot-ui";
 import BN from "bignumber.js";
 export const removeCommas = (numStr: string): string => {
@@ -44,45 +43,6 @@ export const copy = async (text: string) => {
   }
 };
 
-export const fillDelayText = (value?: number) => {
-  if (!value) {
-    return "";
-  }
-
-  const secondsTotal = Math.floor(value / 1000);
-  const days = Math.floor(secondsTotal / (24 * 60 * 60));
-  const hours = Math.floor((secondsTotal % (24 * 60 * 60)) / (60 * 60));
-  const minutes = Math.floor((secondsTotal % (60 * 60)) / 60);
-  const seconds = secondsTotal % 60;
-
-  const arr: string[] = [];
-
-  if (days) {
-    arr.push(`${days} days `);
-  }
-  if (hours) {
-    arr.push(`${hours} hours `);
-  }
-  if (minutes) {
-    arr.push(`${minutes} minutes`);
-  }
-  if (seconds) {
-    arr.push(`${seconds} seconds`);
-  }
-
-  return arr.join(" ");
-};
-
-export const makeEllipsisAddress = (
-  address?: string,
-  padding?: AddressPadding
-): string => {
-  if (!address) return "";
-  return `${address.substring(0, padding?.start || 6)}...${address.substring(
-    address.length - (padding?.end || 5)
-  )}`;
-};
-
 export const parseError = (error?: any) => {
   const defaultText = "An error occurred.";
   if (!error || !error.message) return defaultText;
@@ -96,47 +56,6 @@ export const parseError = (error?: any) => {
   }
 };
 
-export function formatDecimals(
-  value?: string,
-  scale = 6,
-  maxDecimals = 8
-): string {
-  try {
-    if (!value) return "";
-
-    // ─── keep the sign, work with the absolute value ────────────────
-    const sign = value.startsWith("-") ? "-" : "";
-    const abs = sign ? value.slice(1) : value;
-
-    const [intPart, rawDec = ""] = abs.split(".");
-
-    // Fast-path: decimal part is all zeros (or absent) ───────────────
-    if (!rawDec || Number(rawDec) === 0) return sign + intPart;
-
-    /** Case 1 – |value| ≥ 1 *****************************************/
-    if (intPart !== "0") {
-      const sliced = rawDec.slice(0, scale);
-      const cleaned = sliced.replace(/0+$/, ""); // drop trailing zeros
-      const trimmed = cleaned ? "." + cleaned : "";
-      return sign + intPart + trimmed;
-    }
-
-    /** Case 2 – |value| < 1 *****************************************/
-    const firstSigIdx = rawDec.search(/[^0]/); // first non-zero position
-    if (firstSigIdx === -1) return sign + "0"; // decimal part is all zeros
-    if (firstSigIdx + 1 > maxDecimals) return sign + "0"; // too many leading zeros → 0
-
-    const leadingZeros = rawDec.slice(0, firstSigIdx); // keep them
-    const maxSignificant = Math.max(0, maxDecimals - firstSigIdx); // cap total decimals
-    const significantRaw = rawDec.slice(firstSigIdx).slice(0, Math.min(scale, maxSignificant));
-    const significant = significantRaw.replace(/0+$/, ""); // trim trailing zeros
-
-    return significant ? sign + "0." + leadingZeros + significant : sign + "0";
-  } catch (error) {
-    
-    return value || "";
-  }
-}
 
 export const isTxRejected = (error: any) => {
   if (error?.message) {
@@ -144,16 +63,6 @@ export const isTxRejected = (error: any) => {
       error.message?.toLowerCase()?.includes("rejected") ||
       error.message?.toLowerCase()?.includes("denied")
     );
-  }
-};
-
-export const getMinNativeBalance = (chainId: number) => {
-  switch (chainId) {
-    case networks.base.id:
-      return 0.0001;
-
-    default:
-      return 0.01;
   }
 };
 
