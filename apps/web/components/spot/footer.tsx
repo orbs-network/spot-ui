@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
-import { getPartners, SPOT_VERSION } from "@orbs-network/spot-ui";
+import { getPartners, SPOT_VERSION, SPOT_VERSION_EXACT } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
 import dynamic from "next/dynamic";
 import { Skeleton } from "../ui/skeleton";
@@ -71,7 +71,7 @@ export const SpotFooter = () => {
   return (
     <div className="flex flex-row gap-2 items-center  fixed z-10 bottom-0 left-12 right-0 p-4">
       <p className="text-[16px] font-bold text-foreground/80">
-        Spot: v{SPOT_VERSION} 
+        Spot: v{SPOT_VERSION_EXACT} 
       </p>
       {Number(SPOT_VERSION) >= 2 &&  <>
         <div className="w-px h-4 bg-foreground/80" />
