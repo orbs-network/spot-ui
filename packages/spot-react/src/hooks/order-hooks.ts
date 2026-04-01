@@ -65,7 +65,7 @@ export const useAddNewOrder = () => {
 };
 
 const useOrderFilledCallback = () => {
-  const { callbacks, refetchBalances } = useSpotContext();
+  const { callbacks } = useSpotContext();
   const queryClient = useQueryClient();
   const queryKey = useOrdersQueryKey();
   return useCallback(
@@ -96,10 +96,9 @@ const useOrderFilledCallback = () => {
       // refetch balances when orders progress is updated
       if (isProgressUpdated) {
         callbacks?.onOrdersProgressUpdate?.(updatedOrders);
-        refetchBalances?.();
       }
     },
-    [queryClient, queryKey, callbacks, refetchBalances],
+    [queryClient, queryKey, callbacks],
   );
 };
 

@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import BN from "bignumber.js";
 import { useSpotContext } from "../spot-context";
-import { useSpotStore } from "../store";
 import { useSrcAmount } from "./use-src-amount";
 import { useTriggerPrice } from "./use-trigger-price";
 import { useLimitPrice } from "./use-limit-price";
@@ -33,7 +32,6 @@ export function useInputErrors() {
     srcBalance,
     chainId,
   } = useSpotContext();
-  const status = useSpotStore((s) => s.state.swapExecution.status);
 
   const { error: triggerPriceError } = useTriggerPrice();
   const { error: limitPriceError } = useLimitPrice();
@@ -77,7 +75,6 @@ export function useInputErrors() {
     fillDelayError,
     durationError,
     balanceError,
-    status,
     srcUsd1Token,
     minTradeSizeError,
   ]);

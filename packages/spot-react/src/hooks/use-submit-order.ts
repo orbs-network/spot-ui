@@ -7,11 +7,17 @@ import {
   submitOrder,
 } from "@orbs-network/spot-ui";
 import { ParsedError, Steps, Token } from "../types";
-import { ensureWrappedToken, getExplorerUrl, isTxRejected, toAmountUi } from "../utils";
+import {
+  ensureWrappedToken,
+  getExplorerUrl,
+  isTxRejected,
+  toAmountUi,
+} from "../utils";
 import { useSrcAmount } from "./use-src-amount";
 import { useMutation } from "@tanstack/react-query";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
+import { useSwapExecution } from "./use-swap-execution";
 
 import { erc20Abi, maxUint256, numberToHex, parseSignature } from "viem";
 import { useOrdersQuery } from "./order-hooks";
@@ -29,7 +35,6 @@ const useWrapToken = () => {
     account,
     walletClient,
     overrides,
-    refetchBalances,
     callbacks,
     chainId,
   } = useSpotContext();
@@ -56,7 +61,6 @@ const useWrapToken = () => {
 
       let hash: `0x${string}` | undefined;
       analytics.onWrapRequest();
-      callbacks?.onWrapRequest?.();
       if (overrides?.wrap) {
         hash = await overrides.wrap(srcAmountWei);
       } else {
@@ -69,6 +73,8 @@ const useWrapToken = () => {
           chain: walletClient.chain,
         });
       }
+      callbacks?.onWrapRequest?.();
+
       onHash?.(hash);
       const receipt = await getTransactionReceipt(hash);
       if (!receipt) {
@@ -84,7 +90,6 @@ const useWrapToken = () => {
         explorerUrl: getExplorerUrl(receipt.transactionHash, chainId),
         amount: toAmountUi(srcAmountWei, wToken.decimals),
       });
-      refetchBalances?.();
       return receipt;
     },
     onError: (error) => {
@@ -96,8 +101,8 @@ const useWrapToken = () => {
 
 export const useSignOrder = () => {
   const { account, walletClient, chainId, callbacks } = useSpotContext();
-  const {rePermitData} = useOrder();
-  const {refetch: refetchOrders} = useOrdersQuery()
+  const { rePermitData } = useOrder();
+  const { refetch: refetchOrders } = useOrdersQuery();
 
   return useMutation({
     mutationFn: async () => {
@@ -114,7 +119,6 @@ export const useSignOrder = () => {
       const { order, domain, types, primaryType } = rePermitData;
 
       analytics.onSignOrderRequest(order);
-      callbacks?.onSignOrderRequest?.();
       let signatureStr: `0x${string}`;
       try {
         signatureStr = await walletClient?.signTypedData({
@@ -138,6 +142,7 @@ export const useSignOrder = () => {
         r: parsedSignature.r,
         s: parsedSignature.s,
       };
+      callbacks?.onSignOrderRequest?.();
 
       const newOrder = await submitOrder(order, signature);
       callbacks?.onOrderCreated?.(newOrder);
@@ -167,7 +172,7 @@ const useHasAllowanceCallback = () => {
       if (!config) {
         throw new Error("missing config");
       }
-      
+
       const allowance = await publicClient
         .readContract({
           address: tokenAddress as `0x${string}`,
@@ -178,7 +183,7 @@ const useHasAllowanceCallback = () => {
         .then((res) => res.toString());
 
       const approvalRequired = BN(allowance || "0").lt(
-        BN(srcAmountWei).toString()
+        BN(srcAmountWei).toString(),
       );
 
       return { allowance, approvalRequired };
@@ -214,8 +219,7 @@ const useApproveToken = () => {
       if (!config) {
         throw new Error("missing config");
       }
-      
-      callbacks?.onApproveRequest?.();
+
       analytics.onApproveRequest();
       let hash: `0x${string}` | undefined;
       if (overrides?.approveOrder) {
@@ -237,6 +241,7 @@ const useApproveToken = () => {
       if (!hash) {
         throw new Error("failed to approve token");
       }
+      callbacks?.onApproveRequest?.();
       onHash(hash);
       const receipt = await getTransactionReceipt(hash);
       if (!receipt) {
@@ -265,7 +270,7 @@ const useApproveToken = () => {
 
       if (!userApprovedSuccessfully) {
         throw new Error(
-          `Insufficient ${token.symbol} allowance to perform the swap. Please approve the token first.`
+          `Insufficient ${token.symbol} allowance to perform the swap. Please approve the token first.`,
         );
       }
 
@@ -293,8 +298,6 @@ const useInitOrderRequest = () => {
   const dstMinAmountPerTrade = useDstMinAmountPerTrade().amountWei;
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
 
-
-
   return useMutation({
     mutationFn: async () => {
       analytics.onRequestOrder({
@@ -314,8 +317,6 @@ const useInitOrderRequest = () => {
         chunksAmount,
       });
     },
-
-    
   });
 };
 
@@ -335,13 +336,13 @@ function parseError(error: Error): ParsedError {
 }
 
 export const useSubmitOrderMutation = () => {
-  const { srcToken, dstToken, chainId, callbacks } = useSpotContext();
+  const { srcToken, dstToken, chainId, callbacks, marketPrice } = useSpotContext();
   const approveCallback = useApproveToken().mutateAsync;
   const wrapCallback = useWrapToken().mutateAsync;
   const createOrderCallback = useSignOrder().mutateAsync;
   const { mutateAsync: hasAllowanceCallback } = useHasAllowanceCallback();
-  const updateSwapExecution = useSpotStore((s) => s.updateSwapExecution);
-  const { amountWei: srcAmountWei } = useSrcAmount();
+  const { update: updateSwapExecution } = useSwapExecution();
+  const { amountWei: srcAmountWei, amountUI: srcAmountUI } = useSrcAmount();
   const initOrderRequest = useInitOrderRequest().mutate;
 
   return useMutation({
@@ -359,7 +360,15 @@ export const useSubmitOrderMutation = () => {
           throw new Error("missing chainId");
         }
         const srcWrappedToken = ensureWrappedToken(srcToken, chainId);
-        updateSwapExecution({ allowanceLoading: true, wrapTxHash: undefined, approveTxHash: undefined });
+        updateSwapExecution({
+          allowanceLoading: true,
+          wrapTxHash: undefined,
+          approveTxHash: undefined,
+          acceptedMarketPrice: marketPrice,
+          acceptedSrcAmount: srcAmountUI,
+          srcToken,
+          dstToken,
+        });
         const { approvalRequired } = await hasAllowanceCallback({
           tokenAddress: srcWrappedToken.address,
           srcAmountWei,

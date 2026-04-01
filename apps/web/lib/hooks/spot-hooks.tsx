@@ -22,6 +22,7 @@ import * as chains from "viem/chains";
 import { getNetwork, getPartners } from "@orbs-network/spot-ui";
 import { DEFAULT_PARTNER } from "../consts";
 import { useActionHandlers } from "./use-action-handlers";
+import { useRefetchSelectedCurrenciesBalances } from "./use-balances";
 import { Field } from "../types";
 
 const useCallbacks = () => {
@@ -31,6 +32,7 @@ const useCallbacks = () => {
   const { inputCurrency, outputCurrency } = useDerivedSwap();
   const { handleCurrencyChange } = useActionHandlers();
   const { chainId } = useConnection();
+  const { mutateAsync: refetchBalances } = useRefetchSelectedCurrenciesBalances();
 
   const symbol = useMemo(() => {
     return isNativeAddress(inputCurrency?.address)
@@ -65,8 +67,9 @@ const useCallbacks = () => {
         ),
         id: wrapToastId.current as number,
       });
+      refetchBalances();
     },
-    [handleCurrencyChange, inputCurrency?.symbol, chainId],
+    [handleCurrencyChange, inputCurrency?.symbol, chainId, refetchBalances],
   );
 
   const onApproveRequest = useCallback(() => {
@@ -151,6 +154,10 @@ const useCallbacks = () => {
     );
   }, []);
 
+  const onOrdersProgressUpdate = useCallback(() => {
+    refetchBalances();
+  }, [refetchBalances]);
+
   const onOrderCancelled = useCallback((props: OnCancelOrderSuccess) => {
     toast.success("Order cancelled");
   }, []);
@@ -170,6 +177,7 @@ const useCallbacks = () => {
     onSubmitOrderFailed,
     onSubmitOrderRejected,
     onOrderCreated,
+    onOrdersProgressUpdate,
     onOrderCancelled,
     onCopy,
   };

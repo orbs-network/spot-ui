@@ -1,12 +1,12 @@
 import { useSpotContext } from "../spot-context";
-import { useSpotStore } from "../store";
 import { useAmountBN } from "./helper-hooks";
+import { useSwapExecution } from "./use-swap-execution";
 import BN from "bignumber.js";
 
 export const useSrcAmount = () => {
   const { srcToken, typedInputAmount } = useSpotContext();
 
-  const acceptedSrcAmount = useSpotStore((s) => s.state.swapExecution.acceptedSrcAmount);
+  const acceptedSrcAmount = useSwapExecution().acceptedSrcAmount;
 
   const value = acceptedSrcAmount || typedInputAmount;
 

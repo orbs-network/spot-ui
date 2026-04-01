@@ -5,32 +5,35 @@ import { State, SwapExecution } from "./types";
 interface SpotStore {
   resetState: (data?: Partial<State>) => void;
   updateState: (value: Partial<State>) => void;
-  updateSwapExecution: (value: Partial<SwapExecution>) => void;
-  resetSwapExecution: (value?: Partial<SwapExecution>) => void;
+  updateSwapExecutionAtIndex: (index: number, value: Partial<SwapExecution>) => void;
   state: State;
 }
 
-const initialState = {
+const emptySwapExecution = {} as SwapExecution;
+
+const initialState: State = {
   currentTime: Date.now(),
-  swapExecution: {} as SwapExecution,
-} as State;
+  swapExecutions: [emptySwapExecution],
+  swapExecutionIndex: 0,
+};
 
 export const useSpotStore = create<SpotStore>((set, get) => ({
   state: initialState,
   updateState: (value: Partial<State>) => set((state) => ({ state: { ...state.state, ...value } })),
-  updateSwapExecution: (data: Partial<SwapExecution>) => set((state) => ({ state: { ...state.state, swapExecution: { ...state.state.swapExecution, ...data } } })),
-  resetSwapExecution: (data?: Partial<SwapExecution>) => set((state) => ({ state: { ...state.state, swapExecution: { ...initialState.swapExecution, ...data } } })),
+  updateSwapExecutionAtIndex: (index: number, data: Partial<SwapExecution>) => set((state) => {
+    const executions = [...state.state.swapExecutions];
+    executions[index] = { ...(executions[index] ?? emptySwapExecution), ...data };
+    return { state: { ...state.state, swapExecutions: executions } };
+  }),
   resetState: (data?: Partial<State>) => {
+    const prev = get().state;
     set({
       state: {
         ...initialState,
         currentTime: Date.now(),
-        swapExecution: {
-          ...get().state.swapExecution,
-          acceptedMarketPrice: undefined,
-          acceptedSrcAmount: undefined,
-        },
-        isMarketOrder: get().state.isMarketOrder,
+        isMarketOrder: prev.isMarketOrder,
+        swapExecutions: [...prev.swapExecutions, emptySwapExecution],
+        swapExecutionIndex: prev.swapExecutionIndex + 1,
         ...data,
       },
     });

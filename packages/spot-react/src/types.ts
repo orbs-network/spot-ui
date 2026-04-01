@@ -145,12 +145,9 @@ export interface SpotProps {
   overrides?: Overrides;
   fees?: number;
   callbacks?: Callbacks;
-  refetchBalances?: () => void;
   minChunkSizeUsd: number;
   typedInputAmount: string;
-  resetTypedInputAmount: () => void;
   isDev?: boolean;
-  components?: Record<string, any>;
 }
 
 export interface SpotContextType {
@@ -177,8 +174,6 @@ export interface SpotContextType {
   module: Module;
   overrides?: Overrides;
   callbacks?: Callbacks;
-  refetchBalances?: () => void;
-  resetTypedInputAmount: () => void;
   isDev?: boolean;
 }
 
@@ -204,12 +199,12 @@ export type SwapExecution = {
   approveTxHash?: string;
   wrapTxHash?: string;
   totalSteps?: number;
-  srcToken?: Token;
-  dstToken?: Token;
   orderId?: string;
   allowanceLoading?: boolean;
   acceptedMarketPrice?: string;
   acceptedSrcAmount?: string;
+  srcToken?: Token;
+  dstToken?: Token;
 };
 
 export interface State {
@@ -229,8 +224,8 @@ export interface State {
   cancelOrderError?: string;
   cancelOrderId?: number;
 
-  swapExecution: SwapExecution;
- 
+  swapExecutions: SwapExecution[];
+  swapExecutionIndex: number;
 }
 
 export { Partners };

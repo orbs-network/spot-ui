@@ -13,7 +13,6 @@ import { useBuildOrderInfo } from "./use-build-order-info";
 import { useSpotStore } from "../store";
 import { useOrderType } from "./order-hooks";
 import { useRePermitOrderData } from "./use-repermit-order-data";
-import { useFormatNumber } from "./helper-hooks";
 
 export const useOrder = () => {
   const { srcToken, dstToken, account } = useSpotContext();

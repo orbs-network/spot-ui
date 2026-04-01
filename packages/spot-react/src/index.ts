@@ -20,6 +20,7 @@ import { useSubmitOrderButton, useSubmitOrderPanel } from "./hooks/use-submit-or
 export * from "./types";
 export * from "./utils";
 export { useFormatNumber, useAmountUi, useDateFormat, useExplorerLink, useCopyToClipboard, useNetwork } from "./hooks/helper-hooks";
+export { useSwapExecution } from "./hooks/use-swap-execution";
 import { useOrder } from "./hooks/use-order";
 import { useSignOrder, useSubmitOrderMutation } from "./hooks/use-submit-order";
 import { useCancelOrderRefetchUntilStatusSynced, useCancelOrderMutation } from "./hooks/use-cancel-order";

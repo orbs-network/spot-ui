@@ -12,6 +12,7 @@ import {
   Steps,
   SwapStatus,
   type ParsedError,
+  type Token,
 } from "@orbs-network/spot-react";
 import { FormatNumber } from "./format-number";
 import { OrderDetails } from "./order-details";
@@ -26,8 +27,13 @@ type SubmitOrderPanelProps = {
 
 type SubmitOrderPanelData = ReturnType<typeof useSubmitOrderPanelHook>;
 
+type SubmitPanelContextType = SubmitOrderPanelData & SubmitOrderPanelProps & {
+  srcToken?: Token;
+  dstToken?: Token;
+};
+
 const SubmitPanelContext = createContext(
-  {} as SubmitOrderPanelData & SubmitOrderPanelProps,
+  {} as SubmitPanelContextType,
 );
 
 const useSubmitPanelContext = () => useContext(SubmitPanelContext);
@@ -226,10 +232,10 @@ const SuccessContent = () => {
 
 export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
   const panelData = useSubmitOrderPanelHook();
-  const { status, stepIndex, totalSteps, parsedError, srcToken, dstToken } =
-    panelData;
+  const { status, stepIndex, totalSteps, parsedError } = panelData;
 
   const order = useOrder();
+  const { srcToken, dstToken } = order;
   const srcAmountF = useFormatNumber({ value: order.srcAmountUI, decimalScale: 2 });
   const outAmountF = useFormatNumber({ value: order.dstAmountUI, decimalScale: 2 });
 
@@ -243,7 +249,7 @@ export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
   );
 
   return (
-    <SubmitPanelContext.Provider value={{ ...panelData, ...props }}>
+    <SubmitPanelContext.Provider value={{ ...panelData, ...props, srcToken, dstToken }}>
       <SwapFlow
         inAmount={srcAmountF}
         outAmount={outAmountF}

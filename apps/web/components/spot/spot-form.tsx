@@ -3,6 +3,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -42,10 +43,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Switch } from "../ui/switch";
 import { useConnection, useWalletClient } from "wagmi";
 import { SubmitSwapButton } from "../submit-swap-button";
-import {
-  useBalance,
-  useRefetchSelectedCurrenciesBalances,
-} from "@/lib/hooks/use-balances";
+import { useBalance } from "@/lib/hooks/use-balances";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { Portal } from "../ui/portal";
 import {
@@ -67,8 +65,10 @@ import { useTranslations } from "@/lib/use-translations";
 const { useCallbacks } = SpotHooks;
 const Context = createContext<{
   swapModule: Module;
+  setInputAmount: (value: string) => void;
 }>({
   swapModule: Module.TWAP,
+  setInputAmount: () => {},
 });
 
 const useSpotContext = () => {
@@ -100,10 +100,9 @@ const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
         handleCurrencyChange(currency, Field.OUTPUT);
       }
     },
-    [handleCurrencyChange, isSrcToken]
+    [handleCurrencyChange, isSrcToken],
   );
 
-  
   return (
     <CurrencyCard
       currency={isSrcToken ? inputCurrency : outputCurrency}
@@ -173,7 +172,7 @@ const Card = ({
       className={cn(
         "flex flex-col gap-2 bg-card p-4 rounded-lg group relative border border-transparent",
         className,
-        error ? "border-destructive/80" : ""
+        error ? "border-destructive/80" : "",
       )}
     >
       {title && <Label title={title} tooltip={tooltip} />}
@@ -231,19 +230,20 @@ const TradesPanel = () => {
 
 const DurationPanel = () => {
   const t = useTranslations();
-  const { duration, onInputChange, onUnitSelect } =
-    useDurationPanel();
+  const { duration, onInputChange, onUnitSelect } = useDurationPanel();
   return (
-    <Card title={t("expiry")} tooltip={t("maxDurationTooltip")} className="flex flex-col gap-2">
+    <Card
+      title={t("expiry")}
+      tooltip={t("maxDurationTooltip")}
+      className="flex flex-col gap-2"
+    >
       <div className="flex items-center gap-2">
         <NumericInput
           value={duration.value ? duration.value.toString() : ""}
           onChange={(it) => onInputChange(it)}
         />
         <SpotSelectMenu
-          selected={DEFAULT_DURATIONS.find(
-            (it) => it.value === duration.unit
-          )}
+          selected={DEFAULT_DURATIONS.find((it) => it.value === duration.unit)}
           items={DEFAULT_DURATIONS}
           onSelect={(it) => onUnitSelect(it.value as number)}
         />
@@ -254,19 +254,20 @@ const DurationPanel = () => {
 
 const FillDelayPanel = () => {
   const t = useTranslations();
-  const { fillDelay, onInputChange, onUnitSelect } =
-    useFillDelayPanel();
+  const { fillDelay, onInputChange, onUnitSelect } = useFillDelayPanel();
   return (
-    <Card title={t("tradeIntervalTitle")} tooltip={t("tradeIntervalTooltip")} className="flex flex-col gap-2">
+    <Card
+      title={t("tradeIntervalTitle")}
+      tooltip={t("tradeIntervalTooltip")}
+      className="flex flex-col gap-2"
+    >
       <div className="flex items-center gap-2">
         <NumericInput
           value={fillDelay.value ? fillDelay.value.toString() : ""}
           onChange={(it) => onInputChange(it)}
         />
         <SpotSelectMenu
-          selected={DEFAULT_DURATIONS.find(
-            (it) => it.value === fillDelay.unit
-          )}
+          selected={DEFAULT_DURATIONS.find((it) => it.value === fillDelay.unit)}
           items={DEFAULT_DURATIONS}
           onSelect={(it) => onUnitSelect(it.value as number)}
         />
@@ -369,35 +370,41 @@ const SubmitSwapMain = ({
 };
 
 const SubmitSwap = () => {
-  const {
-    onSubmit,
-    onOpenModal,
-    onCloseModal,
-    status,
-    parsedError,
-    allowanceLoading,
-  } = useSubmitOrderPanel();
+  const { onSubmit, status, reset, isSuccess, parsedError, allowanceLoading } =
+    useSubmitOrderPanel();
+  const { setInputAmount } = useSpotContext();
+
   const { swapModule } = useSpotContext();
   const orderTitle = useMemo(() => {
     switch (swapModule) {
-      case Module.TWAP: return "TWAP";
-      case Module.LIMIT: return "Limit";
-      case Module.STOP_LOSS: return "Stop Loss";
-      case Module.TAKE_PROFIT: return "Take Profit";
-      default: return "Order";
+      case Module.TWAP:
+        return "TWAP";
+      case Module.LIMIT:
+        return "Limit";
+      case Module.STOP_LOSS:
+        return "Stop Loss";
+      case Module.TAKE_PROFIT:
+        return "Take Profit";
+      default:
+        return "Order";
     }
   }, [swapModule]);
   const [isOpen, setIsOpen] = useState(false);
 
+
   const onOpen = useCallback(() => {
     setIsOpen(true);
-    onOpenModal();
-  }, [onOpenModal]);
+  }, []);
 
   const onClose = useCallback(() => {
     setIsOpen(false);
-    onCloseModal();
-  }, [onCloseModal]);
+   setTimeout(() => {
+    reset();
+    if(isSuccess) {
+      setInputAmount(""); 
+    }
+   }, 500);
+  }, [reset, setInputAmount, isSuccess]);
 
   return (
     <>
@@ -409,8 +416,8 @@ const SubmitSwap = () => {
               {parsedError
                 ? "Error Creating Order"
                 : !status
-                ? `${orderTitle} order`
-                : " "}
+                  ? `${orderTitle} order`
+                  : " "}
             </DialogTitle>
           </DialogHeader>
           {parsedError ? (
@@ -489,25 +496,39 @@ const LimitPricePanel = () => {
     isInverted,
     fromToken,
     tradesAmount,
-    isTypedValue
+    isTypedValue,
   } = useLimitPricePanel();
 
   const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk });
-  const amountPerChunkUsdFormatted = useFormatNumber({ value: amountPerChunkUsd });
+  const amountPerChunkUsdFormatted = useFormatNumber({
+    value: amountPerChunkUsd,
+  });
   const bottomContent = useMemo(() => {
     const token = isInverted ? fromToken : toToken;
-    if(!token) return '';
-    const perTradeText = tradesAmount > 1 ? `per trade` : '';
-    return <>
-    {amountPerChunkFormatted} {token?.symbol}  {perTradeText} {amountPerChunkUsdFormatted && <small className="text-muted-foreground">(${amountPerChunkUsdFormatted})</small>}
-    </>;
-  }, [isInverted, toToken, fromToken, amountPerChunkFormatted, tradesAmount, amountPerChunkUsdFormatted]);
+    if (!token) return "";
+    const perTradeText = tradesAmount > 1 ? `per trade` : "";
+    return (
+      <>
+        {amountPerChunkFormatted} {token?.symbol} {perTradeText}{" "}
+        {amountPerChunkUsdFormatted && (
+          <small className="text-muted-foreground">
+            (${amountPerChunkUsdFormatted})
+          </small>
+        )}
+      </>
+    );
+  }, [
+    isInverted,
+    toToken,
+    fromToken,
+    amountPerChunkFormatted,
+    tradesAmount,
+    amountPerChunkUsdFormatted,
+  ]);
 
   const { swapModule } = useSpotContext();
 
-  
-
-  if ( Number(SPOT_VERSION) < 2 &&  swapModule === Module.TAKE_PROFIT) {
+  if (Number(SPOT_VERSION) < 2 && swapModule === Module.TAKE_PROFIT) {
     return null;
   }
 
@@ -551,7 +572,7 @@ const TriggerPricePanel = () => {
     isInverted,
     fromToken,
     totalTrades,
-    isTypedValue
+    isTypedValue,
   } = useTriggerPricePanel();
 
   const { swapModule } = useSpotContext();
@@ -561,12 +582,26 @@ const TriggerPricePanel = () => {
 
   const bottomContent = useMemo(() => {
     const token = isInverted ? fromToken : toToken;
-    if(!token) return '';
-    const perTradeText = totalTrades > 1 ? `per trade` : '';
-      return <>
-      {amountPerChunkF} {token?.symbol}  {perTradeText} {amountPerChunkUsdF && <small className="text-muted-foreground">(${amountPerChunkUsdF})</small>}
-      </>;
-  }, [isInverted, toToken, fromToken, amountPerChunkF, totalTrades, amountPerChunkUsdF]);
+    if (!token) return "";
+    const perTradeText = totalTrades > 1 ? `per trade` : "";
+    return (
+      <>
+        {amountPerChunkF} {token?.symbol} {perTradeText}{" "}
+        {amountPerChunkUsdF && (
+          <small className="text-muted-foreground">
+            (${amountPerChunkUsdF})
+          </small>
+        )}
+      </>
+    );
+  }, [
+    isInverted,
+    toToken,
+    fromToken,
+    amountPerChunkF,
+    totalTrades,
+    amountPerChunkUsdF,
+  ]);
 
   if (swapModule !== Module.TAKE_PROFIT && swapModule !== Module.STOP_LOSS) {
     return null;
@@ -575,7 +610,14 @@ const TriggerPricePanel = () => {
   return (
     <div className="flex flex-col gap-2 ">
       <div className="flex justify-between w-full items-center">
-        <Label title={t("stopLossLabel")} tooltip={t(swapModule === Module.STOP_LOSS ? "stopLossTooltip" : "takeProfitTooltip")} />
+        <Label
+          title={t("stopLossLabel")}
+          tooltip={t(
+            swapModule === Module.STOP_LOSS
+              ? "stopLossTooltip"
+              : "takeProfitTooltip",
+          )}
+        />
         <SpotPriceResetButton onClick={onReset} />
       </div>
       <SpotPriceInput
@@ -633,9 +675,6 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const swapModule = useMemo(() => getModule(swapType), [swapType]);
   const callbacks = useCallbacks();
   const partner = useSpotPartner();
-  const { mutateAsync: refetchBalances } =
-    useRefetchSelectedCurrenciesBalances();
-
   const inputUsd = useUSDPrice({
     token: inputCurrency?.address,
   });
@@ -646,18 +685,12 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const { wei: inputBalance } = useBalance(inputCurrency);
   const { wei: outputBalance } = useBalance(outputCurrency);
 
-  const resetTypedInputAmount = useCallback(
-    () => setInputAmount(""),
-    [setInputAmount]
-  );
-
   return (
-    <Context.Provider value={{ swapModule }}>
+    <Context.Provider value={{ swapModule, setInputAmount }}>
       <FormContainer>
         <Spot
           chainId={chainId}
           typedInputAmount={inputAmount}
-          resetTypedInputAmount={resetTypedInputAmount}
           provider={useWalletClient().data?.transport}
           account={address}
           partner={partner}
@@ -671,12 +704,9 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           dstUsd1Token={outputUsd.data.toString()}
           marketReferencePrice={useSpotMarketReferencePrice()}
           minChunkSizeUsd={5}
-          refetchBalances={refetchBalances}
           callbacks={callbacks}
           isDev={envMode === "dev"}
-          components={{
-            Tooltip: TwapTooltip,
-          }}
+
           fees={0.25}
         >
           <div className="flex flex-col gap-1">

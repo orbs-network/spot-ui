@@ -16,6 +16,7 @@ import {
 } from "./types";
 import { ErrorBoundary } from "react-error-boundary";
 import { useSpotStore } from "./store";
+import { useSwapExecution } from "./hooks/use-swap-execution";
 import BN from "bignumber.js";
 import { shouldUnwrapOnly, shouldWrapOnly, toAmountWei } from "./utils";
 import * as chains from "viem/chains";
@@ -179,7 +180,7 @@ const useParsedMarketPrice = ({
 
 
 const Content = (props: SpotProps) => {
-  const acceptedMarketPrice = useSpotStore((s) => s.state.swapExecution.acceptedMarketPrice);
+  const swapExecution = useSwapExecution();
   const { walletClient, publicClient } = useMemo(
     () => initiateWallet(props.chainId, props.provider),
     [props.chainId, props.provider]
@@ -221,15 +222,14 @@ const Content = (props: SpotProps) => {
     <SpotContext.Provider
       value={{
         typedInputAmount: props.typedInputAmount,
-        resetTypedInputAmount: props.resetTypedInputAmount,
         minChunkSizeUsd,
         account: props.account as `0x${string}` | undefined,
         walletClient,
         publicClient,
-        marketPrice: acceptedMarketPrice || marketReferencePrice.value,
+        marketPrice: swapExecution.acceptedMarketPrice || marketReferencePrice.value,
         marketPriceLoading:
-          !acceptedMarketPrice && marketReferencePrice.isLoading,
-        noLiquidity: !acceptedMarketPrice && marketReferencePrice.noLiquidity,
+          !swapExecution.acceptedMarketPrice && marketReferencePrice.isLoading,
+        noLiquidity: !swapExecution.acceptedMarketPrice && marketReferencePrice.noLiquidity,
         config,
         slippage: props.priceProtection,
         supportedChains,
@@ -239,13 +239,12 @@ const Content = (props: SpotProps) => {
         fees: props.fees || 0,
         overrides: props.overrides,
         callbacks: props.callbacks,
-        refetchBalances: props.refetchBalances,
         srcUsd1Token: props.srcUsd1Token,
         dstUsd1Token: props.dstUsd1Token,
         srcBalance: props.srcBalance,
         dstBalance: props.dstBalance,
-        srcToken: props.srcToken,
-        dstToken: props.dstToken,
+        srcToken: swapExecution.srcToken || props.srcToken,
+        dstToken: swapExecution.dstToken || props.dstToken,
         isDev: props.isDev,
       }}
     >
