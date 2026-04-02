@@ -1,11 +1,13 @@
 import { create } from "zustand";
 import { State, SwapExecution } from "./types";
 
-
 interface SpotStore {
-  resetState: (data?: Partial<State>) => void;
+  resetState: () => void;
   updateState: (value: Partial<State>) => void;
-  updateSwapExecutionAtIndex: (index: number, value: Partial<SwapExecution>) => void;
+  updateSwapExecutionAtIndex: (
+    index: number,
+    value: Partial<SwapExecution>,
+  ) => void;
   state: State;
 }
 
@@ -19,13 +21,18 @@ const initialState: State = {
 
 export const useSpotStore = create<SpotStore>((set, get) => ({
   state: initialState,
-  updateState: (value: Partial<State>) => set((state) => ({ state: { ...state.state, ...value } })),
-  updateSwapExecutionAtIndex: (index: number, data: Partial<SwapExecution>) => set((state) => {
-    const executions = [...state.state.swapExecutions];
-    executions[index] = { ...(executions[index] ?? emptySwapExecution), ...data };
-    return { state: { ...state.state, swapExecutions: executions } };
-  }),
-  resetState: (data?: Partial<State>) => {
+  updateState: (value: Partial<State>) =>
+    set((state) => ({ state: { ...state.state, ...value } })),
+  updateSwapExecutionAtIndex: (index: number, data: Partial<SwapExecution>) =>
+    set((state) => {
+      const executions = [...state.state.swapExecutions];
+      executions[index] = {
+        ...(executions[index] ?? emptySwapExecution),
+        ...data,
+      };
+      return { state: { ...state.state, swapExecutions: executions } };
+    }),
+  resetState: () => {
     const prev = get().state;
     set({
       state: {
@@ -34,7 +41,6 @@ export const useSpotStore = create<SpotStore>((set, get) => ({
         isMarketOrder: prev.isMarketOrder,
         swapExecutions: [...prev.swapExecutions, emptySwapExecution],
         swapExecutionIndex: prev.swapExecutionIndex + 1,
-        ...data,
       },
     });
   },

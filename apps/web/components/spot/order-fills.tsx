@@ -4,10 +4,12 @@ import {
   useAmountUi,
   useDateFormat,
   useExplorerLink,
+  useDerivedHistoryOrder,
   type Token,
   type OrderFill,
 } from "@orbs-network/spot-react";
-import { type SelectedOrder } from "@/lib/types";
+
+type SelectedOrder = NonNullable<ReturnType<typeof useDerivedHistoryOrder>>;
 import { makeEllipsisAddress } from "@/lib/utils";
 import { FormatNumber } from "./format-number";
 import { OrderDetails } from "./order-details";

@@ -9,7 +9,7 @@ import { useDurationPanel } from "./hooks/use-duration";
 import { useDisclaimerPanel } from "./hooks/use-disclaimer-panel";
 import { useTriggerPricePanel } from "./hooks/use-trigger-price-panel";
 import { useOrderHistoryPanel } from "./hooks/order-hooks";
-import { useDisplayHistoryOrder } from "./hooks/use-history-order";
+import { useDerivedHistoryOrder } from "./hooks/use-history-order";
 import { useDstTokenPanel } from "./hooks/use-dst-token-panel";
 import { useLimitPricePanel } from "./hooks/use-limit-price-panel";
 import { useInvertTradePanel } from "./hooks/use-invert-trade-panel";
@@ -21,7 +21,7 @@ export * from "./types";
 export * from "./utils";
 export { useFormatNumber, useAmountUi, useDateFormat, useExplorerLink, useCopyToClipboard, useNetwork } from "./hooks/helper-hooks";
 export { useSwapExecution } from "./hooks/use-swap-execution";
-import { useOrder } from "./hooks/use-order";
+import { useDerivedOrder } from "./hooks/use-order";
 import { useSignOrder, useSubmitOrderMutation } from "./hooks/use-submit-order";
 import { useCancelOrderRefetchUntilStatusSynced, useCancelOrderMutation } from "./hooks/use-cancel-order";
 
@@ -102,9 +102,9 @@ export {
   usePartnerChains,
   useAddresses,
   useSubmitOrderButton,
-  useOrder,
+  useDerivedOrder,
   useCancelOrderRefetchUntilStatusSynced,
-  useDisplayHistoryOrder,
+  useDerivedHistoryOrder,
   useSubmitOrderMutation,
   useCancelOrderMutation,
   useSignOrder,

@@ -27,8 +27,8 @@ import { useTriggerPrice } from "./use-trigger-price";
 import { useTrades } from "./use-trades";
 import { useDeadline } from "./use-deadline";
 import { useFillDelay } from "./use-fill-delay";
-import { useDstMinAmountPerTrade } from "./use-dst-amount";
-import { useOrder } from "./use-order";
+import { useDstMinAmountPerTrade, useDstTokenAmount } from "./use-dst-amount";
+import { useDerivedOrder } from "./use-order";
 
 const useWrapToken = () => {
   const {
@@ -101,7 +101,7 @@ const useWrapToken = () => {
 
 export const useSignOrder = () => {
   const { account, walletClient, chainId, callbacks } = useSpotContext();
-  const { rePermitData } = useOrder();
+  const { rePermitData } = useDerivedOrder();
   const { refetch: refetchOrders } = useOrdersQuery();
 
   return useMutation({
@@ -343,6 +343,7 @@ export const useSubmitOrderMutation = () => {
   const { mutateAsync: hasAllowanceCallback } = useHasAllowanceCallback();
   const { update: updateSwapExecution } = useSwapExecution();
   const { amountWei: srcAmountWei, amountUI: srcAmountUI } = useSrcAmount();
+  const { amountUI: dstAmountUI } = useDstTokenAmount();
   const initOrderRequest = useInitOrderRequest().mutate;
 
   return useMutation({
@@ -364,8 +365,9 @@ export const useSubmitOrderMutation = () => {
           allowanceLoading: true,
           wrapTxHash: undefined,
           approveTxHash: undefined,
-          acceptedMarketPrice: marketPrice,
-          acceptedSrcAmount: srcAmountUI,
+          marketPrice,
+          srcAmount: srcAmountUI,
+          dstAmount: dstAmountUI,
           srcToken,
           dstToken,
         });
@@ -381,6 +383,7 @@ export const useSubmitOrderMutation = () => {
           totalSteps,
           stepIndex,
           allowanceLoading: false,
+          hasApproval: !approvalRequired,
           status: SwapStatus.LOADING,
         });
         initOrderRequest();

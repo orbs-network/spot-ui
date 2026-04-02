@@ -370,8 +370,14 @@ const SubmitSwapMain = ({
 };
 
 const SubmitSwap = () => {
-  const { onSubmit, status, reset, isSuccess, parsedError, allowanceLoading } =
-    useSubmitOrderPanel();
+  const {
+    onSubmit,
+    status,
+    resetState,
+    isSuccess,
+    parsedError,
+    allowanceLoading,
+  } = useSubmitOrderPanel();
   const { setInputAmount } = useSpotContext();
 
   const { swapModule } = useSpotContext();
@@ -391,20 +397,17 @@ const SubmitSwap = () => {
   }, [swapModule]);
   const [isOpen, setIsOpen] = useState(false);
 
-
   const onOpen = useCallback(() => {
     setIsOpen(true);
   }, []);
 
   const onClose = useCallback(() => {
     setIsOpen(false);
-   setTimeout(() => {
-    reset();
-    if(isSuccess) {
-      setInputAmount(""); 
-    }
-   }, 500);
-  }, [reset, setInputAmount, isSuccess]);
+    setInputAmount("");
+    setTimeout(() => {
+      resetState();
+    }, 500);
+  }, [resetState, setInputAmount]);
 
   return (
     <>
@@ -706,7 +709,6 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           minChunkSizeUsd={5}
           callbacks={callbacks}
           isDev={envMode === "dev"}
-
           fees={0.25}
         >
           <div className="flex flex-col gap-1">

@@ -8,7 +8,7 @@ import {
   useExplorerLink,
   useFormatNumber,
   useNetwork,
-  useOrder,
+  useDerivedOrder,
   Steps,
   SwapStatus,
   type ParsedError,
@@ -21,8 +21,8 @@ import { Spinner } from "../ui/spinner";
 import { SpotTokenLogo } from "./components";
 
 type SubmitOrderPanelProps = {
-  reviewDetails?: ReactNode;
   orderTitle?: string;
+  reviewDetails?: ReactNode;
 };
 
 type SubmitOrderPanelData = ReturnType<typeof useSubmitOrderPanelHook>;
@@ -137,7 +137,7 @@ const Main = () => {
     useSubmitPanelContext();
   const t = useTranslations();
   const isSubmitted = Boolean(status);
-  const order = useOrder();
+  const order = useDerivedOrder();
 
   return (
     <>
@@ -232,12 +232,10 @@ const SuccessContent = () => {
 
 export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
   const panelData = useSubmitOrderPanelHook();
-  const { status, stepIndex, totalSteps, parsedError } = panelData;
+  const { status, stepIndex, totalSteps, parsedError, srcToken, dstToken, dstAmount, srcAmount } = panelData;
 
-  const order = useOrder();
-  const { srcToken, dstToken } = order;
-  const srcAmountF = useFormatNumber({ value: order.srcAmountUI, decimalScale: 2 });
-  const outAmountF = useFormatNumber({ value: order.dstAmountUI, decimalScale: 2 });
+  const srcAmountF = useFormatNumber({ value: srcAmount, decimalScale: 2 });
+  const outAmountF = useFormatNumber({ value: dstAmount, decimalScale: 2 });
 
   const inToken = useMemo(
     () => ({ symbol: srcToken?.symbol, logoUrl: srcToken?.logoUrl }),
@@ -253,7 +251,7 @@ export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
       <SwapFlow
         inAmount={srcAmountF}
         outAmount={outAmountF}
-        swapStatus={status as unknown as SwapStatus}
+        swapStatus={status}
         totalSteps={totalSteps}
         currentStep={useStep()}
         currentStepIndex={stepIndex}

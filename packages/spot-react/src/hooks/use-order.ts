@@ -13,8 +13,9 @@ import { useBuildOrderInfo } from "./use-build-order-info";
 import { useSpotStore } from "../store";
 import { useOrderType } from "./order-hooks";
 import { useRePermitOrderData } from "./use-repermit-order-data";
+import { useSwapExecution } from "./use-swap-execution";
 
-export const useOrder = () => {
+export const useDerivedOrder = () => {
   const { srcToken, dstToken, account } = useSpotContext();
 
   const { amountWei: srcAmountWei, amountUI: srcAmountUI } = useSrcAmount();
@@ -47,10 +48,11 @@ export const useOrder = () => {
   const rePermitData = useRePermitOrderData();
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   const createdAt = useSpotStore((s) => s.state.currentTime);
+  const swapExecution = useSwapExecution();
 
   const info = useBuildOrderInfo({
-    srcToken,
-    dstToken,
+    srcToken: swapExecution.srcToken || srcToken,
+    dstToken: swapExecution.dstToken || dstToken,
     account,
     orderType: useOrderType(),
     createdAt,

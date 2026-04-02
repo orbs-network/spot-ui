@@ -41,7 +41,7 @@ const useFills = (fills?: OrderFill[], srcToken?: Token, dstToken?: Token) => {
   }, [fills, srcToken, dstToken, network]);
 };
 
-export const useDisplayHistoryOrder = (
+export const useDerivedHistoryOrder = (
   order: Order,
   srcToken?: Token,
   dstToken?: Token,

@@ -201,8 +201,10 @@ export type SwapExecution = {
   totalSteps?: number;
   orderId?: string;
   allowanceLoading?: boolean;
-  acceptedMarketPrice?: string;
-  acceptedSrcAmount?: string;
+  hasApproval?: boolean;
+  marketPrice?: string;
+  srcAmount?: string;
+  dstAmount?: string;
   srcToken?: Token;
   dstToken?: Token;
 };

@@ -7,6 +7,7 @@ import { FormatNumber } from "./format-number";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { InfoIcon, CopyIcon } from "lucide-react";
 import { useTranslations } from "@/lib/use-translations";
+import { useConnection } from "wagmi";
 
 const USD = ({ value }: { value?: string }) => {
   const formattedValue = useFormatNumber({ value: value, decimalScale: 2 });
@@ -73,11 +74,12 @@ const TradesAmount = ({ trades, label, tooltip }: { trades?: number; label: stri
 const Recipient = () => {
   const t = useTranslations();
   const network = useNetwork();
+  const {address: account} = useConnection();
   const explorerUrl = network?.explorer;
 
   return (
     <DetailRow title={t("recipient") || ""}>
-      {/* Recipient will be populated by parent */}
+      <a href={`${explorerUrl}/address/${account}`} target="_blank" rel="noopener noreferrer">{makeEllipsisAddress(account || "")}</a>
     </DetailRow>
   );
 };

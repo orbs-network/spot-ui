@@ -69,7 +69,7 @@ export const SpotFooter = () => {
   const prod = getSpotPartnerProdLink(parsedPartner);
 
   return (
-    <div className="flex flex-row gap-2 items-center  fixed z-10 bottom-0 left-12 right-0 p-4">
+    <div className="flex flex-row gap-2 items-center  fixed z-10 bottom-0 left-12 right-0 p-4 w-fit">
       <p className="text-[16px] font-bold text-foreground/80">
         Spot: v{SPOT_VERSION} 
       </p>

@@ -14,10 +14,9 @@ import {
   OrderStatus,
   useCancelOrderMutation,
   useDateFormat,
-  useDisplayHistoryOrder,
+  useDerivedHistoryOrder,
   useOrderHistoryPanel,
 } from "@orbs-network/spot-react";
-import { type SelectedOrder } from "@/lib/types";
 import { FormatNumber } from "./format-number";
 import { OrderDetails } from "./order-details";
 import { useSpotToken } from "@/lib/hooks/spot-hooks";
@@ -28,7 +27,7 @@ import { SpotTokenLogo } from "./components";
 import { Button } from "../ui/button";
 
 type ContextType = {
-  order: SelectedOrder;
+  order: NonNullable<ReturnType<typeof useDerivedHistoryOrder>>;
 };
 
 const Context = createContext({} as ContextType);
@@ -46,7 +45,7 @@ export const OrderPreview = () => {
   );
   const srcToken = useSpotToken(rawOrder?.srcTokenAddress);
   const dstToken = useSpotToken(rawOrder?.dstTokenAddress);
-  const order = useDisplayHistoryOrder(rawOrder!, srcToken, dstToken);
+  const order = useDerivedHistoryOrder(rawOrder!, srcToken, dstToken);
 
   const t = useTranslations();
   const [expanded, setExpanded] = useState<string | false>("panel1");
