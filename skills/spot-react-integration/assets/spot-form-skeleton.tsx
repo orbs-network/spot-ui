@@ -10,10 +10,6 @@ import {
   SpotProvider,
   Module,
   Partners,
-  Components,
-  type ButtonProps,
-  type TooltipProps,
-  type TokenLogoProps,
   type Token,
   useDstTokenPanel,
   useDurationPanel,
@@ -21,12 +17,7 @@ import {
   useFillDelayPanel,
   useSubmitOrderPanel,
   useSubmitOrderButton,
-  useLimitPricePanel,
-  useTriggerPricePanel,
-  useInvertTradePanel,
-  useDisclaimerPanel,
-  useInputErrors,
-  usePartnerChains,
+  useDerivedOrder,
   useFormatNumber,
 } from "@orbs-network/spot-react";
 
@@ -37,51 +28,6 @@ import {
 // import { Switch } from "../ui/switch";
 // import { NumericInput } from "../ui/numeric-input";
 // import { CurrencyInputPanel } from "../currency-input-panel";
-// import { useCurrency } from "../../hooks/use-currency";
-
-// ============ Component Wrappers ============
-
-// DEX: Wire these to your actual DEX components
-const SpotButton: React.FC<ButtonProps> = ({ children, onClick, disabled, loading }) => (
-  <button onClick={onClick} disabled={disabled}>
-    {loading ? "Loading..." : children}
-  </button>
-);
-
-const SpotTooltip: React.FC<TooltipProps> = ({ children, tooltipText }) => (
-  <span title={tooltipText}>{children}</span>
-);
-
-const SpotTokenLogo: React.FC<TokenLogoProps> = ({ token, className }) => (
-  <img src={token?.logoUrl} alt={token?.symbol} className={className} width={24} height={24} />
-);
-
-// ============ useToken Hook ============
-
-// DEX: Replace with your token lookup
-const useTokenByAddress = (address?: string): Token | undefined => {
-  // const currency = useCurrency(address);
-  return useMemo(() => {
-    if (!address) return undefined;
-    return {
-      address,
-      symbol: "???",
-      decimals: 18,
-      logoUrl: "",
-    };
-  }, [address]);
-};
-
-// ============ Small UI ============
-
-function LabelWithTooltip({ label, tooltip }: { label: string; tooltip?: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <span>{label}</span>
-      {tooltip && <SpotTooltip tooltipText={tooltip}>ℹ️</SpotTooltip>}
-    </div>
-  );
-}
 
 // ============ Section Components ============
 
@@ -89,8 +35,7 @@ function DurationSection() {
   const panel = useDurationPanel();
   return (
     <div>
-      <LabelWithTooltip label={panel.label} tooltip={panel.tooltip} />
-      {/* DEX: Replace with your NumericInput + Select */}
+      {/* DEX: Add your own label, e.g. "Expiry" */}
       <input
         type="number"
         value={panel.duration.value}
@@ -103,7 +48,6 @@ function DurationSection() {
         <option value={60000}>Minutes</option>
         <option value={3600000}>Hours</option>
         <option value={86400000}>Days</option>
-        <option value={604800000}>Weeks</option>
       </select>
     </div>
   );
@@ -113,7 +57,7 @@ function TradeSizeSection() {
   const panel = useTradesPanel();
   return (
     <div>
-      <LabelWithTooltip label={panel.label} tooltip={panel.tooltip} />
+      {/* DEX: Add your own label, e.g. "Trades" */}
       <input
         type="number"
         value={panel.totalTrades}
@@ -128,7 +72,7 @@ function TradeIntervalSection() {
   const panel = useFillDelayPanel();
   return (
     <div>
-      <LabelWithTooltip label={panel.label} tooltip={panel.tooltip} />
+      {/* DEX: Add your own label, e.g. "Trade Interval" */}
       <input
         type="number"
         value={panel.fillDelay.value}
@@ -146,18 +90,29 @@ function TradeIntervalSection() {
   );
 }
 
-function SubmitOrderSection() {
+function SubmitOrderSection({ setInputAmount }: { setInputAmount: (v: string) => void }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const submitPanel = useSubmitOrderPanel();
   const submitButton = useSubmitOrderButton();
+  const order = useDerivedOrder();
   const [accepted, setAccepted] = useState(false);
 
   // DEX: Replace with your ConnectWallet / SwitchNetwork checks
 
+  const onClose = useCallback(() => {
+    setIsModalOpen(false);
+    setTimeout(() => {
+      submitPanel.resetState();
+      if (submitPanel.isSuccess) {
+        setInputAmount("");
+      }
+    }, 500);
+  }, [submitPanel.resetState, submitPanel.isSuccess, setInputAmount]);
+
   return (
     <>
       <button
-        onClick={() => { submitPanel.onOpenModal(); setIsModalOpen(true); }}
+        onClick={() => setIsModalOpen(true)}
         disabled={submitButton.disabled}
       >
         {submitButton.text}
@@ -166,36 +121,44 @@ function SubmitOrderSection() {
       {isModalOpen && (
         <div className="modal">
           {/* DEX: Replace with your Dialog/Modal component */}
-          <Components.SubmitOrderPanel
-            reviewDetails={
-              <>
-                <label>
-                  <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
-                  Accept disclaimer
-                </label>
-                <button onClick={() => setIsModalOpen(false)}>Cancel</button>
-                <button onClick={submitPanel.onSubmit} disabled={!accepted || submitPanel.isLoading}>
-                  {submitPanel.isLoading ? "Confirming..." : "Confirm"}
-                </button>
-              </>
-            }
-          />
-        </div>
-      )}
-    </>
-  );
-}
 
-function OrderHistorySection() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  return (
-    <>
-      <button onClick={() => setIsModalOpen(true)}>Order History</button>
-      {isModalOpen && (
-        <div className="modal">
-          {/* DEX: Replace with your Dialog/Modal component */}
-          <Components.Orders />
-          <button onClick={() => setIsModalOpen(false)}>Close</button>
+          {submitPanel.parsedError ? (
+            <div>
+              <p>Error: {submitPanel.parsedError.message}</p>
+              <button onClick={onClose}>Close</button>
+            </div>
+          ) : (
+            <>
+              {/* DEX: Build order review UI using:
+                - order.srcAmountUI, order.dstAmountUI (amounts)
+                - order.limitPriceUI, order.triggerPriceUI (prices)
+                - order.totalTrades, order.sizePerTradeUI (trade config)
+                - order.deadline, order.tradeInterval (timing)
+                - order.feesAmount, order.feesPercentage (fees)
+                - submitPanel.srcToken, submitPanel.dstToken (tokens)
+              */}
+
+              {/* Swap progress: submitPanel.status, submitPanel.step,
+                  submitPanel.stepIndex, submitPanel.totalSteps,
+                  submitPanel.wrapTxHash, submitPanel.approveTxHash */}
+
+              {!submitPanel.status && (
+                <>
+                  <label>
+                    <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+                    Accept disclaimer
+                  </label>
+                  <button onClick={onClose}>Cancel</button>
+                  <button
+                    onClick={submitPanel.onSubmit}
+                    disabled={!accepted || Boolean(submitPanel.allowanceLoading)}
+                  >
+                    {submitPanel.allowanceLoading ? "Checking..." : "Create Order"}
+                  </button>
+                </>
+              )}
+            </>
+          )}
         </div>
       )}
     </>
@@ -219,9 +182,25 @@ export function SpotForm({
 
   const srcToken = useMemo(() => undefined, []);
   const dstToken = useMemo(() => undefined, []);
-  const resetTypedInputAmount = useCallback(() => {}, []);
-  const refetchBalances = useCallback(() => {}, []);
-  const callbacks = useMemo(() => ({}), []);
+  const callbacks = useMemo(() => ({
+    // DEX: Wire callbacks for toasts and balance refetch
+    onWrapSuccess: () => {
+      // refetchBalances();
+      // toast.success("Wrapped");
+    },
+    onOrdersProgressUpdate: () => {
+      // refetchBalances();
+    },
+    onOrderCreated: () => {
+      // toast.success("Order created");
+    },
+    onSubmitOrderFailed: () => {
+      // toast.error("Failed");
+    },
+  }), []);
+
+  // DEX: Replace with your input amount state
+  const [inputAmount, setInputAmount] = useState("");
 
   return (
     <SpotProvider
@@ -229,28 +208,19 @@ export function SpotForm({
       module={module}
       priceProtection={3}
       minChunkSizeUsd={5}
-      typedInputAmount=""
-      resetTypedInputAmount={resetTypedInputAmount}
+      typedInputAmount={inputAmount}
       marketReferencePrice={marketReferencePrice}
-      components={{
-        Button: SpotButton,
-        Tooltip: SpotTooltip,
-        TokenLogo: SpotTokenLogo,
-        Spinner: <span>Loading...</span>,
-      }}
       srcToken={srcToken}
       dstToken={dstToken}
-      useToken={useTokenByAddress}
-      refetchBalances={refetchBalances}
       callbacks={callbacks}
+      fees={0.25}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* DEX: Token inputs section using your CurrencyInputPanel */}
         {module === Module.TWAP && <TradeSizeSection />}
         {module === Module.TWAP && <TradeIntervalSection />}
         {module !== Module.TWAP && <DurationSection />}
-        <SubmitOrderSection />
-        <OrderHistorySection />
+        <SubmitOrderSection setInputAmount={setInputAmount} />
       </div>
     </SpotProvider>
   );

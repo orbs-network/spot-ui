@@ -1,24 +1,28 @@
 # Hook-Driven Panels
 
-Every panel follows the same pattern: call a hook, render its `label` + `tooltip`, and wire its callbacks to DEX-styled inputs.
+Every panel follows the same pattern: call a hook, render its data, and wire its callbacks to DEX-styled inputs.
 
 ## Hooks Reference
 
 | Hook | Key Returns |
 |------|------------|
 | `useDstTokenPanel()` | `value`, `usd`, `isLoading` |
-| `useTradesPanel()` | `label`, `tooltip`, `totalTrades`, `onChange`, `error`, `amountPerTradeUsd` |
-| `useDurationPanel()` | `label`, `tooltip`, `duration`, `onInputChange`, `onUnitSelect` |
-| `useFillDelayPanel()` | `label`, `tooltip`, `fillDelay`, `onInputChange`, `onUnitSelect` |
-| `useLimitPricePanel()` | `label`, `tooltip`, `price`, `percentage`, `isLimitPrice`, `toggleLimitPrice`, `onChange`, `onPercentageChange`, `onReset`, `toToken`, `usd` |
-| `useTriggerPricePanel()` | `label`, `tooltip`, `price`, `percentage`, `hide`, `onChange`, `onPercentageChange`, `onReset`, `toToken`, `usd` |
+| `useTradesPanel()` | `totalTrades`, `onChange`, `error`, `amountPerTradeUsd`, `fromToken`, `toToken` |
+| `useDurationPanel()` | `duration`, `onInputChange`, `onUnitSelect`, `error` |
+| `useFillDelayPanel()` | `fillDelay`, `onInputChange`, `onUnitSelect`, `error` |
+| `useLimitPricePanel()` | `price`, `percentage`, `isLimitPrice`, `toggleLimitPrice`, `onChange`, `onPercentageChange`, `onReset`, `toToken`, `amountPerChunk`, `amountPerChunkUsd`, `isLoading`, `isInverted`, `fromToken`, `tradesAmount`, `isTypedValue` |
+| `useTriggerPricePanel()` | `price`, `percentage`, `onChange`, `onPercentageChange`, `onReset`, `toToken`, `amountPerChunk`, `amountPerChunkUsd`, `isInverted`, `fromToken`, `totalTrades`, `isTypedValue` |
 | `useInvertTradePanel()` | `isInverted`, `onInvert`, `fromToken`, `isMarketPrice` |
-| `useInputErrors()` | `{ type, message }` or `undefined` |
-| `useSubmitOrderPanel()` | `onSubmit`, `onOpenModal`, `isSuccess`, `isLoading`, `step`, `parsedError` |
+| `useInputErrors()` | error object or `undefined` |
+| `useSubmitOrderPanel()` | `onSubmit`, `resetState`, `isSuccess`, `isLoading`, `isFailed`, `status`, `step`, `stepIndex`, `totalSteps`, `parsedError`, `srcToken`, `dstToken`, `srcAmount`, `dstAmount`, `wrapTxHash`, `approveTxHash`, `allowanceLoading`, `hasApproval`, `marketPrice`, `update` |
 | `useSubmitOrderButton()` | `text`, `disabled`, `loading` |
-| `useOrderHistoryPanel()` | `orders`, `selectedOrder`, `statuses`, `openOrdersCount`, `onSelectStatus`, `onHideSelectedOrder` |
+| `useSwapExecution()` | Current swap execution state + `update(data)` function |
+| `useDerivedOrder()` | Full derived order data for the current form state (amounts, prices, fees, rePermit data). Used in submit modal for order review details. |
+| `useDerivedHistoryOrder(order, srcToken, dstToken)` | Derives display data for a historical order (fills, prices, progress). Used for order history display. |
+| `useOrderHistoryPanel()` | `orders`, `isLoading` |
 | `usePartnerChains()` | Supported chain IDs |
 | `useFormatNumber()` | Format number: `{ value, decimalScale, prefix, suffix }` |
+| `useDisclaimerPanel()` | Disclaimer state |
 
 ## Form Structure
 
@@ -34,7 +38,6 @@ function SpotFormContent({ module }) {
       {module === Module.TWAP && <TradeIntervalSection />}
       <ErrorSection />
       <SubmitOrderSection />
-      <OrderHistorySection />
     </div>
   );
 }
@@ -61,21 +64,6 @@ function TokenInputsSection() {
 }
 ```
 
-## Label + Tooltip Pattern
-
-All panels display label and tooltip from the hook:
-
-```tsx
-function LabelWithTooltip({ label, tooltip }) {
-  return (
-    <div className="flex items-center gap-1">
-      <span className="text-sm font-medium">{label}</span>
-      {tooltip && <Tooltip content={tooltip}><InfoIcon className="w-3.5 h-3.5" /></Tooltip>}
-    </div>
-  );
-}
-```
-
 ## Price Panels
 
 ```tsx
@@ -88,7 +76,7 @@ function PriceConfigSection({ module }) {
   return (
     <div>
       <PriceHeader invertPanel={invertPanel} />
-      {showTrigger && !triggerPanel.hide && <TriggerPriceRow panel={triggerPanel} />}
+      {showTrigger && <TriggerPriceRow panel={triggerPanel} />}
       <LimitPriceRow panel={limitPanel} showToggle={module !== Module.LIMIT} />
     </div>
   );
@@ -99,29 +87,32 @@ Trigger and limit price rows each show: `[Symbol | Price + USD] [Percentage%]` w
 
 For limit price, add a `Switch` toggle when `showToggle` is true (`isLimitPrice` / `toggleLimitPrice`).
 
+Use `isTypedValue` to determine whether to show the raw typed value or `formatDecimals(price, 6)`.
+
+The `amountPerChunk` and `amountPerChunkUsd` show per-trade amounts below the price input.
+
 ## Duration Panel (Input + Select)
 
 ```tsx
-import { TimeUnit } from "@orbs-network/spot-react";
+import { TimeUnit, DEFAULT_DURATIONS } from "@orbs-network/spot-react";
 
 function DurationSection() {
   const panel = useDurationPanel();
   return (
     <div>
-      <LabelWithTooltip label={panel.label} tooltip={panel.tooltip} />
+      <label>Expiry</label>
       <NumericInput value={panel.duration.value} onChange={panel.onInputChange} />
-      <Select value={panel.duration.unit} onValueChange={panel.onUnitSelect}
-        options={[
-          { value: TimeUnit.Minutes, label: "Minutes" },
-          { value: TimeUnit.Hours, label: "Hours" },
-          { value: TimeUnit.Days, label: "Days" },
-          { value: TimeUnit.Weeks, label: "Weeks" },
-        ]}
+      <Select
+        value={panel.duration.unit}
+        onValueChange={panel.onUnitSelect}
+        items={DEFAULT_DURATIONS}
       />
     </div>
   );
 }
 ```
+
+`DEFAULT_DURATIONS` provides `{ text, value }[]` options for Minutes, Hours, Days.
 
 ## Trade Size (TWAP only)
 
@@ -130,7 +121,7 @@ function TradeSizeSection() {
   const panel = useTradesPanel();
   return (
     <div>
-      <LabelWithTooltip label={panel.label} tooltip={panel.tooltip} />
+      <label>Trades</label>
       <NumericInput value={panel.totalTrades} onChange={panel.onChange} />
       {panel.amountPerTradeUsd && <span>${panel.amountPerTradeUsd} per trade</span>}
     </div>
@@ -145,9 +136,13 @@ function TradeIntervalSection() {
   const panel = useFillDelayPanel();
   return (
     <div>
-      <LabelWithTooltip label={panel.label} tooltip={panel.tooltip} />
+      <label>Trade Interval</label>
       <NumericInput value={panel.fillDelay.value} onChange={panel.onInputChange} />
-      <Select value={panel.fillDelay.unit} onValueChange={panel.onUnitSelect} options={unitOptions} />
+      <Select
+        value={panel.fillDelay.unit}
+        onValueChange={panel.onUnitSelect}
+        items={DEFAULT_DURATIONS}
+      />
     </div>
   );
 }
@@ -169,11 +164,21 @@ function SubmitOrderSection() {
     return <SwitchNetworkButton targetChainId={partnerChains[0]} />;
   }
 
+  const onClose = useCallback(() => {
+    setIsModalOpen(false);
+    setTimeout(() => {
+      submitPanel.resetState();
+      if (submitPanel.isSuccess) {
+        setInputAmount("");
+      }
+    }, 500);
+  }, [submitPanel.resetState, submitPanel.isSuccess]);
+
   return (
     <>
-      <Button onClick={() => { submitPanel.onOpenModal(); setIsModalOpen(true); }}
+      <Button onClick={() => setIsModalOpen(true)}
         disabled={submitButton.disabled}>{submitButton.text}</Button>
-      <SubmitOrderModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} submitPanel={submitPanel} />
+      <SubmitOrderModal isOpen={isModalOpen} onClose={onClose} submitPanel={submitPanel} />
     </>
   );
 }
@@ -181,28 +186,50 @@ function SubmitOrderSection() {
 
 ## Submit Modal
 
-Use the same modal component DEX uses for token select or settings. Disclaimer + submit button go inside `reviewDetails`:
+Build your own submit order UI using data from `useSubmitOrderPanel()` and `useDerivedOrder()`.
+
+`useSubmitOrderPanel()` provides swap execution state:
+- `srcToken`, `dstToken` — tokens (from context, locked during swap via swap execution)
+- `srcAmount`, `dstAmount` — amounts (falls back to live values if no swap in progress)
+- `status`, `step`, `stepIndex`, `totalSteps` — progress tracking
+- `isLoading`, `isSuccess`, `isFailed` — status flags
+- `wrapTxHash`, `approveTxHash` — transaction hashes for explorer links
+- `allowanceLoading`, `hasApproval` — approval state
+- `parsedError` — error details if failed
+- `resetState()` — resets form and creates new swap execution
+
+`useDerivedOrder()` provides full derived order details for the review screen:
+- Amounts: `srcAmountUI`, `dstAmountUI`, `srcAmountUsd`, `dstAmountUsd`
+- Prices: `limitPriceUI`, `triggerPriceUI`, `limitPriceUsd`, `triggerPriceUsd`
+- Trade config: `totalTrades`, `sizePerTradeUI`, `minDestAmountPerTradeUI`
+- Timing: `deadline`, `tradeInterval`
+- Fees: `feesAmount`, `feesUsd`, `feesPercentage`
 
 ```tsx
 function SubmitOrderModal({ isOpen, onClose, submitPanel }) {
   const [accepted, setAccepted] = useState(false);
-
-  const reviewDetails = (
-    <>
-      <DisclaimerAccept accepted={accepted} onAcceptedChange={setAccepted} />
-      <div className="flex gap-3 mt-4">
-        <Button variant="outline" onClick={onClose} disabled={submitPanel.isLoading}>Cancel</Button>
-        <Button onClick={submitPanel.onSubmit} disabled={!accepted || submitPanel.isLoading}>
-          {submitPanel.isLoading ? "Confirming..." : "Confirm"}
-        </Button>
-      </div>
-    </>
-  );
+  const order = useDerivedOrder();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
-        <Components.SubmitOrderPanel reviewDetails={reviewDetails} />
+        {submitPanel.parsedError ? (
+          <ErrorDisplay error={submitPanel.parsedError} onClose={onClose} />
+        ) : (
+          <>
+            {/* Order review details from useDerivedOrder() */}
+            {!submitPanel.status && (
+              <>
+                <OrderReviewDetails order={order} srcToken={submitPanel.srcToken} dstToken={submitPanel.dstToken} />
+                <DisclaimerAccept accepted={accepted} onAcceptedChange={setAccepted} />
+                <Button onClick={submitPanel.onSubmit} disabled={!accepted || submitPanel.allowanceLoading}>
+                  Create Order
+                </Button>
+              </>
+            )}
+            {/* Swap progress UI using submitPanel.status, step, stepIndex, totalSteps */}
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -211,22 +238,19 @@ function SubmitOrderModal({ isOpen, onClose, submitPanel }) {
 
 ## Order History
 
+Build your own order history UI using `useOrderHistoryPanel()` for the list and `useDerivedHistoryOrder()` for individual order display:
+
 ```tsx
 function OrderHistorySection() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const panel = useOrderHistoryPanel();
-  return (
-    <>
-      <Button variant="outline" onClick={() => setIsModalOpen(true)}>
-        Order History {panel.openOrdersCount > 0 && `(${panel.openOrdersCount})`}
-      </Button>
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent>
-          <Components.Orders />
-        </DialogContent>
-      </Dialog>
-    </>
-  );
+  // panel.orders — array of raw Order objects
+  // panel.isLoading — loading state
+}
+
+function OrderPreview({ order, srcToken, dstToken }) {
+  const derived = useDerivedHistoryOrder(order, srcToken, dstToken);
+  if (!derived) return null;
+  // derived.srcAmountUI, derived.limitPriceUI, derived.fills, derived.progress, etc.
 }
 ```
 

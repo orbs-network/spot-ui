@@ -18,7 +18,7 @@ Working example: [`apps/web/components/spot/spot-form.tsx`](https://github.com/o
 ## Workflow
 
 1. Read [references/01-quickstart.md](references/01-quickstart.md) for install, pre-checks, and the minimum integration steps.
-2. Read [references/02-provider.md](references/02-provider.md) for SpotProvider props, component wrappers, useToken hook, and memoization rules.
+2. Read [references/02-provider.md](references/02-provider.md) for SpotProvider props, input reset, balance refetch, and memoization rules.
 3. Read [references/03-panels.md](references/03-panels.md) for hook-driven panel patterns: price, duration, trades, fill delay, submit, and order history.
 4. Read [references/04-principles.md](references/04-principles.md) for integration principles, layout rules, and the final checklist.
 5. Use [assets/spot-form-skeleton.tsx](assets/spot-form-skeleton.tsx) as a starting template.
@@ -27,8 +27,9 @@ Working example: [`apps/web/components/spot/spot-form.tsx`](https://github.com/o
 
 1. Every DEX needs its own config. If one doesn't exist, contact **[@dTWAPSupportGroup](https://t.me/dTWAPSupportGroup)** on Telegram before starting.
 2. Only install `@orbs-network/spot-react`. No other packages.
-2. Never import from `@orbs-network/spot-react/dist/*`. Always from `@orbs-network/spot-react`.
-3. Use DEX components as-is. Don't modify them. Create new ones using DEX styles when needed.
-4. Wrap objects with `useMemo`, functions with `useCallback` in SpotProvider props.
-5. Every panel displays `label` + `tooltip` from its hook.
+3. Never import from `@orbs-network/spot-react/dist/*`. Always from `@orbs-network/spot-react`.
+4. Use DEX components as-is. Don't modify them. Create new ones using DEX styles when needed.
+5. Wrap objects with `useMemo`, functions with `useCallback` in SpotProvider props.
 6. Verify all imports exist in the package before using them.
+7. Balance refetch goes in callbacks (`onWrapSuccess`, `onOrdersProgressUpdate`), not as a prop.
+8. Input amount reset goes in the modal's `onClose` callback when `isSuccess` is true, after calling `resetState()`.
