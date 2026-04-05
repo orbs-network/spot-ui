@@ -303,22 +303,22 @@ export type SpotConfig = {
 
 
 export enum InputErrors {
-  EMPTY_LIMIT_PRICE,
-  MAX_CHUNKS,
-  MIN_CHUNKS,
-  MIN_TRADE_SIZE,
-  MAX_FILL_DELAY,
-  MIN_FILL_DELAY,
-  MAX_ORDER_DURATION,
-  MIN_ORDER_DURATION,
-  MISSING_LIMIT_PRICE,
-  STOP_LOSS_TRIGGER_PRICE_GREATER_THAN_MARKET_PRICE,
-  TRIGGER_LIMIT_PRICE_GREATER_THAN_TRIGGER_PRICE,
-  TAKE_PROFIT_TRIGGER_PRICE_LESS_THAN_MARKET_PRICE,
-  EMPTY_TRIGGER_PRICE,
-  INSUFFICIENT_BALANCE,
-  MAX_ORDER_SIZE,
-  MIN_TRADE_SIZE_ERROR,
+  EMPTY_LIMIT_PRICE = "emptyLimitPrice",
+  MAX_CHUNKS = "maxChunksError",
+  MIN_CHUNKS = "minChunksError",
+  MIN_TRADE_SIZE = "minTradeSizeError",
+  MAX_FILL_DELAY = "maxFillDelayError",
+  MIN_FILL_DELAY = "minFillDelayError",
+  MAX_ORDER_DURATION = "maxDurationError",
+  MIN_ORDER_DURATION = "minDurationError",
+  MISSING_LIMIT_PRICE = "missingLimitPrice",
+  STOP_LOSS_TRIGGER_PRICE_GREATER_THAN_MARKET_PRICE = "StopLossTriggerPriceError",
+  TRIGGER_LIMIT_PRICE_GREATER_THAN_TRIGGER_PRICE = "triggerLimitPriceError",
+  TAKE_PROFIT_TRIGGER_PRICE_LESS_THAN_MARKET_PRICE = "TakeProfitTriggerPriceError",
+  EMPTY_TRIGGER_PRICE = "emptyTriggerPrice",
+  INSUFFICIENT_BALANCE = "insufficientFunds",
+  MAX_ORDER_SIZE = "maxOrderSize",
+  MIN_TRADE_SIZE_ERROR = "minTradeSizeError",
 }
 
 export type PartnerPayloadItem = {
@@ -332,6 +332,5 @@ export type PartnerPayloadItem = {
 export type InputError = {
   type: InputErrors;
   value: string | number;
-  message: string;
   args?: Record<string, string>;
 };

@@ -22,7 +22,6 @@ export const useLimitPriceError = (limitPriceWei?: string) => {
     if (_stopLossError?.isError) {
       return {
         type: InputErrors.TRIGGER_LIMIT_PRICE_GREATER_THAN_TRIGGER_PRICE,
-        message: "triggerLimitPriceError",
         value: _stopLossError.value,
       };
     }
@@ -30,7 +29,6 @@ export const useLimitPriceError = (limitPriceWei?: string) => {
     if (_takeProfitError?.isError) {
       return {
         type: InputErrors.TRIGGER_LIMIT_PRICE_GREATER_THAN_TRIGGER_PRICE,
-        message: "triggerLimitPriceError",
         value: _takeProfitError.value,
       };
     }
@@ -38,7 +36,6 @@ export const useLimitPriceError = (limitPriceWei?: string) => {
     if (limitPriceWei && BN(limitPriceWei || 0).isZero()) {
       return {
         type: InputErrors.MISSING_LIMIT_PRICE,
-        message: "emptyLimitPrice",
         value: limitPriceWei || "",
       };
     }

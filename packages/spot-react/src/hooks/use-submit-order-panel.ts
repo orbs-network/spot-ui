@@ -60,12 +60,6 @@ export const useSubmitOrderButton = () => {
   );
   const inputsError = useInputErrors();
 
-  const buttonText = useMemo(() => {
-    if (noLiquidity) return "noLiquidity";
-    if (BN(typedInputAmount || "0").isZero()) return "enterAmount";
-    return "placeOrder";
-  }, [inputsError, typedInputAmount, noLiquidity]);
-
   const disabled = Boolean(
     inputsError ||
     noLiquidity ||
@@ -78,8 +72,7 @@ export const useSubmitOrderButton = () => {
   return useMemo(() => {
     return {
       disabled,
-      text: buttonText,
       loading: buttonLoading,
     };
-  }, [disabled, buttonText, buttonLoading]);
+  }, [disabled, buttonLoading]);
 };

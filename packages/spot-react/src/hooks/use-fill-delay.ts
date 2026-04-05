@@ -13,7 +13,7 @@ const useFillDelayError = (fillDelay: TimeDuration) => {
     return {
       type: InputErrors.MIN_FILL_DELAY,
       value: value,
-      message: "minFillDelayError", args: { fillDelay: `${millisToMinutes(value)} minutes` },
+      args: { fillDelay: `${millisToMinutes(value)} minutes` },
     };
   }, [fillDelay, typedInputAmount, marketPrice]);
 

@@ -18,14 +18,14 @@ const useDurationError = (duration: TimeDuration) => {
       return {
         type: InputErrors.MAX_ORDER_DURATION,
         value: maxError.value,
-        message: "maxDurationError", args: { duration: `${Math.floor(millisToDays(maxError.value)).toFixed(0)} days` },
+        args: { duration: `${Math.floor(millisToDays(maxError.value)).toFixed(0)} days` },
       };
     }
     if (minError.isError) {
       return {
         type: InputErrors.MIN_ORDER_DURATION,
         value: minError.value,
-        message: "minDurationError", args: { duration: `${Math.floor(millisToMinutes(minError.value)).toFixed(0)} minutes` },
+        args: { duration: `${Math.floor(millisToMinutes(minError.value)).toFixed(0)} minutes` },
       };
     }
   }, [duration, module, marketPrice]);

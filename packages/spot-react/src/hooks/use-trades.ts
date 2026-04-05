@@ -16,7 +16,7 @@ const useTradesError = (amount: number, maxAmount: number) => {
       return {
         type: InputErrors.MIN_CHUNKS,
         value: 1,
-        message: "minChunksError", args: { minChunks: '1' },
+        args: { minChunks: '1' },
       };
     }
     const { isError: maxChunksError } = getMaxChunksError(amount, maxAmount, module);
@@ -24,7 +24,7 @@ const useTradesError = (amount: number, maxAmount: number) => {
       return {
         type: InputErrors.MAX_CHUNKS,
         value: maxAmount,
-        message: "maxChunksError", args: { maxChunks: `${maxAmount}` },
+        args: { maxChunks: `${maxAmount}` },
       };
     }
     const { isError: minTradeSizeError, value: minTradeSizeValue } = getMinTradeSizeError(typedInputAmount || "", srcUsd1Token || "", minChunkSizeUsd || 0);
@@ -33,7 +33,7 @@ const useTradesError = (amount: number, maxAmount: number) => {
       return {
         type: InputErrors.MIN_TRADE_SIZE,
         value: minTradeSizeValue,
-        message: "minTradeSizeError", args: { minTradeSize: `${minTradeSizeValue}` },
+        args: { minTradeSize: `${minTradeSizeValue}` },
       };
     }
   }, [amount, maxAmount, module, typedInputAmount, srcUsd1Token, minChunkSizeUsd, marketPrice]);

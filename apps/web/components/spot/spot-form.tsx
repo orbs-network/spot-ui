@@ -374,7 +374,6 @@ const SubmitSwap = () => {
     onSubmit,
     status,
     resetState,
-    isSuccess,
     parsedError,
     allowanceLoading,
   } = useSubmitOrderPanel();
@@ -397,9 +396,7 @@ const SubmitSwap = () => {
   }, [swapModule]);
   const [isOpen, setIsOpen] = useState(false);
 
-  const onOpen = useCallback(() => {
-    setIsOpen(true);
-  }, []);
+  const onOpen = useCallback(() => setIsOpen(true), []);
 
   const onClose = useCallback(() => {
     setIsOpen(false);
@@ -476,7 +473,7 @@ const InputsErrorPanel = () => {
     <div className="flex flex-row gap-2 bg-destructive/50 p-2 rounded-md">
       <AlertTriangleIcon className="size-4 text-foreground relative top-0.5" />
       <p className="text-sm text-foreground flex-1 font-medium">
-        {t(error.message, error.args)}
+        {t(error.type, error.args)}
       </p>
     </div>
   );

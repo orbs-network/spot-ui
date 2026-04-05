@@ -18,7 +18,6 @@ const useMinTradeSizeError = () => {
     return BN(minChunkSizeUsd).gt(BN(typedInputAmountUsd || "0")) ? {
       type: InputErrors.MIN_TRADE_SIZE_ERROR,
       value: minChunkSizeUsd,
-      message: "minTradeSizeError", args: { minTradeSize: `${minChunkSizeUsd}` },
     } : undefined;
   }, [minChunkSizeUsd, typedInputAmountUsd]);
 };
@@ -45,7 +44,6 @@ export function useInputErrors() {
     if (srcBalance && BN(srcAmountWei).gt(srcBalance)) {
       return {
         type: InputErrors.INSUFFICIENT_BALANCE,
-        message: "insufficientFunds",
         value: srcBalance || "",
       };
     }

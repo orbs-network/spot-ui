@@ -21,7 +21,6 @@ const useTriggerPriceError = (triggerPriceWei = "") => {
       return {
         type: InputErrors.STOP_LOSS_TRIGGER_PRICE_GREATER_THAN_MARKET_PRICE,
         value: stopLossError.value,
-        message: "StopLossTriggerPriceError",
       };
     }
     const takeProfitError = getTakeProfitPriceError(marketPrice || "", triggerPriceWei || "", module);
@@ -30,7 +29,6 @@ const useTriggerPriceError = (triggerPriceWei = "") => {
       return {
         type: InputErrors.TAKE_PROFIT_TRIGGER_PRICE_LESS_THAN_MARKET_PRICE,
         value: takeProfitError.value,
-        message: "TakeProfitTriggerPriceError",
       };
     }
 
@@ -38,7 +36,6 @@ const useTriggerPriceError = (triggerPriceWei = "") => {
       return {
         type: InputErrors.EMPTY_TRIGGER_PRICE,
         value: triggerPriceWei,
-        message: "emptyTriggerPrice",
       };
     }
   }, [marketPrice, triggerPriceWei, module, typedInputAmount]);
