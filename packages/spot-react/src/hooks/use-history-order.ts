@@ -78,35 +78,36 @@ export const useDerivedHistoryOrder = (
 
       srcAmount: order.srcAmount || "",
       srcAmountUI: toAmountUi(order.srcAmount, srcToken?.decimals),
-      srcAmountUsd: "",
-
-      dstAmount: "",
-      dstAmountUI: "",
-      dstAmountUsd: "",
 
       limitPrice: toAmountWei(limitPriceUI, dstToken?.decimals),
       limitPriceUI: limitPriceUI || "",
-      limitPriceUsd: "",
 
       sizePerTrade: order.srcAmountPerTrade || "",
       sizePerTradeUI: toAmountUi(order.srcAmountPerTrade, srcToken?.decimals),
 
       minDestAmountPerTrade: order.dstMinAmountPerTrade || "",
-      minDestAmountPerTradeUI: toAmountUi(order.dstMinAmountPerTrade, dstToken?.decimals),
+      minDestAmountPerTradeUI: toAmountUi(
+        order.dstMinAmountPerTrade,
+        dstToken?.decimals,
+      ),
 
       dstMinAmount: order.dstMinAmountTotal,
       dstMinAmountUI: toAmountUi(order.dstMinAmountTotal, dstToken?.decimals),
-      dstMinAmountUsd: "",
 
       triggerPrice: toAmountWei(triggerPriceUI, dstToken?.decimals),
       triggerPriceUI: triggerPriceUI || "",
 
       id: order.id,
-      amountInFilled: toAmountUi(order.srcAmountFilled, srcToken?.decimals),
-      amountOutFilled: toAmountUi(order.dstAmountFilled, dstToken?.decimals),
-      amountOutFilledToken: dstToken,
+      amountInFilled: order.srcAmountFilled,
+      amountInFilledUI: toAmountUi(order.srcAmountFilled, srcToken?.decimals),
+
+      amountOutFilled: order.dstAmountFilled,
+      amountOutFilledUI: toAmountUi(order.dstAmountFilled, dstToken?.decimals),
+
       progress: order.progress,
-      executionPrice: executionPriceUI,
+
+      executionPrice: toAmountWei(executionPriceUI, dstToken?.decimals),
+      executionPriceUI: executionPriceUI,
       version: order.version,
     };
   }, [

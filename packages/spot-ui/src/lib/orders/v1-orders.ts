@@ -165,6 +165,7 @@ const buildV1Order = (
   const type = getOrderType(order.ask_dstMinAmount, chunks);
   return {
     version: 1,
+    isTriggerPrice: false,
     id: order.Contract_id.toString(),
     hash: "",
     type: getOrderType(order.ask_dstMinAmount, chunks),

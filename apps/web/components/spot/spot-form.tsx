@@ -3,7 +3,6 @@ import React, {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -443,19 +442,27 @@ const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
   const t = useTranslations();
   const { partner } = useSwapParams();
 
-  const { disabled, text, loading } = useSubmitOrderButton();
+  const { disabled, loading } = useSubmitOrderButton();
 
   const partnerChainId = useMemo(() => {
     const partnerChain = partner?.split("_")[1];
     return partnerChain ? Number(partnerChain) : undefined;
   }, [partner]);
 
+  const text = useMemo(() => {
+
+    if (loading) {
+      return t("fetchingQuote");
+    }
+    return t("placeOrder");
+  }, [loading, t]);
+
   return (
     <SubmitSwapButton
       onClick={onClick}
       disabled={disabled}
       isLoading={loading}
-      text={t(text)}
+      text={text}
       chainId={partnerChainId}
     />
   );

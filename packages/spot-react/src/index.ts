@@ -64,7 +64,7 @@ export {
   getOrderExecutionRate,
   getOrderLimitPriceRate,
   getOrderFillDelayMillis,
-  getTriggerPricePerTrade,
+  getTriggerPriceRate,
 
   // Constants
   SPOT_VERSION,

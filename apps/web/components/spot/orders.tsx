@@ -21,9 +21,10 @@ import { SpotSelectMenu } from "./components";
 import { Spinner } from "../ui/spinner";
 
 const filterAndSortOrders = (orders: Order[], filter: OrderFilter): Order[] => {
-  const filtered = filter === OrderFilter.All
-    ? orders
-    : orders.filter((o) => o.status === (filter as unknown as OrderStatus));
+  const filtered =
+    filter === OrderFilter.All
+      ? orders
+      : orders.filter((o) => o.status === (filter as unknown as OrderStatus));
   return [...filtered].sort((a, b) => b.createdAt - a.createdAt);
 };
 
@@ -65,11 +66,11 @@ const getHistoryOrderTitle = (order?: Order): string => {
 };
 
 const getSinkUrl = (orderId: string) => {
-  if(Number(SPOT_VERSION) >= 2) {
+  if (Number(SPOT_VERSION) >= 2) {
     return `https://order-sink-v2.orbs.network/?order=${orderId}`;
   }
   return `https://order-sink-dev.orbs.network/?order=${orderId}`;
-}
+};
 
 const useOrderFilters = () => {
   return useMemo(() => {
@@ -90,33 +91,41 @@ export const SpotsOrders = () => {
     isDisplayingOrderFills,
     onHideOrderFills,
   } = uiState;
-  const { mutateAsync: cancelOrders, isPending: isCancelOrderLoading } = useCancelOrderMutation();
+  const { mutateAsync: cancelOrders, isPending: isCancelOrderLoading } =
+    useCancelOrderMutation();
   const t = useTranslations();
   const [open, setOpen] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<OrderFilter>(OrderFilter.All);
+  const [selectedFilter, setSelectedFilter] = useState<OrderFilter>(
+    OrderFilter.All,
+  );
 
   const orderFilters = useOrderFilters();
   const filteredOrders = useMemo(
-    () => filterAndSortOrders(orders, selectedFilter),
+    () => filterAndSortOrders(orders.all, selectedFilter),
     [orders, selectedFilter],
   );
   const openOrders = useMemo(
-    () => filterAndSortOrders(orders, OrderFilter.Open),
+    () => filterAndSortOrders(orders.all, OrderFilter.Open),
     [orders],
   );
 
   const selectedRawOrder = useMemo(
-    () => orders?.find((o: Order) => o.id === selectedOrderID),
+    () => orders.all.find((o: Order) => o.id === selectedOrderID),
     [orders, selectedOrderID],
   );
   const selectedOrderTitle = getHistoryOrderTitle(selectedRawOrder);
 
-  const selectedOrder = selectedOrderID
-    ? { title: selectedOrderTitle, id: selectedRawOrder?.id }
-    : undefined;
+  const selectedOrder = useMemo(() => {
+    return selectedOrderID
+      ? { title: selectedOrderTitle, id: selectedRawOrder?.id }
+      : undefined;
+  }, [selectedOrderID, selectedOrderTitle, selectedRawOrder?.id]);
 
   const selectedFilterItem = useMemo(() => {
-    return orderFilters.find((item) => item.value === selectedFilter) || orderFilters[0];
+    return (
+      orderFilters.find((item) => item.value === selectedFilter) ||
+      orderFilters[0]
+    );
   }, [orderFilters, selectedFilter]);
 
   const onCancelAllOpenOrders = useCallback(
@@ -128,8 +137,10 @@ export const SpotsOrders = () => {
     if (isDisplayingOrderFills) {
       return `${t(selectedOrder?.title || "")} order fills`;
     }
-    return selectedOrder?.title ? t(selectedOrder.title) : `Orders (${orders?.length})`;
-  }, [isDisplayingOrderFills, selectedOrder, orders?.length]);
+    return selectedOrder?.title
+      ? t(selectedOrder.title)
+      : `Orders (${orders.all.length})`;
+  }, [isDisplayingOrderFills, selectedOrder, orders.all.length, t]);
 
   const onBack = useCallback(() => {
     if (isDisplayingOrderFills) {

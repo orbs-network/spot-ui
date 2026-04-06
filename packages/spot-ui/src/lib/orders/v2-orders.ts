@@ -154,11 +154,12 @@ export const buildV2Order = (order: OrderV2): Order => {
   const dstMinAmountPerTrade = getDstMinAmountPerTrade(order);
   const totalTradesAmount = order.metadata.expectedChunks || 1;
   const fills = getFills(order);
+  const type = getOrderType(order);
   return {
     id: order.hash,
     hash: order.hash,
     version: 2,
-    type: getOrderType(order),
+    type,
     maker: order.order.witness.swapper,
     progress,
     srcAmountFilled:
@@ -183,6 +184,7 @@ export const buildV2Order = (order: OrderV2): Order => {
     chainId: order.order.witness.chainid,
     filledOrderTimestamp: getFilledOrderTimestamp(fills, totalTradesAmount),
     status: getStatus(order, progress),
+    isTriggerPrice: type === OrderType.TAKE_PROFIT || type === OrderType.STOP_LOSS_LIMIT || type === OrderType.STOP_LOSS_MARKET,
     rawOrder: order,
     ...getAmounts(order),
   };

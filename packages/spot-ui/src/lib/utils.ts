@@ -252,7 +252,7 @@ export const getOrderLimitPriceRate = (
 };
 
 
-export const getTriggerPricePerTrade = (
+export const getTriggerPriceRate = (
   order: Order,
   srcTokenDecimals: number,
   dstTokenDecimals: number,

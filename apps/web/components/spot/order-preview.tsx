@@ -40,7 +40,7 @@ export const OrderPreview = () => {
   const { selectedOrderID, isDisplayingOrderFills, onHideOrderFills } = useOrdersPanelContext();
   const { orders } = useOrderHistoryPanel();
   const rawOrder = useMemo(
-    () => orders?.find((o) => o.id === selectedOrderID),
+    () => orders.all.find((o) => o.id === selectedOrderID),
     [orders, selectedOrderID],
   );
   const srcToken = useSpotToken(rawOrder?.srcTokenAddress);

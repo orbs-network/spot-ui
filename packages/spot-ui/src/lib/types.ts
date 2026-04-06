@@ -109,6 +109,7 @@ export type Order = {
   filledOrderTimestamp: number;
   status: OrderStatus;
   rawOrder: OrderV2 | OrderV1;
+  isTriggerPrice: boolean;
 };
 
 export type Address = `0x${string}`;

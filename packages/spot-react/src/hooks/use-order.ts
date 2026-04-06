@@ -14,12 +14,18 @@ import { useSpotStore } from "../store";
 import { useOrderType } from "./order-hooks";
 import { useRePermitOrderData } from "./use-repermit-order-data";
 import { useSwapExecution } from "./use-swap-execution";
+import { OrderType } from "@orbs-network/spot-ui";
+import { useAmountUi } from "./helper-hooks";
 
 export const useDerivedOrder = () => {
-  const { srcToken, dstToken, account } = useSpotContext();
+  const { srcToken, dstToken, account, marketPrice } = useSpotContext();
 
   const { amountWei: srcAmountWei, amountUI: srcAmountUI } = useSrcAmount();
-  const { amountWei: limitPriceWei, amountUI: limitPriceUI, usd: limitPriceUsd } = useLimitPrice();
+  const {
+    amountWei: limitPriceWei,
+    amountUI: limitPriceUI,
+    usd: limitPriceUsd,
+  } = useLimitPrice();
   const {
     amountPerTradeWei: srcAmountPerTradeWei,
     amountPerTradeUI: srcAmountPerTradeUI,
@@ -38,23 +44,31 @@ export const useDerivedOrder = () => {
     usd: triggerPriceUsd,
   } = useTriggerPrice();
   const { milliseconds: fillDelayMillis } = useFillDelay();
-  const { amountWei: dstAmountWei, amountUI: dstAmountUI } = useDstTokenAmount();
+  const { amountWei: dstAmountWei, amountUI: dstAmountUI } =
+    useDstTokenAmount();
   const { srcAmountUsd, dstAmountUsd } = useAmountsUsd();
-  const {
-    amount: feesAmount,
-    percent: feesPercent,
-    usd: feesUsd,
-  } = useFees();
+  const { amount: feesAmount, percent: feesPercent, usd: feesUsd } = useFees();
   const rePermitData = useRePermitOrderData();
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   const createdAt = useSpotStore((s) => s.state.currentTime);
   const swapExecution = useSwapExecution();
+  const orderType = useOrderType();
+
+  const marketPriceUi = useAmountUi(dstToken?.decimals || 0, marketPrice);
+
+  const isTriggerPrice = useMemo(() => {
+    return (
+      orderType === OrderType.TAKE_PROFIT ||
+      orderType === OrderType.STOP_LOSS_LIMIT ||
+      orderType === OrderType.STOP_LOSS_MARKET
+    );
+  }, [orderType]);
 
   const info = useBuildOrderInfo({
     srcToken: swapExecution.srcToken || srcToken,
     dstToken: swapExecution.dstToken || dstToken,
     account,
-    orderType: useOrderType(),
+    orderType,
     createdAt,
     deadline: deadlineMillis,
     totalTrades,
@@ -85,7 +99,6 @@ export const useDerivedOrder = () => {
     triggerPriceUsd,
   });
 
-
   return useMemo(() => {
     return {
       ...info,
@@ -93,6 +106,20 @@ export const useDerivedOrder = () => {
       feesUsd: feesUsd || "",
       feesPercentage: feesPercent,
       rePermitData,
+      isTriggerPrice,
+      isMarketOrder,
+      marketPrice,
+      marketPriceUi,
     };
-  }, [info, rePermitData, feesAmount, feesUsd, feesPercent]);
+  }, [
+    info,
+    rePermitData,
+    feesAmount,
+    feesUsd,
+    feesPercent,
+    isTriggerPrice,
+    isMarketOrder,
+    marketPrice,
+    marketPriceUi,
+  ]);
 };

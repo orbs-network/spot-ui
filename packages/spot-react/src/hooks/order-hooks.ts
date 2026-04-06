@@ -6,7 +6,7 @@ import {
   OrderType,
   getOrderExecutionRate,
   getOrderLimitPriceRate,
-  getTriggerPricePerTrade,
+  getTriggerPriceRate,
 } from "@orbs-network/spot-ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
@@ -15,7 +15,6 @@ import { useSpotContext } from "../spot-context";
 import { Token } from "../types";
 import { useSpotStore } from "../store";
 import { Module } from "@orbs-network/spot-ui";
-
 
 export const useOrderType = () => {
   const { module } = useSpotContext();
@@ -39,11 +38,16 @@ export const useOrderType = () => {
   }, [module, isMarketOrder]);
 };
 
-
 const useOrdersQueryKey = () => {
   const { account, config, chainId, isDev } = useSpotContext();
   return useMemo(
-    () => ["useTwapOrderHistoryManager", account, config?.adapter, chainId, isDev],
+    () => [
+      "useTwapOrderHistoryManager",
+      account,
+      config?.adapter,
+      chainId,
+      isDev,
+    ],
     [account, config, chainId, isDev],
   );
 };
@@ -75,19 +79,17 @@ const useOrderFilledCallback = () => {
       const updatedOrders: Order[] = [];
 
       if (prevOrders) {
-        
         prevOrders
           .filter((o) => o.version === 2)
           .forEach((prevOrder) => {
             const currentOrder = orders.find((o) => o.id === prevOrder.id);
-            
+
             if (!currentOrder) return;
 
             if (currentOrder.progress !== prevOrder.progress) {
               isProgressUpdated = true;
               updatedOrders.push(currentOrder);
               if (currentOrder.status === OrderStatus.Completed) {
-                
                 callbacks?.onOrderFilled?.(currentOrder);
               }
             }
@@ -139,8 +141,6 @@ export const useOrdersQuery = () => {
   return query;
 };
 
-
-
 export const useOrderLimitPrice = (
   srcToken?: Token,
   dstToken?: Token,
@@ -163,7 +163,7 @@ export const useOrderTriggerPriceRate = (
 ) => {
   return useMemo(() => {
     if (!srcToken || !dstToken || !order) return;
-    return getTriggerPricePerTrade(order, srcToken.decimals, dstToken.decimals);
+    return getTriggerPriceRate(order, srcToken.decimals, dstToken.decimals);
   }, [order, srcToken, dstToken]);
 };
 
@@ -183,25 +183,32 @@ export const useOrderAvgExecutionPrice = (
   }, [order, srcToken, dstToken]);
 };
 
-
-
+const filterAndSortOrders = (orders: Order[], filter: OrderStatus): Order[] => {
+  const filtered = orders.filter((o) => o.status === filter);
+  return [...filtered].sort((a, b) => b.createdAt - a.createdAt);
+};
 export const useOrderHistoryPanel = () => {
-  const {
-    data: orders,
-    isLoading,
-    refetch,
-    isRefetching,
-  } = useOrdersQuery();
+  const { data: orders, isLoading, refetch, isRefetching } = useOrdersQuery();
 
   const refetchOrders = useCallback(
     () => refetch().then((it) => it.data),
     [refetch],
   );
 
-  return {
-    orders: orders ?? [],
-    isLoading,
-    isRefetching,
-    refetchOrders,
-  };
+  return useMemo(() => {
+    return {
+      orders: {
+        all: orders ?? [],
+        open: filterAndSortOrders(orders ?? [], OrderStatus.Open),
+        completed:
+          filterAndSortOrders(orders ?? [], OrderStatus.Completed),
+        cancelled:
+          filterAndSortOrders(orders ?? [], OrderStatus.Cancelled),
+        expired: filterAndSortOrders(orders ?? [], OrderStatus.Expired),
+      },
+      isLoading,
+      isRefetching,
+      refetchOrders,
+    };
+  }, [orders, isLoading, isRefetching, refetchOrders]);
 };
