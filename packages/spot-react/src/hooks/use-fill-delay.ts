@@ -1,11 +1,13 @@
-import { DEFAULT_FILL_DELAY, getMinFillDelayError, TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
+import { DEFAULT_FILL_DELAY, getMaxFillDelayError, getMinFillDelayError, TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import { useSpotStore } from "../store";
 import BN from "bignumber.js";
-import { InputErrors, millisToMinutes } from "..";
+import { InputErrors } from "..";
 import { useSpotContext } from "../spot-context";
+import { useTrades } from "./use-trades";
 
 const useFillDelayError = (fillDelay: TimeDuration) => {
+  const { totalTrades } = useTrades();
   const { marketPrice, typedInputAmount } = useSpotContext();
   const minFillDelayError = useMemo(() => {
     const { isError, value } = getMinFillDelayError(fillDelay);
@@ -13,11 +15,20 @@ const useFillDelayError = (fillDelay: TimeDuration) => {
     return {
       type: InputErrors.MIN_FILL_DELAY,
       value: value,
-      args: { fillDelay: `${millisToMinutes(value)} minutes` },
     };
   }, [fillDelay, typedInputAmount, marketPrice]);
 
-  return minFillDelayError;
+
+  const maxFillDelayError = useMemo(() => {
+    const { isError, value } = getMaxFillDelayError(fillDelay, totalTrades);
+    if (!isError || BN(typedInputAmount || "0").isZero() || !marketPrice) return undefined;
+    return {
+      type: InputErrors.MAX_FILL_DELAY,
+      value: value,
+    };
+  }, [fillDelay, typedInputAmount, marketPrice, totalTrades]);
+
+  return minFillDelayError || maxFillDelayError;
 };
 
 export const useFillDelay = () => {

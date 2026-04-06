@@ -399,11 +399,13 @@ const SubmitSwap = () => {
 
   const onClose = useCallback(() => {
     setIsOpen(false);
-    setInputAmount("");
-    setTimeout(() => {
-      resetState();
-    }, 500);
-  }, [resetState, setInputAmount]);
+    if(Boolean(status)) {
+      setInputAmount("");
+      setTimeout(() => {
+        resetState();
+      }, 500);
+    }
+  }, [resetState, setInputAmount, status]);
 
   return (
     <>

@@ -15,7 +15,7 @@ import { useOrderType } from "./order-hooks";
 import { useRePermitOrderData } from "./use-repermit-order-data";
 import { useSwapExecution } from "./use-swap-execution";
 import { OrderType } from "@orbs-network/spot-ui";
-import { useAmountUi } from "./helper-hooks";
+import { useAmountBN, useAmountUi } from "./helper-hooks";
 
 export const useDerivedOrder = () => {
   const { srcToken, dstToken, account, marketPrice } = useSpotContext();
@@ -39,20 +39,21 @@ export const useDerivedOrder = () => {
     usd: minDestAmountPerTradeUsd,
   } = useDstMinAmountPerTrade();
   const {
-    pricePerChunkWei: triggerPriceWei,
     amountUI: triggerPriceUI,
+    amountWei: triggerPriceWei,
     usd: triggerPriceUsd,
   } = useTriggerPrice();
   const { milliseconds: fillDelayMillis } = useFillDelay();
   const { amountWei: dstAmountWei, amountUI: dstAmountUI } =
     useDstTokenAmount();
   const { srcAmountUsd, dstAmountUsd } = useAmountsUsd();
-  const { amount: feesAmount, percent: feesPercent, usd: feesUsd } = useFees();
+  const { amount: feesAmountUI, percent: feesPercent, usd: feesUsd } = useFees();
   const rePermitData = useRePermitOrderData();
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   const createdAt = useSpotStore((s) => s.state.currentTime);
   const swapExecution = useSwapExecution();
   const orderType = useOrderType();
+  const feesAmount = useAmountBN(dstToken?.decimals || 0, feesAmountUI);
 
   const marketPriceUi = useAmountUi(dstToken?.decimals || 0, marketPrice);
 
@@ -102,6 +103,7 @@ export const useDerivedOrder = () => {
   return useMemo(() => {
     return {
       ...info,
+      feesAmountUI,
       feesAmount,
       feesUsd: feesUsd || "",
       feesPercentage: feesPercent,
@@ -115,6 +117,7 @@ export const useDerivedOrder = () => {
     info,
     rePermitData,
     feesAmount,
+    feesAmountUI,
     feesUsd,
     feesPercent,
     isTriggerPrice,

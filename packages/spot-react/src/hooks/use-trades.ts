@@ -2,7 +2,6 @@ import { useMemo, useCallback } from "react";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { getChunks, getMaxChunksError, getMaxPossibleChunks, getSrcTokenChunkAmount, getMinTradeSizeError, InputErrors, InputError } from "@orbs-network/spot-ui";
-import { useFillDelay } from "./use-fill-delay";
 import { useSrcAmount } from "./use-src-amount";
 import { useAmountUi, useFormatNumber } from "./helper-hooks";
 import BN from "bignumber.js";
@@ -42,13 +41,12 @@ const useTradesError = (amount: number, maxAmount: number) => {
 export const useTrades = () => {
   const { srcToken, srcUsd1Token, module, minChunkSizeUsd } = useSpotContext();
   const typedChunks = useSpotStore((s) => s.state.typedChunks);
-  const fillDelay = useFillDelay().fillDelay;
   const updateState = useSpotStore((s) => s.updateState);
   const { amountWei: srcAmountWei, amountUI: srcAmountUI } = useSrcAmount();
 
   const maxTrades = useMemo(
-    () => getMaxPossibleChunks(fillDelay, srcAmountUI || "", srcUsd1Token || "", minChunkSizeUsd || 0),
-    [srcAmountUI, srcUsd1Token, minChunkSizeUsd, fillDelay],
+    () => getMaxPossibleChunks(srcAmountUI || "", srcUsd1Token || "", minChunkSizeUsd || 0),
+    [srcAmountUI, srcUsd1Token, minChunkSizeUsd],
   );
 
   const totalTrades = useMemo(() => getChunks(maxTrades, module, typedChunks), [maxTrades, typedChunks, module]);

@@ -204,7 +204,7 @@ const Main = () => {
               <OrderDetails.Recipient />
               {order.feesAmount && (
                 <OrderDetails.Fees
-                  fees={order.feesAmount}
+                  fees={order.feesAmountUI}
                   label={t("fees", { value: `${order.feesPercentage}%` })}
                   usd={order.feesUsd}
                   dstTokenSymbol={dstToken?.symbol}

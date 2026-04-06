@@ -106,10 +106,9 @@ export const getChunks = (
 ) => {
   if (module !== Module.TWAP) return 1;
   if (typedChunks !== undefined) return typedChunks;
-  return maxPossibleChunks;
+  return Math.max(1, Math.ceil(maxPossibleChunks / 2));
 };
 export const getMaxPossibleChunks = (
-  fillDelay: TimeDuration,
   typedSrcAmount?: string,
   oneSrcTokenUsd?: string,
   minChunkSizeUsd?: number,
@@ -123,11 +122,7 @@ export const getMaxPossibleChunks = (
     .integerValue(BN.ROUND_FLOOR)
     .toNumber();
 
-  const maxChunksByTime = Math.floor(
-    MAX_ORDER_DURATION_MILLIS / 2 / getTimeDurationMillis(fillDelay),
-  );
-
-  return Math.max(1, Math.min(maxChunksBySize, maxChunksByTime));
+  return Math.max(1, maxChunksBySize);
 };
 
 export const getDeadline = (
@@ -375,7 +370,7 @@ export const getConfig = (partner: Partners, chainId = 0): SpotConfig => {
 
 export const getPartners = (): PartnerPayloadItem[] => {
   const raw = Spot.raw as Record<string, any>;
-  
+
   return Object.entries(raw)
     .filter(([chainId]) => chainId !== "*")
     .flatMap(([chainId, chainCfg]) => {

@@ -6,7 +6,6 @@ import {
   analytics,
   getPartnerChains,
   getMinChunkSizeUsd,
-  SPOT_VERSION,
 } from "@orbs-network/spot-ui";
 import {
   SpotProps,
@@ -90,6 +89,8 @@ const queryClient = new QueryClient({
 const Listeners = (props: SpotProps) => {
   const updateStore = useSpotStore((s) => s.updateState);
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
+  console.log(isMarketOrder, 'isMarketOrder');
+  
   // update current time every minute, so the deadline will be updated when confirmation window is open
   useEffect(() => {
     const id = setInterval(() => {
@@ -99,8 +100,13 @@ const Listeners = (props: SpotProps) => {
   }, [updateStore]);
 
   useEffect(() => {
+    const isMarketOrderProp = props.overrides?.state?.isMarketOrder
+
+    if(isMarketOrderProp !== undefined) {
+      updateStore({ isMarketOrder: isMarketOrderProp });
+    }
+
     updateStore({
-      isMarketOrder: props.overrides?.state?.isMarketOrder,
       typedChunks: props.overrides?.state?.chunks,
       typedFillDelay: props.overrides?.state?.fillDelay,
       typedDuration: props.overrides?.state?.duration,
@@ -126,9 +132,6 @@ const Listeners = (props: SpotProps) => {
     if (props.module === Module.LIMIT) {
       updateStore({ isMarketOrder: false });
     }
-    if (Number(SPOT_VERSION) <= 2 && props.module === Module.TAKE_PROFIT) {
-      updateStore({ isMarketOrder: true });
-    }
   }, [props.module]);
 
   useEffect(() => {
@@ -136,6 +139,12 @@ const Listeners = (props: SpotProps) => {
       updateStore({ isInvertedTrade: false });
     }
   }, [isMarketOrder]);
+
+
+  useEffect(() => {
+    updateStore({ typedChunks: undefined });
+  }, [props.typedInputAmount])
+  
 
 
   return null;
@@ -167,7 +176,7 @@ const useParsedMarketPrice = ({
     }
 
     const value = BN(marketReferencePrice.value || 0)
-      .dividedBy(typedInputAmount || 0)
+      .dividedBy(typedInputAmount || 0).decimalPlaces(0)
       .toFixed();
 
     return {
