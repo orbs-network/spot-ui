@@ -2,28 +2,12 @@
 import { setUIVersion } from "@orbs-network/spot-ui";
 import pkg from "../package.json";
 import { SpotProvider } from "./spot-context";
-import { DEFAULT_DURATIONS } from "./consts";
-import { useTradesPanel } from "./hooks/use-trades";
-import { useFillDelayPanel } from "./hooks/use-fill-delay";
-import { useDurationPanel } from "./hooks/use-duration";
-import { useDisclaimerPanel } from "./hooks/use-disclaimer-panel";
-import { useTriggerPricePanel } from "./hooks/use-trigger-price-panel";
-import { useOrderHistoryPanel } from "./hooks/order-hooks";
 import { useDerivedHistoryOrder } from "./hooks/use-history-order";
-import { useDstTokenPanel } from "./hooks/use-dst-token-panel";
-import { useLimitPricePanel } from "./hooks/use-limit-price-panel";
-import { useInvertTradePanel } from "./hooks/use-invert-trade-panel";
-import { useInputErrors } from "./hooks/use-input-errors";
-import { usePartnerChains } from "./hooks/use-partner-chains";
-import { useAddresses } from "./hooks/use-addresses";
-import { useSubmitOrderButton, useSubmitOrderPanel } from "./hooks/use-submit-order-panel";
+import { useSpot } from "./hooks/use-spot";
 export * from "./types";
 export * from "./utils";
 export { useAmountUi, useExplorerLink, useNetwork } from "./hooks/helper-hooks";
 export { useSwapExecution } from "./hooks/use-swap-execution";
-import { useFormData } from "./hooks/use-form-data";
-import { useSignOrder, useSubmitOrderMutation } from "./hooks/use-submit-order";
-import { useCancelOrderRefetchUntilStatusSynced, useCancelOrderMutation } from "./hooks/use-cancel-order";
 
 // Set the UI version in spot-sdk for analytics
 setUIVersion(pkg.version);
@@ -87,25 +71,6 @@ export {
 
 export {
   SpotProvider,
-  DEFAULT_DURATIONS,
-  useTradesPanel,
-  useDurationPanel,
-  useFillDelayPanel,
-  useLimitPricePanel,
-  useDstTokenPanel,
-  useTriggerPricePanel,
-  useOrderHistoryPanel,
-  useSubmitOrderPanel,
-  useDisclaimerPanel,
-  useInvertTradePanel,
-  useInputErrors,
-  usePartnerChains,
-  useAddresses,
-  useSubmitOrderButton,
-  useFormData,
-  useCancelOrderRefetchUntilStatusSynced,
+  useSpot,
   useDerivedHistoryOrder,
-  useSubmitOrderMutation,
-  useCancelOrderMutation,
-  useSignOrder,
 };

@@ -54,12 +54,12 @@ export const useFillDelayPanel = () => {
   const onInputChange = useCallback((value: string) => onChange({ unit: fillDelay.unit, value: Number(value) }), [onChange, fillDelay]);
   const onUnitSelect = useCallback((unit: TimeUnit) => onChange({ unit, value: fillDelay.value }), [onChange, fillDelay]);
 
-  return {
+  return useMemo(() => ({
     onInputChange,
     onUnitSelect,
     onChange,
     milliseconds: fillDelay.unit * fillDelay.value,
     fillDelay,
     error,
-  };
+  }), [onInputChange, onUnitSelect, onChange, fillDelay, error]);
 };

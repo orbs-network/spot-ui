@@ -84,7 +84,7 @@ export const useTradesPanel = () => {
   const { srcToken, dstToken } = useSpotContext();
   const { onChange, totalTrades, amountPerTradeUsd, amountPerTradeUI, error, maxTrades, amountPerTrade } = useTrades();
 
-  return {
+  return useMemo(() => ({
     error,
     maxTrades,
     totalTrades,
@@ -94,5 +94,5 @@ export const useTradesPanel = () => {
     amountPerTradeUsd,
     fromToken: srcToken,
     toToken: dstToken,
-  };
+  }), [error, maxTrades, totalTrades, amountPerTradeUI, amountPerTrade, onChange, amountPerTradeUsd, srcToken, dstToken]);
 };

@@ -1,8 +1,8 @@
 "use client";
 import { createContext, useContext, useCallback, useState } from "react";
-import { useOrderHistoryPanel, type Order } from "@orbs-network/spot-react";
+import { useSpot, type Order } from "@orbs-network/spot-react";
 
-export type OrdersPanelData = ReturnType<typeof useOrderHistoryPanel> & {
+export type OrdersPanelData = ReturnType<typeof useSpot>["orderHistory"] & {
   filteredOrders: Order[];
   selectedOrderID?: string;
   onDisplayOrder: (id?: string) => void;

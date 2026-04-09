@@ -1,5 +1,5 @@
 import { Module } from "@orbs-network/spot-ui";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { useInvertTradePanel } from "./use-invert-trade-panel";
@@ -18,11 +18,13 @@ export const useTriggerPricePanel = () => {
     }, [updateState]);
   
     const hide = module !== Module.STOP_LOSS && module !== Module.TAKE_PROFIT;
-  
-    return {
+    const totalTrades = useTrades().totalTrades;
+    const isLoading = marketPriceLoading || !marketPrice;
+
+    return useMemo(() => ({
       price: amountUI,
       amountPerChunk: pricePerChunkUI,
-      amountPerChunkUsd: amountPerChunkUsd,
+      amountPerChunkUsd,
       error,
       onChange,
       onPercentageChange,
@@ -33,12 +35,12 @@ export const useTriggerPricePanel = () => {
       fromToken,
       toToken,
       prefix: "",
-      isLoading: marketPriceLoading || !marketPrice,
+      isLoading,
       isInverted,
       hide,
       onInvert,
-      totalTrades: useTrades().totalTrades,
+      totalTrades,
       isTypedValue,
-    };
+    }), [amountUI, pricePerChunkUI, amountPerChunkUsd, error, onChange, onPercentageChange, selectedPercentage, isMarketOrder, onSetDefault, usd, fromToken, toToken, isLoading, isInverted, hide, onInvert, totalTrades, isTypedValue]);
   };
   

@@ -1,10 +1,9 @@
 import {
-  useOrderHistoryPanel,
   OrderFilter,
   OrderStatus,
   OrderType,
   SPOT_VERSION,
-  useCancelOrderMutation,
+  useSpot,
   type Order,
 } from "@orbs-network/spot-react";
 import { OrdersView } from "./orders-view";
@@ -82,7 +81,8 @@ const useOrderFilters = () => {
 };
 
 export const SpotsOrders = () => {
-  const panelData = useOrderHistoryPanel();
+  const spot = useSpot();
+  const panelData = spot.orderHistory;
   const { orders } = panelData;
   const uiState = useOrdersUIState();
   const {
@@ -92,7 +92,7 @@ export const SpotsOrders = () => {
     onHideOrderFills,
   } = uiState;
   const { mutateAsync: cancelOrders, isPending: isCancelOrderLoading } =
-    useCancelOrderMutation();
+    spot.mutations.cancelOrder;
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<OrderFilter>(

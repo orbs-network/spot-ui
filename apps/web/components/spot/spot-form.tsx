@@ -11,19 +11,9 @@ import {
   Module,
   Token,
   SpotProvider as Spot,
-  useDstTokenPanel,
-  useDurationPanel,
-  useTradesPanel,
-  DEFAULT_DURATIONS,
-  useFillDelayPanel,
-  useSubmitOrderPanel,
+  TimeUnit,
   DISCLAIMER_URL,
-  useInputErrors,
-  useDisclaimerPanel,
-  useLimitPricePanel,
-  useTriggerPricePanel,
-  useInvertTradePanel,
-  useSubmitOrderButton,
+  useSpot,
   SPOT_VERSION,
 } from "@orbs-network/spot-react";
 import { useFormatNumber } from "@/lib/hooks/common";
@@ -74,6 +64,12 @@ const useSpotContext = () => {
   return useContext(Context);
 };
 
+const DURATION_OPTIONS = [
+  { text: "Minutes", value: TimeUnit.Minutes },
+  { text: "Hours", value: TimeUnit.Hours },
+  { text: "Days", value: TimeUnit.Days },
+];
+
 const useParseSpotTokens = (currency?: Currency) => {
   return useMemo((): Token | undefined => {
     if (!currency) return undefined;
@@ -89,7 +85,7 @@ const useParseSpotTokens = (currency?: Currency) => {
 
 const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
   const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
-  const { value: dstAmount, isLoading } = useDstTokenPanel();
+  const { value: dstAmount, isLoading } = useSpot().dstToken;
   const { handleCurrencyChange, setInputAmount } = useActionHandlers();
   const onTokenChange = useCallback(
     (currency: string) => {
@@ -182,7 +178,7 @@ const Card = ({
 
 const Disclaimer = () => {
   const t = useTranslations();
-  const message = useDisclaimerPanel();
+  const message = useSpot().disclaimer;
 
   if (!message) {
     return null;
@@ -208,7 +204,7 @@ const Disclaimer = () => {
 
 const TradesPanel = () => {
   const t = useTranslations();
-  const { totalTrades, onChange, error } = useTradesPanel();
+  const { totalTrades, onChange, error } = useSpot().trades;
   return (
     <Card
       title={t("tradesAmountTitle")}
@@ -229,7 +225,7 @@ const TradesPanel = () => {
 
 const DurationPanel = () => {
   const t = useTranslations();
-  const { duration, onInputChange, onUnitSelect } = useDurationPanel();
+  const { duration, onInputChange, onUnitSelect } = useSpot().duration;
   return (
     <Card
       title={t("expiry")}
@@ -242,8 +238,8 @@ const DurationPanel = () => {
           onChange={(it) => onInputChange(it)}
         />
         <SpotSelectMenu
-          selected={DEFAULT_DURATIONS.find((it) => it.value === duration.unit)}
-          items={DEFAULT_DURATIONS}
+          selected={DURATION_OPTIONS.find((it) => it.value === duration.unit)}
+          items={DURATION_OPTIONS}
           onSelect={(it) => onUnitSelect(it.value as number)}
         />
       </div>
@@ -253,7 +249,7 @@ const DurationPanel = () => {
 
 const FillDelayPanel = () => {
   const t = useTranslations();
-  const { fillDelay, onInputChange, onUnitSelect } = useFillDelayPanel();
+  const { fillDelay, onInputChange, onUnitSelect } = useSpot().fillDelay;
   return (
     <Card
       title={t("tradeIntervalTitle")}
@@ -266,8 +262,8 @@ const FillDelayPanel = () => {
           onChange={(it) => onInputChange(it)}
         />
         <SpotSelectMenu
-          selected={DEFAULT_DURATIONS.find((it) => it.value === fillDelay.unit)}
-          items={DEFAULT_DURATIONS}
+          selected={DURATION_OPTIONS.find((it) => it.value === fillDelay.unit)}
+          items={DURATION_OPTIONS}
           onSelect={(it) => onUnitSelect(it.value as number)}
         />
       </div>
@@ -375,7 +371,7 @@ const SubmitSwap = () => {
     onSwapSuccess,
     parsedError,
     confirmButtonLoading,
-  } = useSubmitOrderPanel();
+  } = useSpot().orderExecution;
   const { setInputAmount } = useSpotContext();
 
   const { swapModule } = useSpotContext();
@@ -444,7 +440,7 @@ const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
   const t = useTranslations();
   const { partner } = useSwapParams();
 
-  const { disabled, loading } = useSubmitOrderButton();
+  const { disabled, loading } = useSpot().submitButton;
 
   const partnerChainId = useMemo(() => {
     const partnerChain = partner?.split("_")[1];
@@ -472,7 +468,7 @@ const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
 
 const InputsErrorPanel = () => {
   const t = useTranslations();
-  const error = useInputErrors();
+  const error = useSpot().inputError;
 
   if (!error) {
     return null;
@@ -506,7 +502,7 @@ const LimitPricePanel = () => {
     fromToken,
     tradesAmount,
     isTypedValue,
-  } = useLimitPricePanel();
+  } = useSpot().limitPrice;
 
   const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk });
   const amountPerChunkUsdFormatted = useFormatNumber({
@@ -582,7 +578,7 @@ const TriggerPricePanel = () => {
     fromToken,
     totalTrades,
     isTypedValue,
-  } = useTriggerPricePanel();
+  } = useSpot().triggerPrice;
 
   const { swapModule } = useSpotContext();
 
@@ -643,7 +639,7 @@ const TriggerPricePanel = () => {
 
 const PricesHeader = () => {
   const { onInvert, isInverted, fromToken, isMarketPrice } =
-    useInvertTradePanel();
+    useSpot().invertTrade;
   return (
     <div className="flex flex-row gap-2 items-center justify-between">
       <p className="text-[15px] font-medium text-muted-foreground">

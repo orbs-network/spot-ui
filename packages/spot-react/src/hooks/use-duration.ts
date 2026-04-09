@@ -67,12 +67,12 @@ export const useDurationPanel = () => {
     [setDuration, duration],
   );
 
-  return {
+  return useMemo(() => ({
     duration,
     onChange: setDuration,
     milliseconds: duration.unit * duration.value,
     onInputChange,
     onUnitSelect,
     error,
-  };
+  }), [duration, setDuration, onInputChange, onUnitSelect, error]);
 };

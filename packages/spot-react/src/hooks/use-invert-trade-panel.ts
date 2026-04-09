@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useSpotStore } from "../store";
 import BN from "bignumber.js";
 import { useSpotContext } from "../spot-context";
@@ -20,11 +20,11 @@ export const useInvertTradePanel = () => {
     updateState({ isInvertedTrade: !isInverted });
   }, [updateState, isInverted, typedTriggerPrice, typedLimitPrice, marketPriceLoading]);
 
-  return {
+  return useMemo(() => ({
     onInvert,
     isInverted,
     fromToken: isInverted ? dstToken : srcToken,
     toToken: isInverted ? srcToken : dstToken,
     isMarketPrice: isMarketOrder,
-  };
+  }), [onInvert, isInverted, srcToken, dstToken, isMarketOrder]);
 };

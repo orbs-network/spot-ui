@@ -12,9 +12,8 @@ import { ChevronDownIcon } from "lucide-react";
 import { TokensDisplay } from "@orbs-network/swap-ui";
 import {
   OrderStatus,
-  useCancelOrderMutation,
   useDerivedHistoryOrder,
-  useOrderHistoryPanel,
+  useSpot,
 } from "@orbs-network/spot-react";
 import { useDateFormat } from "@/lib/hooks/common";
 import { FormatNumber } from "./format-number";
@@ -38,7 +37,7 @@ const useOrderContext = () => {
 
 export const OrderPreview = () => {
   const { selectedOrderID, isDisplayingOrderFills, onHideOrderFills } = useOrdersPanelContext();
-  const { orders } = useOrderHistoryPanel();
+  const { orders } = useSpot().orderHistory;
   const rawOrder = useMemo(
     () => orders.all.find((o) => o.id === selectedOrderID),
     [orders, selectedOrderID],
@@ -271,7 +270,7 @@ export const CancelOrderButton = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
   const { mutateAsync: cancelOrder, isPending: isLoading } =
-    useCancelOrderMutation();
+    useSpot().mutations.cancelOrder;
 
   const onCancelOrder = useCallback(async () => {
     return cancelOrder({ orders: [order.original] });

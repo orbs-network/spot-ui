@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo } from "react";
+import { SpotDataProvider } from "./hooks/use-spot";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   getConfig,
@@ -257,7 +258,9 @@ const Content = (props: SpotProps) => {
       }}
     >
       <Listeners {...props} />
-      <ErrorWrapper>{props.children}</ErrorWrapper>
+      <SpotDataProvider>
+        <ErrorWrapper>{props.children}</ErrorWrapper>
+      </SpotDataProvider>
     </SpotContext.Provider>
   );
 };

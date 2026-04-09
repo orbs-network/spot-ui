@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { useDefaultLimitPricePercent } from "./use-default-values";
@@ -22,17 +22,19 @@ export const useLimitPricePanel = () => {
       updateState({ limitPricePercent: defaultLimitPricePercent });
     }, [updateState, module, defaultLimitPricePercent]);
   
-    return {
+    const tradesAmount = useTrades().totalTrades;
+
+    return useMemo(() => ({
       price: amountUI,
       amountPerChunk: amountPerChunkUI,
-      amountPerChunkUsd: amountPerChunkUsd,
+      amountPerChunkUsd,
       error,
       onChange,
       onPercentageChange,
       onReset: reset,
       usd,
       fromToken,
-      tradesAmount: useTrades().totalTrades,
+      tradesAmount,
       toToken,
       percentage: selectedPercentage,
       isInverted,
@@ -41,6 +43,6 @@ export const useLimitPricePanel = () => {
       toggleLimitPrice,
       onInvert,
       isTypedValue,
-    };
+    }), [amountUI, amountPerChunkUI, amountPerChunkUsd, error, onChange, onPercentageChange, reset, usd, fromToken, tradesAmount, toToken, selectedPercentage, isInverted, marketPriceLoading, isLimitPrice, toggleLimitPrice, onInvert, isTypedValue]);
   };
   

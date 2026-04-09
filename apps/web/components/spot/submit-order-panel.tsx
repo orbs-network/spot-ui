@@ -2,12 +2,11 @@
 import { Step, SwapFlow } from "@orbs-network/swap-ui";
 import { createContext, ReactNode, useContext, useMemo } from "react";
 import {
-  useSubmitOrderPanel as useSubmitOrderPanelHook,
   isNativeAddress,
   ORBS_TWAP_FAQ_URL,
   useExplorerLink,
   useNetwork,
-  useFormData,
+  useSpot,
   Steps,
   SwapStatus,
   type ParsedError,
@@ -25,7 +24,7 @@ type SubmitOrderPanelProps = {
   reviewDetails?: ReactNode;
 };
 
-type SubmitOrderPanelData = ReturnType<typeof useSubmitOrderPanelHook>;
+type SubmitOrderPanelData = ReturnType<typeof useSpot>["orderExecution"];
 
 type SubmitPanelContextType = SubmitOrderPanelData & SubmitOrderPanelProps & {
   srcToken?: Token;
@@ -137,7 +136,7 @@ const Main = () => {
     useSubmitPanelContext();
   const t = useTranslations();
   const isSubmitted = Boolean(status);
-  const order = useFormData();
+  const order = useSpot().formData;
 
   return (
     <>
@@ -231,9 +230,9 @@ const SuccessContent = () => {
 };
 
 export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
-  const panelData = useSubmitOrderPanelHook();
+  const panelData = useSpot().orderExecution;
   const { status, stepIndex, totalSteps, parsedError, srcToken, dstToken, pendingSteps } = panelData;
-  const formData = useFormData();
+  const formData = useSpot().formData;
 
   const srcAmountF = useFormatNumber({ value: formData.srcAmountUI, decimalScale: 2 });
   const outAmountF = useFormatNumber({ value: formData.dstAmountUI, decimalScale: 2 });
