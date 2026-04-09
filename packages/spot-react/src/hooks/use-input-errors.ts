@@ -38,7 +38,7 @@ export function useInputErrors() {
   const { error: fillDelayError } = useFillDelay();
   const { error: durationError } = useDuration();
   const minTradeSizeError = useMinTradeSizeError();
-  const srcAmountWei = useSrcAmount().amountWei;
+  const srcAmountWei = useSrcAmount().amount;
 
   const balanceError = useMemo(() => {
     if (srcBalance && BN(srcAmountWei).gt(srcBalance)) {

@@ -93,7 +93,7 @@ export const useInputWithPercentage = ({
   const usd = useUsdAmount(isInverted ? srcUsd1Token : dstUsd1Token, amountUI || "0");
 
   return {
-    amountWei: BN(priceWei).isNaN() ? "" : priceWei,
+    amount: BN(priceWei).isNaN() ? "" : priceWei,
     amountUI: BN(amountUI).isNaN() ? "" : amountUI,
     selectedPercentage,
     onChange,

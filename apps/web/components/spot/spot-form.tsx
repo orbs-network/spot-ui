@@ -24,9 +24,9 @@ import {
   useTriggerPricePanel,
   useInvertTradePanel,
   useSubmitOrderButton,
-  useFormatNumber,
   SPOT_VERSION,
 } from "@orbs-network/spot-react";
+import { useFormatNumber } from "@/lib/hooks/common";
 import { Currency, Field, SwapType } from "@/lib/types";
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
 import { Button } from "../ui/button";
@@ -374,7 +374,7 @@ const SubmitSwap = () => {
     status,
     onSwapSuccess,
     parsedError,
-    allowanceLoading,
+    confirmButtonLoading,
   } = useSubmitOrderPanel();
   const { setInputAmount } = useSpotContext();
 
@@ -430,7 +430,7 @@ const SubmitSwap = () => {
           ) : (
             <SubmitSwapMain
               onSubmitOrder={onSubmit}
-              swapLoading={Boolean(allowanceLoading)}
+              swapLoading={Boolean(confirmButtonLoading)}
               orderTitle={orderTitle}
             />
           )}

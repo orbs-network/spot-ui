@@ -11,7 +11,7 @@ import { getStopLossLimitPriceError, getTakeProfitLimitPriceError, InputErrors }
 
 export const useLimitPriceError = (limitPriceWei?: string) => {
   const { module, marketPrice, typedInputAmount } = useSpotContext();
-  const { amountWei: triggerPrice } = useTriggerPrice();
+  const { amount: triggerPrice } = useTriggerPrice();
 
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   return useMemo(() => {
@@ -67,7 +67,7 @@ export const useLimitPrice = () => {
     ),
   });
 
-  const error = useLimitPriceError(result.amountWei);
+  const error = useLimitPriceError(result.amount);
 
   return useMemo(() => {
     return {

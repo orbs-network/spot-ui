@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { formatDecimals, parseNativeCurrencyAddress, toAmountUI, toAmountWei } from "../utils";
 import {useNumericFormat} from "react-number-format";
 import { useConnection } from "wagmi";
@@ -45,4 +45,27 @@ export const useFormatNumber = ({ value, decimalScale = 3, prefix, suffix }: { v
         if(!address || !chainId) return undefined;
       return parseNativeCurrencyAddress(address, chainId);
     }, [address, chainId]);
+  };
+
+  export const useDateFormat = (date?: number) => {
+    return useMemo(() => {
+      if (!date) return "";
+      const d = new Date(date);
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, "0");
+      const minutes = String(d.getMinutes()).padStart(2, "0");
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
+    }, [date]);
+  };
+
+  export const useCopyToClipboard = () => {
+    return useCallback(async (text: string) => {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (error) {
+        console.error("Copy failed:", error);
+      }
+    }, []);
   };

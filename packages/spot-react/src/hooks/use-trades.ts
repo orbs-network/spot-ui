@@ -3,7 +3,7 @@ import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { getChunks, getMaxChunksError, getMaxPossibleChunks, getSrcTokenChunkAmount, getMinTradeSizeError, InputErrors, InputError } from "@orbs-network/spot-ui";
 import { useSrcAmount } from "./use-src-amount";
-import { useAmountUi, useFormatNumber } from "./helper-hooks";
+import { useAmountUi } from "./helper-hooks";
 import BN from "bignumber.js";
 
 const useTradesError = (amount: number, maxAmount: number) => {
@@ -42,7 +42,7 @@ export const useTrades = () => {
   const { srcToken, srcUsd1Token, module, minChunkSizeUsd } = useSpotContext();
   const typedChunks = useSpotStore((s) => s.state.typedChunks);
   const updateState = useSpotStore((s) => s.updateState);
-  const { amountWei: srcAmountWei, amountUI: srcAmountUI } = useSrcAmount();
+  const { amount: srcAmountWei, amountUI: srcAmountUI } = useSrcAmount();
 
   const maxTrades = useMemo(
     () => getMaxPossibleChunks(srcAmountUI || "", srcUsd1Token || "", minChunkSizeUsd || 0),
@@ -73,7 +73,7 @@ export const useTrades = () => {
     totalTrades,
     maxTrades,
     amountPerTradeUI,
-    amountPerTradeWei: amountPerTrade,
+    amountPerTrade: amountPerTrade,
     amountPerTradeUsd: usd,
     onChange,
     error: useTradesError(totalTrades, maxTrades),
@@ -82,17 +82,16 @@ export const useTrades = () => {
 
 export const useTradesPanel = () => {
   const { srcToken, dstToken } = useSpotContext();
-  const { onChange, totalTrades, amountPerTradeUsd, amountPerTradeUI, error, maxTrades, amountPerTradeWei } = useTrades();
-  const amountPerTradeUIF = useFormatNumber({ value: amountPerTradeUI });
-  const usdF = useFormatNumber({ value: amountPerTradeUsd });
+  const { onChange, totalTrades, amountPerTradeUsd, amountPerTradeUI, error, maxTrades, amountPerTrade } = useTrades();
+
   return {
     error,
     maxTrades,
     totalTrades,
-    amountPerTrade: amountPerTradeUIF,
-    amountPerTradeWei,
+    amountPerTradeUI,
+    amountPerTrade,
     onChange,
-    amountPerTradeUsd: usdF,
+    amountPerTradeUsd,
     fromToken: srcToken,
     toToken: dstToken,
   };

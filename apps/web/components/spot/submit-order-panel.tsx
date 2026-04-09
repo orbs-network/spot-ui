@@ -6,14 +6,14 @@ import {
   isNativeAddress,
   ORBS_TWAP_FAQ_URL,
   useExplorerLink,
-  useFormatNumber,
   useNetwork,
-  useDerivedOrder,
+  useFormData,
   Steps,
   SwapStatus,
   type ParsedError,
   type Token,
 } from "@orbs-network/spot-react";
+import { useFormatNumber } from "@/lib/hooks/common";
 import { FormatNumber } from "./format-number";
 import { OrderDetails } from "./order-details";
 import { useTranslations } from "@/lib/use-translations";
@@ -137,7 +137,7 @@ const Main = () => {
     useSubmitPanelContext();
   const t = useTranslations();
   const isSubmitted = Boolean(status);
-  const order = useDerivedOrder();
+  const order = useFormData();
 
   return (
     <>
@@ -232,10 +232,11 @@ const SuccessContent = () => {
 
 export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
   const panelData = useSubmitOrderPanelHook();
-  const { status, stepIndex, totalSteps, parsedError, srcToken, dstToken, dstAmount, srcAmount, pendingSteps } = panelData;
+  const { status, stepIndex, totalSteps, parsedError, srcToken, dstToken, pendingSteps } = panelData;
+  const formData = useFormData();
 
-  const srcAmountF = useFormatNumber({ value: srcAmount, decimalScale: 2 });
-  const outAmountF = useFormatNumber({ value: dstAmount, decimalScale: 2 });
+  const srcAmountF = useFormatNumber({ value: formData.srcAmountUI, decimalScale: 2 });
+  const outAmountF = useFormatNumber({ value: formData.dstAmountUI, decimalScale: 2 });
 
   const inToken = useMemo(
     () => ({ symbol: srcToken?.symbol, logoUrl: srcToken?.logoUrl }),

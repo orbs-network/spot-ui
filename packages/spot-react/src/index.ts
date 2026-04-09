@@ -19,9 +19,9 @@ import { useAddresses } from "./hooks/use-addresses";
 import { useSubmitOrderButton, useSubmitOrderPanel } from "./hooks/use-submit-order-panel";
 export * from "./types";
 export * from "./utils";
-export { useFormatNumber, useAmountUi, useDateFormat, useExplorerLink, useCopyToClipboard, useNetwork } from "./hooks/helper-hooks";
+export { useAmountUi, useExplorerLink, useNetwork } from "./hooks/helper-hooks";
 export { useSwapExecution } from "./hooks/use-swap-execution";
-import { useDerivedOrder } from "./hooks/use-order";
+import { useFormData } from "./hooks/use-form-data";
 import { useSignOrder, useSubmitOrderMutation } from "./hooks/use-submit-order";
 import { useCancelOrderRefetchUntilStatusSynced, useCancelOrderMutation } from "./hooks/use-cancel-order";
 
@@ -102,7 +102,7 @@ export {
   usePartnerChains,
   useAddresses,
   useSubmitOrderButton,
-  useDerivedOrder,
+  useFormData,
   useCancelOrderRefetchUntilStatusSynced,
   useDerivedHistoryOrder,
   useSubmitOrderMutation,

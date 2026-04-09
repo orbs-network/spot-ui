@@ -1,5 +1,5 @@
 "use client";
-import { useFormatNumber } from "@orbs-network/spot-react";
+import { useFormatNumber } from "@/lib/hooks/common";
 
 type FormatNumberProps = {
   value?: string | number;

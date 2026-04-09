@@ -13,10 +13,10 @@ import { TokensDisplay } from "@orbs-network/swap-ui";
 import {
   OrderStatus,
   useCancelOrderMutation,
-  useDateFormat,
   useDerivedHistoryOrder,
   useOrderHistoryPanel,
 } from "@orbs-network/spot-react";
+import { useDateFormat } from "@/lib/hooks/common";
 import { FormatNumber } from "./format-number";
 import { OrderDetails } from "./order-details";
 import { useSpotToken } from "@/lib/hooks/spot-hooks";

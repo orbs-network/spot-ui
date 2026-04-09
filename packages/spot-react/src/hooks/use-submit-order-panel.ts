@@ -5,14 +5,10 @@ import { useInputErrors } from "./use-input-errors";
 import { useSubmitOrderMutation } from "./use-submit-order";
 import { useSwapExecution } from "./use-swap-execution";
 import BN from "bignumber.js";
-import { useSrcAmount } from "./use-src-amount";
-import { useDstTokenAmount } from "./use-dst-amount";
 import { useSpotStore } from "../store";
 
 export const useSubmitOrderPanel = () => {
   const swapExecution = useSwapExecution();
-  const { amountUI: srcAmountUI } = useSrcAmount();
-  const { amountUI: dstAmountUI } = useDstTokenAmount();
   const { srcToken, dstToken } = useSpotContext();
   const submitSwapMutation = useSubmitOrderMutation();
   const resetState = useSpotStore((s) => s.resetState);
@@ -25,11 +21,17 @@ export const useSubmitOrderPanel = () => {
 
   return useMemo(() => {
     return {
-      ...swapExecutionData,
+      status: swapExecutionData.status,
+      parsedError: swapExecutionData.parsedError,
+      error: swapExecutionData.error,
+      step: swapExecutionData.step,
+      stepIndex: swapExecutionData.stepIndex,
+      approveTxHash: swapExecutionData.approveTxHash,
+      wrapTxHash: swapExecutionData.wrapTxHash,
+      totalSteps: swapExecutionData.totalSteps,
+      pendingSteps: swapExecutionData.pendingSteps,
       srcToken,
       dstToken,
-      srcAmount: swapExecution.srcAmount || srcAmountUI,
-      dstAmount: swapExecution.dstAmount || dstAmountUI,
       onSubmit: onSubmitOrder,
       onSwapSuccess: resetState,
       onSwapFailed: resetSwap,
@@ -38,7 +40,7 @@ export const useSubmitOrderPanel = () => {
       isFailed: swapExecution?.status === SwapStatus.FAILED,
       confirmButtonLoading: swapExecutionData.allowanceLoading
     };
-  }, [onSubmitOrder, swapExecutionData, srcToken, dstToken, resetState, resetSwap]);
+  }, [onSubmitOrder, swapExecutionData, resetState, resetSwap, srcToken, dstToken]);
 };
 
 export const useSubmitOrderButton = () => {

@@ -43,7 +43,7 @@ const useTriggerPriceError = (triggerPriceWei = "") => {
 
 export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
   const { srcToken, dstToken, module, dstUsd1Token } = useSpotContext();
-  const amountPerTrade = useTrades().amountPerTradeWei;
+  const amountPerTrade = useTrades().amountPerTrade;
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
 
   const result = useMemo(() => {
@@ -54,7 +54,7 @@ export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
   const amountUI = useAmountUi(dstToken?.decimals || 0, result);
 
   return {
-    amountWei: result,
+    amount: result,
     amountUI: amountUI,
     usd: useUsdAmount(amountUI, dstUsd1Token),
   };
@@ -86,14 +86,14 @@ export const useTriggerPrice = () => {
       [updateState, callbacks],
     ),
   });
-  const error = useTriggerPriceError(result.amountWei);
-  const { amountWei: triggerAmountPerChunk, amountUI: triggerAmountPerChunkUI,usd: triggerAmountPerChunkUsd } = useTriggerAmountPerChunk(result.amountWei);
+  const error = useTriggerPriceError(result.amount);
+  const { amount: triggerAmountPerChunk, amountUI: triggerAmountPerChunkUI,usd: triggerAmountPerChunkUsd } = useTriggerAmountPerChunk(result.amount);
 
   return useMemo(() => {
     return {
       ...result,
       error,
-      pricePerChunkWei: triggerAmountPerChunk,
+      pricePerChunk: triggerAmountPerChunk,
       pricePerChunkUI: triggerAmountPerChunkUI,
       pricePerChunkUsd: triggerAmountPerChunkUsd,
     };

@@ -6,8 +6,8 @@ import { useTriggerPrice } from "./use-trigger-price";
 
 export const useTradePrice = () => {
   const { module, marketPrice } = useSpotContext();
-  const limitPrice = useLimitPrice().amountWei;
-  const triggerPrice = useTriggerPrice().amountWei;
+  const limitPrice = useLimitPrice().amount;
+  const triggerPrice = useTriggerPrice().amount;
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
 
   if (module === Module.LIMIT || !isMarketOrder) {

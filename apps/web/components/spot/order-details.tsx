@@ -1,6 +1,7 @@
 "use client";
 import React, { CSSProperties, ReactNode, useMemo } from "react";
-import { useFormatNumber, useDateFormat, useNetwork, useCopyToClipboard, type Token } from "@orbs-network/spot-react";
+import { useNetwork, type Token } from "@orbs-network/spot-react";
+import { useFormatNumber, useDateFormat, useCopyToClipboard } from "@/lib/hooks/common";
 import { fillDelayText, makeEllipsisAddress } from "@/lib/utils";
 import BN from "bignumber.js";
 import { FormatNumber } from "./format-number";

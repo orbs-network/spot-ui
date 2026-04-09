@@ -15,11 +15,11 @@ import {
 export const useRePermitOrderData = () => {
   const { srcToken, dstToken, account, chainId, slippage, config, module, fees } =
     useSpotContext();
-  const { amountWei: srcAmount } = useSrcAmount();
-  const { amountPerTradeWei: srcAmountPerTrade, totalTrades } = useTrades();
+  const { amount: srcAmount } = useSrcAmount();
+  const { amountPerTrade: srcAmountPerTrade, totalTrades } = useTrades();
   const deadlineMillis = useDeadline();
-  const { amountWei: minDestAmountPerTrade } = useDstMinAmountPerTrade();
-  const { pricePerChunkWei: triggerPricePerTrade } = useTriggerPrice();
+  const { amount: minDestAmountPerTrade } = useDstMinAmountPerTrade();
+  const { pricePerChunk: triggerPricePerTrade } = useTriggerPrice();
   const { milliseconds: fillDelayMillis } = useFillDelay();
 
   return useMemo(() => {

@@ -7,7 +7,7 @@ export const useSrcAmount = () => {
 
 
   return {
-    amountWei: useAmountBN(srcToken?.decimals, typedInputAmount),
+    amount: useAmountBN(srcToken?.decimals, typedInputAmount),
     amountUI: typedInputAmount,
     error: BN(typedInputAmount || 0).isZero() ? "enterAmount" : undefined,
   };

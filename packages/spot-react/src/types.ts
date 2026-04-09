@@ -205,9 +205,8 @@ export type SwapExecution = {
   orderId?: string;
   allowanceLoading?: boolean;
   hasApproval?: boolean;
-  marketPrice?: string;
-  srcAmount?: string;
-  dstAmount?: string;
+  acceptedSrcAmount?: string;
+  acceptedMarketPrice?: string;
 };
 
 export interface State {

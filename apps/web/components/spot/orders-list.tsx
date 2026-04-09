@@ -1,6 +1,7 @@
 "use client";
 import { ArrowRightIcon } from "lucide-react";
-import { Order, OrderType, useDateFormat } from "@orbs-network/spot-react";
+import { Order, OrderType } from "@orbs-network/spot-react";
+import { useDateFormat } from "@/lib/hooks/common";
 import * as React from "react";
 import { Virtuoso } from "react-virtuoso";
 import { useTranslations } from "@/lib/use-translations";

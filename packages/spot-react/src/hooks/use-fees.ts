@@ -2,23 +2,26 @@ import { useSpotContext } from "../spot-context";
 import { useDstTokenAmount } from "./use-dst-amount";
 import { useMemo } from "react";
 import BN from "bignumber.js";
-import { useUsdAmount } from "./helper-hooks";
+import { useAmountBN, useUsdAmount } from "./helper-hooks";
 
 export const useFees = () => {
-    const { fees, dstUsd1Token } = useSpotContext();
+    const { fees, dstToken, dstUsd1Token } = useSpotContext();
     const { amountUI: dstAmount } = useDstTokenAmount();
   
-    const amount = useMemo(() => {
+    const amountUI = useMemo(() => {
       if (!fees || !dstAmount) return "";
       return BN(dstAmount).multipliedBy(fees).dividedBy(100).toFixed();
     }, [dstAmount, fees]);
 
+
+    const amount = useAmountBN(dstToken?.decimals || 0, amountUI);
     
   
     return {
+      amountUI,
       amount,
       percent: fees,
-      usd: useUsdAmount(amount, dstUsd1Token),
+      usd: useUsdAmount(amountUI, dstUsd1Token),
     };
   };
   

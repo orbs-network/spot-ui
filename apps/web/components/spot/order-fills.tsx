@@ -2,12 +2,12 @@
 import { Virtuoso } from "react-virtuoso";
 import {
   useAmountUi,
-  useDateFormat,
   useExplorerLink,
   useDerivedHistoryOrder,
   type Token,
   type OrderFill,
 } from "@orbs-network/spot-react";
+import { useDateFormat } from "@/lib/hooks/common";
 
 type SelectedOrder = NonNullable<ReturnType<typeof useDerivedHistoryOrder>>;
 import { makeEllipsisAddress } from "@/lib/utils";

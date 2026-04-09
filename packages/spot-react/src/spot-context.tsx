@@ -234,10 +234,10 @@ const Content = (props: SpotProps) => {
         account: props.account as `0x${string}` | undefined,
         walletClient,
         publicClient,
-        marketPrice: swapExecution.marketPrice || marketReferencePrice.value,
+        marketPrice: swapExecution.acceptedMarketPrice || marketReferencePrice.value,
         marketPriceLoading:
-          !swapExecution.marketPrice && marketReferencePrice.isLoading,
-        noLiquidity: !swapExecution.marketPrice && marketReferencePrice.noLiquidity,
+          !swapExecution.acceptedMarketPrice && marketReferencePrice.isLoading,
+        noLiquidity: !swapExecution.acceptedMarketPrice && marketReferencePrice.noLiquidity,
         config,
         slippage: props.priceProtection,
         supportedChains,

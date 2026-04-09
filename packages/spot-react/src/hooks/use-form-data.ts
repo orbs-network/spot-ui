@@ -15,47 +15,45 @@ import { useOrderType } from "./order-hooks";
 import { useRePermitOrderData } from "./use-repermit-order-data";
 import { useSwapExecution } from "./use-swap-execution";
 import { OrderType } from "@orbs-network/spot-ui";
-import { useAmountBN, useAmountUi } from "./helper-hooks";
+import { toAmountUi } from "../utils";
 
-export const useDerivedOrder = () => {
+export const useFormData = () => {
   const { srcToken, dstToken, account, marketPrice } = useSpotContext();
 
-  const { amountWei: srcAmountWei, amountUI: srcAmountUI } = useSrcAmount();
+  const { amount: _srcAmount } = useSrcAmount();
   const {
-    amountWei: limitPriceWei,
+    amount: limitPrice,
     amountUI: limitPriceUI,
     usd: limitPriceUsd,
   } = useLimitPrice();
   const {
-    amountPerTradeWei: srcAmountPerTradeWei,
+    amountPerTrade: srcAmountPerTrade,
     amountPerTradeUI: srcAmountPerTradeUI,
     amountPerTradeUsd: srcAmountPerTradeUsd,
     totalTrades,
   } = useTrades();
   const deadlineMillis = useDeadline();
   const {
-    amountWei: minDestAmountPerTradeWei,
+    amount: minDestAmountPerTrade,
     amountUI: minDestAmountPerTradeUI,
     usd: minDestAmountPerTradeUsd,
   } = useDstMinAmountPerTrade();
   const {
     amountUI: triggerPriceUI,
-    amountWei: triggerPriceWei,
+    amount: triggerPrice,
     usd: triggerPriceUsd,
   } = useTriggerPrice();
   const { milliseconds: fillDelayMillis } = useFillDelay();
-  const { amountWei: dstAmountWei, amountUI: dstAmountUI } =
-    useDstTokenAmount();
+  const { amount: dstAmount, amountUI: dstAmountUI } = useDstTokenAmount();
   const { srcAmountUsd, dstAmountUsd } = useAmountsUsd();
-  const { amount: feesAmountUI, percent: feesPercent, usd: feesUsd } = useFees();
+  const { amount: feesAmount, amountUI: feesAmountUI, percent: feesPercent, usd: feesUsd } = useFees();
   const rePermitData = useRePermitOrderData();
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   const createdAt = useSpotStore((s) => s.state.currentTime);
   const swapExecution = useSwapExecution();
   const orderType = useOrderType();
-  const feesAmount = useAmountBN(dstToken?.decimals || 0, feesAmountUI);
-
-  const marketPriceUi = useAmountUi(dstToken?.decimals || 0, marketPrice);
+  const srcAmount = swapExecution.acceptedSrcAmount || _srcAmount;
+  const marketPriceUi = toAmountUi(marketPrice, dstToken?.decimals || 0);
 
   const isTriggerPrice = useMemo(() => {
     return (
@@ -66,8 +64,8 @@ export const useDerivedOrder = () => {
   }, [orderType]);
 
   const info = useBuildOrderInfo({
-    srcToken: swapExecution.srcToken || srcToken,
-    dstToken: swapExecution.dstToken || dstToken,
+    srcToken,
+    dstToken,
     account,
     orderType,
     createdAt,
@@ -75,27 +73,27 @@ export const useDerivedOrder = () => {
     totalTrades,
     tradeInterval: fillDelayMillis,
 
-    srcAmount: srcAmountWei,
-    srcAmountUI,
+    srcAmount,
+    srcAmountUI: toAmountUi(srcAmount, srcToken?.decimals || 0),
     srcAmountUsd,
 
-    dstAmount: dstAmountWei,
+    dstAmount,
     dstAmountUI,
     dstAmountUsd,
 
-    limitPrice: isMarketOrder ? undefined : limitPriceWei,
+    limitPrice: isMarketOrder ? undefined : limitPrice,
     limitPriceUI: isMarketOrder ? undefined : limitPriceUI,
     limitPriceUsd: isMarketOrder ? undefined : limitPriceUsd,
 
-    srcAmountPerTrade: srcAmountPerTradeWei,
+    srcAmountPerTrade,
     srcAmountPerTradeUI,
     srcAmountPerTradeUsd,
 
-    minDestAmountPerTrade: minDestAmountPerTradeWei,
+    minDestAmountPerTrade,
     minDestAmountPerTradeUI,
     minDestAmountPerTradeUsd,
 
-    triggerPrice: triggerPriceWei,
+    triggerPrice,
     triggerPriceUI,
     triggerPriceUsd,
   });
@@ -115,11 +113,11 @@ export const useDerivedOrder = () => {
     };
   }, [
     info,
-    rePermitData,
-    feesAmount,
     feesAmountUI,
+    feesAmount,
     feesUsd,
     feesPercent,
+    rePermitData,
     isTriggerPrice,
     isMarketOrder,
     marketPrice,

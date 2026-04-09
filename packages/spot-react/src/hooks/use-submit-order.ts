@@ -27,8 +27,8 @@ import { useTriggerPrice } from "./use-trigger-price";
 import { useTrades } from "./use-trades";
 import { useDeadline } from "./use-deadline";
 import { useFillDelay } from "./use-fill-delay";
-import { useDstMinAmountPerTrade, useDstTokenAmount } from "./use-dst-amount";
-import { useDerivedOrder } from "./use-order";
+import { useDstMinAmountPerTrade } from "./use-dst-amount";
+import { useRePermitOrderData } from "./use-repermit-order-data";
 
 const useWrapToken = () => {
   const {
@@ -101,7 +101,7 @@ const useWrapToken = () => {
 
 export const useSignOrder = () => {
   const { account, walletClient, chainId, callbacks } = useSpotContext();
-  const { rePermitData } = useDerivedOrder();
+  const rePermitData = useRePermitOrderData();
   const { refetch: refetchOrders } = useOrdersQuery();
 
   return useMutation({
@@ -290,12 +290,12 @@ const useInitOrderRequest = () => {
   const { account, chainId, srcToken, dstToken, module, slippage } =
     useSpotContext();
   const triggerPrice = useTriggerPrice();
-  const srcAmount = useSrcAmount().amountWei;
-  const srcChunkAmount = useTrades().amountPerTradeWei;
+  const srcAmount = useSrcAmount().amount;
+  const srcChunkAmount = useTrades().amountPerTrade;
   const deadlineMillis = useDeadline();
   const chunksAmount = useTrades().totalTrades;
   const fillDelay = useFillDelay().fillDelay;
-  const dstMinAmountPerTrade = useDstMinAmountPerTrade().amountWei;
+  const dstMinAmountPerTrade = useDstMinAmountPerTrade().amount;
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
 
   return useMutation({
@@ -308,7 +308,7 @@ const useInitOrderRequest = () => {
         dstToken: dstToken as Token,
         fromTokenAmount: srcAmount as string,
         srcChunkAmount: srcChunkAmount as string,
-        triggerPricePerTrade: triggerPrice.pricePerChunkWei as string,
+        triggerPricePerTrade: triggerPrice.pricePerChunk as string,
         deadline: deadlineMillis as number,
         fillDelay: fillDelay.unit * fillDelay.value,
         minDstAmountOutPerTrade: dstMinAmountPerTrade as string,
@@ -342,8 +342,7 @@ export const useSubmitOrderMutation = () => {
   const createOrderCallback = useSignOrder().mutateAsync;
   const { mutateAsync: hasAllowanceCallback } = useHasAllowanceCallback();
   const { update: updateSwapExecution } = useSwapExecution();
-  const { amountWei: srcAmountWei, amountUI: srcAmountUI } = useSrcAmount();
-  const { amountUI: dstAmountUI } = useDstTokenAmount();
+  const { amount: srcAmountWei } = useSrcAmount();
   const initOrderRequest = useInitOrderRequest().mutate;
 
   return useMutation({
@@ -365,9 +364,8 @@ export const useSubmitOrderMutation = () => {
           allowanceLoading: true,
           wrapTxHash: undefined,
           approveTxHash: undefined,
-          marketPrice,
-          srcAmount: srcAmountUI,
-          dstAmount: dstAmountUI,
+          acceptedMarketPrice: marketPrice,
+          acceptedSrcAmount: srcAmountWei,
           srcToken,
           dstToken,
           pendingSteps: [],
