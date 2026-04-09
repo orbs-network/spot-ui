@@ -89,7 +89,6 @@ const queryClient = new QueryClient({
 const Listeners = (props: SpotProps) => {
   const updateStore = useSpotStore((s) => s.updateState);
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
-  console.log(isMarketOrder, 'isMarketOrder');
   
   // update current time every minute, so the deadline will be updated when confirmation window is open
   useEffect(() => {

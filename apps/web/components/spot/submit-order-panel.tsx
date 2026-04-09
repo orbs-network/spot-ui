@@ -232,7 +232,7 @@ const SuccessContent = () => {
 
 export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
   const panelData = useSubmitOrderPanelHook();
-  const { status, stepIndex, totalSteps, parsedError, srcToken, dstToken, dstAmount, srcAmount } = panelData;
+  const { status, stepIndex, totalSteps, parsedError, srcToken, dstToken, dstAmount, srcAmount, pendingSteps } = panelData;
 
   const srcAmountF = useFormatNumber({ value: srcAmount, decimalScale: 2 });
   const outAmountF = useFormatNumber({ value: dstAmount, decimalScale: 2 });

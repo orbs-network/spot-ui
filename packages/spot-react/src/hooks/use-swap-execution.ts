@@ -8,11 +8,11 @@ export const useSwapExecution = () => {
     (s) => s.state.swapExecutions[s.state.swapExecutionIndex] ?? {},
   ) as SwapExecution;
   const updateAtIndex = useSpotStore((s) => s.updateSwapExecutionAtIndex);
-
+  const resetSwap = useSpotStore((s) => s.resetSwapExecutionAtIndex);
   const update = useCallback(
     (data: Partial<SwapExecution>) => updateAtIndex(index, data),
     [updateAtIndex, index],
   );
 
-  return useMemo(() => ({ ...current, update }), [current, update]);
+  return useMemo(() => ({ ...current, update, resetSwap }), [current, update, resetSwap]);
 };

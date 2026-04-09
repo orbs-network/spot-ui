@@ -4,6 +4,7 @@ import { State, SwapExecution } from "./types";
 interface SpotStore {
   resetState: () => void;
   updateState: (value: Partial<State>) => void;
+  resetSwapExecutionAtIndex: () => void;
   updateSwapExecutionAtIndex: (
     index: number,
     value: Partial<SwapExecution>,
@@ -30,6 +31,12 @@ export const useSpotStore = create<SpotStore>((set, get) => ({
         ...(executions[index] ?? emptySwapExecution),
         ...data,
       };
+      return { state: { ...state.state, swapExecutions: executions } };
+    }),
+  resetSwapExecutionAtIndex: () =>
+    set((state) => {
+      const executions = [...state.state.swapExecutions];
+      executions[state.state.swapExecutionIndex] = emptySwapExecution;
       return { state: { ...state.state, swapExecutions: executions } };
     }),
   resetState: () => {

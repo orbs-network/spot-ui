@@ -199,14 +199,15 @@ export type SwapExecution = {
   approveTxHash?: string;
   wrapTxHash?: string;
   totalSteps?: number;
+  pendingSteps?: Steps[];
+  srcToken?: Token;
+  dstToken?: Token;
   orderId?: string;
   allowanceLoading?: boolean;
   hasApproval?: boolean;
   marketPrice?: string;
   srcAmount?: string;
   dstAmount?: string;
-  srcToken?: Token;
-  dstToken?: Token;
 };
 
 export interface State {

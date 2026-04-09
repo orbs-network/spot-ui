@@ -372,7 +372,7 @@ const SubmitSwap = () => {
   const {
     onSubmit,
     status,
-    resetState,
+    onSwapSuccess,
     parsedError,
     allowanceLoading,
   } = useSubmitOrderPanel();
@@ -402,10 +402,10 @@ const SubmitSwap = () => {
     if(Boolean(status)) {
       setInputAmount("");
       setTimeout(() => {
-        resetState();
+        onSwapSuccess();
       }, 500);
     }
-  }, [resetState, setInputAmount, status]);
+  }, [onSwapSuccess, setInputAmount, status]);
 
   return (
     <>

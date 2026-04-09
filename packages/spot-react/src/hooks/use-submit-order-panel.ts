@@ -21,20 +21,24 @@ export const useSubmitOrderPanel = () => {
     [submitSwapMutation],
   );
 
+  const {update, resetSwap,  ...swapExecutionData } = swapExecution;
+
   return useMemo(() => {
     return {
-      ...swapExecution,
+      ...swapExecutionData,
       srcToken,
       dstToken,
       srcAmount: swapExecution.srcAmount || srcAmountUI,
       dstAmount: swapExecution.dstAmount || dstAmountUI,
       onSubmit: onSubmitOrder,
-      resetState,
+      onSwapSuccess: resetState,
+      onSwapFailed: resetSwap,
       isLoading: swapExecution?.status === SwapStatus.LOADING,
       isSuccess: swapExecution?.status === SwapStatus.SUCCESS,
       isFailed: swapExecution?.status === SwapStatus.FAILED,
+      confirmButtonLoading: swapExecutionData.allowanceLoading
     };
-  }, [onSubmitOrder, swapExecution, srcToken, dstToken, resetState]);
+  }, [onSubmitOrder, swapExecutionData, srcToken, dstToken, resetState, resetSwap]);
 };
 
 export const useSubmitOrderButton = () => {

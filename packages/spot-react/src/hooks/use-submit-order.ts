@@ -370,6 +370,7 @@ export const useSubmitOrderMutation = () => {
           dstAmount: dstAmountUI,
           srcToken,
           dstToken,
+          pendingSteps: [],
         });
         const { approvalRequired } = await hasAllowanceCallback({
           tokenAddress: srcWrappedToken.address,
@@ -388,6 +389,16 @@ export const useSubmitOrderMutation = () => {
         });
         initOrderRequest();
 
+        let pendingSteps: Steps[] = [];
+
+        if(wrapRequired) {
+          pendingSteps.push(Steps.WRAP);
+        }
+        if(approvalRequired) {
+          pendingSteps.push(Steps.APPROVE);
+        }
+        pendingSteps.push(Steps.CREATE);
+        updateSwapExecution({ pendingSteps });
         if (wrapRequired) {
           updateSwapExecution({ step: Steps.WRAP });
           await wrapCallback({
