@@ -82,7 +82,7 @@ const useOrderFilters = () => {
 
 export const SpotsOrders = () => {
   const spot = useSpot();
-  const panelData = spot.orderHistory;
+  const panelData = spot.orderHistoryPanel;
   const { orders } = panelData;
   const uiState = useOrdersUIState();
   const {

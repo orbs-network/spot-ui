@@ -3,7 +3,7 @@ import BN from "bignumber.js";
 import { useSpotContext } from "../spot-context";
 import { toAmountUi, toAmountWei } from "../utils";
 import { useUsdAmount } from "./helper-hooks";
-import { useInvertTradePanel } from "./use-invert-trade-panel";
+import { usePricePanel } from "./use-price-panel";
 
 export const useInputWithPercentage = ({
   typedValue,
@@ -21,7 +21,7 @@ export const useInputWithPercentage = ({
   setPercentage: (percentage?: string | null) => void;
 }) => {
   const { srcUsd1Token, dstUsd1Token } = useSpotContext();
-  const { isInverted } = useInvertTradePanel();
+  const { isInverted } = usePricePanel();
   const priceWei = useMemo(() => {
     const getPriceWei = () => {
       if (typedValue !== undefined) {

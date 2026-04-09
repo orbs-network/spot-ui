@@ -2,7 +2,7 @@
 import { createContext, useContext, useCallback, useState } from "react";
 import { useSpot, type Order } from "@orbs-network/spot-react";
 
-export type OrdersPanelData = ReturnType<typeof useSpot>["orderHistory"] & {
+export type OrdersPanelData = ReturnType<typeof useSpot>["orderHistoryPanel"] & {
   filteredOrders: Order[];
   selectedOrderID?: string;
   onDisplayOrder: (id?: string) => void;

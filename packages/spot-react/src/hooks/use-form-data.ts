@@ -16,10 +16,11 @@ import { useRePermitOrderData } from "./use-repermit-order-data";
 import { useSwapExecution } from "./use-swap-execution";
 import { OrderType } from "@orbs-network/spot-ui";
 import { toAmountUi } from "../utils";
+import { useAddresses } from "./use-addresses";
 
 export const useFormData = () => {
   const { srcToken, dstToken, account, marketPrice } = useSpotContext();
-
+  const { spender } = useAddresses();
   const { amount: _srcAmount } = useSrcAmount();
   const {
     amount: limitPrice,
@@ -110,6 +111,7 @@ export const useFormData = () => {
       isMarketOrder,
       marketPrice,
       marketPriceUi,
+      spender,
     };
   }, [
     info,
@@ -122,5 +124,6 @@ export const useFormData = () => {
     isMarketOrder,
     marketPrice,
     marketPriceUi,
+    spender,
   ]);
 };

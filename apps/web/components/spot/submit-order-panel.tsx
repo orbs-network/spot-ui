@@ -24,7 +24,7 @@ type SubmitOrderPanelProps = {
   reviewDetails?: ReactNode;
 };
 
-type SubmitOrderPanelData = ReturnType<typeof useSpot>["orderExecution"];
+type SubmitOrderPanelData = ReturnType<typeof useSpot>["submitOrderPanel"];
 
 type SubmitPanelContextType = SubmitOrderPanelData & SubmitOrderPanelProps & {
   srcToken?: Token;
@@ -136,7 +136,7 @@ const Main = () => {
     useSubmitPanelContext();
   const t = useTranslations();
   const isSubmitted = Boolean(status);
-  const order = useSpot().formData;
+  const order = useSpot().derivedFormData;
 
   return (
     <>
@@ -230,9 +230,9 @@ const SuccessContent = () => {
 };
 
 export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
-  const panelData = useSpot().orderExecution;
+  const panelData = useSpot().submitOrderPanel;
   const { status, stepIndex, totalSteps, parsedError, srcToken, dstToken, pendingSteps } = panelData;
-  const formData = useSpot().formData;
+  const formData = useSpot().derivedFormData;
 
   const srcAmountF = useFormatNumber({ value: formData.srcAmountUI, decimalScale: 2 });
   const outAmountF = useFormatNumber({ value: formData.dstAmountUI, decimalScale: 2 });

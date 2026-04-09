@@ -85,7 +85,7 @@ const useParseSpotTokens = (currency?: Currency) => {
 
 const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
   const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
-  const { value: dstAmount, isLoading } = useSpot().dstToken;
+  const { value: dstAmount, isLoading } = useSpot().dstTokenPanel;
   const { handleCurrencyChange, setInputAmount } = useActionHandlers();
   const onTokenChange = useCallback(
     (currency: string) => {
@@ -178,7 +178,7 @@ const Card = ({
 
 const Disclaimer = () => {
   const t = useTranslations();
-  const message = useSpot().disclaimer;
+  const message = useSpot().disclaimerMessage;
 
   if (!message) {
     return null;
@@ -204,7 +204,7 @@ const Disclaimer = () => {
 
 const TradesPanel = () => {
   const t = useTranslations();
-  const { totalTrades, onChange, error } = useSpot().trades;
+  const { totalTrades, onChange, error } = useSpot().tradesPanel;
   return (
     <Card
       title={t("tradesAmountTitle")}
@@ -225,7 +225,7 @@ const TradesPanel = () => {
 
 const DurationPanel = () => {
   const t = useTranslations();
-  const { duration, onInputChange, onUnitSelect } = useSpot().duration;
+  const { duration, onInputChange, onUnitSelect } = useSpot().durationPanel;
   return (
     <Card
       title={t("expiry")}
@@ -249,7 +249,7 @@ const DurationPanel = () => {
 
 const FillDelayPanel = () => {
   const t = useTranslations();
-  const { fillDelay, onInputChange, onUnitSelect } = useSpot().fillDelay;
+  const { fillDelay, onInputChange, onUnitSelect } = useSpot().fillDelayPanel;
   return (
     <Card
       title={t("tradeIntervalTitle")}
@@ -371,7 +371,7 @@ const SubmitSwap = () => {
     onSwapSuccess,
     parsedError,
     confirmButtonLoading,
-  } = useSpot().orderExecution;
+  } = useSpot().submitOrderPanel;
   const { setInputAmount } = useSpotContext();
 
   const { swapModule } = useSpotContext();
@@ -440,7 +440,7 @@ const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
   const t = useTranslations();
   const { partner } = useSwapParams();
 
-  const { disabled, loading } = useSpot().submitButton;
+  const { disabled, loading } = useSpot().submitOrderButton;
 
   const partnerChainId = useMemo(() => {
     const partnerChain = partner?.split("_")[1];
@@ -487,9 +487,8 @@ const InputsErrorPanel = () => {
 const LimitPricePanel = () => {
   const t = useTranslations();
   const {
-    toToken,
-    onChange,
-    price,
+    onInputChange: onChange,
+    priceUI: price,
     percentage,
     onPercentageChange,
     amountPerChunkUsd,
@@ -497,12 +496,13 @@ const LimitPricePanel = () => {
     toggleLimitPrice,
     onReset,
     isLoading,
-    amountPerChunk,
-    isInverted,
-    fromToken,
-    tradesAmount,
+    amountPerChunkUI: amountPerChunk,
+    invertedSrcToken: fromToken,
+    invertedDstToken: toToken,
     isTypedValue,
-  } = useSpot().limitPrice;
+  } = useSpot().limitPricePanel;
+  const { isInverted } = useSpot().pricePanel;
+  const { totalTrades: tradesAmount } = useSpot().tradesPanel;
 
   const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk });
   const amountPerChunkUsdFormatted = useFormatNumber({
@@ -566,19 +566,19 @@ const LimitPricePanel = () => {
 const TriggerPricePanel = () => {
   const t = useTranslations();
   const {
-    price,
-    onChange,
+    priceUI: price,
+    onInputChange: onChange,
     percentage,
     onPercentageChange,
     amountPerChunkUsd,
     onReset,
-    toToken,
-    amountPerChunk,
-    isInverted,
-    fromToken,
-    totalTrades,
+    amountPerChunkUI: amountPerChunk,
+    invertedSrcToken: fromToken,
+    invertedDstToken: toToken,
     isTypedValue,
-  } = useSpot().triggerPrice;
+  } = useSpot().triggerPricePanel;
+  const { isInverted } = useSpot().pricePanel;
+  const { totalTrades } = useSpot().tradesPanel;
 
   const { swapModule } = useSpotContext();
 
@@ -639,7 +639,7 @@ const TriggerPricePanel = () => {
 
 const PricesHeader = () => {
   const { onInvert, isInverted, fromToken, isMarketPrice } =
-    useSpot().invertTrade;
+    useSpot().pricePanel;
   return (
     <div className="flex flex-row gap-2 items-center justify-between">
       <p className="text-[15px] font-medium text-muted-foreground">

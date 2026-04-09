@@ -4,9 +4,9 @@ import { useDurationPanel } from "./use-duration";
 import { useFillDelayPanel } from "./use-fill-delay";
 import { useLimitPricePanel } from "./use-limit-price-panel";
 import { useTriggerPricePanel } from "./use-trigger-price-panel";
-import { useInvertTradePanel } from "./use-invert-trade-panel";
+import { usePricePanel } from "./use-price-panel";
 import { useDstTokenPanel } from "./use-dst-token-panel";
-import { useDisclaimerPanel } from "./use-disclaimer-panel";
+import { useDisclaimerMessage } from "./use-disclaimer-message";
 import { useInputErrors } from "./use-input-errors";
 import {
   useSubmitOrderButton,
@@ -15,7 +15,6 @@ import {
 import { useFormData } from "./use-form-data";
 import { useOrderHistoryPanel } from "./order-hooks";
 import { usePartnerChains } from "./use-partner-chains";
-import { useAddresses } from "./use-addresses";
 import {
   useCancelOrderMutation,
   useCancelOrderRefetchUntilStatusSynced,
@@ -23,21 +22,20 @@ import {
 import { useSignOrder, useSubmitOrderMutation } from "./use-submit-order";
 
 type SpotData = {
-  trades: ReturnType<typeof useTradesPanel>;
-  duration: ReturnType<typeof useDurationPanel>;
-  fillDelay: ReturnType<typeof useFillDelayPanel>;
-  limitPrice: ReturnType<typeof useLimitPricePanel>;
-  triggerPrice: ReturnType<typeof useTriggerPricePanel>;
-  invertTrade: ReturnType<typeof useInvertTradePanel>;
-  dstToken: ReturnType<typeof useDstTokenPanel>;
-  disclaimer: ReturnType<typeof useDisclaimerPanel>;
+  tradesPanel: ReturnType<typeof useTradesPanel>;
+  durationPanel: ReturnType<typeof useDurationPanel>;
+  fillDelayPanel: ReturnType<typeof useFillDelayPanel>;
+  limitPricePanel: ReturnType<typeof useLimitPricePanel>;
+  triggerPricePanel: ReturnType<typeof useTriggerPricePanel>;
+  pricePanel: ReturnType<typeof usePricePanel>;
+  dstTokenPanel: ReturnType<typeof useDstTokenPanel>;
+  disclaimerMessage: ReturnType<typeof useDisclaimerMessage>;
   inputError: ReturnType<typeof useInputErrors>;
-  submitButton: ReturnType<typeof useSubmitOrderButton>;
-  orderHistory: ReturnType<typeof useOrderHistoryPanel>;
-  formData: ReturnType<typeof useFormData>;
-  orderExecution: ReturnType<typeof useSubmitOrderPanel>;
+  submitOrderButton: ReturnType<typeof useSubmitOrderButton>;
+  orderHistoryPanel: ReturnType<typeof useOrderHistoryPanel>;
+  derivedFormData: ReturnType<typeof useFormData>;
+  submitOrderPanel: ReturnType<typeof useSubmitOrderPanel>;
   supportedChains: ReturnType<typeof usePartnerChains>;
-  spender: `0x${string}`;
   mutations: {
     cancelOrder: ReturnType<typeof useCancelOrderMutation>;
     signOrder: ReturnType<typeof useSignOrder>;
@@ -55,21 +53,20 @@ export const SpotDataProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const trades = useTradesPanel();
-  const duration = useDurationPanel();
-  const fillDelay = useFillDelayPanel();
-  const limitPrice = useLimitPricePanel();
-  const triggerPrice = useTriggerPricePanel();
-  const invertTrade = useInvertTradePanel();
-  const dstToken = useDstTokenPanel();
-  const disclaimer = useDisclaimerPanel();
+  const tradesPanel = useTradesPanel();
+  const durationPanel = useDurationPanel();
+  const fillDelayPanel = useFillDelayPanel();
+  const limitPricePanel = useLimitPricePanel();
+  const triggerPricePanel = useTriggerPricePanel();
+  const pricePanel = usePricePanel();
+  const dstTokenPanel = useDstTokenPanel();
+  const disclaimerMessage = useDisclaimerMessage();
   const inputError = useInputErrors();
-  const submitButton = useSubmitOrderButton();
-  const formData = useFormData();
-  const orderHistory = useOrderHistoryPanel();
-  const orderExecution = useSubmitOrderPanel();
+  const submitOrderButton = useSubmitOrderButton();
+  const derivedFormData = useFormData();
+  const orderHistoryPanel = useOrderHistoryPanel();
+  const orderExecutionPanel = useSubmitOrderPanel();
   const supportedChains = usePartnerChains();
-  const { spender } = useAddresses();
 
   const cancelOrder = useCancelOrderMutation();
   const signOrder = useSignOrder();
@@ -77,51 +74,30 @@ export const SpotDataProvider = ({
   const refetchUntilStatusSynced = useCancelOrderRefetchUntilStatusSynced();
 
   const mutations = useMemo(
-    () => ({
-      cancelOrder,
-      signOrder,
-      submitOrder,
-      refetchUntilStatusSynced,
-    }),
+    () => ({ cancelOrder, signOrder, submitOrder, refetchUntilStatusSynced }),
     [cancelOrder, signOrder, submitOrder, refetchUntilStatusSynced],
   );
-  const value = useMemo(
-    (): SpotData => ({
-      trades,
-      duration,
-      fillDelay,
-      limitPrice,
-      triggerPrice,
-      invertTrade,
-      dstToken,
-      disclaimer,
-      inputError,
-      submitButton,
-      formData,
-      orderHistory,
-      orderExecution,
-      supportedChains,
-      spender,
-      mutations,
-    }),
-    [
-      trades,
-      duration,
-      fillDelay,
-      limitPrice,
-      triggerPrice,
-      invertTrade,
-      dstToken,
-      disclaimer,
-      inputError,
-      submitButton,
-      formData,
-      orderHistory,
-      orderExecution,
-      spender,
-      mutations,
-    ],
-  );
+
+  
+
+  const value = {
+    tradesPanel,
+    durationPanel,
+    fillDelayPanel,
+    limitPricePanel,
+    triggerPricePanel,
+    pricePanel,
+    dstTokenPanel,
+    disclaimerMessage,    
+    inputError,
+    submitOrderButton,
+    derivedFormData,
+    orderHistoryPanel,
+    submitOrderPanel: orderExecutionPanel,
+    supportedChains,
+    mutations,
+  }
+  
 
   return (
     <SpotDataContext.Provider value={value}>

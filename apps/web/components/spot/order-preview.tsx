@@ -14,6 +14,7 @@ import {
   OrderStatus,
   useDerivedHistoryOrder,
   useSpot,
+  type Order,
 } from "@orbs-network/spot-react";
 import { useDateFormat } from "@/lib/hooks/common";
 import { FormatNumber } from "./format-number";
@@ -37,9 +38,9 @@ const useOrderContext = () => {
 
 export const OrderPreview = () => {
   const { selectedOrderID, isDisplayingOrderFills, onHideOrderFills } = useOrdersPanelContext();
-  const { orders } = useSpot().orderHistory;
+  const { orders } = useSpot().orderHistoryPanel;
   const rawOrder = useMemo(
-    () => orders.all.find((o) => o.id === selectedOrderID),
+    () => orders.all.find((o: Order) => o.id === selectedOrderID),
     [orders, selectedOrderID],
   );
   const srcToken = useSpotToken(rawOrder?.srcTokenAddress);

@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 
-export const useDisclaimerPanel = () => {
+export const useDisclaimerMessage = () => {
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   const { module } = useSpotContext();
 
