@@ -22,7 +22,7 @@ import {
 import { useSignOrder, useSubmitOrderMutation } from "./use-submit-order";
 
 type SpotData = {
-  tradesPanel: ReturnType<typeof useTradesPanel>;
+  tradesAmountPanel: ReturnType<typeof useTradesPanel>;
   durationPanel: ReturnType<typeof useDurationPanel>;
   fillDelayPanel: ReturnType<typeof useFillDelayPanel>;
   limitPricePanel: ReturnType<typeof useLimitPricePanel>;
@@ -33,8 +33,8 @@ type SpotData = {
   inputError: ReturnType<typeof useInputErrors>;
   submitOrderButton: ReturnType<typeof useSubmitOrderButton>;
   orderHistoryPanel: ReturnType<typeof useOrderHistoryPanel>;
+  orderExecutionPanel: ReturnType<typeof useSubmitOrderPanel>;
   derivedFormData: ReturnType<typeof useFormData>;
-  submitOrderPanel: ReturnType<typeof useSubmitOrderPanel>;
   supportedChains: ReturnType<typeof usePartnerChains>;
   mutations: {
     cancelOrder: ReturnType<typeof useCancelOrderMutation>;
@@ -53,7 +53,7 @@ export const SpotDataProvider = ({
 }: {
   children: React.ReactNode;
 }) => {
-  const tradesPanel = useTradesPanel();
+  const tradesAmountPanel = useTradesPanel();
   const durationPanel = useDurationPanel();
   const fillDelayPanel = useFillDelayPanel();
   const limitPricePanel = useLimitPricePanel();
@@ -81,7 +81,7 @@ export const SpotDataProvider = ({
   
 
   const value = {
-    tradesPanel,
+    tradesAmountPanel,
     durationPanel,
     fillDelayPanel,
     limitPricePanel,
@@ -93,7 +93,7 @@ export const SpotDataProvider = ({
     submitOrderButton,
     derivedFormData,
     orderHistoryPanel,
-    submitOrderPanel: orderExecutionPanel,
+    orderExecutionPanel,
     supportedChains,
     mutations,
   }

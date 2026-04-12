@@ -112,8 +112,8 @@ const Listeners = (props: SpotProps) => {
       typedDuration: props.overrides?.state?.duration,
       typedLimitPrice: props.overrides?.state?.limitPrice,
       typedTriggerPrice: props.overrides?.state?.triggerPrice,
-      triggerPricePercent: undefined,
-      limitPricePercent: undefined,
+      triggerPricePercent: props.overrides?.state?.triggerPricePercent,
+      limitPricePercent: props.overrides?.state?.limitPricePercent,
     });
   }, [props.overrides?.state, props.module]);
 

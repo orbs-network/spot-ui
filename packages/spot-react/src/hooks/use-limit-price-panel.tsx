@@ -2,14 +2,12 @@ import { useCallback } from "react";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { useDefaultLimitPricePercent } from "./use-default-values";
-import { useDstMinAmountPerTrade } from "./use-dst-amount";
 import { usePricePanel } from "./use-price-panel";
 import { useLimitPrice, useLimitPriceToggle } from "./use-limit-price";
 
 export const useLimitPricePanel = () => {
     const { module, marketPriceLoading, srcToken, dstToken } = useSpotContext();
     const { amount, amountUI, onChange, onPercentageChange, usd, selectedPercentage, error, isTypedValue } = useLimitPrice();
-    const { amount: amountPerChunkWei, amountUI: amountPerChunkUI, usd: amountPerChunkUsd } = useDstMinAmountPerTrade();
     const updateState = useSpotStore((s) => s.updateState);
     const defaultLimitPricePercent = useDefaultLimitPricePercent();
     const { isLimitPrice, toggleLimitPrice } = useLimitPriceToggle();
@@ -23,9 +21,6 @@ export const useLimitPricePanel = () => {
     return {
       price: amount,
       priceUI: amountUI,
-      amountPerChunk: amountPerChunkWei,
-      amountPerChunkUI,
-      amountPerChunkUsd,
       error,
       onInputChange: onChange,
       onPercentageChange,

@@ -1,8 +1,18 @@
 import { type Token } from "@orbs-network/spot-react";
 
 type SelectMenuItem = { value: string | number; text: string };
-type SelectMenuProps = { items: SelectMenuItem[]; onSelect: (item: SelectMenuItem) => void; selected?: SelectMenuItem };
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../ui/select";
+type SelectMenuProps = {
+  items: SelectMenuItem[];
+  onSelect: (item: SelectMenuItem) => void;
+  selected?: SelectMenuItem;
+};
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "../ui/select";
 import { useCallback } from "react";
 import { Avatar, AvatarImage } from "../ui/avatar";
 
@@ -14,69 +24,80 @@ export const SpotTokenLogo = ({ token }: { token?: Token }) => {
   );
 };
 import { NumericInput } from "../ui/numeric-input";
+import { useFormatNumber } from "@/lib/hooks/common";
 
 export const SpotSelectMenu = (props: SelectMenuProps) => {
-    const onValueChange = useCallback(
-      (it: string) => {
-        const selected = props.items.find((item) => item.value.toString() === it);
-        if (selected) {
-          props.onSelect(selected as SelectMenuItem);
-        }
-      },
-      [props]
-    );
-  
-    return (
-      <Select
-        onValueChange={onValueChange}
-        defaultValue={props.selected?.value.toString()}
-      >
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder={props.selected?.text} />
-        </SelectTrigger>
-        <SelectContent>
-          {props.items.map((it) => (
-            <SelectItem key={it.value} value={it.value.toString()}>
-              {it.text}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    );
-  };
+  const onValueChange = useCallback(
+    (it: string) => {
+      const selected = props.items.find((item) => item.value.toString() === it);
+      if (selected) {
+        props.onSelect(selected as SelectMenuItem);
+      }
+    },
+    [props],
+  );
 
-  export const SpotPriceInput = ({
-    symbol,
-    value,
-    onChange,
-    percentage,
-    onPercentageChange,
-    isLoading,
-    bottomContent
-  }: {
-    symbol?: string;
-    value: string;
-    onChange: (value: string) => void;
-    percentage: string;
-    onPercentageChange: (value: string) => void;
-    isLoading?: boolean;
-    bottomContent?: React.ReactNode;
-  }) => {
-    return (
-     <div className="flex flex-col gap-2 items-stretch bg-background/60 p-2 pb-2 rounded-xl">
-       <div className="flex flex-row gap-2 items-stretch">
+  return (
+    <Select
+      onValueChange={onValueChange}
+      defaultValue={props.selected?.value.toString()}
+    >
+      <SelectTrigger className="w-[180px]">
+        <SelectValue placeholder={props.selected?.text} />
+      </SelectTrigger>
+      <SelectContent>
+        {props.items.map((it) => (
+          <SelectItem key={it.value} value={it.value.toString()}>
+            {it.text}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+};
+
+export const SpotPriceInput = ({
+  symbol,
+  value,
+  onChange,
+  percentage,
+  onPercentageChange,
+  isLoading,
+  bottomContent,
+  usd,
+}: {
+  symbol?: string;
+  value: string;
+  onChange: (value: string) => void;
+  percentage: string;
+  onPercentageChange: (value: string) => void;
+  isLoading?: boolean;
+  bottomContent?: React.ReactNode;
+  usd?: string;
+}) => {
+  const usdFormatted = useFormatNumber({ value: usd, decimalScale: 2 });
+  return (
+    <div className="flex flex-col gap-2 items-stretch bg-background/60 p-2 pb-2 rounded-xl">
+      <div className="flex flex-row gap-2 items-stretch">
         <div className="flex-1 flex justify-between bg-accent items-center px-3 py-2 rounded-[12px] gap-3">
           <p className="text-[15px] font-medium text-muted-foreground">
             {symbol}
           </p>
-          <NumericInput
-              isLoading={isLoading}
-              value={value}
-              onChange={(it) => onChange(it)}
-              className="flex-1 text-right text-[21px]"
-            />
+         <div className="flex flex-col gap-1 items-end flex-1">
+         <NumericInput
+            isLoading={isLoading}
+            value={value}
+            onChange={(it) => onChange(it)}
+            className="flex-1 text-right text-[19px]"
+          />
+          {usd && (
+            <p className="text-[12px] text-muted-foreground">
+              ${usdFormatted}
+            </p>
+          )}
+         </div>
         </div>
-       
+
         <div className="w-[100px] bg-accent items-center px-3 py-2 rounded-[12px]">
           <NumericInput
             value={percentage}
@@ -88,18 +109,22 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
           />
         </div>
       </div>
-      {bottomContent && <p className="text-[12px] text-muted-foreground pl-1 font-medium">{bottomContent}</p>}
-     </div>
-    );
-  };
-  
-  export const SpotPriceResetButton = ({ onClick }: { onClick: () => void }) => {
-    return (
-      <button
-        onClick={onClick}
-        className="text-[14px] font-medium text-muted-foreground hover:text-primary cursor-pointer"
-      >
-        Set to default
-      </button>
-    );
-  };
+      {bottomContent && (
+        <p className="text-[12px] text-muted-foreground pl-1 font-medium">
+          {bottomContent}
+        </p>
+      )}
+    </div>
+  );
+};
+
+export const SpotPriceResetButton = ({ onClick }: { onClick: () => void }) => {
+  return (
+    <button
+      onClick={onClick}
+      className="text-[14px] font-medium text-muted-foreground hover:text-primary cursor-pointer"
+    >
+      Set to default
+    </button>
+  );
+};

@@ -155,12 +155,14 @@ const Card = ({
   className = "",
   tooltip,
   error,
+  headerContent,
 }: {
   children: React.ReactNode;
   title?: string;
   className?: string;
   tooltip?: string;
   error?: boolean;
+  headerContent?: React.ReactNode;
 }) => {
   return (
     <div
@@ -170,7 +172,7 @@ const Card = ({
         error ? "border-destructive/80" : "",
       )}
     >
-      {title && <Label title={title} tooltip={tooltip} />}
+      {headerContent || (title && <Label title={title} tooltip={tooltip} />)}
       {children}
     </div>
   );
@@ -204,10 +206,51 @@ const Disclaimer = () => {
 
 const TradesPanel = () => {
   const t = useTranslations();
-  const { totalTrades, onChange, error } = useSpot().tradesPanel;
+  const { totalTrades, onChange, error } = useSpot().tradesAmountPanel;
+  const { srcToken } = useSpot().derivedFormData;
+
+  const {
+    totalTrades: tradesAmount,
+    amountPerTradeUI,
+    amountPerTradeUsd,
+  } = useSpot().tradesAmountPanel;
+
+  const amountPerChunkFormatted = useFormatNumber({ value: amountPerTradeUI });
+  const amountPerChunkUsdFormatted = useFormatNumber({
+    value: amountPerTradeUsd,
+    decimalScale: 3,
+  });
+  const perTradeText = useMemo(() => {
+    if (!srcToken || tradesAmount === 1) return "";
+    return (
+      <p className="text-[13px] text-foreground/80">
+        {amountPerChunkFormatted} {srcToken?.symbol} per trade{" "}
+        {amountPerChunkUsdFormatted && (
+          <small className="text-foreground/50">
+            (${amountPerChunkUsdFormatted})
+          </small>
+        )}
+      </p>
+    );
+  }, [
+    srcToken,
+    tradesAmount,
+    amountPerChunkFormatted,
+    amountPerChunkUsdFormatted,
+  ]);
+
   return (
     <Card
       title={t("tradesAmountTitle")}
+      headerContent={
+        <div className="flex flex-row gap-2 items-center justify-between">
+          <Label
+            title={t("tradesAmountTitle")}
+            tooltip={t("totalTradesTooltip")}
+          />
+          {perTradeText}
+        </div>
+      }
       tooltip={t("totalTradesTooltip")}
       className="flex flex-col gap-2"
       error={Boolean(error)}
@@ -365,13 +408,8 @@ const SubmitSwapMain = ({
 };
 
 const SubmitSwap = () => {
-  const {
-    onSubmit,
-    status,
-    onSwapSuccess,
-    parsedError,
-    confirmButtonLoading,
-  } = useSpot().submitOrderPanel;
+  const { onSubmit, status, onSwapSuccess, parsedError, confirmButtonLoading } =
+    useSpot().submitOrderPanel;
   const { setInputAmount } = useSpotContext();
 
   const { swapModule } = useSpotContext();
@@ -395,7 +433,7 @@ const SubmitSwap = () => {
 
   const onClose = useCallback(() => {
     setIsOpen(false);
-    if(Boolean(status)) {
+    if (Boolean(status)) {
       setInputAmount("");
       setTimeout(() => {
         onSwapSuccess();
@@ -448,7 +486,6 @@ const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
   }, [partner]);
 
   const text = useMemo(() => {
-
     if (loading) {
       return t("fetchingQuote");
     }
@@ -491,45 +528,14 @@ const LimitPricePanel = () => {
     priceUI: price,
     percentage,
     onPercentageChange,
-    amountPerChunkUsd,
     isLimitPrice,
     toggleLimitPrice,
     onReset,
     isLoading,
-    amountPerChunkUI: amountPerChunk,
-    invertedSrcToken: fromToken,
     invertedDstToken: toToken,
     isTypedValue,
+    usd,
   } = useSpot().limitPricePanel;
-  const { isInverted } = useSpot().pricePanel;
-  const { totalTrades: tradesAmount } = useSpot().tradesPanel;
-
-  const amountPerChunkFormatted = useFormatNumber({ value: amountPerChunk });
-  const amountPerChunkUsdFormatted = useFormatNumber({
-    value: amountPerChunkUsd,
-  });
-  const bottomContent = useMemo(() => {
-    const token = isInverted ? fromToken : toToken;
-    if (!token) return "";
-    const perTradeText = tradesAmount > 1 ? `per trade` : "";
-    return (
-      <>
-        {amountPerChunkFormatted} {token?.symbol} {perTradeText}{" "}
-        {amountPerChunkUsdFormatted && (
-          <small className="text-muted-foreground">
-            (${amountPerChunkUsdFormatted})
-          </small>
-        )}
-      </>
-    );
-  }, [
-    isInverted,
-    toToken,
-    fromToken,
-    amountPerChunkFormatted,
-    tradesAmount,
-    amountPerChunkUsdFormatted,
-  ]);
 
   const { swapModule } = useSpotContext();
 
@@ -556,7 +562,7 @@ const LimitPricePanel = () => {
           percentage={percentage}
           onPercentageChange={(it) => onPercentageChange(it)}
           isLoading={isLoading}
-          bottomContent={bottomContent}
+          usd={usd}
         />
       )}
     </div>
@@ -570,43 +576,14 @@ const TriggerPricePanel = () => {
     onInputChange: onChange,
     percentage,
     onPercentageChange,
-    amountPerChunkUsd,
     onReset,
-    amountPerChunkUI: amountPerChunk,
-    invertedSrcToken: fromToken,
     invertedDstToken: toToken,
     isTypedValue,
+    usd
   } = useSpot().triggerPricePanel;
-  const { isInverted } = useSpot().pricePanel;
-  const { totalTrades } = useSpot().tradesPanel;
 
   const { swapModule } = useSpotContext();
 
-  const amountPerChunkF = useFormatNumber({ value: amountPerChunk });
-  const amountPerChunkUsdF = useFormatNumber({ value: amountPerChunkUsd });
-
-  const bottomContent = useMemo(() => {
-    const token = isInverted ? fromToken : toToken;
-    if (!token) return "";
-    const perTradeText = totalTrades > 1 ? `per trade` : "";
-    return (
-      <>
-        {amountPerChunkF} {token?.symbol} {perTradeText}{" "}
-        {amountPerChunkUsdF && (
-          <small className="text-muted-foreground">
-            (${amountPerChunkUsdF})
-          </small>
-        )}
-      </>
-    );
-  }, [
-    isInverted,
-    toToken,
-    fromToken,
-    amountPerChunkF,
-    totalTrades,
-    amountPerChunkUsdF,
-  ]);
 
   if (swapModule !== Module.TAKE_PROFIT && swapModule !== Module.STOP_LOSS) {
     return null;
@@ -631,7 +608,7 @@ const TriggerPricePanel = () => {
         onChange={(it) => onChange(it)}
         percentage={percentage}
         onPercentageChange={(it) => onPercentageChange(it)}
-        bottomContent={bottomContent}
+        usd={usd}
       />
     </div>
   );

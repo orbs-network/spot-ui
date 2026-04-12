@@ -46,8 +46,9 @@ export type GetAllowanceProps = {
 
 export type InitialState = {
   isMarketOrder?: boolean;
-  inputAmount?: string;
   chunks?: number;
+  triggerPricePercent?: string | null;
+  limitPricePercent?: string | null;
   fillDelay?: TimeDuration;
   duration?: TimeDuration;
   limitPrice?: string;
@@ -63,8 +64,6 @@ export type Overrides = {
   createOrder?: (props: CreateOrderProps) => Promise<`0x${string}`>;
   getAllowance?: (props: GetAllowanceProps) => Promise<string>;
   state?: Partial<InitialState>;
-  numberFormat?: (value: number | string) => string;
-  dateFormat?: (date: number) => string;
 };
 
 export type OnApproveSuccessCallback = {
