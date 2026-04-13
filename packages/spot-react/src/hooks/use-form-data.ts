@@ -58,7 +58,8 @@ export const useFormData = () => {
 
   const isTriggerPrice = useMemo(() => {
     return (
-      orderType === OrderType.TAKE_PROFIT ||
+      orderType === OrderType.TAKE_PROFIT_MARKET ||
+      orderType === OrderType.TAKE_PROFIT_LIMIT ||
       orderType === OrderType.STOP_LOSS_LIMIT ||
       orderType === OrderType.STOP_LOSS_MARKET
     );

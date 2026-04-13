@@ -51,7 +51,8 @@ export enum OrderType {
   LIMIT = "limit",
   TWAP_LIMIT = "twap-limit",
   TWAP_MARKET = "twap-market",
-  TAKE_PROFIT = "take-profit",
+  TAKE_PROFIT_MARKET = "take-profit-market",
+  TAKE_PROFIT_LIMIT = "take-profit-limit",
   STOP_LOSS_LIMIT = "stop-loss-limit",
   STOP_LOSS_MARKET = "stop-loss-market",
 }

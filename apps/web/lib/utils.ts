@@ -12,7 +12,7 @@ import {
   POPULAR_TOKENS,
 } from "./consts";
 import * as chains from "viem/chains";
-import { Partners } from "@orbs-network/spot-ui";
+import { Order, OrderType, Partners } from "@orbs-network/spot-ui";
 
 export const getBaseCurrencies = (chainId?: number) => {
   return POPULAR_TOKENS[chainId as keyof typeof POPULAR_TOKENS] ?? [];
@@ -287,3 +287,26 @@ export const getSpotPartnerProdLink = (partner?: string) => {
   }
 };
 
+
+
+export const getOrderTitle = (type?: OrderType): string => {
+  if (!type) return "";
+  switch (type) {
+    case OrderType.LIMIT:
+      return "Limit";
+    case OrderType.TWAP_LIMIT:
+      return "TWAP Limit";
+    case OrderType.TWAP_MARKET:
+      return "TWAP Market";
+    case OrderType.TAKE_PROFIT_MARKET:
+      return "Take Profit Market";
+    case OrderType.TAKE_PROFIT_LIMIT:
+      return "Take Profit Limit";
+    case OrderType.STOP_LOSS_LIMIT:
+      return "Stop Loss Limit";
+    case OrderType.STOP_LOSS_MARKET:
+      return "Stop Loss Market";
+    default:
+      return type || "";
+  }
+};

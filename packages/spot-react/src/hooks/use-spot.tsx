@@ -6,7 +6,7 @@ import { useLimitPricePanel } from "./use-limit-price-panel";
 import { useTriggerPricePanel } from "./use-trigger-price-panel";
 import { usePricePanel } from "./use-price-panel";
 import { useDstTokenPanel } from "./use-dst-token-panel";
-import { useDisclaimerMessage } from "./use-disclaimer-message";
+import { useDisclaimer } from "./use-disclaimer";
 import { useInputErrors } from "./use-input-errors";
 import {
   useSubmitOrderButton,
@@ -29,7 +29,7 @@ type SpotData = {
   triggerPricePanel: ReturnType<typeof useTriggerPricePanel>;
   pricePanel: ReturnType<typeof usePricePanel>;
   dstTokenPanel: ReturnType<typeof useDstTokenPanel>;
-  disclaimerMessage: ReturnType<typeof useDisclaimerMessage>;
+  disclaimerPanel: ReturnType<typeof useDisclaimer>;
   inputError: ReturnType<typeof useInputErrors>;
   submitOrderButton: ReturnType<typeof useSubmitOrderButton>;
   orderHistoryPanel: ReturnType<typeof useOrderHistoryPanel>;
@@ -60,7 +60,7 @@ export const SpotDataProvider = ({
   const triggerPricePanel = useTriggerPricePanel();
   const pricePanel = usePricePanel();
   const dstTokenPanel = useDstTokenPanel();
-  const disclaimerMessage = useDisclaimerMessage();
+  const disclaimerPanel = useDisclaimer();
   const inputError = useInputErrors();
   const submitOrderButton = useSubmitOrderButton();
   const derivedFormData = useFormData();
@@ -88,7 +88,7 @@ export const SpotDataProvider = ({
     triggerPricePanel,
     pricePanel,
     dstTokenPanel,
-    disclaimerMessage,    
+    disclaimerPanel,    
     inputError,
     submitOrderButton,
     derivedFormData,

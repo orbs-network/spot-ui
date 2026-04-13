@@ -15,6 +15,7 @@ import {
   DISCLAIMER_URL,
   useSpot,
   SPOT_VERSION,
+  ORBS_TWAP_FAQ_URL,
 } from "@orbs-network/spot-react";
 import { useFormatNumber } from "@/lib/hooks/common";
 import { Currency, Field, SwapType } from "@/lib/types";
@@ -23,7 +24,7 @@ import { Button } from "../ui/button";
 import { CurrencyCard } from "../currency-card";
 import { useActionHandlers } from "@/lib/hooks/use-action-handlers";
 import { ToggleCurrencies } from "../toggle-currencies";
-import { cn, formatDecimals } from "@/lib/utils";
+import { cn, formatDecimals, getOrderTitle } from "@/lib/utils";
 import { NumericInput } from "../ui/numeric-input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { AlertTriangleIcon, ArrowLeftRightIcon, InfoIcon } from "lucide-react";
@@ -178,11 +179,11 @@ const Card = ({
   );
 };
 
-const Disclaimer = () => {
+const DisclaimerPanel = () => {
   const t = useTranslations();
-  const message = useSpot().disclaimerMessage;
+  const disclaimer = useSpot().disclaimerPanel;
 
-  if (!message) {
+  if (!disclaimer) {
     return null;
   }
 
@@ -190,9 +191,9 @@ const Disclaimer = () => {
     <div className="text-sm bg-card p-2 rounded-md flex flex-row gap-2">
       <InfoIcon className="size-4 text-muted-foreground relative top-0.5" />
       <p className="text-sm text-foreground/70 flex-1">
-        {t(message.text)}{" "}
+        {t(disclaimer)}{" "}
         <a
-          href={message.url}
+          href={ORBS_TWAP_FAQ_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="text-primary"
@@ -409,24 +410,11 @@ const SubmitSwapMain = ({
 
 const SubmitSwap = () => {
   const { onSubmit, status, onSwapSuccess, parsedError, confirmButtonLoading } =
-    useSpot().submitOrderPanel;
+    useSpot().orderExecutionPanel;
   const { setInputAmount } = useSpotContext();
 
-  const { swapModule } = useSpotContext();
-  const orderTitle = useMemo(() => {
-    switch (swapModule) {
-      case Module.TWAP:
-        return "TWAP";
-      case Module.LIMIT:
-        return "Limit";
-      case Module.STOP_LOSS:
-        return "Stop Loss";
-      case Module.TAKE_PROFIT:
-        return "Take Profit";
-      default:
-        return "Order";
-    }
-  }, [swapModule]);
+  const orderType = useSpot().derivedFormData.orderType;
+  const orderTitle = getOrderTitle(orderType);
   const [isOpen, setIsOpen] = useState(false);
 
   const onOpen = useCallback(() => setIsOpen(true), []);
@@ -700,7 +688,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
             <ModuleInputs />
             <InputsErrorPanel />
             <SubmitSwap />
-            <Disclaimer />
+            <DisclaimerPanel />
           </div>
           <Portal containerId="spot-orders">
             <SpotsOrders />

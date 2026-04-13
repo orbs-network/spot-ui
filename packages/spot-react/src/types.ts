@@ -57,6 +57,12 @@ export type InitialState = {
 
 
 
+export enum Disclaimer {
+  TRIGGER_MARKET_PRICE = "triggerMarketPriceDisclaimer",
+  MARKET_PRICE = "marketOrderDisclaimer",
+  LIMIT_PRICE = "limitOrderDisclaimer",
+}
+
 
 export type Overrides = {
   wrap?: (amountWei: string) => Promise<`0x${string}`>;

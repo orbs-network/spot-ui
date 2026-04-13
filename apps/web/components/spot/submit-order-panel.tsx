@@ -24,7 +24,7 @@ type SubmitOrderPanelProps = {
   reviewDetails?: ReactNode;
 };
 
-type SubmitOrderPanelData = ReturnType<typeof useSpot>["submitOrderPanel"];
+type SubmitOrderPanelData = ReturnType<typeof useSpot>["orderExecutionPanel"];
 
 type SubmitPanelContextType = SubmitOrderPanelData & SubmitOrderPanelProps & {
   srcToken?: Token;
@@ -230,8 +230,8 @@ const SuccessContent = () => {
 };
 
 export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
-  const panelData = useSpot().submitOrderPanel;
-  const { status, stepIndex, totalSteps, parsedError, srcToken, dstToken, pendingSteps } = panelData;
+  const panelData = useSpot().orderExecutionPanel;
+  const { status, stepIndex, totalSteps, parsedError, srcToken, dstToken } = panelData;
   const formData = useSpot().derivedFormData;
 
   const srcAmountF = useFormatNumber({ value: formData.srcAmountUI, decimalScale: 2 });

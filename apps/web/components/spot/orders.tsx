@@ -1,7 +1,6 @@
 import {
   OrderFilter,
   OrderStatus,
-  OrderType,
   SPOT_VERSION,
   useSpot,
   type Order,
@@ -18,6 +17,7 @@ import { IconButton } from "../ui/icon-button";
 import { DialogHeader } from "../ui/dialog";
 import { SpotSelectMenu } from "./components";
 import { Spinner } from "../ui/spinner";
+import { getOrderTitle } from "@/lib/utils";
 
 const filterAndSortOrders = (orders: Order[], filter: OrderFilter): Order[] => {
   const filtered =
@@ -44,25 +44,6 @@ const getOrderFilterText = (filter: OrderFilter): string => {
   }
 };
 
-const getHistoryOrderTitle = (order?: Order): string => {
-  if (!order) return "";
-  switch (order.type) {
-    case OrderType.LIMIT:
-      return "Limit";
-    case OrderType.TWAP_LIMIT:
-      return "TWAP Limit";
-    case OrderType.TWAP_MARKET:
-      return "TWAP Market";
-    case OrderType.TAKE_PROFIT:
-      return "Take Profit";
-    case OrderType.STOP_LOSS_LIMIT:
-      return "Stop Loss Limit";
-    case OrderType.STOP_LOSS_MARKET:
-      return "Stop Loss Market";
-    default:
-      return order.type || "";
-  }
-};
 
 const getSinkUrl = (orderId: string) => {
   if (Number(SPOT_VERSION) >= 2) {
@@ -113,7 +94,7 @@ export const SpotsOrders = () => {
     () => orders.all.find((o: Order) => o.id === selectedOrderID),
     [orders, selectedOrderID],
   );
-  const selectedOrderTitle = getHistoryOrderTitle(selectedRawOrder);
+  const selectedOrderTitle = getOrderTitle(selectedRawOrder?.type);
 
   const selectedOrder = useMemo(() => {
     return selectedOrderID

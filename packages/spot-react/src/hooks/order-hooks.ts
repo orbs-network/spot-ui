@@ -32,7 +32,7 @@ export const useOrderType = () => {
         : OrderType.STOP_LOSS_LIMIT;
     }
     if (module === Module.TAKE_PROFIT) {
-      return OrderType.TAKE_PROFIT;
+      return isMarketOrder ? OrderType.TAKE_PROFIT_MARKET : OrderType.TAKE_PROFIT_LIMIT;
     }
     return OrderType.TWAP_MARKET;
   }, [module, isMarketOrder]);

@@ -1,6 +1,6 @@
 "use client";
 import { ArrowRightIcon } from "lucide-react";
-import { Order, OrderType } from "@orbs-network/spot-react";
+import { Order } from "@orbs-network/spot-react";
 import { useDateFormat } from "@/lib/hooks/common";
 import * as React from "react";
 import { Virtuoso } from "react-virtuoso";
@@ -8,6 +8,7 @@ import { useTranslations } from "@/lib/use-translations";
 import { useSpotToken } from "@/lib/hooks/spot-hooks";
 import { SpotTokenLogo } from "./components";
 import { useOrdersPanelContext } from "./orders-context";
+import { getOrderTitle } from "@/lib/utils";
 
 const ListLoader = () => {
   return <div className="twap-orders__loader">{<p>Loading...</p>}</div>;
@@ -88,29 +89,10 @@ const EmptyList = () => {
   );
 };
 
-const getHistoryOrderTitle = (order?: Order): string => {
-  if (!order) return "";
-  switch (order.type) {
-    case OrderType.LIMIT:
-      return "Limit";
-    case OrderType.TWAP_LIMIT:
-      return "TWAP Limit";
-    case OrderType.TWAP_MARKET:
-      return "TWAP Market";
-    case OrderType.TAKE_PROFIT:
-      return "Take Profit";
-    case OrderType.STOP_LOSS_LIMIT:
-      return "Stop Loss Limit";
-    case OrderType.STOP_LOSS_MARKET:
-      return "Stop Loss Market";
-    default:
-      return order.type || "";
-  }
-};
 
 const ListItemHeader = ({ order }: { order: Order }) => {
   const status = order && order.status;
-  const name = getHistoryOrderTitle(order);
+  const name = getOrderTitle(order.type);
   const formattedDate = useDateFormat(order.createdAt);
 
   return (

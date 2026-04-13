@@ -4,13 +4,13 @@ import { getApiEndpoint, maxUint256, SPOT_VERSION } from "../consts";
 import { OrderStatus, OrderType, OrderV2, Order, OrderFill } from "../types";
 import BN from "bignumber.js";
 
-
 const getOrderType = (order: OrderV2) => {
   const isLimit = BN(order.order.witness.output.limit || 0).gt(1);
   const stop = order.order.witness.output.stop;
   const triggerUpper = order.order.witness.output.triggerUpper;
 
-  const isTakeProfit = BN(stop || 0).eq(maxUint256) || BN(triggerUpper || 0).gt(0);
+  const isTakeProfit =
+    BN(stop || 0).eq(maxUint256) || BN(triggerUpper || 0).gt(0);
   const isStopLoss = BN(stop || 0).gt(0);
   const chunks =
     order.metadata.chunks?.length ||
@@ -19,7 +19,7 @@ const getOrderType = (order: OrderV2) => {
       .toNumber();
 
   if (isTakeProfit) {
-    return OrderType.TAKE_PROFIT;
+    return isLimit ? OrderType.TAKE_PROFIT_LIMIT : OrderType.TAKE_PROFIT_MARKET;
   }
 
   if (isStopLoss) {
@@ -98,7 +98,6 @@ const getDstMinAmountPerTrade = (order: OrderV2) => {
     : order.order.witness.output.limit;
 };
 
-
 type Amounts = {
   dstMinAmountPerTrade: string;
   triggerPricePerTrade: string;
@@ -106,11 +105,7 @@ type Amounts = {
 };
 
 const getAmountsSpotV2 = (order: OrderV2): Amounts => {
-  const {
-    triggerLower = "0",
-    triggerUpper = "0",
-  } = order.order.witness.output;
-
+  const { triggerLower = "0", triggerUpper = "0" } = order.order.witness.output;
 
   const dstMinAmountPerTrade = getDstMinAmountPerTrade(order);
   const totalTradesAmount = order.metadata.expectedChunks || 1;
@@ -126,7 +121,6 @@ const getAmountsSpotV2 = (order: OrderV2): Amounts => {
 };
 
 const getAmountsProd = (order: OrderV2): Amounts => {
-
   const dstMinAmountPerTrade = getDstMinAmountPerTrade(order);
 
   const isTakeProfit = BN(order.order.witness.output.stop || 0).eq(maxUint256);
@@ -145,7 +139,9 @@ const getAmountsProd = (order: OrderV2): Amounts => {
 };
 
 const getAmounts = (order: OrderV2): Amounts => {
-  return Number(SPOT_VERSION) >= 2 ? getAmountsSpotV2(order) : getAmountsProd(order);
+  return Number(SPOT_VERSION) >= 2
+    ? getAmountsSpotV2(order)
+    : getAmountsProd(order);
 };
 
 export const buildV2Order = (order: OrderV2): Order => {
@@ -184,7 +180,11 @@ export const buildV2Order = (order: OrderV2): Order => {
     chainId: order.order.witness.chainid,
     filledOrderTimestamp: getFilledOrderTimestamp(fills, totalTradesAmount),
     status: getStatus(order, progress),
-    isTriggerPrice: type === OrderType.TAKE_PROFIT || type === OrderType.STOP_LOSS_LIMIT || type === OrderType.STOP_LOSS_MARKET,
+    isTriggerPrice:
+      type === OrderType.TAKE_PROFIT_MARKET ||
+      type === OrderType.TAKE_PROFIT_LIMIT ||
+      type === OrderType.STOP_LOSS_LIMIT ||
+      type === OrderType.STOP_LOSS_MARKET,
     rawOrder: order,
     ...getAmounts(order),
   };
