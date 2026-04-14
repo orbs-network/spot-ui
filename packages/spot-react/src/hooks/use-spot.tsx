@@ -20,6 +20,8 @@ import {
   useCancelOrderRefetchUntilStatusSynced,
 } from "./use-cancel-order";
 import { useSignOrder, useSubmitOrderMutation } from "./use-submit-order";
+import { useSpotContext } from "../spot-context";
+import { Module } from "@orbs-network/spot-ui";
 
 type SpotData = {
   tradesAmountPanel: ReturnType<typeof useTradesPanel>;
@@ -36,6 +38,7 @@ type SpotData = {
   orderExecutionPanel: ReturnType<typeof useSubmitOrderPanel>;
   derivedFormData: ReturnType<typeof useFormData>;
   supportedChains: ReturnType<typeof usePartnerChains>;
+  module: Module;
   mutations: {
     cancelOrder: ReturnType<typeof useCancelOrderMutation>;
     signOrder: ReturnType<typeof useSignOrder>;
@@ -72,6 +75,7 @@ export const SpotDataProvider = ({
   const signOrder = useSignOrder();
   const submitOrder = useSubmitOrderMutation();
   const refetchUntilStatusSynced = useCancelOrderRefetchUntilStatusSynced();
+  const {module} = useSpotContext();
 
   const mutations = useMemo(
     () => ({ cancelOrder, signOrder, submitOrder, refetchUntilStatusSynced }),
@@ -96,6 +100,7 @@ export const SpotDataProvider = ({
     orderExecutionPanel,
     supportedChains,
     mutations,
+    module
   }
   
 

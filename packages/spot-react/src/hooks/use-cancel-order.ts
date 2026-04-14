@@ -98,12 +98,7 @@ export const useCancelOrderMutation = () => {
         throw new Error("failed to cancel order");
 
       analytics.onCancelOrderSuccess(hash);
-      callbacks?.onCancelOrderSuccess?.({
-        orders,
-        txHash: hash,
-        explorerUrl: getExplorerUrl(hash, chainId),
-      });
-
+    
       return receipt.transactionHash;
     } catch (error) {
       analytics.onCancelOrderError(error);
@@ -134,6 +129,14 @@ export const useCancelOrderMutation = () => {
           ordersV2.length ? cancelOrdersV2(ordersV2) : Promise.resolve(""),
         ]);
         await refetchUntilStatusSynced(orders.map((o) => o.id));
+
+    
+        const txHash = v1Results || v2Result;
+        callbacks?.onCancelOrderSuccess?.({
+          orders,
+          txHash: txHash,
+          explorerUrl: getExplorerUrl(txHash, chainId),
+        });
         updateState({
           cancelOrderStatus: SwapStatus.SUCCESS,
         });

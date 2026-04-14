@@ -16,6 +16,7 @@ import {
   useSpot,
   SPOT_VERSION,
   ORBS_TWAP_FAQ_URL,
+  SwapStatus,
 } from "@orbs-network/spot-react";
 import { useFormatNumber } from "@/lib/hooks/common";
 import { Currency, Field, SwapType } from "@/lib/types";
@@ -409,7 +410,7 @@ const SubmitSwapMain = ({
 };
 
 const SubmitSwap = () => {
-  const { onSubmit, status, onSwapSuccess, parsedError, confirmButtonLoading } =
+  const { onSubmit, status, resetState,resetCurrentSwap, parsedError, confirmButtonLoading } =
     useSpot().orderExecutionPanel;
   const { setInputAmount } = useSpotContext();
 
@@ -421,13 +422,18 @@ const SubmitSwap = () => {
 
   const onClose = useCallback(() => {
     setIsOpen(false);
-    if (Boolean(status)) {
+    if(status === SwapStatus.SUCCESS) {
       setInputAmount("");
       setTimeout(() => {
-        onSwapSuccess();
+        resetState();
       }, 500);
     }
-  }, [onSwapSuccess, setInputAmount, status]);
+    else if (Boolean(status)) {
+      setTimeout(() => {
+        resetCurrentSwap();
+      }, 500);
+    }
+  }, [resetState, resetCurrentSwap, setInputAmount, status]);
 
   return (
     <>
