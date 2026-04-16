@@ -260,7 +260,7 @@ const AmountOutFilled = () => {
   return (
     <OrderDetails.DetailRow title={t("amountReceived")}>
       <p>
-        <FormatNumber value={order.amountOutFilled} />{" "}
+        <FormatNumber value={order.amountOutFilledUI} />{" "}
         {order.dstToken?.symbol}
       </p>
     </OrderDetails.DetailRow>
@@ -322,7 +322,7 @@ const AmountInFilled = () => {
   return (
     <OrderDetails.DetailRow title={t("amountOut")}>
       <p>
-        <FormatNumber value={order.amountInFilled} decimalScale={3} />{" "}
+        <FormatNumber value={order.amountInFilledUI} decimalScale={3} />{" "}
         {order.srcToken?.symbol}
       </p>
     </OrderDetails.DetailRow>
@@ -398,7 +398,7 @@ const AvgExecutionPrice = () => {
   return (
     <OrderDetails.Price
       label={t(order.original.totalTradesAmount === 1 ? "finalExecutionPrice" : "averageExecutionPrice")}
-      price={order.executionPrice}
+      price={order.executionPriceUI}
       srcToken={order.srcToken}
       dstToken={order.dstToken}
     />

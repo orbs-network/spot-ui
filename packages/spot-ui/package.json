@@ -1,6 +1,6 @@
 {
   "name": "@orbs-network/spot-ui",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Spot SDK",
   "type": "module",
   "main": "./dist/spot-ui.umd.cjs",
@@ -36,7 +36,7 @@
     "vite-plugin-dts": "^4.4.0"
   },
   "dependencies": {
-    "@orbs-network/spot": "^2.3.3",
+    "@orbs-network/spot": "^2.3.4",
     "@orbs-network/twap": "^2.7.28"
   }
 }
