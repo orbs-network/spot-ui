@@ -27,7 +27,9 @@ const spot = useSpot();
 | `spot.derivedFormData` | Computed: `srcAmountUI`, `dstAmountUI`, `srcAmountUsd`, `dstAmountUsd`, `limitPriceUI`, `triggerPriceUI`, `limitPriceUsd`, `triggerPriceUsd`, `totalTrades`, `sizePerTradeUI`, `minDestAmountPerTradeUI`, `minDestAmountPerTradeUsd`, `deadline`, `tradeInterval`, `feesAmount`, `feesAmountUI`, `feesUsd`, `feesPercentage`, `orderType` |
 | `spot.supportedChains` | Partner's supported chain IDs |
 | `spot.module` | Current `Module` enum |
-| `spot.mutations` | `{ cancelOrder, signOrder, submitOrder, refetchUntilStatusSynced }` |
+
+
+Cancel orders use a separate `useCancelOrder` hook (see Cancel Order section below).
 
 ## Form Structure
 
@@ -359,6 +361,34 @@ function SubmitOrderModal({ isOpen, onClose }) {
 }
 ```
 
+## Cancel Order
+
+Use the `useCancelOrder` hook for per-order cancellation with built-in status tracking:
+
+```tsx
+import { useCancelOrder, OrderStatus } from "@orbs-network/spot-react";
+
+function CancelButton({ order }) {
+  const { cancelOrder, isLoading } = useCancelOrder(order);
+
+  if (order.status !== OrderStatus.Open) return null;
+
+  return (
+    <button onClick={cancelOrder} disabled={isLoading}>
+      {isLoading ? "Cancelling..." : "Cancel"}
+    </button>
+  );
+}
+```
+
+`useCancelOrder(order)` returns:
+- `cancelOrder` — async function to trigger cancellation
+- `isLoading`, `isSuccess`, `isError` — status flags
+- `txHash` — transaction hash on success
+- `error` — error message on failure
+
+Each order's cancel status is tracked independently, so multiple cancellations can run concurrently.
+
 ## Order History
 
 Build order history using `useSpot().orderHistoryPanel` for the list and `useDerivedHistoryOrder()` for individual order display:
@@ -368,19 +398,18 @@ import { useDerivedHistoryOrder, OrderStatus } from "@orbs-network/spot-react";
 
 function OrderHistorySection() {
   const { orders } = useSpot().orderHistoryPanel;
-  const { mutateAsync: cancelOrder } = useSpot().mutations.cancelOrder;
 
   return (
     <div>
       <h3>Orders ({orders.all.length})</h3>
       {orders.all.map((order) => (
-        <OrderPreview key={order.id} order={order} onCancel={cancelOrder} />
+        <OrderPreview key={order.id} order={order} />
       ))}
     </div>
   );
 }
 
-function OrderPreview({ order, onCancel }) {
+function OrderPreview({ order }) {
   const derived = useDerivedHistoryOrder(order);
   if (!derived) return null;
 
@@ -388,9 +417,7 @@ function OrderPreview({ order, onCancel }) {
     <div>
       <p>#{order.id} — {order.status}</p>
       <p>{derived.srcAmountUI} → {derived.dstAmountUI}</p>
-      {order.status === OrderStatus.Open && (
-        <button onClick={() => onCancel({ orders: [order] })}>Cancel</button>
-      )}
+      <CancelButton order={order} />
     </div>
   );
 }

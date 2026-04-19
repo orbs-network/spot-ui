@@ -23,10 +23,11 @@ The host app must also have these installed:
 | `@tanstack/react-query`| `^5.90.12` |
 | `bignumber.js`         | `^9.3.1`   |
 | `react-error-boundary` | `^6.0.0`   |
-| `viem`                 | `^2.43.3`  |
 | `zustand`              | `^5.0.9`   |
 | `react`                | `^18 \|\| ^19` |
 | `react-dom`            | `^18 \|\| ^19` |
+
+Note: `viem` is **not** required. The DEX provides wallet interactions via the `walletInteractions` prop using whatever wallet library it already uses.
 
 ## DEX Configuration
 

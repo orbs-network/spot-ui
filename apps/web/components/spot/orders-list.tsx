@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/preserve-manual-memoization */
 "use client";
 import { ArrowRightIcon } from "lucide-react";
 import { Order } from "@orbs-network/spot-react";
@@ -15,7 +16,7 @@ const ListLoader = () => {
 };
 
 export const OrdersList = () => {
-  const { isLoading, orderIdsToCancel, cancelOrdersMode, filteredOrders: ordersToDisplay, onToggleCancelOrderId } = useOrdersPanelContext();
+  const { isLoading, filteredOrders: ordersToDisplay } = useOrdersPanelContext();
 
   return (
     <>
@@ -24,16 +25,13 @@ export const OrdersList = () => {
       ) : !ordersToDisplay?.length ? (
         <EmptyList />
       ) : (
-        <div className={`twap-orders__list ${cancelOrdersMode ? "twap-orders__list-select-mode" : ""}`}>
+        <div className="twap-orders__list">
           <Virtuoso
             style={{ height: "100%" }}
             data={ordersToDisplay}
             itemContent={(index, order) => (
               <ListOrder
-                cancelOrdersMode={Boolean(cancelOrdersMode)}
-                selected={orderIdsToCancel?.includes(order.id) || false}
                 key={index}
-                selectOrder={onToggleCancelOrderId}
                 order={order}
               />
             )}
@@ -44,27 +42,18 @@ export const OrdersList = () => {
   );
 };
 
-const ListOrder = ({ order, selectOrder, selected, cancelOrdersMode }: { order: Order; selectOrder: (id: string) => void; selected: boolean; cancelOrdersMode: boolean }) => {
+const ListOrder = ({ order }: { order: Order }) => {
   const { onDisplayOrder } = useOrdersPanelContext();
 
   const onShowOrder = React.useCallback(() => {
     onDisplayOrder(order?.id);
   }, [onDisplayOrder, order?.id]);
 
-  const onClick = React.useCallback(() => {
-    if (cancelOrdersMode) {
-      selectOrder(order?.id);
-    } else {
-      onShowOrder();
-    }
-  }, [cancelOrdersMode, selectOrder, onShowOrder, order?.id]);
 
   return (
     <div
-      className={`twap-orders__list-item twap-orders__list-item-${order.status} ${cancelOrdersMode ? "twap-orders__list-item-select-mode" : ""} ${
-        selected ? "twap-orders__list-item-selected" : ""
-      }`}
-      onClick={onClick}
+      className={`twap-orders__list-item twap-orders__list-item-${order.status}`}
+      onClick={onShowOrder}
     >
       <div className="twap-orders__list-item-content">
         <ListItemHeader order={order} />

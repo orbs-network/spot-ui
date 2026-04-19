@@ -104,13 +104,15 @@ export function SpotForm({ swapType }) { ... }
 
 ## Final Checklist
 
-- [ ] `@orbs-network/spot-react@latest` installed with all peer dependencies
+- [ ] `@orbs-network/spot-react@latest` installed with all peer dependencies (no viem required)
+- [ ] `walletInteractions` provided with all 5 methods (wrapNativeToken, approveToken, cancelOrder, signOrder, getAllowance)
 - [ ] `typedInputAmount` from DEX state
 - [ ] Input reset handled in modal `onClose` when `status` is truthy, after `onSwapSuccess()`
 - [ ] Balance refetch handled via `onWrapSuccess` and `onOrdersProgressUpdate` callbacks
 - [ ] Token inputs use DEX components unchanged
 - [ ] Duration/interval panels use Input + Select with `TimeUnit` options
 - [ ] Submit modal built using `useSpot().orderExecutionPanel` and `useSpot().derivedFormData`
+- [ ] Order cancellation uses `useCancelOrder(order)` hook
 - [ ] Order history built using `useSpot().orderHistoryPanel` and `useDerivedHistoryOrder()`
 - [ ] DEX styles applied to orders list, selected order view, submit order content
 - [ ] Price Protection setting persisted

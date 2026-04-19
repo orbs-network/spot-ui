@@ -1,8 +1,8 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 import {
   createContext,
   ReactNode,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -12,6 +12,7 @@ import { ChevronDownIcon } from "lucide-react";
 import { TokensDisplay } from "@orbs-network/swap-ui";
 import {
   OrderStatus,
+  useCancelOrder,
   useDerivedHistoryOrder,
   useSpot,
   type Order,
@@ -37,7 +38,8 @@ const useOrderContext = () => {
 };
 
 export const OrderPreview = () => {
-  const { selectedOrderID, isDisplayingOrderFills, onHideOrderFills } = useOrdersPanelContext();
+  const { selectedOrderID, isDisplayingOrderFills, onHideOrderFills } =
+    useOrdersPanelContext();
   const { orders } = useSpot().orderHistoryPanel;
   const rawOrder = useMemo(
     () => orders.all.find((o: Order) => o.id === selectedOrderID),
@@ -52,8 +54,7 @@ export const OrderPreview = () => {
 
   useEffect(() => {
     setExpanded("panel1");
-    if (isDisplayingOrderFills) onHideOrderFills();
-  }, [order?.id]);
+  }, [order?.id, isDisplayingOrderFills, onHideOrderFills]);
 
   const handleChange = (panel: string) => {
     setExpanded(expanded === panel ? false : panel);
@@ -103,7 +104,11 @@ export const OrderPreview = () => {
 
   return (
     <Context.Provider value={{ order }}>
-      <div className={`twap-orders__selected-order ${`twap-orders__selected-order-${order.original.status.toLowerCase()}`}`}>{content}</div>
+      <div
+        className={`twap-orders__selected-order ${`twap-orders__selected-order-${order.original.status.toLowerCase()}`}`}
+      >
+        {content}
+      </div>
     </Context.Provider>
   );
 };
@@ -270,19 +275,14 @@ const AmountOutFilled = () => {
 export const CancelOrderButton = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
-  const { mutateAsync: cancelOrder, isPending: isLoading } =
-    useSpot().mutations.cancelOrder;
-
-  const onCancelOrder = useCallback(async () => {
-    return cancelOrder({ orders: [order.original] });
-  }, [cancelOrder, order]);
+  const { cancelOrder, isLoading } = useCancelOrder(order.original);
 
   if (!order || order.original.status !== OrderStatus.Open) return null;
 
   return (
     <Button
       isLoading={isLoading}
-      onClick={onCancelOrder}
+      onClick={cancelOrder}
       disabled={isLoading}
       className="twap-cancel-order"
     >
@@ -397,7 +397,11 @@ const AvgExecutionPrice = () => {
   if (!order.executionPrice) return null;
   return (
     <OrderDetails.Price
-      label={t(order.original.totalTradesAmount === 1 ? "finalExecutionPrice" : "averageExecutionPrice")}
+      label={t(
+        order.original.totalTradesAmount === 1
+          ? "finalExecutionPrice"
+          : "averageExecutionPrice",
+      )}
       price={order.executionPriceUI}
       srcToken={order.srcToken}
       dstToken={order.dstToken}

@@ -12,42 +12,12 @@ import {
   SpotProps,
   SpotContextType,
   MarketReferencePrice,
-  Provider,
 } from "./types";
 import { ErrorBoundary } from "react-error-boundary";
 import { useSpotStore } from "./store";
 import { useSwapExecution } from "./hooks/use-swap-execution";
 import BN from "bignumber.js";
 import { shouldUnwrapOnly, shouldWrapOnly, toAmountWei } from "./utils";
-import * as chains from "viem/chains";
-import { Chain } from "viem";
-import { custom, createWalletClient, createPublicClient, http } from "viem";
-
-import type { WalletClient, PublicClient } from "viem";
-
-const initiateWallet = (chainId?: number, provider?: Provider) => {
-  const chain = Object.values(chains).find((it: Chain) => it.id === chainId);
-
-  if (!chain) {
-    return {
-      walletClient: undefined,
-      publicClient: undefined,
-    };
-  }
-  const transport = provider ? custom(provider) : undefined;
-  const walletClient = transport
-    ? (createWalletClient({ chain, transport }) as any)
-    : undefined;
-  const publicClient = createPublicClient({
-    chain,
-    transport: transport || http(),
-  });
-
-  return {
-    walletClient: walletClient as WalletClient | undefined,
-    publicClient: publicClient as PublicClient | undefined,
-  };
-};
 
 const SpotFallbackUI = () => {
   return (
@@ -90,7 +60,7 @@ const queryClient = new QueryClient({
 const Listeners = (props: SpotProps) => {
   const updateStore = useSpotStore((s) => s.updateState);
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
-  
+
   // update current time every minute, so the deadline will be updated when confirmation window is open
   useEffect(() => {
     const id = setInterval(() => {
@@ -117,7 +87,7 @@ const Listeners = (props: SpotProps) => {
     });
   }, [props.overrides?.state, props.module]);
 
-  
+
 
   useEffect(() => {
     updateStore({
@@ -144,7 +114,7 @@ const Listeners = (props: SpotProps) => {
   useEffect(() => {
     updateStore({ typedChunks: undefined });
   }, [props.typedInputAmount])
-  
+
 
 
   return null;
@@ -190,11 +160,6 @@ const useParsedMarketPrice = ({
 
 const Content = (props: SpotProps) => {
   const swapExecution = useSwapExecution();
-  const { walletClient, publicClient } = useMemo(
-    () => initiateWallet(props.chainId, props.provider),
-    [props.chainId, props.provider]
-  );
-
 
   const supportedChains = useMemo(
     () => getPartnerChains(props.partner),
@@ -233,8 +198,7 @@ const Content = (props: SpotProps) => {
         typedInputAmount: props.typedInputAmount,
         minChunkSizeUsd,
         account: props.account as `0x${string}` | undefined,
-        walletClient,
-        publicClient,
+        walletInteractions: props.walletInteractions,
         marketPrice: swapExecution.acceptedMarketPrice || marketReferencePrice.value,
         marketPriceLoading:
           !swapExecution.acceptedMarketPrice && marketReferencePrice.isLoading,

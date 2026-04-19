@@ -13,7 +13,7 @@ npm install @orbs-network/spot-react
 These must be installed in your application:
 
 ```bash
-npm install @tanstack/react-query bignumber.js react-error-boundary viem zustand react react-dom
+npm install @tanstack/react-query bignumber.js react-error-boundary zustand react react-dom
 ```
 
 | Package                | Version    |
@@ -21,7 +21,6 @@ npm install @tanstack/react-query bignumber.js react-error-boundary viem zustand
 | `@tanstack/react-query`| `^5.90.12` |
 | `bignumber.js`         | `^9.3.1`   |
 | `react-error-boundary` | `^6.0.0`   |
-| `viem`                 | `^2.43.3`  |
 | `zustand`              | `^5.0.9`   |
 | `react`                | `^18 \|\| ^19` |
 | `react-dom`            | `^18 \|\| ^19` |
@@ -34,33 +33,118 @@ import {
   useSpot,
   Module,
   Partners,
+  type WalletInteractions,
 } from "@orbs-network/spot-react";
 
 function App() {
   return (
     <SpotProvider
-      chainId={137}                          // Polygon
-      provider={walletProvider}              // EIP-1193 provider
-      account={walletAddress}               // Connected wallet address
-      partner={Partners.Quick}              // DEX partner
-      module={Module.TWAP}                  // Order type
-      typedInputAmount={inputAmount}        // User-typed amount (string)
-      priceProtection={0.5}                 // Slippage tolerance %
-      minChunkSizeUsd={5}                   // Min chunk size in USD
-      srcToken={srcToken}                   // { address, symbol, decimals, logoUrl }
+      chainId={137}                              // Polygon
+      walletInteractions={walletInteractions}    // Wallet interaction handlers
+      account={walletAddress}                    // Connected wallet address
+      partner={Partners.Quick}                   // DEX partner
+      module={Module.TWAP}                       // Order type
+      typedInputAmount={inputAmount}             // User-typed amount (string)
+      priceProtection={0.5}                      // Slippage tolerance %
+      minChunkSizeUsd={5}                        // Min chunk size in USD
+      srcToken={srcToken}                        // { address, symbol, decimals, logoUrl }
       dstToken={dstToken}
-      srcBalance={srcBalanceWei}            // Balance in wei (string)
+      srcBalance={srcBalanceWei}                 // Balance in wei (string)
       dstBalance={dstBalanceWei}
-      srcUsd1Token={srcUsdPrice}            // USD price of 1 token (string)
+      srcUsd1Token={srcUsdPrice}                 // USD price of 1 token (string)
       dstUsd1Token={dstUsdPrice}
-      marketReferencePrice={marketPrice}    // { value?: string, isLoading?: boolean }
-      callbacks={callbacks}                 // Lifecycle event handlers
-      fees={0.25}                           // Fee percentage
+      marketReferencePrice={marketPrice}         // { value?: string, isLoading?: boolean }
+      callbacks={callbacks}                      // Lifecycle event handlers
+      fees={0.25}                                // Fee percentage
     >
       <SwapForm />
     </SpotProvider>
   );
 }
+```
+
+## WalletInteractions
+
+The host app provides wallet interaction handlers via the `walletInteractions` prop. This keeps spot-react wallet-agnostic — it works with viem, ethers, web3.js, or any wallet library.
+
+```tsx
+const walletInteractions: WalletInteractions = {
+  // Wrap native token (e.g. ETH -> WETH). Wait for receipt, return tx hash.
+  wrapNativeToken: async (amountWei) => { ... },
+
+  // Approve ERC-20 token spending. Wait for receipt, return tx hash.
+  approveToken: async ({ token, amount, spender }) => { ... },
+
+  // Cancel an order on-chain. Wait for receipt, return tx hash.
+  cancelOrder: async ({ order, contractAddress, args }) => { ... },
+
+  // Sign EIP-712 typed data for order creation. Return signature hex.
+  signOrder: async ({ domain, types, primaryType, message, account }) => { ... },
+
+  // Read ERC-20 allowance. Return allowance as string.
+  getAllowance: async ({ tokenAddress, spenderAddress }) => { ... },
+};
+```
+
+Each write method (`wrapNativeToken`, `approveToken`, `cancelOrder`) should wait for tx confirmation and throw if the transaction reverts.
+
+### Example with viem/wagmi
+
+```tsx
+import { erc20Abi } from "viem";
+
+const walletInteractions: WalletInteractions = {
+  wrapNativeToken: async (amountWei) => {
+    const hash = await walletClient.writeContract({
+      abi: [{ name: "deposit", type: "function", stateMutability: "payable", inputs: [], outputs: [] }],
+      functionName: "deposit",
+      address: wTokenAddress,
+      args: [],
+      value: BigInt(amountWei),
+      chain: walletClient.chain,
+      account: walletClient.account!,
+    });
+    await publicClient.waitForTransactionReceipt({ hash, confirmations: 2 });
+    return hash;
+  },
+  approveToken: async ({ token, spender }) => {
+    const maxUint256 = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+    const hash = await walletClient.writeContract({
+      abi: erc20Abi,
+      functionName: "approve",
+      address: token as `0x${string}`,
+      args: [spender as `0x${string}`, maxUint256],
+      chain: walletClient.chain,
+      account: walletClient.account!,
+    });
+    await publicClient.waitForTransactionReceipt({ hash, confirmations: 2 });
+    return hash;
+  },
+  cancelOrder: async ({ order, contractAddress, args }) => {
+    const hash = await walletClient.writeContract({
+      abi: cancelAbi, // TWAP_ABI for v1, REPERMIT_ABI for v2
+      functionName: "cancel",
+      address: contractAddress as `0x${string}`,
+      args: args as any,
+      chain: walletClient.chain,
+      account: walletClient.account!,
+    });
+    await publicClient.waitForTransactionReceipt({ hash, confirmations: 2 });
+    return hash;
+  },
+  signOrder: async ({ domain, types, primaryType, message, account }) => {
+    return walletClient.signTypedData({ domain, types, primaryType, message, account });
+  },
+  getAllowance: async ({ tokenAddress, spenderAddress }) => {
+    const result = await publicClient.readContract({
+      address: tokenAddress as `0x${string}`,
+      abi: erc20Abi,
+      functionName: "allowance",
+      args: [walletClient.account!.address, spenderAddress as `0x${string}`],
+    });
+    return String(result);
+  },
+};
 ```
 
 ## SpotProvider Props
@@ -73,19 +157,19 @@ function App() {
 | `priceProtection` | `number` | Yes | Slippage tolerance percentage |
 | `minChunkSizeUsd` | `number` | Yes | Minimum trade chunk size in USD |
 | `marketReferencePrice` | `MarketReferencePrice` | Yes | `{ value?: string, isLoading?: boolean, noLiquidity?: boolean }` |
+| `walletInteractions` | `WalletInteractions` | Yes | Wallet interaction handlers |
 | `chainId` | `number` | No | Connected chain ID |
-| `provider` | `Provider` | No | EIP-1193 wallet provider |
 | `account` | `string` | No | Connected wallet address |
-| `srcToken` | `Token` | No | Source token |
-| `dstToken` | `Token` | No | Destination token |
+| `srcToken` | `Token` | No | `{ address, symbol, decimals, logoUrl }` |
+| `dstToken` | `Token` | No | `{ address, symbol, decimals, logoUrl }` |
 | `srcBalance` | `string` | No | Source balance in wei |
 | `dstBalance` | `string` | No | Destination balance in wei |
 | `srcUsd1Token` | `string` | No | USD price of 1 source token |
 | `dstUsd1Token` | `string` | No | USD price of 1 destination token |
 | `callbacks` | `Callbacks` | No | Lifecycle event handlers |
-| `fees` | `number` | No | Fee percentage |
+| `fees` | `number` | No | Fee percentage (e.g. 0.25) |
 | `isDev` | `boolean` | No | Enable dev mode |
-| `overrides` | `Overrides` | No | Custom wrap/approve/order handlers |
+| `overrides` | `Overrides` | No | Initial state overrides |
 
 ## useSpot() Hook
 
@@ -114,7 +198,6 @@ const spot = useSpot();
 | `spot.derivedFormData` | Computed values: amounts, prices, deadline, fees |
 | `spot.supportedChains` | Partner's supported chain IDs |
 | `spot.module` | Current `Module` enum |
-| `spot.mutations` | `{ cancelOrder, signOrder, submitOrder }` |
 
 ### Order Execution Panel
 
@@ -133,6 +216,22 @@ const {
   wrapTxHash,            // Wrap transaction hash
   approveTxHash,         // Approve transaction hash
 } = useSpot().orderExecutionPanel;
+```
+
+### Cancel Order
+
+```tsx
+import { useCancelOrder } from "@orbs-network/spot-react";
+
+// Inside a component rendered within SpotProvider:
+const { cancelOrder, isLoading, isSuccess, isError, error, txHash } = useCancelOrder(order);
+
+// Cancel the order
+await cancelOrder();
+
+// Or use getCancelStatus for any order by ID:
+const { getCancelStatus } = useCancelOrder();
+const status = getCancelStatus(orderId); // { status, txHash?, error? } | undefined
 ```
 
 ## Callbacks
@@ -160,9 +259,9 @@ const callbacks: Callbacks = {
   onSubmitOrderFailed: ({ code, message }) => {},
   onSubmitOrderRejected: () => {},
 
-  // Order management
-  onCancelOrderRequest: (orders) => {},
-  onCancelOrderSuccess: ({ orders, txHash, explorerUrl }) => {},
+  // Order cancellation
+  onCancelOrderRequest: (order) => {},
+  onCancelOrderSuccess: ({ order, txHash, explorerUrl }) => {},
   onCancelOrderFailed: (error) => {},
 
   // Progress (good place to refetch balances)
@@ -201,8 +300,6 @@ The SDK returns string keys for user-facing messages. You should resolve these t
 - `"minDurationError"` / `"maxDurationError"` (args: `{ duration }`)
 - `"minFillDelayError"` / `"maxFillDelayError"` (args: `{ fillDelay }`)
 - `"noLiquidity"`
-
-See `integration-example.tsx` for a full working reference.
 
 ## Order Types
 
@@ -248,15 +345,11 @@ import {
 
 ## Overrides
 
-For custom wallet interactions, pass `overrides` to `SpotProvider`:
+For initial form state, pass `overrides` to `SpotProvider`:
 
 ```tsx
 <SpotProvider
   overrides={{
-    wrap: async (amountWei) => txHash,
-    approveOrder: async ({ tokenAddress, amount, spenderAddress }) => txHash,
-    createOrder: async ({ contractAddress, abi, functionName, args }) => txHash,
-    getAllowance: async ({ tokenAddress, spenderAddress }) => allowanceString,
     state: {
       isMarketOrder: false,
       chunks: 10,

@@ -58,7 +58,7 @@ const callbacks = useMemo(() => ({
   dstUsd1Token={outputUsd}
   chainId={chainId}
   account={address}
-  provider={walletClient?.transport}
+  walletInteractions={walletInteractions}
   fees={0.25}
   callbacks={callbacks}
 />
@@ -74,8 +74,8 @@ const callbacks = useMemo(() => ({
 | `priceProtection` | `number` | Yes | Slippage tolerance percentage |
 | `minChunkSizeUsd` | `number` | Yes | Minimum trade chunk size in USD |
 | `marketReferencePrice` | `MarketReferencePrice` | Yes | `{ value?: string, isLoading?: boolean, noLiquidity?: boolean }` |
+| `walletInteractions` | `WalletInteractions` | Yes | Wallet interaction handlers (see README) |
 | `chainId` | `number` | No | Connected chain ID |
-| `provider` | `Provider` | No | EIP-1193 wallet provider (transport) |
 | `account` | `string` | No | Connected wallet address |
 | `srcToken` | `Token` | No | `{ address, symbol, decimals, logoUrl }` |
 | `dstToken` | `Token` | No | `{ address, symbol, decimals, logoUrl }` |
@@ -123,15 +123,11 @@ Balance refetching is handled via callbacks, not a prop. Wire `refetchBalances` 
 
 ## Overrides
 
-For custom wallet interactions or initial state, pass `overrides`:
+For initial form state, pass `overrides`:
 
 ```tsx
 <SpotProvider
   overrides={{
-    wrap: async (amountWei) => txHash,
-    approveOrder: async ({ tokenAddress, amount, spenderAddress }) => txHash,
-    createOrder: async ({ contractAddress, abi, functionName, args }) => txHash,
-    getAllowance: async ({ tokenAddress, spenderAddress }) => allowanceString,
     state: {
       isMarketOrder: false,
       chunks: 10,

@@ -3,7 +3,6 @@ import BN from "bignumber.js";
 import {
   analytics,
   isNativeAddress,
-  IWETH_ABI,
   submitOrder,
 } from "@orbs-network/spot-ui";
 import { ParsedError, Steps, Token } from "../types";
@@ -19,10 +18,8 @@ import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { useSwapExecution } from "./use-swap-execution";
 
-import { erc20Abi, maxUint256, numberToHex, parseSignature } from "viem";
 import { useOrdersQuery } from "./order-hooks";
 import { useNetwork } from "./helper-hooks";
-import { useGetTransactionReceipt } from "./use-get-transaction-receipt";
 import { useTriggerPrice } from "./use-trigger-price";
 import { useTrades } from "./use-trades";
 import { useDeadline } from "./use-deadline";
@@ -30,16 +27,26 @@ import { useFillDelay } from "./use-fill-delay";
 import { useDstMinAmountPerTrade } from "./use-dst-amount";
 import { useRePermitOrderData } from "./use-repermit-order-data";
 
+function parseSignatureBytes(sig: `0x${string}`) {
+  const raw = sig.slice(2);
+  if (raw.length === 128) {
+    // EIP-2098 compact signature (64 bytes): recover v from s high bit
+    const r = `0x${raw.slice(0, 64)}` as `0x${string}`;
+    const sHigh = parseInt(raw.charAt(64), 16);
+    const v = (sHigh >> 3) + 27;
+    const s = `0x${(sHigh & 0x7).toString(16)}${raw.slice(65, 128)}` as `0x${string}`;
+    return { r, s, v };
+  }
+  // Standard 65-byte signature
+  const r = `0x${raw.slice(0, 64)}` as `0x${string}`;
+  const s = `0x${raw.slice(64, 128)}` as `0x${string}`;
+  const v = parseInt(raw.slice(128, 130), 16);
+  return { r, s, v };
+}
+
 const useWrapToken = () => {
-  const {
-    account,
-    walletClient,
-    overrides,
-    callbacks,
-    chainId,
-  } = useSpotContext();
+  const { account, walletInteractions, callbacks, chainId } = useSpotContext();
   const wToken = useNetwork()?.wToken;
-  const getTransactionReceipt = useGetTransactionReceipt();
 
   return useMutation({
     mutationFn: async ({
@@ -52,45 +59,25 @@ const useWrapToken = () => {
       if (!account) {
         throw new Error("missing account");
       }
-      if (!walletClient) {
-        throw new Error("missing walletClient");
+      if (!walletInteractions) {
+        throw new Error("missing walletInteractions");
       }
       if (!wToken) {
         throw new Error("tokenAddress is not defined");
       }
 
-      let hash: `0x${string}` | undefined;
       analytics.onWrapRequest();
-      if (overrides?.wrap) {
-        hash = await overrides.wrap(srcAmountWei);
-      } else {
-        hash = await walletClient.writeContract({
-          abi: IWETH_ABI,
-          functionName: "deposit",
-          account,
-          address: wToken.address as `0x${string}`,
-          value: BigInt(srcAmountWei),
-          chain: walletClient.chain,
-        });
-      }
+      const hash = await walletInteractions.wrapNativeToken(srcAmountWei);
       callbacks?.onWrapRequest?.();
 
       onHash?.(hash);
-      const receipt = await getTransactionReceipt(hash);
-      if (!receipt) {
-        throw new Error("failed to get transaction receipt");
-      }
-
-      if (receipt.status === "reverted") {
-        throw new Error("failed to wrap token");
-      }
       analytics.onWrapSuccess(hash);
       callbacks?.onWrapSuccess?.({
-        txHash: receipt.transactionHash,
-        explorerUrl: getExplorerUrl(receipt.transactionHash, chainId),
+        txHash: hash,
+        explorerUrl: getExplorerUrl(hash, chainId),
         amount: toAmountUi(srcAmountWei, wToken.decimals),
       });
-      return receipt;
+      return hash;
     },
     onError: (error) => {
       analytics.onWrapError(error);
@@ -100,7 +87,7 @@ const useWrapToken = () => {
 };
 
 export const useSignOrder = () => {
-  const { account, walletClient, chainId, callbacks } = useSpotContext();
+  const { account, walletInteractions, chainId, callbacks } = useSpotContext();
   const rePermitData = useRePermitOrderData();
   const { refetch: refetchOrders } = useOrdersQuery();
 
@@ -109,8 +96,8 @@ export const useSignOrder = () => {
       if (!account) {
         throw new Error("missing account");
       }
-      if (!walletClient) {
-        throw new Error("missing walletClient");
+      if (!walletInteractions) {
+        throw new Error("missing walletInteractions");
       }
       if (!chainId) {
         throw new Error("missing chainId");
@@ -121,11 +108,11 @@ export const useSignOrder = () => {
       analytics.onSignOrderRequest(order);
       let signatureStr: `0x${string}`;
       try {
-        signatureStr = await walletClient?.signTypedData({
-          domain: domain as Record<string, any>,
-          types,
+        signatureStr = await walletInteractions.signOrder({
+          domain: domain as Record<string, unknown>,
+          types: types as Record<string, unknown[]>,
           primaryType,
-          message: order as Record<string, any>,
+          message: order as unknown as Record<string, unknown>,
           account: account as `0x${string}`,
         });
       } catch (error) {
@@ -136,9 +123,9 @@ export const useSignOrder = () => {
 
       analytics.onSignOrderSuccess(signatureStr);
       callbacks?.onSignOrderSuccess?.(signatureStr);
-      const parsedSignature = parseSignature(signatureStr);
+      const parsedSignature = parseSignatureBytes(signatureStr);
       const signature = {
-        v: numberToHex(parsedSignature.v || 0),
+        v: `0x${parsedSignature.v.toString(16)}` as `0x${string}`,
         r: parsedSignature.r,
         s: parsedSignature.s,
       };
@@ -153,7 +140,7 @@ export const useSignOrder = () => {
 };
 
 const useHasAllowanceCallback = () => {
-  const { account, publicClient, config } = useSpotContext();
+  const { account, walletInteractions, config } = useSpotContext();
 
   return useMutation({
     mutationFn: async ({
@@ -163,8 +150,8 @@ const useHasAllowanceCallback = () => {
       tokenAddress: string;
       srcAmountWei: string;
     }) => {
-      if (!publicClient) {
-        throw new Error("missing publicClient");
+      if (!walletInteractions) {
+        throw new Error("missing walletInteractions");
       }
       if (!account) {
         throw new Error("missing account");
@@ -173,14 +160,11 @@ const useHasAllowanceCallback = () => {
         throw new Error("missing config");
       }
 
-      const allowance = await publicClient
-        .readContract({
-          address: tokenAddress as `0x${string}`,
-          abi: erc20Abi,
-          functionName: "allowance",
-          args: [account as `0x${string}`, config.repermit],
-        })
-        .then((res) => res.toString());
+      const allowance = await walletInteractions
+        .getAllowance({
+          tokenAddress: tokenAddress,
+          spenderAddress: config.repermit,
+        });
 
       const approvalRequired = BN(allowance || "0").lt(
         BN(srcAmountWei).toString(),
@@ -192,9 +176,8 @@ const useHasAllowanceCallback = () => {
 };
 
 const useApproveToken = () => {
-  const { account, walletClient, overrides, config, chainId, callbacks } =
+  const { account, walletInteractions, config, chainId, callbacks } =
     useSpotContext();
-  const getTransactionReceipt = useGetTransactionReceipt();
   const { mutateAsync: hasAllowanceCallback } = useHasAllowanceCallback();
 
   return useMutation({
@@ -213,44 +196,24 @@ const useApproveToken = () => {
       if (!account) {
         throw new Error("missing account");
       }
-      if (!walletClient) {
-        throw new Error("missing walletClient");
+      if (!walletInteractions) {
+        throw new Error("missing walletInteractions");
       }
       if (!config) {
         throw new Error("missing config");
       }
 
       analytics.onApproveRequest();
-      let hash: `0x${string}` | undefined;
-      if (overrides?.approveOrder) {
-        hash = await overrides.approveOrder({
-          tokenAddress: token.address,
-          spenderAddress: config.repermit,
-          amount: maxUint256,
-        });
-      } else {
-        hash = await walletClient.writeContract({
-          abi: erc20Abi,
-          functionName: "approve",
-          account: account as `0x${string}`,
-          address: token.address as `0x${string}`,
-          args: [config.repermit, maxUint256],
-          chain: walletClient.chain,
-        });
-      }
+      const hash = await walletInteractions.approveToken({
+        tokenAddress: token.address,
+        amount: srcAmountWei,
+        spenderAddress: config.repermit,
+      });
       if (!hash) {
         throw new Error("failed to approve token");
       }
       callbacks?.onApproveRequest?.();
       onHash(hash);
-      const receipt = await getTransactionReceipt(hash);
-      if (!receipt) {
-        throw new Error("failed to get transaction receipt");
-      }
-
-      if (receipt.status === "reverted") {
-        throw new Error("failed to approve token");
-      }
 
       let userApprovedSuccessfully = false;
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -274,14 +237,14 @@ const useApproveToken = () => {
         );
       }
 
-      analytics.onApproveSuccess(receipt.transactionHash);
+      analytics.onApproveSuccess(hash);
       callbacks?.onApproveSuccess?.({
-        txHash: receipt.transactionHash,
-        explorerUrl: getExplorerUrl(receipt.transactionHash, chainId),
+        txHash: hash,
+        explorerUrl: getExplorerUrl(hash, chainId),
         token: token,
         amount: toAmountUi(srcAmountWei, token.decimals),
       });
-      return receipt;
+      return hash;
     },
   });
 };
@@ -336,7 +299,8 @@ function parseError(error: Error): ParsedError {
 }
 
 export const useSubmitOrderMutation = () => {
-  const { srcToken, dstToken, chainId, callbacks, marketPrice } = useSpotContext();
+  const { srcToken, dstToken, chainId, callbacks, marketPrice } =
+    useSpotContext();
   const approveCallback = useApproveToken().mutateAsync;
   const wrapCallback = useWrapToken().mutateAsync;
   const createOrderCallback = useSignOrder().mutateAsync;
@@ -389,10 +353,10 @@ export const useSubmitOrderMutation = () => {
 
         let pendingSteps: Steps[] = [];
 
-        if(wrapRequired) {
+        if (wrapRequired) {
           pendingSteps.push(Steps.WRAP);
         }
-        if(approvalRequired) {
+        if (approvalRequired) {
           pendingSteps.push(Steps.APPROVE);
         }
         pendingSteps.push(Steps.CREATE);

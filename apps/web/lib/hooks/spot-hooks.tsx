@@ -10,16 +10,27 @@ import {
   Partners,
   Token,
   Order,
+  type WalletInteractions,
+  type SignOrderProps,
+  type CancelOrderProps,
+  type ApproveTokenProps,
+  type GetAllowanceProps,
 } from "@orbs-network/spot-react";
+import { erc20Abi } from "viem";
 import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { useConnection } from "wagmi";
+import { useConnection, usePublicClient, useWalletClient } from "wagmi";
 
 import TokensPair from "@/components/tokens-pair";
 import { useCurrency } from "@/lib/hooks/use-currencies";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import * as chains from "viem/chains";
-import { getNetwork, getPartners } from "@orbs-network/spot-ui";
+import {
+  getNetwork,
+  getPartners,
+  REPERMIT_ABI,
+  TWAP_ABI,
+} from "@orbs-network/spot-ui";
 import { DEFAULT_PARTNER } from "../consts";
 import { useActionHandlers } from "./use-action-handlers";
 import { useRefetchSelectedCurrenciesBalances } from "./use-balances";
@@ -32,7 +43,8 @@ const useCallbacks = () => {
   const { inputCurrency, outputCurrency } = useDerivedSwap();
   const { handleCurrencyChange } = useActionHandlers();
   const { chainId } = useConnection();
-  const { mutateAsync: refetchBalances } = useRefetchSelectedCurrenciesBalances();
+  const { mutateAsync: refetchBalances } =
+    useRefetchSelectedCurrenciesBalances();
 
   const symbol = useMemo(() => {
     return isNativeAddress(inputCurrency?.address)
@@ -245,4 +257,121 @@ export const useSpotPartner = () => {
           DEFAULT_PARTNER) as Partners;
     }
   }, [chainId, partner]);
+};
+
+export const useWalletInteractions = () => {
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+  const { chainId } = useConnection();
+
+  return useMemo((): WalletInteractions => {
+    const network = getNetwork(chainId);
+
+    const waitForTx = async (hash: `0x${string}`) => {
+      if (!publicClient) {
+        throw new Error("Public client not found");
+      }
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash,
+        confirmations: 2,
+      });
+      if (receipt?.status === "reverted") {
+        throw new Error("Transaction reverted");
+      }
+      return hash;
+    };
+
+    return {
+      wrapNativeToken: async (amount: string) => {
+        if (!walletClient) {
+          throw new Error("Wallet client not found");
+        }
+        if (!network?.wToken?.address) {
+          throw new Error("wToken not found for chain");
+        }
+        const hash = await walletClient.writeContract({
+          abi: [
+            {
+              name: "deposit",
+              type: "function",
+              stateMutability: "payable",
+              inputs: [],
+              outputs: [],
+            },
+          ],
+          functionName: "deposit",
+          address: network.wToken.address as `0x${string}`,
+          args: [],
+          value: BigInt(amount),
+          chain: walletClient.chain,
+          account: walletClient.account,
+        });
+        return waitForTx(hash);
+      },
+      approveToken: async (props: ApproveTokenProps) => {
+        const maxUint256 = BigInt(
+          "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        );
+        if (!walletClient) {
+          throw new Error("Wallet client not found");
+        }
+        const hash = await walletClient.writeContract({
+          abi: erc20Abi,
+          functionName: "approve",
+          address: props.tokenAddress as `0x${string}`,
+          args: [props.spenderAddress as `0x${string}`, maxUint256],
+          chain: walletClient.chain,
+          account: walletClient.account,
+        });
+        return waitForTx(hash);
+      },
+      cancelOrder: async (props: CancelOrderProps) => {
+        if (!walletClient) {
+          throw new Error("Wallet client not found");
+        }
+        const hash = await walletClient.writeContract({
+          abi:
+            props.order.version === 1
+              ? (TWAP_ABI as any)
+              : (REPERMIT_ABI as any),
+          functionName: "cancel",
+          address: props.contractAddress as `0x${string}`,
+          args: props.args,
+          chain: walletClient.chain,
+          account: walletClient.account,
+        });
+        return waitForTx(hash);
+      },
+      signOrder: async (props: SignOrderProps) => {
+        if (!walletClient) {
+          throw new Error("Wallet client not found");
+        }
+        return walletClient.signTypedData({
+          domain: props.domain as any,
+          types: props.types as any,
+          primaryType: props.primaryType,
+          message: props.message as any,
+          account: props.account,
+        });
+      },
+      getAllowance: async (props: GetAllowanceProps) => {
+        if (!publicClient) {
+          throw new Error("Public client not found");
+        }
+        if (!walletClient) {
+          throw new Error("Wallet client not found");
+        }
+        const result = await publicClient.readContract({
+          address: props.tokenAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [
+            walletClient.account?.address as `0x${string}`,
+            props.spenderAddress as `0x${string}`,
+          ],
+        });
+        return String(result);
+      },
+    };
+  }, [walletClient, publicClient, chainId]);
 };

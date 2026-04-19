@@ -1,6 +1,6 @@
 {
   "name": "@orbs-network/spot-react",
-  "version": "1.1.21",
+  "version": "1.1.22",
   "description": "Spot React Components - React components for Spot SDK",
   "type": "module",
   "main": "./dist/spot-react.umd.cjs",
@@ -35,7 +35,6 @@
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0",
     "react-error-boundary": "^6.0.0",
-    "viem": "^2.43.3",
     "zustand": "^5.0.9"
   },
   "dependencies": {

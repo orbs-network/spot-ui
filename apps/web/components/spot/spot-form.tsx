@@ -32,7 +32,7 @@ import { AlertTriangleIcon, ArrowLeftRightIcon, InfoIcon } from "lucide-react";
 import { useUSDPrice } from "@/lib/hooks/use-usd-price";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Switch } from "../ui/switch";
-import { useConnection, useWalletClient } from "wagmi";
+import { useConnection } from "wagmi";
 import { SubmitSwapButton } from "../submit-swap-button";
 import { useBalance } from "@/lib/hooks/use-balances";
 import { useSettings } from "@/lib/hooks/use-settings";
@@ -41,6 +41,7 @@ import {
   SpotHooks,
   useSpotMarketReferencePrice,
   useSpotPartner,
+  useWalletInteractions,
 } from "@/lib/hooks/spot-hooks";
 import {
   SpotPriceInput,
@@ -651,6 +652,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const swapModule = useMemo(() => getModule(swapType), [swapType]);
   const callbacks = useCallbacks();
   const partner = useSpotPartner();
+  const walletInteractions = useWalletInteractions();
   const inputUsd = useUSDPrice({
     token: inputCurrency?.address,
   });
@@ -667,7 +669,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
         <Spot
           chainId={chainId}
           typedInputAmount={inputAmount}
-          provider={useWalletClient().data?.transport}
+          walletInteractions={walletInteractions}
           account={address}
           partner={partner}
           srcBalance={inputBalance}

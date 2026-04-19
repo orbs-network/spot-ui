@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from "react";
+import React, { createContext, useContext } from "react";
 import { useTradesPanel } from "./use-trades";
 import { useDurationPanel } from "./use-duration";
 import { useFillDelayPanel } from "./use-fill-delay";
@@ -16,10 +16,8 @@ import { useFormData } from "./use-form-data";
 import { useOrderHistoryPanel } from "./order-hooks";
 import { usePartnerChains } from "./use-partner-chains";
 import {
-  useCancelOrderMutation,
   useCancelOrderRefetchUntilStatusSynced,
 } from "./use-cancel-order";
-import { useSignOrder, useSubmitOrderMutation } from "./use-submit-order";
 import { useSpotContext } from "../spot-context";
 import { Module } from "@orbs-network/spot-ui";
 
@@ -39,14 +37,9 @@ type SpotData = {
   derivedFormData: ReturnType<typeof useFormData>;
   supportedChains: ReturnType<typeof usePartnerChains>;
   module: Module;
-  mutations: {
-    cancelOrder: ReturnType<typeof useCancelOrderMutation>;
-    signOrder: ReturnType<typeof useSignOrder>;
-    submitOrder: ReturnType<typeof useSubmitOrderMutation>;
-    refetchUntilStatusSynced: ReturnType<
-      typeof useCancelOrderRefetchUntilStatusSynced
-    >;
-  };
+  refetchUntilStatusSynced: ReturnType<
+    typeof useCancelOrderRefetchUntilStatusSynced
+  >;
 };
 
 const SpotDataContext = createContext<SpotData | null>(null);
@@ -70,19 +63,8 @@ export const SpotDataProvider = ({
   const orderHistoryPanel = useOrderHistoryPanel();
   const orderExecutionPanel = useSubmitOrderPanel();
   const supportedChains = usePartnerChains();
-
-  const cancelOrder = useCancelOrderMutation();
-  const signOrder = useSignOrder();
-  const submitOrder = useSubmitOrderMutation();
   const refetchUntilStatusSynced = useCancelOrderRefetchUntilStatusSynced();
-  const {module} = useSpotContext();
-
-  const mutations = useMemo(
-    () => ({ cancelOrder, signOrder, submitOrder, refetchUntilStatusSynced }),
-    [cancelOrder, signOrder, submitOrder, refetchUntilStatusSynced],
-  );
-
-  
+  const { module } = useSpotContext();
 
   const value = {
     tradesAmountPanel,
@@ -92,17 +74,16 @@ export const SpotDataProvider = ({
     triggerPricePanel,
     pricePanel,
     dstTokenPanel,
-    disclaimerPanel,    
+    disclaimerPanel,
     inputError,
     submitOrderButton,
     derivedFormData,
     orderHistoryPanel,
     orderExecutionPanel,
     supportedChains,
-    mutations,
-    module
-  }
-  
+    refetchUntilStatusSynced,
+    module,
+  };
 
   return (
     <SpotDataContext.Provider value={value}>

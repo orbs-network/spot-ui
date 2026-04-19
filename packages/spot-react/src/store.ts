@@ -16,6 +16,7 @@ const emptySwapExecution = {} as SwapExecution;
 
 const initialState: State = {
   currentTime: Date.now(),
+  cancelOrders: {},
   swapExecutions: [emptySwapExecution],
   swapExecutionIndex: 0,
 };

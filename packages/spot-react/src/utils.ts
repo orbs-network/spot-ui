@@ -1,5 +1,4 @@
 import { OrderType, Token } from "./types";
-import { formatUnits, parseUnits } from "viem";
 import {
   eqIgnoreCase,
   getNetwork,
@@ -9,14 +8,13 @@ import BN from "bignumber.js";
 
 export const toAmountWei = (value?: string, decimals?: number) => {
   if (!decimals || !value || BN(value).isNaN()) return "";
-  return parseUnits(value, decimals).toString();
+  return BN(value).multipliedBy(BN(10).pow(decimals)).toFixed(0);
 };
 
 export const toAmountUi = (value?: string, decimals?: number) => {
   try {
     if (!decimals || !value || BN(value).isNaN()) return "";
-    const amount = BN(value).toFixed();
-    return formatUnits(BigInt(amount), decimals);
+    return BN(value).dividedBy(BN(10).pow(decimals)).toFixed();
   } catch (error) {
     console.error(error);
     return "";

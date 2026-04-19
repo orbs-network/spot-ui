@@ -4,10 +4,13 @@ import pkg from "../package.json";
 import { SpotProvider } from "./spot-context";
 import { useDerivedHistoryOrder } from "./hooks/use-history-order";
 import { useSpot } from "./hooks/use-spot";
+import { useCancelOrder } from "./hooks/use-cancel-order";
+import { useSignOrder, useSubmitOrderMutation } from "./hooks/use-submit-order";
 export * from "./types";
 export * from "./utils";
 export { useAmountUi, useExplorerLink, useNetwork } from "./hooks/helper-hooks";
 export { useSwapExecution } from "./hooks/use-swap-execution";
+export { type CancelOrderStatus } from "./hooks/use-cancel-order";
 
 // Set the UI version in spot-sdk for analytics
 setUIVersion(pkg.version);
@@ -59,12 +62,6 @@ export {
   ORBS_WEBSITE_URL,
   networks,
 
-  // ABIs
-  IWETH_ABI,
-  ERC20_ABI,
-  REPERMIT_ABI,
-  TWAP_ABI,
-
   // Analytics
 } from "@orbs-network/spot-ui";
 
@@ -73,4 +70,7 @@ export {
   SpotProvider,
   useSpot,
   useDerivedHistoryOrder,
+  useCancelOrder,
+  useSignOrder,
+  useSubmitOrderMutation as useSubmitOrder
 };

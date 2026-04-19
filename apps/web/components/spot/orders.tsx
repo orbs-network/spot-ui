@@ -44,7 +44,6 @@ const getOrderFilterText = (filter: OrderFilter): string => {
   }
 };
 
-
 const getSinkUrl = (orderId: string) => {
   if (Number(SPOT_VERSION) >= 2) {
     return `https://order-sink-v2.orbs.network/?order=${orderId}`;
@@ -72,8 +71,7 @@ export const SpotsOrders = () => {
     isDisplayingOrderFills,
     onHideOrderFills,
   } = uiState;
-  const { mutateAsync: cancelOrders, isPending: isCancelOrderLoading } =
-    spot.mutations.cancelOrder;
+
   const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<OrderFilter>(
@@ -84,10 +82,6 @@ export const SpotsOrders = () => {
   const filteredOrders = useMemo(
     () => filterAndSortOrders(orders.all, selectedFilter),
     [orders, selectedFilter],
-  );
-  const openOrders = useMemo(
-    () => filterAndSortOrders(orders.all, OrderFilter.Open),
-    [orders],
   );
 
   const selectedRawOrder = useMemo(
@@ -108,11 +102,6 @@ export const SpotsOrders = () => {
       orderFilters[0]
     );
   }, [orderFilters, selectedFilter]);
-
-  const onCancelAllOpenOrders = useCallback(
-    () => cancelOrders({ orders: openOrders }),
-    [cancelOrders, openOrders],
-  );
 
   const title = useMemo(() => {
     if (isDisplayingOrderFills) {
@@ -165,22 +154,6 @@ export const SpotsOrders = () => {
                 items={orderFilters}
                 onSelect={(it) => setSelectedFilter(it.value as OrderFilter)}
               />
-              {openOrders.length > 0 && (
-                <IconButton onClick={onCancelAllOpenOrders} className="p-2">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <IconButton onClick={onCancelAllOpenOrders}>
-                        {isCancelOrderLoading ? (
-                          <Spinner className="size-4" />
-                        ) : (
-                          <TrashIcon className="size-4" />
-                        )}
-                      </IconButton>
-                    </TooltipTrigger>
-                    <TooltipContent>Cancel all orders</TooltipContent>
-                  </Tooltip>
-                </IconButton>
-              )}
             </div>
           )}
           <OrdersProvider value={{ ...panelData, ...uiState, filteredOrders }}>

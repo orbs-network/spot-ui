@@ -26,11 +26,12 @@ Working example: [`apps/web/components/spot/spot-form.tsx`](https://github.com/o
 ## Guardrails
 
 1. Every DEX needs its own config. If one doesn't exist, contact **[@dTWAPSupportGroup](https://t.me/dTWAPSupportGroup)** on Telegram before starting.
-2. Install `@orbs-network/spot-react` and its peer dependencies (`@tanstack/react-query`, `bignumber.js`, `react-error-boundary`, `viem`, `zustand`).
+2. Install `@orbs-network/spot-react` and its peer dependencies (`@tanstack/react-query`, `bignumber.js`, `react-error-boundary`, `zustand`).
 3. Never import from `@orbs-network/spot-react/dist/*`. Always from `@orbs-network/spot-react`.
 4. Use DEX components as-is. Don't modify them. Create new ones using DEX styles when needed.
 5. Wrap objects with `useMemo`, functions with `useCallback` in SpotProvider props.
 6. Verify all imports exist in the package before using them.
 7. Balance refetch goes in callbacks (`onWrapSuccess`, `onOrdersProgressUpdate`), not as a prop.
 8. Input amount reset goes in the modal's `onClose` callback when `status` is truthy, after calling `onSwapSuccess()`.
-9. All panel data comes from `useSpot()`. Do not import individual panel hooks — they are internal.
+9. All panel data comes from `useSpot()`. Cancel orders use `useCancelOrder()`. Do not import other individual hooks — they are internal.
+10. The DEX must provide `walletInteractions` — an object with 5 methods for wallet operations. spot-react does not include viem or any wallet library.

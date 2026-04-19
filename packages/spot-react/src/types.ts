@@ -4,39 +4,38 @@ export enum SwapStatus {
   SUCCESS = 2,
   FAILED = 3,
 }
-import { createPublicClient, createWalletClient, TransactionReceipt as _TransactionReceipt, Abi } from "viem";
 export type { Order } from "@orbs-network/spot-ui";
 export { OrderStatus, type OrderFill, OrderType, Module } from "@orbs-network/spot-ui";
 
 
 
-export interface Provider {
-  request(...args: any): Promise<any>;
-  [key: string]: any; // Allow extra properties
-}
+export type SignOrderProps = {
+  domain: Record<string, unknown>;
+  types: Record<string, unknown[]>;
+  primaryType: string;
+  message: Record<string, unknown>;
+  account: `0x${string}`;
+};
 
-export type PublicClient = ReturnType<typeof createPublicClient>;
-export type WalletClient = ReturnType<typeof createWalletClient>;
 
-export type ApproveProps = {
+export type CancelOrderProps = {
+  order: Order
+  contractAddress: string;
+  args: string[] | string[][];
+};
+
+export type ApproveTokenProps = {
   tokenAddress: string;
-  amount: bigint;
+  amount: string;
   spenderAddress: string;
 };
 
-export type CreateOrderProps = {
-  contractAddress: string;
-  abi: Abi;
-  functionName: string;
-  args: [string[]];
-};
-
-export type CancelOrderProps = {
-  contractAddress: string;
-  abi: Abi;
-  functionName: string;
-  args: number[];
-  orderId: number;
+export type WalletInteractions = {
+  cancelOrder: (props: CancelOrderProps) => Promise<`0x${string}`>;
+  signOrder: (props: SignOrderProps) => Promise<`0x${string}`>;
+  wrapNativeToken: (amount: string) => Promise<`0x${string}`>;
+  approveToken:  (props: ApproveTokenProps) => Promise<`0x${string}`>;
+  getAllowance: (props: GetAllowanceProps) => Promise<string>;
 };
 
 export type GetAllowanceProps = {
@@ -65,10 +64,6 @@ export enum Disclaimer {
 
 
 export type Overrides = {
-  wrap?: (amountWei: string) => Promise<`0x${string}`>;
-  approveOrder?: (props: ApproveProps) => Promise<`0x${string}`>;
-  createOrder?: (props: CreateOrderProps) => Promise<`0x${string}`>;
-  getAllowance?: (props: GetAllowanceProps) => Promise<string>;
   state?: Partial<InitialState>;
 };
 
@@ -86,8 +81,8 @@ export type OnWrapSuccessCallback = {
 };
 
 export type OnCancelOrderSuccess = {
-  orders: Order[];
-  txHash: string;
+  order: Order;
+  txHash: `0x${string}`;
   explorerUrl: string;
 };
 
@@ -97,7 +92,7 @@ export type ParsedError = {
 };
 
 export type Callbacks = {
-  onCancelOrderRequest?: (orders: Order[]) => void;
+  onCancelOrderRequest?: (order: Order) => void;
   onCancelOrderSuccess?: (props: OnCancelOrderSuccess) => void;
   onCancelOrderFailed?: (error: Error) => void;
   onOrdersProgressUpdate?: (orders: Order[]) => void;
@@ -133,7 +128,7 @@ export type MarketReferencePrice = {
 
 export interface SpotProps {
   children?: React.ReactNode;
-  provider?: Provider;
+  walletInteractions: WalletInteractions;
   chainId?: number;
   account?: string;
   enableQueryParams?: boolean;
@@ -156,8 +151,7 @@ export interface SpotProps {
 }
 
 export interface SpotContextType {
-  walletClient?: ReturnType<typeof createWalletClient>;
-  publicClient?: PublicClient;
+  walletInteractions?: WalletInteractions;
   marketPrice?: string;
   marketPriceLoading?: boolean;
   account?: `0x${string}`;
@@ -226,10 +220,11 @@ export interface State {
   isMarketOrder?: boolean;
 
   currentTime: number;
-  cancelOrderStatus?: SwapStatus;
-  cancelOrderTxHash?: string;
-  cancelOrderError?: string;
-  cancelOrderId?: number;
+  cancelOrders: Record<string, {
+    status: SwapStatus;
+    txHash?: string;
+    error?: string;
+  }>;
 
   swapExecutions: SwapExecution[];
   swapExecutionIndex: number;

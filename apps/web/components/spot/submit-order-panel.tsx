@@ -24,9 +24,8 @@ type SubmitOrderPanelProps = {
   reviewDetails?: ReactNode;
 };
 
-type SubmitOrderPanelData = ReturnType<typeof useSpot>["orderExecutionPanel"];
 
-type SubmitPanelContextType = SubmitOrderPanelData & SubmitOrderPanelProps & {
+type SubmitPanelContextType =  SubmitOrderPanelProps & {
   srcToken?: Token;
   dstToken?: Token;
 };
@@ -39,7 +38,8 @@ const useSubmitPanelContext = () => useContext(SubmitPanelContext);
 
 const WrapMsg = () => {
   const t = useTranslations();
-  const { wrapTxHash, srcToken } = useSubmitPanelContext();
+  const { srcToken } = useSubmitPanelContext();
+  const { wrapTxHash } = useSpot().orderExecutionPanel;
   const wSymbol = useNetwork()?.wToken?.symbol;
 
   if (!wrapTxHash) {
@@ -58,7 +58,8 @@ const WrapMsg = () => {
 
 const useTitle = () => {
   const t = useTranslations();
-  const { status, orderTitle = "" } = useSubmitPanelContext();
+  const { orderTitle = "" } = useSubmitPanelContext();
+  const { status } = useSpot().orderExecutionPanel;
 
   if (status === SwapStatus.SUCCESS) {
     return t("createOrderActionSuccess", { name: orderTitle });
@@ -68,8 +69,8 @@ const useTitle = () => {
 };
 
 const useStep = () => {
-  const { srcToken, step, wrapTxHash, approveTxHash, status } =
-    useSubmitPanelContext();
+  const { srcToken } = useSubmitPanelContext();
+  const { step, wrapTxHash, approveTxHash, status } = useSpot().orderExecutionPanel;
   const t = useTranslations();
   const network = useNetwork();
   const wrapExplorerUrl = useExplorerLink(wrapTxHash);
@@ -79,6 +80,9 @@ const useStep = () => {
     ? network?.native.symbol || ""
     : srcToken?.symbol || "";
   const swapTitle = useTitle();
+  
+
+  
 
   return useMemo((): Step | undefined => {
     if (step === Steps.WRAP) {
@@ -132,8 +136,9 @@ function Failed({ error }: { error?: ParsedError }) {
 }
 
 const Main = () => {
-  const { srcToken, dstToken, status, reviewDetails } =
+  const { srcToken, dstToken, reviewDetails } =
     useSubmitPanelContext();
+  const { status } = useSpot().orderExecutionPanel;
   const t = useTranslations();
   const isSubmitted = Boolean(status);
   const order = useSpot().derivedFormData;
@@ -231,6 +236,7 @@ const SuccessContent = () => {
 
 export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
   const panelData = useSpot().orderExecutionPanel;
+  
   const { status, stepIndex, totalSteps, parsedError, srcToken, dstToken } = panelData;
   const formData = useSpot().derivedFormData;
 
@@ -246,6 +252,8 @@ export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
     [dstToken],
   );
 
+  const currentStep = useStep();
+
   return (
     <SubmitPanelContext.Provider value={{ ...panelData, ...props, srcToken, dstToken }}>
       <SwapFlow
@@ -253,7 +261,7 @@ export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
         outAmount={outAmountF}
         swapStatus={status}
         totalSteps={totalSteps}
-        currentStep={useStep()}
+        currentStep={currentStep}
         currentStepIndex={stepIndex}
         inToken={inToken}
         outToken={outToken}
