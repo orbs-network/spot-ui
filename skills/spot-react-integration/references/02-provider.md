@@ -64,25 +64,49 @@ const callbacks = useMemo(() => ({
 />
 ```
 
+### Full Props Reference
+
+| Prop | Type | Required | Description |
+| --- | --- | --- | --- |
+| `partner` | `Partners` | Yes | DEX partner enum |
+| `module` | `Module` | Yes | `TWAP`, `LIMIT`, `STOP_LOSS`, or `TAKE_PROFIT` |
+| `typedInputAmount` | `string` | Yes | User-typed source amount |
+| `priceProtection` | `number` | Yes | Slippage tolerance percentage |
+| `minChunkSizeUsd` | `number` | Yes | Minimum trade chunk size in USD |
+| `marketReferencePrice` | `MarketReferencePrice` | Yes | `{ value?: string, isLoading?: boolean, noLiquidity?: boolean }` |
+| `chainId` | `number` | No | Connected chain ID |
+| `provider` | `Provider` | No | EIP-1193 wallet provider (transport) |
+| `account` | `string` | No | Connected wallet address |
+| `srcToken` | `Token` | No | `{ address, symbol, decimals, logoUrl }` |
+| `dstToken` | `Token` | No | `{ address, symbol, decimals, logoUrl }` |
+| `srcBalance` | `string` | No | Source balance in wei |
+| `dstBalance` | `string` | No | Destination balance in wei |
+| `srcUsd1Token` | `string` | No | USD price of 1 source token |
+| `dstUsd1Token` | `string` | No | USD price of 1 destination token |
+| `callbacks` | `Callbacks` | No | Lifecycle event handlers |
+| `fees` | `number` | No | Fee percentage (e.g. 0.25) |
+| `isDev` | `boolean` | No | Enable dev mode |
+| `overrides` | `Overrides` | No | Custom wrap/approve/order handlers and initial state |
+
 ## Input Amount Reset & Form Reset
 
 spot-react does not reset the input amount or form state internally. Handle both in the submit modal's `onClose`:
 
 ```tsx
-const { resetState, isSuccess } = useSubmitOrderPanel();
+const { onSwapSuccess, status } = useSpot().orderExecutionPanel;
 
 const onClose = useCallback(() => {
   setIsModalOpen(false);
-  setTimeout(() => {
-    resetState(); // creates a new swap execution, resets form state
-    if (isSuccess) {
-      setInputAmount(""); // clear the input amount on success
-    }
-  }, 500); // delay so the close animation completes before state resets
-}, [resetState, setInputAmount, isSuccess]);
+  if (Boolean(status)) {
+    setInputAmount(""); // clear the input amount on success
+    setTimeout(() => {
+      onSwapSuccess(); // resets form state
+    }, 500); // delay so the close animation completes before state resets
+  }
+}, [onSwapSuccess, setInputAmount, status]);
 ```
 
-- `resetState()` — resets the form state and creates a new empty swap execution (bumps the index)
+- `onSwapSuccess()` — resets the form state and creates a new empty swap execution
 - `setInputAmount("")` — only clear the input when the order was successful
 
 ## Balance Refetch
@@ -96,3 +120,26 @@ Balance refetching is handled via callbacks, not a prop. Wire `refetchBalances` 
 - Default 3%, this is NOT slippage
 - When Spot is active: hide DEX slippage setting, show only Price Protection
 - Persist the same way DEX stores slippage (zustand/redux/localStorage)
+
+## Overrides
+
+For custom wallet interactions or initial state, pass `overrides`:
+
+```tsx
+<SpotProvider
+  overrides={{
+    wrap: async (amountWei) => txHash,
+    approveOrder: async ({ tokenAddress, amount, spenderAddress }) => txHash,
+    createOrder: async ({ contractAddress, abi, functionName, args }) => txHash,
+    getAllowance: async ({ tokenAddress, spenderAddress }) => allowanceString,
+    state: {
+      isMarketOrder: false,
+      chunks: 10,
+      limitPrice: "1.5",
+      triggerPrice: "1.2",
+      fillDelay: { value: 5, unit: TimeUnit.Minutes },
+      duration: { value: 1, unit: TimeUnit.Days },
+    },
+  }}
+/>
+```
