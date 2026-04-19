@@ -71,7 +71,7 @@ export const SpotFooter = () => {
   return (
     <div className="flex flex-row gap-2 items-center  fixed z-10 bottom-0 left-12 right-0 p-4">
       <p className="text-[16px] font-bold text-foreground/80">
-        Spot: v{SPOT_VERSION} 
+        Spot: v{pkg.version}
       </p>
       {Number(SPOT_VERSION) >= 2 &&  <>
         <div className="w-px h-4 bg-foreground/80" />
