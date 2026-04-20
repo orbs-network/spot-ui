@@ -1,5 +1,5 @@
 import { SwapStatus } from "../types";
-import { analytics, Order, OrderStatus } from "@orbs-network/spot-ui";
+import { analytics, Order, OrderStatus, REPERMIT_ABI, TWAP_ABI } from "@orbs-network/spot-ui";
 import { useMutation } from "@tanstack/react-query";
 import { useSpotContext } from "../spot-context";
 import { getExplorerUrl, isTxRejected } from "../utils";
@@ -98,6 +98,7 @@ export const useCancelOrder = (order?: Order) => {
           contractAddress:
             order.version === 1 ? order.twapAddress! : config!.repermit,
           args: order.version === 1 ? [order.id] : [[order.hash]],
+          abi: order.version === 1 ? TWAP_ABI : REPERMIT_ABI,
         });
 
         if (!txHash) throw new Error("failed to cancel order");

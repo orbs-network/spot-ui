@@ -330,10 +330,7 @@ export const useWalletInteractions = () => {
           throw new Error("Wallet client not found");
         }
         const hash = await walletClient.writeContract({
-          abi:
-            props.order.version === 1
-              ? (TWAP_ABI as any)
-              : (REPERMIT_ABI as any),
+          abi: props.abi,
           functionName: "cancel",
           address: props.contractAddress as `0x${string}`,
           args: props.args,

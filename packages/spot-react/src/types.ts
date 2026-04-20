@@ -1,4 +1,4 @@
-import { Partners, Module, Order, SpotConfig, TimeDuration } from "@orbs-network/spot-ui";
+import { Partners, Module, Order, SpotConfig, TimeDuration, TWAP_ABI, REPERMIT_ABI } from "@orbs-network/spot-ui";
 export enum SwapStatus {
   LOADING = 1,
   SUCCESS = 2,
@@ -18,10 +18,14 @@ export type SignOrderProps = {
 };
 
 
+
+
+
 export type CancelOrderProps = {
   order: Order
   contractAddress: string;
   args: string[] | string[][];
+  abi: (typeof TWAP_ABI) | (typeof REPERMIT_ABI);
 };
 
 export type ApproveTokenProps = {
