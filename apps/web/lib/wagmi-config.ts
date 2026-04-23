@@ -15,48 +15,61 @@ import {
   optimism,
   mantle,
 } from "viem/chains";
+import { http, type Chain } from "viem";
 import { useIsSpotTab } from "./hooks/use-tabs";
 import { useMemo } from "react";
 import { katanaChain } from "./chains";
 
+const rpcProxyTransport = (chain: Chain) =>
+  http(`/api/rpc?chainId=${chain.id}`);
+
+const MAIN_CHAINS = [
+  mainnet,
+  arbitrum,
+  bsc,
+  linea,
+  base,
+  sonic,
+  polygon,
+  monad,
+] as const;
+
+const SPOT_CHAINS = [
+  bsc,
+  linea,
+  sei,
+  base,
+  sonic,
+  polygon,
+  berachain,
+  flare,
+  avalanche,
+  monad,
+  arbitrum,
+  mainnet,
+  katanaChain,
+  optimism,
+  mantle,
+] as const;
 
 const MAIN_CONFIG = getDefaultConfig({
   pollingInterval: 60_0000,
   appName: "Playground",
   projectId: process.env.NEXT_PUBLIC_PROJECT_ID as string,
-  chains: [
-    mainnet,
-    arbitrum,
-    bsc,
-    linea,
-    base,
-    sonic,
-    polygon,
-    monad
-  ],
+  chains: MAIN_CHAINS,
+  transports: Object.fromEntries(
+    MAIN_CHAINS.map((chain) => [chain.id, rpcProxyTransport(chain)]),
+  ) as Record<(typeof MAIN_CHAINS)[number]["id"], ReturnType<typeof http>>,
 });
 
 const SPOT_CONFIG = getDefaultConfig({
   pollingInterval: 60_0000,
   appName: "Playground",
   projectId: process.env.NEXT_PUBLIC_PROJECT_ID as string,
-  chains: [
-    bsc,
-    linea,
-    sei,
-    base,
-    sonic,
-    polygon,
-    berachain,
-    flare,
-    avalanche,
-    monad,
-    arbitrum,
-    mainnet,
-    katanaChain,
-    optimism,
-    mantle
-  ],
+  chains: SPOT_CHAINS,
+  transports: Object.fromEntries(
+    SPOT_CHAINS.map((chain) => [chain.id, rpcProxyTransport(chain)]),
+  ) as Record<(typeof SPOT_CHAINS)[number]["id"], ReturnType<typeof http>>,
 });
 
 
