@@ -29,18 +29,44 @@ const dstToken = useMemo(() => ({
 }), [outputCurrency]);
 
 const callbacks = useMemo(() => ({
+  // Order lifecycle
   onOrderCreated: (order) => toast.success("Order created"),
   onSubmitOrderFailed: ({ message }) => toast.error(message),
-  onWrapSuccess: ({ txHash }) => {
+  onSubmitOrderRejected: () => toast.error("Order rejected"),
+  onOrderFilled: (order) => toast.success("Order filled"),
+  onOrdersProgressUpdate: (orders) => {
+    refetchBalances(); // refetch balances when order progress changes
+  },
+
+  // Wrap & approve
+  onWrapRequest: () => {},
+  onWrapSuccess: ({ txHash, explorerUrl, amount }) => {
     toast.success("Wrapped");
     refetchBalances(); // refetch balances after wrap
   },
-  onApproveSuccess: ({ txHash }) => toast.success("Approved"),
-  onOrderFilled: (order) => toast.success("Order filled"),
-  onCancelOrderSuccess: () => toast.success("Cancelled"),
-  onOrdersProgressUpdate: () => {
-    refetchBalances(); // refetch balances when order progress changes
-  },
+  onApproveRequest: () => {},
+  onApproveSuccess: ({ txHash, explorerUrl, token, amount }) => toast.success("Approved"),
+
+  // Signing
+  onSignOrderRequest: () => {},
+  onSignOrderSuccess: (signature) => {},
+  onSignOrderError: (error) => toast.error(error.message),
+
+  // Cancel
+  onCancelOrderRequest: (order) => {},
+  onCancelOrderSuccess: ({ order, txHash, explorerUrl }) => toast.success("Cancelled"),
+  onCancelOrderFailed: (error) => toast.error(error.message),
+
+  // Field change callbacks (useful for analytics or syncing external state)
+  onLimitPriceChange: (typedLimitPrice) => {},
+  onTriggerPriceChange: (typedTriggerPrice) => {},
+  onDurationChange: (typedDuration) => {},
+  onFillDelayChange: (typedFillDelay) => {},
+  onChunksChange: (typedChunks) => {},
+  onLimitPricePercentChange: (percent) => {},
+  onTriggerPricePercentChange: (percent) => {},
+
+  onCopy: () => toast.success("Copied"),
 }), [refetchBalances]);
 
 <SpotProvider
@@ -83,6 +109,7 @@ const callbacks = useMemo(() => ({
 | `dstBalance` | `string` | No | Destination balance in wei |
 | `srcUsd1Token` | `string` | No | USD price of 1 source token |
 | `dstUsd1Token` | `string` | No | USD price of 1 destination token |
+| `enableQueryParams` | `boolean` | No | Sync form state to URL query params |
 | `callbacks` | `Callbacks` | No | Lifecycle event handlers |
 | `fees` | `number` | No | Fee percentage (e.g. 0.25) |
 | `isDev` | `boolean` | No | Enable dev mode |
@@ -93,20 +120,22 @@ const callbacks = useMemo(() => ({
 spot-react does not reset the input amount or form state internally. Handle both in the submit modal's `onClose`:
 
 ```tsx
-const { onSwapSuccess, status } = useSpot().orderExecutionPanel;
+const { resetCurrentSwap, resetState, status } = useSpot().orderExecutionPanel;
 
 const onClose = useCallback(() => {
   setIsModalOpen(false);
   if (Boolean(status)) {
     setInputAmount(""); // clear the input amount on success
     setTimeout(() => {
-      onSwapSuccess(); // resets form state
+      resetCurrentSwap(); // resets the current swap execution
+      resetState(); // resets the full form state
     }, 500); // delay so the close animation completes before state resets
   }
-}, [onSwapSuccess, setInputAmount, status]);
+}, [resetCurrentSwap, resetState, setInputAmount, status]);
 ```
 
-- `onSwapSuccess()` — resets the form state and creates a new empty swap execution
+- `resetCurrentSwap()` — resets the current swap execution state
+- `resetState()` — resets the full form state (store)
 - `setInputAmount("")` — only clear the input when the order was successful
 
 ## Balance Refetch

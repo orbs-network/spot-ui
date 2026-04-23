@@ -32,6 +32,6 @@ Working example: [`apps/web/components/spot/spot-form.tsx`](https://github.com/o
 5. Wrap objects with `useMemo`, functions with `useCallback` in SpotProvider props.
 6. Verify all imports exist in the package before using them.
 7. Balance refetch goes in callbacks (`onWrapSuccess`, `onOrdersProgressUpdate`), not as a prop.
-8. Input amount reset goes in the modal's `onClose` callback when `status` is truthy, after calling `onSwapSuccess()`.
+8. Input amount reset goes in the modal's `onClose` callback when `status` is truthy, after calling `resetCurrentSwap()` and `resetState()`.
 9. All panel data comes from `useSpot()`. Cancel orders use `useCancelOrder()`. Do not import other individual hooks — they are internal.
 10. The DEX must provide `walletInteractions` — an object with 5 methods for wallet operations. spot-react does not include viem or any wallet library.

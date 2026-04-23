@@ -66,9 +66,8 @@ function DurationSection() {
 }
 
 function TradeSizeSection() {
-  const { totalTrades, onChange, error, amountPerTradeUI, amountPerTradeUsd } =
+  const { totalTrades, onChange, error, amountPerTradeUI, amountPerTradeUsd, fromToken } =
     useSpot().tradesAmountPanel;
-  const { srcToken } = useSpot().derivedFormData;
 
   return (
     <div>
@@ -78,12 +77,12 @@ function TradeSizeSection() {
         value={totalTrades || ""}
         onChange={(e) => onChange(Number(e.target.value))}
       />
-      {totalTrades > 1 && srcToken && (
+      {totalTrades > 1 && fromToken && (
         <span>
-          {amountPerTradeUI} {srcToken.symbol} per trade (${amountPerTradeUsd})
+          {amountPerTradeUI} {fromToken.symbol} per trade (${amountPerTradeUsd})
         </span>
       )}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <p style={{ color: "red" }}>{error.type}</p>}
     </div>
   );
 }
@@ -143,7 +142,8 @@ function SubmitOrderSection({
   const {
     onSubmit,
     status,
-    onSwapSuccess,
+    resetCurrentSwap,
+    resetState,
     parsedError,
     confirmButtonLoading,
   } = useSpot().orderExecutionPanel;
@@ -157,10 +157,11 @@ function SubmitOrderSection({
     if (Boolean(status)) {
       setInputAmount("");
       setTimeout(() => {
-        onSwapSuccess();
+        resetCurrentSwap();
+        resetState();
       }, 500);
     }
-  }, [onSwapSuccess, setInputAmount, status]);
+  }, [resetCurrentSwap, resetState, setInputAmount, status]);
 
   return (
     <>

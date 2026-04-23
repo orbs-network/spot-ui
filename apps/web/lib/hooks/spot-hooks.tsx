@@ -264,22 +264,25 @@ export const useWalletInteractions = () => {
   const publicClient = usePublicClient();
   const { chainId } = useConnection();
 
-  return useMemo((): WalletInteractions => {
-    const network = getNetwork(chainId);
-
-    const waitForTx = async (hash: `0x${string}`) => {
-      if (!publicClient) {
-        throw new Error("Public client not found");
+  const waitForTx = useCallback(
+    async (hash: `0x${string}`) => {
+      const result = await fetch(
+        `/api/transaction-receipt?chainId=${chainId}&hash=${hash}`,
+      );
+      if (!result.ok) {
+        throw new Error("Failed to get transaction receipt");
       }
-      const receipt = await publicClient.waitForTransactionReceipt({
-        hash,
-        confirmations: 2,
-      });
+      const receipt = await result.json();
       if (receipt?.status === "reverted") {
         throw new Error("Transaction reverted");
       }
       return hash;
-    };
+    },
+    [chainId],
+  );
+
+  return useMemo((): WalletInteractions => {
+    const network = getNetwork(chainId);
 
     return {
       wrapNativeToken: async (amount: string) => {
@@ -370,5 +373,5 @@ export const useWalletInteractions = () => {
         return String(result);
       },
     };
-  }, [walletClient, publicClient, chainId]);
+  }, [walletClient, publicClient, chainId, waitForTx]);
 };

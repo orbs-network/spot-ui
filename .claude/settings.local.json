@@ -7,7 +7,12 @@
       "Bash(pnpm install:*)",
       "Bash(pnpm --filter web build)",
       "Bash(pnpm --filter @orbs-network/spot-ui build)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "Bash(grep -r \"merkle\\\\|RPC_URL\" /Users/denis/Documents/projects/spot-ui/apps/web --include=*.ts --include=*.tsx --include=*.env*)",
+      "Bash(grep -r \"merkle\\\\|rpc\" /Users/denis/Documents/projects/spot-ui/packages/spot-react --include=*.ts --include=*.tsx --include=*.json)",
+      "Bash(grep -r \"merkle\\\\|rpc\" /Users/denis/Documents/projects/spot-ui/packages/spot-ui --include=*.ts --include=*.tsx --include=*.json)",
+      "Bash(grep -r merkle /Users/denis/Documents/projects/spot-ui/node_modules/.pnpm/@orbs-network+spot* --include=*.ts --include=*.tsx --include=*.js)",
+      "Bash(grep -r \"rpc\\\\|provider\\\\|publicClient\" /Users/denis/Documents/projects/spot-ui/node_modules/.pnpm/@orbs-network+spot@2.4.1 --include=*.ts --include=*.tsx)"
     ]
   }
 }

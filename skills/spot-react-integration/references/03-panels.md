@@ -12,21 +12,22 @@ const spot = useSpot();
 
 | Panel | Key Returns |
 |-------|------------|
-| `spot.dstTokenPanel` | `value`, `isLoading` |
-| `spot.tradesAmountPanel` | `totalTrades`, `onChange`, `error`, `amountPerTradeUI`, `amountPerTradeUsd`, `srcToken` |
-| `spot.durationPanel` | `duration`, `onInputChange`, `onUnitSelect` |
-| `spot.fillDelayPanel` | `fillDelay`, `onInputChange`, `onUnitSelect` |
-| `spot.limitPricePanel` | `priceUI`, `percentage`, `isLimitPrice`, `toggleLimitPrice`, `onInputChange`, `onPercentageChange`, `onReset`, `invertedDstToken`, `isLoading`, `isTypedValue`, `usd` |
-| `spot.triggerPricePanel` | `priceUI`, `percentage`, `onInputChange`, `onPercentageChange`, `onReset`, `invertedDstToken`, `isTypedValue`, `usd` |
-| `spot.pricePanel` | `onInvert`, `isInverted`, `fromToken`, `isMarketPrice` |
+| `spot.dstTokenPanel` | `value`, `valueWei`, `isLoading`, `usd` |
+| `spot.tradesAmountPanel` | `totalTrades`, `maxTrades`, `onChange`, `error`, `amountPerTradeUI`, `amountPerTrade`, `amountPerTradeUsd`, `fromToken`, `toToken` |
+| `spot.durationPanel` | `duration`, `onInputChange`, `onUnitSelect`, `onChange`, `milliseconds`, `error` |
+| `spot.fillDelayPanel` | `fillDelay`, `onInputChange`, `onUnitSelect`, `onChange`, `milliseconds`, `error` |
+| `spot.limitPricePanel` | `price`, `priceUI`, `percentage`, `isLimitPrice`, `toggleLimitPrice`, `onInputChange`, `onPercentageChange`, `onReset`, `srcToken`, `dstToken`, `invertedSrcToken`, `invertedDstToken`, `isLoading`, `isTypedValue`, `usd`, `error` |
+| `spot.triggerPricePanel` | `price`, `priceUI`, `percentage`, `onInputChange`, `onPercentageChange`, `onReset`, `srcToken`, `dstToken`, `invertedSrcToken`, `invertedDstToken`, `isLoading`, `isTypedValue`, `usd`, `amountPerChunk`, `amountPerChunkUI`, `amountPerChunkUsd`, `error` |
+| `spot.pricePanel` | `onInvert`, `isInverted`, `fromToken`, `toToken`, `isMarketPrice` |
 | `spot.disclaimerPanel` | Disclaimer string key or `undefined` |
 | `spot.inputError` | `{ type, args }` or `undefined` |
 | `spot.submitOrderButton` | `disabled`, `loading` |
-| `spot.orderExecutionPanel` | `onSubmit`, `status`, `onSwapSuccess`, `parsedError`, `confirmButtonLoading`, `step`, `stepIndex`, `totalSteps`, `srcToken`, `dstToken`, `wrapTxHash`, `approveTxHash` |
-| `spot.orderHistoryPanel` | `orders: { all: Order[] }` |
-| `spot.derivedFormData` | Computed: `srcAmountUI`, `dstAmountUI`, `srcAmountUsd`, `dstAmountUsd`, `limitPriceUI`, `triggerPriceUI`, `limitPriceUsd`, `triggerPriceUsd`, `totalTrades`, `sizePerTradeUI`, `minDestAmountPerTradeUI`, `minDestAmountPerTradeUsd`, `deadline`, `tradeInterval`, `feesAmount`, `feesAmountUI`, `feesUsd`, `feesPercentage`, `orderType` |
+| `spot.orderExecutionPanel` | `onSubmit`, `status`, `resetCurrentSwap`, `resetState`, `parsedError`, `error`, `confirmButtonLoading`, `isLoading`, `isSuccess`, `isFailed`, `step`, `stepIndex`, `totalSteps`, `pendingSteps`, `srcToken`, `dstToken`, `wrapTxHash`, `approveTxHash` |
+| `spot.orderHistoryPanel` | `orders: { all, open, completed, cancelled, expired }`, `isLoading`, `isRefetching`, `refetchOrders` |
+| `spot.derivedFormData` | Computed: `srcAmountUI`, `dstAmountUI`, `srcAmountUsd`, `dstAmountUsd`, `limitPriceUI`, `triggerPriceUI`, `limitPriceUsd`, `triggerPriceUsd`, `totalTrades`, `srcAmountPerTradeUI`, `srcAmountPerTradeUsd`, `minDestAmountPerTradeUI`, `minDestAmountPerTradeUsd`, `deadline`, `tradeInterval`, `feesAmount`, `feesAmountUI`, `feesUsd`, `feesPercentage`, `orderType`, `isMarketOrder`, `isTriggerPrice`, `marketPrice`, `marketPriceUi`, `spender`, `rePermitData` |
 | `spot.supportedChains` | Partner's supported chain IDs |
 | `spot.module` | Current `Module` enum |
+| `spot.refetchUntilStatusSynced` | Polls order status after cancellation until synced |
 
 
 Cancel orders use a separate `useCancelOrder` hook (see Cancel Order section below).
@@ -181,17 +182,17 @@ function DurationSection() {
 
 ```tsx
 function TradeSizeSection() {
-  const { totalTrades, onChange, error, amountPerTradeUI, amountPerTradeUsd, srcToken } =
+  const { totalTrades, onChange, error, amountPerTradeUI, amountPerTradeUsd, fromToken } =
     useSpot().tradesAmountPanel;
 
   return (
     <div>
       <label>Over</label>
       <NumericInput value={totalTrades} onChange={(v) => onChange(Number(v))} />
-      {totalTrades > 1 && srcToken && (
-        <p>{amountPerTradeUI} {srcToken.symbol} per trade (${amountPerTradeUsd})</p>
+      {totalTrades > 1 && fromToken && (
+        <p>{amountPerTradeUI} {fromToken.symbol} per trade (${amountPerTradeUsd})</p>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error">{t(error.type, error.args)}</p>}
     </div>
   );
 }
@@ -267,7 +268,7 @@ Render the form normally even without `chainId` or `account`. Only the submit ar
 function SubmitOrderSection() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { disabled, loading } = useSpot().submitOrderButton;
-  const { onSubmit, status, onSwapSuccess, parsedError, confirmButtonLoading } =
+  const { onSubmit, status, resetCurrentSwap, resetState, parsedError, confirmButtonLoading } =
     useSpot().orderExecutionPanel;
   const supportedChains = useSpot().supportedChains;
 
@@ -280,9 +281,12 @@ function SubmitOrderSection() {
     setIsModalOpen(false);
     if (Boolean(status)) {
       setInputAmount("");
-      setTimeout(() => { onSwapSuccess(); }, 500);
+      setTimeout(() => {
+        resetCurrentSwap();
+        resetState();
+      }, 500);
     }
-  }, [onSwapSuccess, setInputAmount, status]);
+  }, [resetCurrentSwap, resetState, setInputAmount, status]);
 
   return (
     <>
@@ -302,26 +306,31 @@ Build your submit order UI using `useSpot().orderExecutionPanel` for execution s
 ### orderExecutionPanel provides:
 - `onSubmit` — trigger the order creation flow
 - `status` — SwapStatus (LOADING, SUCCESS, FAILED) or undefined
+- `isLoading`, `isSuccess`, `isFailed` — convenience boolean flags derived from `status`
 - `step` — current step: WRAP, APPROVE, CREATE
 - `stepIndex` / `totalSteps` — progress tracking
+- `pendingSteps` — array of remaining steps
 - `parsedError` — `{ code, message }` on failure
-- `onSwapSuccess()` — call after user acknowledges success
+- `error` — raw Error object on failure
+- `resetCurrentSwap()` — resets the current swap execution state
+- `resetState()` — resets the full form state (store)
 - `confirmButtonLoading` — loading state for the confirm button
 - `srcToken`, `dstToken` — resolved tokens (after wrap if needed)
 - `wrapTxHash`, `approveTxHash` — transaction hashes for explorer links
 
 ### derivedFormData provides:
 - Amounts: `srcAmountUI`, `dstAmountUI`, `srcAmountUsd`, `dstAmountUsd`
-- Prices: `limitPriceUI`, `triggerPriceUI`, `limitPriceUsd`, `triggerPriceUsd`
-- Trade config: `totalTrades`, `sizePerTradeUI`, `minDestAmountPerTradeUI`, `minDestAmountPerTradeUsd`
+- Prices: `limitPriceUI`, `triggerPriceUI`, `limitPriceUsd`, `triggerPriceUsd`, `marketPrice`, `marketPriceUi`
+- Trade config: `totalTrades`, `srcAmountPerTradeUI`, `srcAmountPerTradeUsd`, `minDestAmountPerTradeUI`, `minDestAmountPerTradeUsd`
 - Timing: `deadline`, `tradeInterval`
 - Fees: `feesAmount`, `feesAmountUI`, `feesUsd`, `feesPercentage`
-- Type: `orderType`
+- Type: `orderType`, `isMarketOrder`, `isTriggerPrice`
+- Other: `spender`, `rePermitData`
 
 ```tsx
 function SubmitOrderModal({ isOpen, onClose }) {
   const [accepted, setAccepted] = useState(false);
-  const { onSubmit, status, parsedError, confirmButtonLoading, srcToken, dstToken } =
+  const { onSubmit, status, isLoading, isSuccess, isFailed, parsedError, confirmButtonLoading, srcToken, dstToken, step, stepIndex, totalSteps } =
     useSpot().orderExecutionPanel;
   const form = useSpot().derivedFormData;
 
@@ -397,11 +406,14 @@ Build order history using `useSpot().orderHistoryPanel` for the list and `useDer
 import { useDerivedHistoryOrder, OrderStatus } from "@orbs-network/spot-react";
 
 function OrderHistorySection() {
-  const { orders } = useSpot().orderHistoryPanel;
+  const { orders, isLoading, isRefetching, refetchOrders } = useSpot().orderHistoryPanel;
+
+  if (isLoading) return <p>Loading orders...</p>;
 
   return (
     <div>
       <h3>Orders ({orders.all.length})</h3>
+      {/* orders.all, orders.open, orders.completed, orders.cancelled, orders.expired */}
       {orders.all.map((order) => (
         <OrderPreview key={order.id} order={order} />
       ))}
@@ -410,6 +422,7 @@ function OrderHistorySection() {
 }
 
 function OrderPreview({ order }) {
+  // useDerivedHistoryOrder(order, srcToken?, dstToken?) — pass tokens for amount formatting
   const derived = useDerivedHistoryOrder(order);
   if (!derived) return null;
 
@@ -426,7 +439,7 @@ function OrderPreview({ order }) {
 ## Helper Hooks
 
 ```tsx
-import { useExplorerLink, useNetwork, useAmountUi } from "@orbs-network/spot-react";
+import { useExplorerLink, useNetwork, useAmountUi, useSwapExecution } from "@orbs-network/spot-react";
 
 // Explorer URL for a transaction hash
 const explorerUrl = useExplorerLink(txHash);
@@ -435,7 +448,22 @@ const explorerUrl = useExplorerLink(txHash);
 const network = useNetwork();
 
 // Format wei amount to UI display
-const formattedAmount = useAmountUi(amountWei, decimals);
+const formattedAmount = useAmountUi(decimals, amountWei);
+
+// Track swap execution state (status, step, txHashes, etc.)
+const swapExecution = useSwapExecution();
+```
+
+## Advanced Hooks
+
+```tsx
+import { useSignOrder, useSubmitOrder } from "@orbs-network/spot-react";
+
+// Sign an order (low-level, usually handled by orderExecutionPanel)
+const signOrder = useSignOrder();
+
+// Submit an order mutation (low-level, usually handled by orderExecutionPanel)
+const submitOrder = useSubmitOrder();
 ```
 
 ## Utility Functions
@@ -448,5 +476,24 @@ import {
   isNativeAddress,    // (address) => boolean
   eqIgnoreCase,       // (a, b) => case-insensitive address comparison
   getConfig,          // (partner, chainId) => SpotConfig
+  getMinChunkSizeUsd, // (partner) => minimum chunk size in USD
+  getOrderExecutionRate,   // (srcFilled, dstFilled, srcDecimals, dstDecimals) => rate
+  getOrderLimitPriceRate,  // (order, srcDecimals, dstDecimals) => rate
+  getTriggerPriceRate,     // (order, srcDecimals, dstDecimals) => rate
+  getOrderFillDelayMillis, // (order, twapConfig) => milliseconds
+} from "@orbs-network/spot-react";
+```
+
+## Constants
+
+```tsx
+import {
+  DISCLAIMER_URL,
+  ORBS_TWAP_FAQ_URL,
+  ORBS_SLTP_FAQ_URL,
+  ORBS_LOGO,
+  ORBS_WEBSITE_URL,
+  SPOT_VERSION,
+  networks,
 } from "@orbs-network/spot-react";
 ```

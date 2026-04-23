@@ -17,7 +17,7 @@
 13. **Form Always Visible** — If no chainId/account, still render the form. Only the submit area shows Connect Wallet or Switch Chain using DEX's existing flow.
 14. **Single File Structure** — All spot-related components and hooks can live in one file. Order by type: imports, types/constants, section components, main export.
 15. **Balance Refetch via Callbacks** — Wire `refetchBalances` into `onWrapSuccess` and `onOrdersProgressUpdate` callbacks. Do not pass it as a prop.
-16. **Input Reset in onClose** — Reset the typed input amount when `status` is truthy inside the modal's `onClose` callback, after calling `onSwapSuccess()` (see [02-provider.md](02-provider.md)).
+16. **Input Reset in onClose** — Reset the typed input amount when `status` is truthy inside the modal's `onClose` callback, after calling `resetCurrentSwap()` and `resetState()` (see [02-provider.md](02-provider.md)).
 17. **Translations** — The SDK returns string keys for disclaimers and errors. Resolve via your own i18n system.
 
 ## Module Navigation
@@ -107,7 +107,7 @@ export function SpotForm({ swapType }) { ... }
 - [ ] `@orbs-network/spot-react@latest` installed with all peer dependencies (no viem required)
 - [ ] `walletInteractions` provided with all 5 methods (wrapNativeToken, approveToken, cancelOrder, signOrder, getAllowance)
 - [ ] `typedInputAmount` from DEX state
-- [ ] Input reset handled in modal `onClose` when `status` is truthy, after `onSwapSuccess()`
+- [ ] Input reset handled in modal `onClose` when `status` is truthy, after `resetCurrentSwap()` and `resetState()`
 - [ ] Balance refetch handled via `onWrapSuccess` and `onOrdersProgressUpdate` callbacks
 - [ ] Token inputs use DEX components unchanged
 - [ ] Duration/interval panels use Input + Select with `TimeUnit` options
