@@ -81,6 +81,7 @@ export type OrderFill = {
 
 
 export type Order = {
+  repermitDigest: string;
   version: number;
   id: string;
   hash: string;
@@ -253,6 +254,7 @@ export type OrderV2 = {
     status: string;
     description: string;
     displayOnlyInputTokenPriceUSD: string;
+    repermitDigest: string;
   };
   order: RePermitOrder;
   signature: string;

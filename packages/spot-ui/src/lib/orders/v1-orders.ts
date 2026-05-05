@@ -164,6 +164,7 @@ const buildV1Order = (
   const progress = getV1OrderProgress(order.ask_srcAmount, filledSrcAmount);
   const type = getOrderType(order.ask_dstMinAmount, chunks);
   return {
+    repermitDigest: "",
     version: 1,
     isTriggerPrice: false,
     id: order.Contract_id.toString(),

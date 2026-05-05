@@ -180,6 +180,7 @@ export const buildV2Order = (order: OrderV2): Order => {
     chainId: order.order.witness.chainid,
     filledOrderTimestamp: getFilledOrderTimestamp(fills, totalTradesAmount),
     status: getStatus(order, progress),
+    repermitDigest: order.metadata.repermitDigest,
     isTriggerPrice:
       type === OrderType.TAKE_PROFIT_MARKET ||
       type === OrderType.TAKE_PROFIT_LIMIT ||
@@ -218,6 +219,9 @@ export const getOrders = async ({
     if (!payload || !Array.isArray(payload.orders)) {
       return [];
     }
+
+    console.log(payload.orders);
+    
 
     return (payload.orders as OrderV2[]).map(buildV2Order);
   } catch (error) {

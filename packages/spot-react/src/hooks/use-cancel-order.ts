@@ -97,7 +97,7 @@ export const useCancelOrder = (order?: Order) => {
           order,
           contractAddress:
             order.version === 1 ? order.twapAddress! : config!.repermit,
-          args: order.version === 1 ? [order.id] : [[order.hash]],
+          args: order.version === 1 ? [order.id] : [[order.repermitDigest]],
           abi: order.version === 1 ? TWAP_ABI : REPERMIT_ABI,
         });
 

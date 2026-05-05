@@ -36,7 +36,7 @@
     "vite-plugin-dts": "^4.4.0"
   },
   "dependencies": {
-    "@orbs-network/spot": "^2.5.2",
+    "@orbs-network/spot": "^2.5.3",
     "@orbs-network/twap": "^2.7.28"
   }
 }
