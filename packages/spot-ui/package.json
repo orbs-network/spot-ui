@@ -1,6 +1,6 @@
 {
   "name": "@orbs-network/spot-ui",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Spot SDK",
   "type": "module",
   "main": "./dist/spot-ui.umd.cjs",
