@@ -370,11 +370,13 @@ export const getConfig = (partner: Partners, chainId = 0): SpotConfig => {
 
 export const getPartners = (): PartnerPayloadItem[] => {
   const raw = Spot.raw as Record<string, any>;
+  const globalDex = raw["*"]?.dex ?? {};
+console.log({globalDex});
 
   return Object.entries(raw)
     .filter(([chainId]) => chainId !== "*")
     .flatMap(([chainId, chainCfg]) => {
-      const dex = chainCfg?.dex;
+      const dex = { ...globalDex, ...(chainCfg?.dex ?? {}) };
       if (!dex || typeof dex !== "object") return [];
 
       return Object.entries(dex).map(([name]) => ({

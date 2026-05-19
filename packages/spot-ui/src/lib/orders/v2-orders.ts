@@ -220,7 +220,6 @@ export const getOrders = async ({
       return [];
     }
 
-    console.log(payload.orders);
     
 
     return (payload.orders as OrderV2[]).map(buildV2Order);
