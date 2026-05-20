@@ -135,6 +135,7 @@ class Analytics {
     _id: generateId(),
   };
 
+  
   async updateAndSend(values = {} as Partial<Data>, noTimeout = false, callback?: () => void) {
     try {
       this.data = {
