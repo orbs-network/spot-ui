@@ -45,11 +45,13 @@ Every DEX requires its own on-chain configuration (partner name, adapter address
 - [ ] All spot-react imports exist (check package exports)
 - [ ] TypeScript types match between DEX and spot-react
 - [ ] Objects passed to SpotProvider are wrapped in `useMemo`; functions in `useCallback`
+- [ ] `walletInteractions` implements all 5 methods and waits for receipts on write transactions
 
 ## Minimum Steps
 
 1. Install `@orbs-network/spot-react@latest` and peer dependencies.
-2. Mount `SpotProvider` with all required props (see [02-provider.md](02-provider.md)).
-3. Build the form using `useSpot()` hook panels (see [03-panels.md](03-panels.md)).
-4. Place Spot tabs alongside the Swap tab in the same container.
-5. Review the checklist in [04-principles.md](04-principles.md).
+2. Implement the required `walletInteractions` adapter using the DEX's existing wallet library.
+3. Mount `SpotProvider` with all required props (see [02-provider.md](02-provider.md)).
+4. Build the form using `useSpot()` hook panels (see [03-panels.md](03-panels.md)).
+5. Place Spot tabs alongside the Swap tab in the same container.
+6. Review the checklist in [04-principles.md](04-principles.md).

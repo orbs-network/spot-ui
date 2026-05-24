@@ -7,6 +7,16 @@ description: Integration guide for @orbs-network/spot-react into a DEX frontend.
 
 Use this skill to integrate `@orbs-network/spot-react` into any DEX frontend. The library provides a single `useSpot()` hook that exposes all panel data and callbacks for TWAP, Limit, Stop-Loss, and Take-Profit orders. The integration wraps the DEX's existing components so the result matches the DEX look and feel.
 
+## Expected Result
+
+The completed integration should include:
+
+1. A `SpotProvider` wired to the DEX's tokens, typed input amount, balances, USD prices, market quote, partner config, account, chain, callbacks, and `walletInteractions`.
+2. A DEX-native order form with token inputs, price controls, TWAP duration/trade controls, validation errors, disclaimers, and a submit modal.
+3. Four module entry points or tabs: TWAP, Limit, Stop-Loss, and Take-Profit, using the DEX's existing navigation pattern.
+4. Order history and cancellation UI built inside `SpotProvider` scope or rendered through a context-preserving portal.
+5. No direct dependency on a wallet library from `spot-react`; the DEX adapts its existing wallet stack through `walletInteractions`.
+
 ## Distribution
 
 This skill lives in `skills/spot-react-integration/` of the [`orbs-network/spot-ui`](https://github.com/orbs-network/spot-ui) repository, and is also available under `node_modules/@orbs-network/spot-react/.cursor/`.
@@ -32,6 +42,6 @@ Working example: [`apps/web/components/spot/spot-form.tsx`](https://github.com/o
 5. Wrap objects with `useMemo`, functions with `useCallback` in SpotProvider props.
 6. Verify all imports exist in the package before using them.
 7. Balance refetch goes in callbacks (`onWrapSuccess`, `onOrdersProgressUpdate`), not as a prop.
-8. Input amount reset goes in the modal's `onClose` callback when `status` is truthy, after calling `resetCurrentSwap()` and `resetState()`.
-9. All panel data comes from `useSpot()`. Cancel orders use `useCancelOrder()`. Do not import other individual hooks — they are internal.
-10. The DEX must provide `walletInteractions` — an object with 5 methods for wallet operations. spot-react does not include viem or any wallet library.
+8. Input amount reset goes in the modal's `onClose` callback only when the order succeeds. Clear the DEX input and call `resetState()` on success; for failed/rejected submissions, keep the input and call `resetCurrentSwap()`.
+9. All panel data comes from `useSpot()`. Cancel orders use `useCancelOrder(order)`. Do not import package-internal hooks; only use exported advanced hooks (`useSignOrder`, `useSubmitOrder`, `useSwapExecution`) when deliberately replacing the built-in submit flow.
+10. The DEX must provide `walletInteractions` — an object with 5 methods for wallet operations (`wrapNativeToken`, `approveToken`, `cancelOrder`, `signOrder`, `getAllowance`). spot-react does not include viem or any wallet library, and write methods should wait for transaction receipts.

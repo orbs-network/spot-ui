@@ -2,6 +2,8 @@
 
 All panel data is accessed via the `useSpot()` hook. Each property returns a panel object with data and callbacks.
 
+The snippets below are intentionally framework-neutral. Replace placeholder components such as `CurrencyInputPanel`, `Select`, `Button`, `Dialog`, `ConnectWalletButton`, `SwitchNetworkButton`, and `DisclaimerAccept` with existing DEX components, and source variables such as `address`, `chainId`, `inputValue`, and `setInputAmount` from the DEX state/hooks.
+
 ## useSpot() Reference
 
 ```tsx
@@ -24,7 +26,7 @@ const spot = useSpot();
 | `spot.submitOrderButton` | `disabled`, `loading` |
 | `spot.orderExecutionPanel` | `onSubmit`, `status`, `resetCurrentSwap`, `resetState`, `parsedError`, `error`, `confirmButtonLoading`, `isLoading`, `isSuccess`, `isFailed`, `step`, `stepIndex`, `totalSteps`, `pendingSteps`, `srcToken`, `dstToken`, `wrapTxHash`, `approveTxHash` |
 | `spot.orderHistoryPanel` | `orders: { all, open, completed, cancelled, expired }`, `isLoading`, `isRefetching`, `refetchOrders` |
-| `spot.derivedFormData` | Computed: `srcAmountUI`, `dstAmountUI`, `srcAmountUsd`, `dstAmountUsd`, `limitPriceUI`, `triggerPriceUI`, `limitPriceUsd`, `triggerPriceUsd`, `totalTrades`, `srcAmountPerTradeUI`, `srcAmountPerTradeUsd`, `minDestAmountPerTradeUI`, `minDestAmountPerTradeUsd`, `deadline`, `tradeInterval`, `feesAmount`, `feesAmountUI`, `feesUsd`, `feesPercentage`, `orderType`, `isMarketOrder`, `isTriggerPrice`, `marketPrice`, `marketPriceUi`, `spender`, `rePermitData` |
+| `spot.derivedFormData` | Computed: `srcAmountUI`, `dstAmountUI`, `srcAmountUsd`, `dstAmountUsd`, `limitPriceUI`, `triggerPriceUI`, `limitPriceUsd`, `triggerPriceUsd`, `totalTrades`, `sizePerTradeUI`, `sizePerTradeUsd`, `minDestAmountPerTradeUI`, `minDestAmountPerTradeUsd`, `deadline`, `tradeInterval`, `feesAmount`, `feesAmountUI`, `feesUsd`, `feesPercentage`, `orderType`, `isMarketOrder`, `isTriggerPrice`, `marketPrice`, `marketPriceUi`, `spender`, `rePermitData` |
 | `spot.supportedChains` | Partner's supported chain IDs |
 | `spot.module` | Current `Module` enum |
 | `spot.refetchUntilStatusSynced` | Polls order status after cancellation until synced |
@@ -92,6 +94,18 @@ function PriceConfigSection() {
       />
       {showTrigger && <TriggerPriceRow />}
       <LimitPriceRow showToggle={module !== Module.LIMIT} />
+    </div>
+  );
+}
+
+function PriceHeader({ isInverted, fromToken, isMarketPrice, onInvert }) {
+  return (
+    <div>
+      <span>
+        {isInverted ? "Buy" : "Sell"} {fromToken?.symbol}{" "}
+        {isMarketPrice ? "at best rate" : "at rate"}
+      </span>
+      {!isMarketPrice && <button onClick={onInvert}>Invert</button>}
     </div>
   );
 }
@@ -268,25 +282,28 @@ Render the form normally even without `chainId` or `account`. Only the submit ar
 function SubmitOrderSection() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { disabled, loading } = useSpot().submitOrderButton;
-  const { onSubmit, status, resetCurrentSwap, resetState, parsedError, confirmButtonLoading } =
+  const { status, isSuccess, resetCurrentSwap, resetState } =
     useSpot().orderExecutionPanel;
   const supportedChains = useSpot().supportedChains;
+
+  const onClose = useCallback(() => {
+    setIsModalOpen(false);
+    if (isSuccess) {
+      setInputAmount("");
+      setTimeout(() => {
+        resetState();
+      }, 500);
+    } else if (Boolean(status)) {
+      setTimeout(() => {
+        resetCurrentSwap();
+      }, 500);
+    }
+  }, [isSuccess, resetCurrentSwap, resetState, setInputAmount, status]);
 
   if (!address) return <ConnectWalletButton />;
   if (chainId && !supportedChains.includes(chainId)) {
     return <SwitchNetworkButton targetChainId={supportedChains[0]} />;
   }
-
-  const onClose = useCallback(() => {
-    setIsModalOpen(false);
-    if (Boolean(status)) {
-      setInputAmount("");
-      setTimeout(() => {
-        resetCurrentSwap();
-        resetState();
-      }, 500);
-    }
-  }, [resetCurrentSwap, resetState, setInputAmount, status]);
 
   return (
     <>
@@ -321,7 +338,7 @@ Build your submit order UI using `useSpot().orderExecutionPanel` for execution s
 ### derivedFormData provides:
 - Amounts: `srcAmountUI`, `dstAmountUI`, `srcAmountUsd`, `dstAmountUsd`
 - Prices: `limitPriceUI`, `triggerPriceUI`, `limitPriceUsd`, `triggerPriceUsd`, `marketPrice`, `marketPriceUi`
-- Trade config: `totalTrades`, `srcAmountPerTradeUI`, `srcAmountPerTradeUsd`, `minDestAmountPerTradeUI`, `minDestAmountPerTradeUsd`
+- Trade config: `totalTrades`, `sizePerTradeUI`, `sizePerTradeUsd`, `minDestAmountPerTradeUI`, `minDestAmountPerTradeUsd`
 - Timing: `deadline`, `tradeInterval`
 - Fees: `feesAmount`, `feesAmountUI`, `feesUsd`, `feesPercentage`
 - Type: `orderType`, `isMarketOrder`, `isTriggerPrice`
@@ -439,7 +456,7 @@ function OrderPreview({ order }) {
 ## Helper Hooks
 
 ```tsx
-import { useExplorerLink, useNetwork, useAmountUi, useSwapExecution } from "@orbs-network/spot-react";
+import { useExplorerLink, useNetwork, useAmountUi } from "@orbs-network/spot-react";
 
 // Explorer URL for a transaction hash
 const explorerUrl = useExplorerLink(txHash);
@@ -449,21 +466,23 @@ const network = useNetwork();
 
 // Format wei amount to UI display
 const formattedAmount = useAmountUi(decimals, amountWei);
-
-// Track swap execution state (status, step, txHashes, etc.)
-const swapExecution = useSwapExecution();
 ```
 
 ## Advanced Hooks
 
+Normal integrations should use `useSpot().orderExecutionPanel` for submission. Only reach for these exported low-level hooks if the DEX intentionally replaces the built-in submit flow:
+
 ```tsx
-import { useSignOrder, useSubmitOrder } from "@orbs-network/spot-react";
+import { useSignOrder, useSubmitOrder, useSwapExecution } from "@orbs-network/spot-react";
 
 // Sign an order (low-level, usually handled by orderExecutionPanel)
 const signOrder = useSignOrder();
 
 // Submit an order mutation (low-level, usually handled by orderExecutionPanel)
 const submitOrder = useSubmitOrder();
+
+// Track swap execution state (status, step, txHashes, etc.)
+const swapExecution = useSwapExecution();
 ```
 
 ## Utility Functions
@@ -476,7 +495,7 @@ import {
   isNativeAddress,    // (address) => boolean
   eqIgnoreCase,       // (a, b) => case-insensitive address comparison
   getConfig,          // (partner, chainId) => SpotConfig
-  getMinChunkSizeUsd, // (partner) => minimum chunk size in USD
+  getMinChunkSizeUsd, // (minChunkSizeUsd) => applies query override if present
   getOrderExecutionRate,   // (srcFilled, dstFilled, srcDecimals, dstDecimals) => rate
   getOrderLimitPriceRate,  // (order, srcDecimals, dstDecimals) => rate
   getTriggerPriceRate,     // (order, srcDecimals, dstDecimals) => rate
