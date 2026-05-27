@@ -3,6 +3,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -32,7 +33,7 @@ import { AlertTriangleIcon, ArrowLeftRightIcon, InfoIcon } from "lucide-react";
 import { useUSDPrice } from "@/lib/hooks/use-usd-price";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Switch } from "../ui/switch";
-import { useConnection } from "wagmi";
+import { useConnection, useSwitchChain } from "wagmi";
 import { SubmitSwapButton } from "../submit-swap-button";
 import { useBalance } from "@/lib/hooks/use-balances";
 import { useSettings } from "@/lib/hooks/use-settings";
@@ -643,6 +644,22 @@ const Prices = () => {
   );
 };
 
+
+const Listener = () => {
+  const { chainId } = useConnection();
+  const { targetChainId } = useSwapParams();
+  const switchChain = useSwitchChain();
+
+  useEffect(() => {
+    if (chainId && targetChainId && chainId !== Number(targetChainId)) {
+      switchChain.mutate({ chainId: Number(targetChainId) });
+    }
+  }, [targetChainId, chainId, switchChain]);
+
+
+  return null;
+};
+
 export function SpotForm({ swapType }: { swapType: SwapType }) {
   const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
   const { envMode } = useSwapParams();
@@ -703,6 +720,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           </Portal>
         </Spot>
         <SpotFooter />
+        <Listener />
       </FormContainer>
     </Context.Provider>
   );
