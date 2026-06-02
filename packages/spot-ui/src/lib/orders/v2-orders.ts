@@ -6,12 +6,14 @@ import BN from "bignumber.js";
 
 const getOrderType = (order: OrderV2) => {
   const isLimit = BN(order.order.witness.output.limit || 0).gt(1);
-  const stop = order.order.witness.output.stop;
-  const triggerUpper = order.order.witness.output.triggerUpper;
+  const { stop, triggerLower, triggerUpper } = order.order.witness.output;
 
+  const isLegacyTakeProfit = BN(stop || 0).eq(maxUint256);
   const isTakeProfit =
-    BN(stop || 0).eq(maxUint256) || BN(triggerUpper || 0).gt(0);
-  const isStopLoss = BN(stop || 0).gt(0);
+    isLegacyTakeProfit || BN(triggerUpper || 0).gt(0);
+  const isStopLoss =
+    (!isLegacyTakeProfit && BN(stop || 0).gt(0)) ||
+    BN(triggerLower || 0).gt(0);
   const chunks =
     order.metadata.chunks?.length ||
     BN(order.order.witness.input.maxAmount)

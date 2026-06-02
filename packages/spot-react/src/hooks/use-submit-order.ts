@@ -87,7 +87,8 @@ const useWrapToken = () => {
 };
 
 export const useSignOrder = () => {
-  const { account, walletInteractions, chainId, callbacks } = useSpotContext();
+  const { account, walletInteractions, chainId, callbacks, isDev } =
+    useSpotContext();
   const rePermitData = useRePermitOrderData();
   const { refetch: refetchOrders } = useOrdersQuery();
 
@@ -131,7 +132,7 @@ export const useSignOrder = () => {
       };
       callbacks?.onSignOrderRequest?.();
 
-      const newOrder = await submitOrder(order, signature);
+      const newOrder = await submitOrder(order, signature, isDev);
       callbacks?.onOrderCreated?.(newOrder);
       await refetchOrders();
       return newOrder;
