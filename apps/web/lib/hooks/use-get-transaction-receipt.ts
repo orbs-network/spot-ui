@@ -1,10 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { TransactionReceipt } from "viem";
-import { useUtilaWalletSession } from "./use-utila-wallet-session";
+import { useSwapParams } from "./use-swap-params";
 
 export const useGetTransactionReceiptCallback = () => {
-  const { chainId } = useUtilaWalletSession();
+  const { chainId } = useSwapParams();
   return useMutation({
     mutationFn: async (hash: `0x${string}`) => {
       const result = await axios.get(

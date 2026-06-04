@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { erc20Abi } from "viem";
-import { useConnection, usePublicClient, useWalletClient } from "wagmi";
+import { usePublicClient, useWalletClient } from "wagmi";
 import { useGetTransactionReceiptCallback } from "./use-get-transaction-receipt";
 import BN from "bignumber.js";
 import { useMemo } from "react";
 import { useParseNativeCurrencyAddress } from "./common";
+import { useActiveConnection } from "./use-active-connection";
 
 const useGetAllowance = (
   spender: string,
@@ -12,7 +13,7 @@ const useGetAllowance = (
   amount?: string
 ) => {
   const publicClient = usePublicClient();
-  const account = useConnection().address;
+  const account = useActiveConnection().address;
   return useMutation({
     mutationFn: async () => {
       if (!publicClient || !tokenAddress || !amount) {

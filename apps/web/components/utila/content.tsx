@@ -7,7 +7,7 @@ import { UtilaHistory } from "@/components/utila/history";
 export function UtilaContent() {
   const pathname = usePathname();
 
-  if (pathname === "/utila/history") {
+  if (pathname === "/history") {
     return <UtilaHistory />;
   }
 

@@ -8,7 +8,7 @@ import { FormatNumber } from "./format-number";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { InfoIcon, CopyIcon } from "lucide-react";
 import { useTranslations } from "@/lib/use-translations";
-import { useConnection } from "wagmi";
+import { useActiveConnection } from "@/lib/hooks/use-active-connection";
 
 const USD = ({ value }: { value?: string }) => {
   const formattedValue = useFormatNumber({ value: value, decimalScale: 2 });
@@ -75,7 +75,7 @@ const TradesAmount = ({ trades, label, tooltip }: { trades?: number; label: stri
 const Recipient = () => {
   const t = useTranslations();
   const network = useNetwork();
-  const {address: account} = useConnection();
+  const { address: account } = useActiveConnection();
   const explorerUrl = network?.explorer;
 
   return (

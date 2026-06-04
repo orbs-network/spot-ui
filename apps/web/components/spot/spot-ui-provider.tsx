@@ -21,8 +21,8 @@ import {
   useSpotMarketReferencePrice,
   useWalletInteractions,
 } from "@/lib/hooks/spot-hooks";
+import { useActiveConnection } from "@/lib/hooks/use-active-connection";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
-import { useUtilaWalletSession } from "@/lib/hooks/use-utila-wallet-session";
 import { useUSDPrice } from "@/lib/hooks/use-usd-price";
 import { Currency, SwapType } from "@/lib/types";
 
@@ -53,7 +53,7 @@ const getSwapTypeFromPathname = (pathname: string, querySwapType: SwapType) => {
   if (pathname === "/stop-loss") return SwapType.STOP_LOSS;
   if (pathname === "/take-profit") return SwapType.TAKE_PROFIT;
   if (pathname === "/twap") return SwapType.TWAP;
-  if (pathname === "/utila") return querySwapType;
+  if (pathname === "/") return querySwapType;
 
   return SwapType.TWAP;
 };
@@ -86,8 +86,8 @@ export const SpotUiProvider = ({
 }) => {
   const pathname = usePathname();
   const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
-  const { swapType: querySwapType } = useSwapParams();
-  const { address, chainId } = useUtilaWalletSession();
+  const { chainId, swapType: querySwapType } = useSwapParams();
+  const { address } = useActiveConnection();
   const { priceProtection: settingsPriceProtection } = useSettings();
   const inputUsd = useUSDPrice({ token: inputCurrency?.address });
   const outputUsd = useUSDPrice({ token: outputCurrency?.address });
@@ -97,8 +97,7 @@ export const SpotUiProvider = ({
   const walletInteractions = useWalletInteractions();
   const swapType = getSwapTypeFromPathname(pathname, querySwapType);
   const swapModule = useMemo(() => getSpotModule(swapType), [swapType]);
-  const enableOrderHistory =
-    !pathname.startsWith("/utila") || pathname === "/utila/history";
+  const enableOrderHistory = pathname !== "/";
 
   return (
     <SpotUiContext.Provider

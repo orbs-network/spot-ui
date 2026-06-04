@@ -1,7 +1,7 @@
 import { constructSDK } from "@orbs-network/liquidity-hub-sdk";
-import { useUtilaWalletSession } from "./use-utila-wallet-session";
+import { useSwapParams } from "./use-swap-params";
 
 export const useLiquidityHub = () => {
-  const { chainId } = useUtilaWalletSession();
+  const { chainId } = useSwapParams();
   return constructSDK({ chainId: chainId || 1, partner: "playground" });
 };

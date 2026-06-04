@@ -5,7 +5,8 @@ import { useFormatNumber, useToAmountUI } from "./common";
 import { Currency } from "../types";
 import { useCurrenciesQuery } from "./use-currencies-query";
 import { useDerivedSwap } from "./use-derived-swap";
-import { useUtilaWalletSession } from "./use-utila-wallet-session";
+import { useActiveConnection } from "./use-active-connection";
+import { useSwapParams } from "./use-swap-params";
 
 const getBalancesAddressesKey = (addresses: string[]) =>
   [...addresses]
@@ -37,7 +38,8 @@ export const fetchBalances = async ({
 };
 
 const useQueryKey = (disabled = false) => {
-  const { address, chainId } = useUtilaWalletSession();
+  const { chainId } = useSwapParams();
+  const { address } = useActiveConnection();
   const { data: currencies } = useCurrenciesQuery({ disabled });
   const addresses = useMemo(
     () => currencies?.map((it) => it.address) ?? [],
@@ -52,12 +54,14 @@ const useQueryKey = (disabled = false) => {
 export const useBalances = ({
   disabled = false,
 }: { disabled?: boolean } = {}) => {
-  const { address, chainId } = useUtilaWalletSession();
+  const { chainId } = useSwapParams();
+  const { address } = useActiveConnection();
   const { data: currencies } = useCurrenciesQuery({ disabled });
   const addresses = useMemo(
     () => currencies?.map((it) => it.address) ?? [],
     [currencies],
   );
+
   const queryKey = useQueryKey(disabled);
   return useQuery<Record<string, string>>({
     queryKey,
@@ -71,7 +75,8 @@ export const useBalances = ({
 
 export const useRefetchSelectedCurrenciesBalances = () => {
   const queryClient = useQueryClient();
-  const { address, chainId } = useUtilaWalletSession();
+  const { chainId } = useSwapParams();
+  const { address } = useActiveConnection();
   const { inputCurrency, outputCurrency } = useDerivedSwap();
   const queryKey = useQueryKey();
   return useMutation({

@@ -17,6 +17,7 @@ import {
   useSpot,
 } from "@orbs-network/spot-react";
 import { SwapStatus as HubSwapStatus } from "@orbs-network/swap-ui";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Virtuoso } from "react-virtuoso";
 import {
   ArrowDownIcon,
@@ -62,7 +63,6 @@ import {
   SPOT_DURATION_OPTIONS,
   useSpotUiContext,
 } from "@/components/spot/spot-ui-provider";
-import { UtilaConnectWalletDialog } from "@/components/utila/connect-wallet-dialog";
 import { useActionHandlers } from "@/lib/hooks/use-action-handlers";
 import { useBalance, useBalances } from "@/lib/hooks/use-balances";
 import { useCurrencies, useCurrency } from "@/lib/hooks/use-currencies";
@@ -72,15 +72,14 @@ import { useBestTradeSwapStore } from "@/lib/hooks/store";
 import { useSwapBestTrade } from "@/lib/hooks/use-swap-best-trade";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
+import { useActiveConnection } from "@/lib/hooks/use-active-connection";
 import { useUtilaSelectedWallet } from "@/lib/hooks/use-utila-selected-wallet";
-import { useUtilaWalletSession } from "@/lib/hooks/use-utila-wallet-session";
 import { useUSDPrice, useUSDPrices } from "@/lib/hooks/use-usd-price";
 import { useTranslations } from "@/lib/use-translations";
 import { Currency, Field, SwapStep, SwapType } from "@/lib/types";
 import {
   cn,
   formatDecimals,
-  getChainName,
   getExplorerUrl,
   getOrderTitle,
   isNativeAddress,
@@ -106,7 +105,7 @@ const UtilaNotice = () => {
         <ShieldIcon className="size-4 text-[#4f5676]" />
         <span>
           Swap and bridge functionality is powered by third-party providers,
-          such as LI.FI...
+          such as Liquidity Hub...
         </span>
         <a
           className="font-semibold text-[#3f4361] hover:text-[#4564ff]"
@@ -122,7 +121,7 @@ const UtilaNotice = () => {
 };
 
 const UtilaWalletSelector = () => {
-  const { address } = useUtilaWalletSession();
+  const { address } = useActiveConnection();
   const { selectWallet, selectedWalletAddress } = useUtilaSelectedWallet();
   const [open, setOpen] = useState(false);
   const { data: balances } = useBalances({ disabled: !address });
@@ -1278,7 +1277,8 @@ const UtilaSubmitMain = ({
 
 const UtilaSubmitOrder = () => {
   const { setInputAmount } = useActionHandlers();
-  const { address } = useUtilaWalletSession();
+  const { address } = useActiveConnection();
+  const { openConnectModal } = useConnectModal();
   const { disabled, loading } = useSpot().submitOrderButton;
   const {
     confirmButtonLoading,
@@ -1290,6 +1290,12 @@ const UtilaSubmitOrder = () => {
   } = useSpot().orderExecutionPanel;
   const orderTitle = getOrderTitle(useSpot().derivedFormData.orderType);
   const [open, setOpen] = useState(false);
+  const buttonText =
+    !address
+      ? "Connect Wallet"
+      : loading
+        ? "Fetching quote..."
+        : "Place Order";
 
   const onClose = useCallback(
     (nextOpen: boolean) => {
@@ -1307,65 +1313,56 @@ const UtilaSubmitOrder = () => {
   );
 
   return (
-    <UtilaConnectWalletDialog>
-      {({ open: openConnectWallet }) => (
-        <Dialog open={open} onOpenChange={onClose}>
-          <button
-            className="mt-2 flex h-10 w-full items-center justify-center rounded-[8px] bg-[#cfd0d8] px-4 text-[16px] font-normal text-white transition-colors enabled:bg-[#4564ff] enabled:hover:bg-[#3152ff]"
-            disabled={Boolean(address) && (disabled || loading)}
-            onClick={() => {
-              if (!address) {
-                openConnectWallet();
-                return;
-              }
+    <Dialog open={open} onOpenChange={onClose}>
+      <button
+        className="mt-2 flex h-10 w-full items-center justify-center rounded-[8px] bg-[#cfd0d8] px-4 text-[16px] font-normal text-white transition-colors enabled:bg-[#4564ff] enabled:hover:bg-[#3152ff]"
+        disabled={Boolean(address) && (disabled || loading)}
+        onClick={() => {
+          if (!address) {
+            openConnectModal?.();
+            return;
+          }
 
-              setOpen(true);
-            }}
-            type="button"
-          >
-            {!address
-              ? "Connect Wallet"
-              : loading
-                ? "Fetching quote..."
-                : "Place Order"}
-            {address && loading && <Spinner className="size-4" />}
-          </button>
-          <DialogContent className="max-w-[520px] border-[#e3e5eb] bg-white text-[#3f4361]">
-            <DialogHeader>
-              <DialogTitle className="text-[18px] font-semibold text-[#3f4361]">
-                {parsedError
-                  ? "Error Creating Order"
-                  : status
-                    ? " "
-                    : `${orderTitle} order`}
-              </DialogTitle>
-            </DialogHeader>
-            {parsedError ? (
-              <UtilaSubmitError
-                code={parsedError.code}
-                message={parsedError.message}
-                onClose={() => onClose(false)}
-              />
-            ) : (
-              <UtilaSubmitMain
-                onSubmit={onSubmit}
-                orderTitle={orderTitle}
-                swapLoading={Boolean(confirmButtonLoading)}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
-      )}
-    </UtilaConnectWalletDialog>
+          setOpen(true);
+        }}
+        type="button"
+      >
+        {buttonText}
+        {address && loading && <Spinner className="size-4" />}
+      </button>
+      <DialogContent className="max-w-[520px] border-[#e3e5eb] bg-white text-[#3f4361]">
+        <DialogHeader>
+          <DialogTitle className="text-[18px] font-semibold text-[#3f4361]">
+            {parsedError
+              ? "Error Creating Order"
+              : status
+                ? " "
+                : `${orderTitle} order`}
+          </DialogTitle>
+        </DialogHeader>
+        {parsedError ? (
+          <UtilaSubmitError
+            code={parsedError.code}
+            message={parsedError.message}
+            onClose={() => onClose(false)}
+          />
+        ) : (
+          <UtilaSubmitMain
+            onSubmit={onSubmit}
+            orderTitle={orderTitle}
+            swapLoading={Boolean(confirmButtonLoading)}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
   );
 };
 
 const useUtilaSwapButtonState = () => {
-  const { address, chainId } = useUtilaWalletSession();
+  const { address } = useActiveConnection();
   const {
     inputCurrency: inputCurrencyAddress,
     outputCurrency: outputCurrencyAddress,
-    targetChainId,
   } = useSwapParams();
   const { selectedWalletAddress } = useUtilaSelectedWallet();
   const inputTokenSelected = Boolean(inputCurrencyAddress);
@@ -1389,10 +1386,6 @@ const useUtilaSwapButtonState = () => {
     hasAmount &&
     !isLoadingTrade &&
     BN(trade?.outAmount || "0").isZero();
-  const wrongChain =
-    Boolean(targetChainId) &&
-    Boolean(chainId) &&
-    chainId !== Number(targetChainId);
   const missingToken =
     !inputCurrency ||
     !outputCurrency ||
@@ -1400,7 +1393,6 @@ const useUtilaSwapButtonState = () => {
     !outputTokenSelected;
   const text = useMemo(() => {
     if (!address) return "Connect Wallet";
-    if (wrongChain) return `Switch to ${getChainName(Number(targetChainId))}`;
     if (!selectedWalletAddress) return "Select wallet";
     if (missingToken) return "Select token";
     if (enterAmount) return "Enter an amount";
@@ -1420,12 +1412,9 @@ const useUtilaSwapButtonState = () => {
     isLoadingTrade,
     missingToken,
     selectedWalletAddress,
-    targetChainId,
-    wrongChain,
   ]);
   const disabled =
     Boolean(address) &&
-    !wrongChain &&
     (!selectedWalletAddress ||
       missingToken ||
       enterAmount ||
@@ -1438,7 +1427,6 @@ const useUtilaSwapButtonState = () => {
     insufficientBalance,
     insufficientLiquidity,
     text,
-    wrongChain,
   };
 };
 
@@ -1616,7 +1604,7 @@ const UtilaSwapDetails = () => {
 
 const UtilaSwapSuccess = () => {
   const { txHash } = useSwapBestTrade();
-  const { chainId } = useUtilaWalletSession();
+  const { chainId } = useSwapParams();
 
   return (
     <div className="flex flex-col gap-4">
@@ -1641,8 +1629,9 @@ const UtilaSwapSuccess = () => {
 
 const UtilaSubmitSwap = () => {
   const { setInputAmount } = useActionHandlers();
-  const { address } = useUtilaWalletSession();
+  const { address } = useActiveConnection();
   const { disabled, text } = useUtilaSwapButtonState();
+  const { openConnectModal } = useConnectModal();
   const { currentStepIndex, onSwapBestTrade, reset, status, totalSteps } =
     useSwapBestTrade();
   const [open, setOpen] = useState(false);
@@ -1664,9 +1653,9 @@ const UtilaSubmitSwap = () => {
     [reset, setInputAmount, status],
   );
   const onButtonClick = useCallback(
-    (openConnectWallet: () => void) => {
+    () => {
       if (!address) {
-        openConnectWallet();
+        openConnectModal?.();
         return;
       }
 
@@ -1675,98 +1664,80 @@ const UtilaSubmitSwap = () => {
         reset();
       }
     },
-    [address, reset, status],
+    [
+      address,
+      openConnectModal,
+      reset,
+      status,
+    ],
   );
 
   return (
-    <UtilaConnectWalletDialog>
-      {({ open: openConnectWallet }) => (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-          <button
-            className="mt-2 flex h-10 w-full items-center justify-center rounded-[8px] bg-[#cfd0d8] px-4 text-[16px] font-normal text-white transition-colors enabled:bg-[#4564ff] enabled:hover:bg-[#3152ff]"
-            disabled={disabled}
-            onClick={() => onButtonClick(openConnectWallet)}
-            type="button"
-          >
-            {text}
-            {status === HubSwapStatus.LOADING && <Spinner className="size-4" />}
-          </button>
-          <DialogContent className="max-w-[520px] border-[#e3e5eb] bg-white text-[#3f4361]">
-            <DialogHeader>
-              <DialogTitle className="text-[18px] font-semibold text-[#3f4361]">
-                {status === HubSwapStatus.SUCCESS
-                  ? "Swap completed"
-                  : status === HubSwapStatus.FAILED
-                    ? "Swap failed"
-                    : "Review Swap"}
-              </DialogTitle>
-            </DialogHeader>
-            {status === HubSwapStatus.SUCCESS ? (
-              <UtilaSwapSuccess />
-            ) : status === HubSwapStatus.FAILED ? (
-              <div className="flex flex-col gap-4">
-                <div className="rounded-[8px] bg-[#fff1f0] p-4 text-center">
-                  <p className="text-[16px] font-semibold text-[#b42318]">
-                    Swap failed
-                  </p>
-                </div>
-                <button
-                  className="h-10 rounded-[8px] bg-[#4564ff] text-[15px] font-semibold text-white"
-                  onClick={() => reset()}
-                  type="button"
-                >
-                  Try again
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                <UtilaSwapSummary />
-                <UtilaSwapDetails />
-                <UtilaSwapStepText status={status} />
-                {status === HubSwapStatus.LOADING && totalSteps ? (
-                  <p className="text-center text-[12px] font-medium text-[#70748d]">
-                    Step {(currentStepIndex ?? 0) + 1} of {totalSteps}
-                  </p>
-                ) : null}
-                <button
-                  className="flex h-11 w-full items-center justify-center rounded-[8px] bg-[#4564ff] text-[16px] font-semibold text-white disabled:bg-[#c9ccd6]"
-                  disabled={status === HubSwapStatus.LOADING}
-                  onClick={() => onSwapBestTrade()}
-                  type="button"
-                >
-                  {status === HubSwapStatus.LOADING
-                    ? "Swapping..."
-                    : "Confirm Swap"}
-                  {status === HubSwapStatus.LOADING && (
-                    <Spinner className="size-4" />
-                  )}
-                </button>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-      )}
-    </UtilaConnectWalletDialog>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <button
+        className="mt-2 flex h-10 w-full items-center justify-center rounded-[8px] bg-[#cfd0d8] px-4 text-[16px] font-normal text-white transition-colors enabled:bg-[#4564ff] enabled:hover:bg-[#3152ff]"
+        disabled={disabled}
+        onClick={onButtonClick}
+        type="button"
+      >
+        {text}
+        {status === HubSwapStatus.LOADING && <Spinner className="size-4" />}
+      </button>
+      <DialogContent className="max-w-[520px] border-[#e3e5eb] bg-white text-[#3f4361]">
+        <DialogHeader>
+          <DialogTitle className="text-[18px] font-semibold text-[#3f4361]">
+            {status === HubSwapStatus.SUCCESS
+              ? "Swap completed"
+              : status === HubSwapStatus.FAILED
+                ? "Swap failed"
+                : "Review Swap"}
+          </DialogTitle>
+        </DialogHeader>
+        {status === HubSwapStatus.SUCCESS ? (
+          <UtilaSwapSuccess />
+        ) : status === HubSwapStatus.FAILED ? (
+          <div className="flex flex-col gap-4">
+            <div className="rounded-[8px] bg-[#fff1f0] p-4 text-center">
+              <p className="text-[16px] font-semibold text-[#b42318]">
+                Swap failed
+              </p>
+            </div>
+            <button
+              className="h-10 rounded-[8px] bg-[#4564ff] text-[15px] font-semibold text-white"
+              onClick={() => reset()}
+              type="button"
+            >
+              Try again
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <UtilaSwapSummary />
+            <UtilaSwapDetails />
+            <UtilaSwapStepText status={status} />
+            {status === HubSwapStatus.LOADING && totalSteps ? (
+              <p className="text-center text-[12px] font-medium text-[#70748d]">
+                Step {(currentStepIndex ?? 0) + 1} of {totalSteps}
+              </p>
+            ) : null}
+            <button
+              className="flex h-11 w-full items-center justify-center rounded-[8px] bg-[#4564ff] text-[16px] font-semibold text-white disabled:bg-[#c9ccd6]"
+              disabled={status === HubSwapStatus.LOADING}
+              onClick={() => onSwapBestTrade()}
+              type="button"
+            >
+              {status === HubSwapStatus.LOADING
+                ? "Swapping..."
+                : "Confirm Swap"}
+              {status === HubSwapStatus.LOADING && (
+                <Spinner className="size-4" />
+              )}
+            </button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
-};
-
-const UtilaListener = () => {
-  const { setCurrencies, targetChainId } = useSwapParams();
-  const targetChainRef = useRef<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (
-      targetChainRef.current &&
-      targetChainId &&
-      targetChainRef.current !== targetChainId
-    ) {
-      setCurrencies({ inputCurrency: undefined, outputCurrency: undefined });
-    }
-
-    targetChainRef.current = targetChainId;
-  }, [setCurrencies, targetChainId]);
-
-  return null;
 };
 
 const UtilaSpotForm = ({ swapType }: { swapType: SwapType }) => {
@@ -1799,14 +1770,13 @@ const UtilaSpotForm = ({ swapType }: { swapType: SwapType }) => {
           <UtilaDisclaimer />
         </>
       )}
-      <UtilaListener />
     </div>
   );
 };
 
 export function UtilaForm() {
   const { handleSwapTypeChange } = useActionHandlers();
-  const { setCurrencies, swapType: querySwapType } = useSwapParams();
+  const { swapType: querySwapType } = useSwapParams();
   const hasClearedInitialCurrenciesRef = useRef(false);
   const [swapType, setSwapType] = useState<SwapType>(() =>
     UTILA_SPOT_TABS.some((tab) => tab.value === querySwapType)
@@ -1828,14 +1798,16 @@ export function UtilaForm() {
     if (hasClearedInitialCurrenciesRef.current) return;
 
     hasClearedInitialCurrenciesRef.current = true;
-    setCurrencies(
-      {
-        inputCurrency: undefined,
-        outputCurrency: undefined,
-      },
-      "replaceIn",
+    const url = new URL(window.location.href);
+
+    url.searchParams.delete("inputCurrency");
+    url.searchParams.delete("outputCurrency");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
     );
-  }, [setCurrencies]);
+  }, []);
 
   const onTabChange = useCallback(
     (next: SwapType) => {

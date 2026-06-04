@@ -32,7 +32,8 @@ const WagmiWrapper = ({ children }: { children: React.ReactNode }) => {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const rainbowTheme = pathname.startsWith("/utila") ? lightTheme() : darkTheme();
+  const isUtila = pathname === "/" || pathname === "/history";
+  const rainbowTheme = isUtila ? lightTheme() : darkTheme();
 
   return (
     <Suspense

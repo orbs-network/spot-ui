@@ -1,7 +1,6 @@
 "use client";
 import React, {
   useCallback,
-  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -27,7 +26,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { AlertTriangleIcon, ArrowLeftRightIcon, InfoIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Switch } from "../ui/switch";
-import { useConnection, useSwitchChain } from "wagmi";
 import { SubmitSwapButton } from "../submit-swap-button";
 import { Portal } from "../ui/portal";
 import {
@@ -422,14 +420,8 @@ const SubmitSwap = () => {
 
 const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
   const t = useTranslations();
-  const { partner } = useSwapParams();
 
   const { disabled, loading } = useSpot().submitOrderButton;
-
-  const partnerChainId = useMemo(() => {
-    const partnerChain = partner?.split("_")[1];
-    return partnerChain ? Number(partnerChain) : undefined;
-  }, [partner]);
 
   const text = useMemo(() => {
     if (loading) {
@@ -444,7 +436,6 @@ const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
       disabled={disabled}
       isLoading={loading}
       text={text}
-      chainId={partnerChainId}
     />
   );
 };
@@ -595,21 +586,6 @@ const Prices = () => {
 };
 
 
-const Listener = () => {
-  const { chainId } = useConnection();
-  const { targetChainId } = useSwapParams();
-  const switchChain = useSwitchChain();
-
-  useEffect(() => {
-    if (chainId && targetChainId && chainId !== Number(targetChainId)) {
-      switchChain.mutate({ chainId: Number(targetChainId) });
-    }
-  }, [targetChainId, chainId, switchChain]);
-
-
-  return null;
-};
-
 export function SpotForm() {
   return (
     <SpotUiProvider>
@@ -630,7 +606,6 @@ export function SpotForm() {
           <SpotsOrders />
         </Portal>
         <SpotFooter />
-        <Listener />
       </FormContainer>
     </SpotUiProvider>
   );

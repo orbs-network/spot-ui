@@ -7,7 +7,6 @@ import {
   OnCancelOrderSuccess,
   OnWrapSuccessCallback,
   ParsedError,
-  Partners,
   Token,
   Order,
   type WalletInteractions,
@@ -23,15 +22,9 @@ import { useConnection, usePublicClient, useWalletClient } from "wagmi";
 
 import TokensPair from "@/components/tokens-pair";
 import { useCurrency } from "@/lib/hooks/use-currencies";
-import { useSwapParams } from "@/lib/hooks/use-swap-params";
-import * as chains from "viem/chains";
 import {
   getNetwork,
-  getPartners,
-  REPERMIT_ABI,
-  TWAP_ABI,
 } from "@orbs-network/spot-ui";
-import { DEFAULT_PARTNER } from "../consts";
 import { useActionHandlers } from "./use-action-handlers";
 import { useRefetchSelectedCurrenciesBalances } from "./use-balances";
 import { Field } from "../types";

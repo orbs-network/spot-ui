@@ -11,9 +11,10 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.text();
+  const rpcUrl = process.env.RPC_URL;
 
   const response = await fetch(
-    `${process.env.RPC_URL}?chainId=${chainId}&appId=twap-ui`,
+    `${rpcUrl}?chainId=${chainId}&appId=twap-ui`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -24,5 +25,6 @@ export async function POST(request: NextRequest) {
   const data = await response.text();
   return new NextResponse(data, {
     headers: { "Content-Type": "application/json" },
+    status: response.status,
   });
 }

@@ -1,4 +1,4 @@
-import { useConnection, useSwitchChain } from "wagmi";
+import { useSwitchChain } from "wagmi";
 import { Button } from "./ui/button";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { getChainName } from "@/lib/utils";
@@ -6,6 +6,7 @@ import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
 import { useBalance } from "@/lib/hooks/use-balances";
 import BN from "bignumber.js";
 import { useMemo } from "react";
+import { useActiveConnection } from "@/lib/hooks/use-active-connection";
 
 export const SubmitSwapButton = ({
   onClick,
@@ -20,7 +21,7 @@ export const SubmitSwapButton = ({
   chainId?: number;
   disabled?: boolean;
 }) => {
-  const { address, chainId: currentChainId } = useConnection();
+  const { address, chainId: currentChainId } = useActiveConnection();
   const { openConnectModal } = useConnectModal();
   const switchChain = useSwitchChain();
   const { inputCurrency, outputCurrency, parsedInputAmount, isLoadingTrade, trade } = useDerivedSwap();

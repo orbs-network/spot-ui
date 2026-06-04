@@ -1,5 +1,5 @@
-import { UtilaContent } from "@/components/utila/content";
+import { redirect } from "next/navigation";
 
 export default function UtilaPage() {
-  return <UtilaContent />;
+  redirect("/");
 }

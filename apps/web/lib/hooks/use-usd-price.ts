@@ -3,10 +3,10 @@ import { getUSDPrice } from "../get-usd-price";
 import BN from "bignumber.js";
 import { useMemo } from "react";
 import { useFormatNumber } from "./common";
-import { useUtilaWalletSession } from "./use-utila-wallet-session";
+import { useSwapParams } from "./use-swap-params";
 
 export const useUSDPrices = (tokens?: string[], disabled?: boolean) => {
-  const { chainId } = useUtilaWalletSession();
+  const { chainId } = useSwapParams();
   return useQuery({
     queryKey: ["usd-price", tokens?.join(",") ?? "", chainId],
     queryFn: async () => {

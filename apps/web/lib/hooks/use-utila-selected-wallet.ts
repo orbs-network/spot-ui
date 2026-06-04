@@ -1,8 +1,8 @@
 import { useUtilaFormStore } from "./store";
-import { useUtilaWalletSession } from "./use-utila-wallet-session";
+import { useActiveConnection } from "./use-active-connection";
 
 export const useUtilaSelectedWallet = () => {
-  const { address } = useUtilaWalletSession();
+  const { address } = useActiveConnection();
   const selectedWalletAddress = useUtilaFormStore(
     (state) => state.selectedWalletAddress,
   );

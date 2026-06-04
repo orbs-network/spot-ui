@@ -1,17 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeftIcon,
   CalendarIcon,
   CheckCircleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
   DownloadIcon,
-  ExternalLinkIcon,
-  MoreVerticalIcon,
+  Loader2Icon,
   SearchIcon,
   WalletIcon,
   XIcon,
@@ -19,7 +16,7 @@ import {
 import {
   OrderStatus,
   OrderType,
-  SPOT_VERSION,
+  useCancelOrder,
   useDerivedHistoryOrder,
   useSpot,
   type Order,
@@ -49,15 +46,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useCopyToClipboard } from "@/lib/hooks/common";
+import { useActiveConnection } from "@/lib/hooks/use-active-connection";
 import { useCurrenciesQuery } from "@/lib/hooks/use-currencies-query";
 import { useSpotToken } from "@/lib/hooks/spot-hooks";
 import { Currency } from "@/lib/types";
-import { useUtilaWalletSession } from "@/lib/hooks/use-utila-wallet-session";
 import {
   cn,
   formatDecimals,
   getChainName,
-  getExplorerUrl,
   getOrderTitle,
   makeEllipsisAddress,
   toAmountUI,
@@ -126,14 +122,6 @@ const statusPillClassName = (status: OrderStatus) => {
   }
 };
 
-const getSinkUrl = (orderId: string) => {
-  if (Number(SPOT_VERSION) >= 2) {
-    return `https://order-sink-v2.orbs.network/?order=${orderId}`;
-  }
-
-  return `https://order-sink-dev.orbs.network/?order=${orderId}`;
-};
-
 const isPositiveValue = (value?: string | number) => {
   if (value === undefined || value === null || value === "") return false;
 
@@ -156,6 +144,42 @@ const formatUsd = (value?: string) => {
 
   return formatDecimals(value, 2);
 };
+
+const getProportionalUsdc = ({
+  amount,
+  totalAmount,
+  totalUsdc,
+}: {
+  amount?: string;
+  totalAmount?: string;
+  totalUsdc?: string;
+}) => {
+  if (
+    !isPositiveValue(amount) ||
+    !isPositiveValue(totalAmount) ||
+    !isPositiveValue(totalUsdc)
+  ) {
+    return undefined;
+  }
+
+  const amountValue = amount as string;
+  const totalAmountValue = totalAmount as string;
+  const totalUsdcValue = totalUsdc as string;
+
+  return BN(totalUsdcValue)
+    .multipliedBy(amountValue)
+    .dividedBy(totalAmountValue)
+    .toString();
+};
+
+const clampProgress = (value?: number) => {
+  if (value === undefined || Number.isNaN(value)) return 0;
+
+  return Math.min(100, Math.max(0, value));
+};
+
+const formatProgress = (value?: number) =>
+  `${formatDecimals(clampProgress(value).toString(), 2) || "0"}%`;
 
 const formatPrice = (
   value: string | undefined,
@@ -372,14 +396,14 @@ const DrawerTokenOnly = ({ token }: { token?: Token }) => {
 
 const DrawerTokenAmount = ({
   token,
-  usd,
+  usdc,
   value,
 }: {
   token?: Token;
-  usd?: string;
+  usdc?: string;
   value?: string;
 }) => {
-  const formattedUsd = formatUsd(usd);
+  const formattedUsdc = formatUsd(usdc);
 
   if (!isPositiveValue(value)) {
     return null;
@@ -395,10 +419,10 @@ const DrawerTokenAmount = ({
       )}
       <span className="min-w-0 break-all">
         {formatTokenAmount(value, token, 8)}
-        {formattedUsd && (
+        {formattedUsdc && (
           <span className="font-medium text-[#70748d]">
             {" "}
-            (≈ ${formattedUsd})
+            (≈ {formattedUsdc} USDC)
           </span>
         )}
       </span>
@@ -477,6 +501,17 @@ const UtilaOrderDetailsDrawer = ({
     order?.filledOrderTimestamp ||
     fills[fills.length - 1]?.timestamp ||
     (order?.status === OrderStatus.Completed ? order?.createdAt : undefined);
+  const inputAmountUsdc = order?.orderDollarValueIn;
+  const inputAmountPerTradeUsdc = getProportionalUsdc({
+    amount: derivedOrder?.sizePerTradeUI,
+    totalAmount: derivedOrder?.srcAmountUI,
+    totalUsdc: inputAmountUsdc,
+  });
+  const amountInFilledUsdc = getProportionalUsdc({
+    amount: derivedOrder?.amountInFilledUI,
+    totalAmount: derivedOrder?.srcAmountUI,
+    totalUsdc: inputAmountUsdc,
+  });
 
   if (!order) return null;
 
@@ -501,9 +536,19 @@ const UtilaOrderDetailsDrawer = ({
           <div className="border-b border-[#e4e6ec] px-8 pt-7 pb-6">
             <div className="flex items-start justify-between gap-6">
               <div className="min-w-0">
-                <DrawerTitle className="truncate text-[22px] font-bold leading-8 text-[#3f4361]">
-                  {getOrderTitle(order.type)}
-                </DrawerTitle>
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
+                  <DrawerTitle className="min-w-0 truncate text-[22px] font-bold leading-8 text-[#3f4361]">
+                    {getOrderTitle(order.type)}
+                  </DrawerTitle>
+                  <span
+                    className={cn(
+                      "inline-flex h-9 shrink-0 items-center rounded-[8px] px-4 text-[14px] font-semibold",
+                      statusPillClassName(order.status),
+                    )}
+                  >
+                    {getStatusLabel(order.status)}
+                  </span>
+                </div>
                 <div className="mt-3 flex flex-wrap items-center gap-4">
                   <CopyAction
                     toastMessage="Transaction ID copied"
@@ -514,44 +559,29 @@ const UtilaOrderDetailsDrawer = ({
                   </CopyAction>
                 </div>
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-7">
-                <div className="flex items-center gap-5">
+              <div className="flex shrink-0 items-center gap-5">
+                <UtilaCancelOrderButton order={order} size="drawer" />
+                <DrawerClose asChild>
                   <button
+                    aria-label="Close order details"
                     className="flex size-8 cursor-pointer items-center justify-center rounded-[7px] text-[#3f4361] hover:bg-[#f4f5f8]"
                     type="button"
                   >
-                    <MoreVerticalIcon className="size-5" />
+                    <XIcon className="size-6" />
                   </button>
-                  <DrawerClose asChild>
-                    <button
-                      aria-label="Close order details"
-                      className="flex size-8 cursor-pointer items-center justify-center rounded-[7px] text-[#3f4361] hover:bg-[#f4f5f8]"
-                      type="button"
-                    >
-                      <XIcon className="size-6" />
-                    </button>
-                  </DrawerClose>
-                </div>
-                <span
-                  className={cn(
-                    "inline-flex h-10 items-center rounded-[8px] px-4 text-[14px] font-semibold",
-                    statusPillClassName(order.status),
-                  )}
-                >
-                  {getStatusLabel(order.status)}
-                </span>
+                </DrawerClose>
               </div>
             </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-8 pb-10">
             <DrawerRow
-              label="Amount"
+              label="Input amount"
               show={isPositiveValue(derivedOrder?.srcAmountUI)}
             >
               <DrawerTokenAmount
                 token={srcToken}
-                usd={order.orderDollarValueIn}
+                usdc={inputAmountUsdc}
                 value={derivedOrder?.srcAmountUI}
               />
             </DrawerRow>
@@ -602,16 +632,6 @@ const UtilaOrderDetailsDrawer = ({
               <DrawerTokenOnly token={dstToken} />
             </DrawerRow>
             <DrawerRow
-              label="Input amount"
-              show={isPositiveValue(derivedOrder?.srcAmountUI)}
-            >
-              <DrawerTokenAmount
-                token={srcToken}
-                usd={order.orderDollarValueIn}
-                value={derivedOrder?.srcAmountUI}
-              />
-            </DrawerRow>
-            <DrawerRow
               label="Input amount per trade"
               show={
                 derivedOrder &&
@@ -621,6 +641,7 @@ const UtilaOrderDetailsDrawer = ({
             >
               <DrawerTokenAmount
                 token={srcToken}
+                usdc={inputAmountPerTradeUsdc}
                 value={derivedOrder?.sizePerTradeUI}
               />
             </DrawerRow>
@@ -653,13 +674,11 @@ const UtilaOrderDetailsDrawer = ({
             >
               <div className="flex flex-col gap-1">
                 {isPositiveValue(derivedOrder?.amountInFilledUI) && (
-                  <span>
-                    {formatTokenAmount(
-                      derivedOrder?.amountInFilledUI,
-                      srcToken,
-                      8,
-                    )}
-                  </span>
+                  <DrawerTokenAmount
+                    token={srcToken}
+                    usdc={amountInFilledUsdc}
+                    value={derivedOrder?.amountInFilledUI}
+                  />
                 )}
                 {isPositiveValue(derivedOrder?.amountOutFilledUI) && (
                   <span className="text-[#70748d]">
@@ -676,7 +695,7 @@ const UtilaOrderDetailsDrawer = ({
               label="Progress"
               show={derivedOrder && derivedOrder?.progress !== undefined}
             >
-              {formatDecimals(derivedOrder?.progress?.toString() ?? "0", 2)}%
+              <ProgressValue value={derivedOrder?.progress} />
             </DrawerRow>
             <DrawerRow
               label="Average price"
@@ -793,6 +812,74 @@ const AmountValue = ({
   );
 };
 
+const ProgressValue = ({ value }: { value?: number }) => {
+  const progress = clampProgress(value);
+
+  return (
+    <div className="flex min-w-[118px] items-center gap-2">
+      <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[#eceef6]">
+        <div
+          className="h-full rounded-full bg-[#4564ff]"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <span className="w-10 shrink-0 text-right text-[12px] font-bold text-[#3f4361]">
+        {formatProgress(value)}
+      </span>
+    </div>
+  );
+};
+
+const UtilaCancelOrderButton = ({
+  className,
+  order,
+  size = "row",
+}: {
+  className?: string;
+  order: Order;
+  size?: "row" | "drawer";
+}) => {
+  const { address } = useActiveConnection();
+  const { cancelOrder, error, isError, isLoading } = useCancelOrder(order);
+  const isDrawer = size === "drawer";
+
+  useEffect(() => {
+    if (!isError) return;
+
+    toast.error(error || "Failed to cancel order");
+  }, [error, isError]);
+
+  if (order.status !== OrderStatus.Open) return null;
+
+  return (
+    <button
+      className={cn(
+        "inline-flex cursor-pointer items-center justify-center gap-2 rounded-[7px] border border-[#ffd5d9] bg-white font-semibold text-[#f04438] transition-colors hover:bg-[#fff1f3] disabled:cursor-not-allowed disabled:border-[#e5e7ee] disabled:text-[#a4a8b8] disabled:hover:bg-white",
+        isDrawer ? "h-9 px-4 text-[13px]" : "h-7 px-3 text-[12px]",
+        className,
+      )}
+      disabled={!address || isLoading}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void cancelOrder();
+      }}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+      }}
+      title={!address ? "Connect wallet to cancel this order" : undefined}
+      type="button"
+    >
+      {isLoading ? (
+        <Loader2Icon className="size-3.5 animate-spin" />
+      ) : (
+        <XIcon className="size-3.5" />
+      )}
+      <span>{isLoading ? "Canceling..." : "Cancel"}</span>
+    </button>
+  );
+};
+
 const HistoryRow = ({
   onSelect,
   order,
@@ -806,9 +893,7 @@ const HistoryRow = ({
   selected: boolean;
   srcToken?: Currency;
 }) => {
-  const { address } = useUtilaWalletSession();
-  const txUrl = getExplorerUrl(order.chainId, order.txHash);
-  const orderUrl = getSinkUrl(order.id);
+  const { address } = useActiveConnection();
   const isConnectedMaker =
     address && order.maker.toLowerCase() === address.toLowerCase();
 
@@ -869,6 +954,9 @@ const HistoryRow = ({
         <AmountValue order={order} srcToken={srcToken} />
       </td>
       <td className="w-[160px] px-3 py-3">
+        <ProgressValue value={order.progress} />
+      </td>
+      <td className="w-[160px] px-3 py-3">
         <span
           className={cn(
             "inline-flex h-[26px] items-center rounded-[7px] px-3 text-[12px] font-medium",
@@ -880,18 +968,6 @@ const HistoryRow = ({
           )}
           {getStatusLabel(order.status)}
         </span>
-      </td>
-      <td className="w-[56px] px-3 py-3 text-right">
-        <a
-          aria-label="Open order"
-          className="inline-flex size-7 items-center justify-center rounded-[7px] text-[#70748d] hover:bg-[#f4f5f8] hover:text-[#4564ff]"
-          href={txUrl || orderUrl}
-          onClick={(event) => event.stopPropagation()}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          <ExternalLinkIcon className="size-4" />
-        </a>
       </td>
     </tr>
   );
@@ -915,7 +991,7 @@ const HistorySkeleton = () => {
 
 const UtilaHistoryTable = () => {
   const { isLoading, orders } = useSpot().orderHistoryPanel;
-  const { address } = useUtilaWalletSession();
+  const { address } = useActiveConnection();
   const { data: currencies = [] } = useCurrenciesQuery();
   const [status, setStatus] = useState<string>(ALL_STATUSES);
   const [type, setType] = useState<string>(ALL_TYPES);
@@ -1024,13 +1100,6 @@ const UtilaHistoryTable = () => {
             value={query}
           />
         </div>
-        <Link
-          className="ml-auto inline-flex h-8 items-center gap-2 rounded-[7px] border border-[#dfe2ec] bg-white px-3 text-[13px] font-semibold text-[#3f4361] hover:bg-[#f7f7f9]"
-          href="/utila"
-        >
-          <ArrowLeftIcon className="size-3.5" />
-          Back to Swap
-        </Link>
       </div>
 
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[7px] border border-[#e3e5eb] bg-white shadow-[0_2px_8px_rgba(42,47,74,0.08)]">
@@ -1062,7 +1131,7 @@ const UtilaHistoryTable = () => {
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto">
-          <table className="min-w-[1320px] w-full border-collapse text-left">
+          <table className="min-w-[1360px] w-full border-collapse text-left">
             <thead className="sticky top-0 z-10">
               <tr className="h-[49px] border-b border-[#eceef3] bg-white">
                 {[
@@ -1072,12 +1141,12 @@ const UtilaHistoryTable = () => {
                   "FROM",
                   "TO",
                   "AMOUNT",
+                  "PROGRESS",
                   "STATUS",
-                  "",
                 ].map((header) => (
                   <th
                     className="px-3 text-[12px] font-bold uppercase text-[#2f344e] first:px-6"
-                    key={header || "actions"}
+                    key={header}
                   >
                     {header}
                   </th>

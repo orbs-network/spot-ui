@@ -7,7 +7,6 @@ import Link from "next/link";
 import { FORM_TABS, SPOT_TABS } from "@/lib/consts";
 import { useSelectedFormTab } from "@/lib/hooks/use-tabs";
 import { SpotOrders } from "./spot/spot-form";
-import { PartnerSelector } from "./spot/partner-selector";
 import { useSearchParams } from "next/navigation";
 
 const PoweredBy = () => {
@@ -58,8 +57,6 @@ export function FormContainer({ children }: { children: React.ReactNode }) {
   const selectedTab = useSelectedFormTab();
   return (
     <div className="flex flex-col gap-4 max-w-md w-full mx-auto mt-10 mb-[100px]">
-      <PartnerSelector />
-
       <Tabs />
       <div className=" rounded-lg border border-border p-4 w-full flex flex-col gap-4">
         <div className="flex flex-row gap-2 justify-between items-center">

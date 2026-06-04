@@ -3,10 +3,12 @@ import { useConnection, useWalletClient } from "wagmi";
 import { getWrappedNativeCurrency } from "../utils";
 import wethAbi from "../abi/wethAbi.json";
 import { useGetTransactionReceiptCallback } from "./use-get-transaction-receipt";
+import { useActiveConnection } from "./use-active-connection";
 
 export const useWrap = () => {
   const { data: walletClient } = useWalletClient();
-  const { address: account, chainId } = useConnection();
+  const { chainId } = useConnection();
+  const { address: account } = useActiveConnection();
   const { mutateAsync: getTransactionReceiptCallback } =
     useGetTransactionReceiptCallback();
 
