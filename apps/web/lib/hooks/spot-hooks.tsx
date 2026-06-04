@@ -225,39 +225,6 @@ export const useSpotMarketReferencePrice = () => {
   }, [trade, isLoadingTrade]);
 };
 
-export const useSpotPartner = () => {
-  const { partner } = useSwapParams();
-
-  const { chainId } = useConnection();
-
-  return useMemo(() => {
-    const selected = partner?.split("_")[0];
-
-    if (selected) {
-      return selected as Partners;
-    }
-    if (!chainId) {
-      return DEFAULT_PARTNER;
-    }
-
-    switch (chainId) {
-      case chains.base.id:
-      case chains.polygon.id:
-        return Partners.Quick;
-      case chains.bsc.id:
-        return Partners.Thena;
-      case chains.sonic.id:
-        return Partners.Spooky;
-      case chains.sei.id:
-        return Partners.Nami;
-      case chains.linea.id:
-        return Partners.Lynex;
-      default:
-        return (getPartners().find((p) => p.chainId === chainId)?.name ||
-          DEFAULT_PARTNER) as Partners;
-    }
-  }, [chainId, partner]);
-};
 
 export const useWalletInteractions = () => {
   const { data: walletClient } = useWalletClient();

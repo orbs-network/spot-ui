@@ -219,6 +219,7 @@ const Content = (props: SpotProps) => {
         srcToken: swapExecution.srcToken || props.srcToken,
         dstToken: swapExecution.dstToken || props.dstToken,
         isDev: props.isDev,
+        enableOrderHistory: props.enableOrderHistory ?? true,
       }}
     >
       <Listeners {...props} />

@@ -104,8 +104,11 @@ const useOrderFilledCallback = () => {
   );
 };
 
-export const useOrdersQuery = () => {
-  const { account, config, chainId, isDev } = useSpotContext();
+export const useOrdersQuery = ({
+  enabled = true,
+}: { enabled?: boolean } = {}) => {
+  const { account, config, chainId, enableOrderHistory, isDev } =
+    useSpotContext();
 
   const queryKey = useOrdersQueryKey();
   const orderFilledCallback = useOrderFilledCallback();
@@ -114,6 +117,7 @@ export const useOrdersQuery = () => {
     refetchOnWindowFocus: true,
     retry: false,
     staleTime: Infinity,
+    enabled: enabled && Boolean(enableOrderHistory),
     queryKey,
     queryFn: async ({ signal }) => {
       if (!account || !chainId || !config) return [];
@@ -188,27 +192,36 @@ const filterAndSortOrders = (orders: Order[], filter: OrderStatus): Order[] => {
   return [...filtered].sort((a, b) => b.createdAt - a.createdAt);
 };
 export const useOrderHistoryPanel = () => {
+  const { enableOrderHistory } = useSpotContext();
   const { data: orders, isLoading, refetch, isRefetching } = useOrdersQuery();
 
   const refetchOrders = useCallback(
-    () => refetch().then((it) => it.data),
-    [refetch],
+    () => {
+      if (!enableOrderHistory) {
+        return Promise.resolve([]);
+      }
+
+      return refetch().then((it) => it.data);
+    },
+    [enableOrderHistory, refetch],
   );
 
   return useMemo(() => {
+    const activeOrders = enableOrderHistory ? (orders ?? []) : [];
+
     return {
       orders: {
-        all: orders ?? [],
-        open: filterAndSortOrders(orders ?? [], OrderStatus.Open),
+        all: activeOrders,
+        open: filterAndSortOrders(activeOrders, OrderStatus.Open),
         completed:
-          filterAndSortOrders(orders ?? [], OrderStatus.Completed),
+          filterAndSortOrders(activeOrders, OrderStatus.Completed),
         cancelled:
-          filterAndSortOrders(orders ?? [], OrderStatus.Cancelled),
-        expired: filterAndSortOrders(orders ?? [], OrderStatus.Expired),
+          filterAndSortOrders(activeOrders, OrderStatus.Cancelled),
+        expired: filterAndSortOrders(activeOrders, OrderStatus.Expired),
       },
-      isLoading,
-      isRefetching,
+      isLoading: enableOrderHistory ? isLoading : false,
+      isRefetching: enableOrderHistory ? isRefetching : false,
       refetchOrders,
     };
-  }, [orders, isLoading, isRefetching, refetchOrders]);
+  }, [enableOrderHistory, orders, isLoading, isRefetching, refetchOrders]);
 };

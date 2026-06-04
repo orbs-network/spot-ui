@@ -42,7 +42,7 @@ const useFills = (fills?: OrderFill[], srcToken?: Token, dstToken?: Token) => {
 };
 
 export const useDerivedHistoryOrder = (
-  order: Order,
+  order?: Order,
   srcToken?: Token,
   dstToken?: Token,
 ) => {
@@ -61,7 +61,6 @@ export const useDerivedHistoryOrder = (
   }, [order, config]);
 
   const fills = useFills(order?.fills, srcToken, dstToken) ?? [];
-
   return useMemo(() => {
     if (!order?.id) return undefined;
     return {

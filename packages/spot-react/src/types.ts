@@ -152,6 +152,7 @@ export interface SpotProps {
   minChunkSizeUsd: number;
   typedInputAmount: string;
   isDev?: boolean;
+  enableOrderHistory?: boolean;
 }
 
 export interface SpotContextType {
@@ -178,6 +179,7 @@ export interface SpotContextType {
   overrides?: Overrides;
   callbacks?: Callbacks;
   isDev?: boolean;
+  enableOrderHistory?: boolean;
 }
 
 

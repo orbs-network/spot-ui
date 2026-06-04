@@ -1,8 +1,9 @@
 "use client";
 import React, { Suspense } from "react";
+import { usePathname } from "next/navigation";
 import { useWagmiConfig } from "./wagmi-config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { darkTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
+import { darkTheme, lightTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
 import { QueryProvider } from "./query-provider";
 
@@ -30,6 +31,9 @@ const WagmiWrapper = ({ children }: { children: React.ReactNode }) => {
 };
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const rainbowTheme = pathname.startsWith("/utila") ? lightTheme() : darkTheme();
+
   return (
     <Suspense
       fallback={<Fallback />}
@@ -37,7 +41,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryProvider>
         <WagmiWrapper>
           <QueryClientProvider client={queryClient}>
-            <RainbowKitProvider theme={darkTheme()}>
+            <RainbowKitProvider theme={rainbowTheme}>
               <AppProvider>
               {children}
               </AppProvider>

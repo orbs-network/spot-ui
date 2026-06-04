@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { useBalances } from "./use-balances";
 import { useCallback, useRef } from "react";
 import TokensPair from "@/components/tokens-pair";
-import { useConnection } from "wagmi";
+import { useUtilaWalletSession } from "./use-utila-wallet-session";
 
 const usePrepareQuote = () => {
   const { trade, refetchTrade } = useDerivedSwap();
@@ -58,7 +58,7 @@ const useToasts = () => {
   const approveToastId = useRef<number>(null);
   const swapToastId = useRef<number>(null);
   const { inputCurrency, outputCurrency } = useDerivedSwap();
-  const { chainId } = useConnection();
+  const { chainId } = useUtilaWalletSession();
   const { txHash } = useBestTradeSwapStore();
   const onWrapRequest = useCallback(() => {
     wrapToastId.current = toast.loading(

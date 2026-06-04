@@ -1,8 +1,6 @@
 "use client";
 import React, {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
@@ -10,9 +8,6 @@ import React, {
 import { FormContainer } from "../form-container";
 import {
   Module,
-  Token,
-  SpotProvider as Spot,
-  TimeUnit,
   DISCLAIMER_URL,
   useSpot,
   SPOT_VERSION,
@@ -20,7 +15,7 @@ import {
   SwapStatus,
 } from "@orbs-network/spot-react";
 import { useFormatNumber } from "@/lib/hooks/common";
-import { Currency, Field, SwapType } from "@/lib/types";
+import { Field } from "@/lib/types";
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
 import { Button } from "../ui/button";
 import { CurrencyCard } from "../currency-card";
@@ -30,62 +25,26 @@ import { cn, formatDecimals, getOrderTitle } from "@/lib/utils";
 import { NumericInput } from "../ui/numeric-input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { AlertTriangleIcon, ArrowLeftRightIcon, InfoIcon } from "lucide-react";
-import { useUSDPrice } from "@/lib/hooks/use-usd-price";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Switch } from "../ui/switch";
 import { useConnection, useSwitchChain } from "wagmi";
 import { SubmitSwapButton } from "../submit-swap-button";
-import { useBalance } from "@/lib/hooks/use-balances";
-import { useSettings } from "@/lib/hooks/use-settings";
 import { Portal } from "../ui/portal";
-import {
-  SpotHooks,
-  useSpotMarketReferencePrice,
-  useSpotPartner,
-  useWalletInteractions,
-} from "@/lib/hooks/spot-hooks";
 import {
   SpotPriceInput,
   SpotPriceResetButton,
   SpotSelectMenu,
 } from "./components";
+import {
+  SPOT_DURATION_OPTIONS,
+  SpotUiProvider,
+  useSpotUiContext,
+} from "./spot-ui-provider";
 import { SpotsOrders } from "./orders";
 import { SubmitOrderPanel } from "./submit-order-panel";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { SpotFooter } from "./footer";
 import { useTranslations } from "@/lib/use-translations";
-
-const { useCallbacks } = SpotHooks;
-const Context = createContext<{
-  swapModule: Module;
-  setInputAmount: (value: string) => void;
-}>({
-  swapModule: Module.TWAP,
-  setInputAmount: () => {},
-});
-
-const useSpotContext = () => {
-  return useContext(Context);
-};
-
-const DURATION_OPTIONS = [
-  { text: "Minutes", value: TimeUnit.Minutes },
-  { text: "Hours", value: TimeUnit.Hours },
-  { text: "Days", value: TimeUnit.Days },
-];
-
-const useParseSpotTokens = (currency?: Currency) => {
-  return useMemo((): Token | undefined => {
-    if (!currency) return undefined;
-
-    return {
-      address: currency.address,
-      decimals: currency.decimals,
-      symbol: currency.symbol,
-      logoUrl: currency.logoUrl,
-    };
-  }, [currency]);
-};
 
 const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
   const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
@@ -113,19 +72,6 @@ const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
       isLoading={!isSrcToken ? isLoading : false}
     />
   );
-};
-
-const getModule = (swapType: SwapType) => {
-  if (swapType === SwapType.TWAP) {
-    return Module.TWAP;
-  } else if (swapType === SwapType.LIMIT) {
-    return Module.LIMIT;
-  } else if (swapType === SwapType.STOP_LOSS) {
-    return Module.STOP_LOSS;
-  } else if (swapType === SwapType.TAKE_PROFIT) {
-    return Module.TAKE_PROFIT;
-  }
-  return Module.TWAP;
 };
 
 type TooltipProps = { tooltipText?: string; children?: React.ReactNode };
@@ -285,8 +231,10 @@ const DurationPanel = () => {
           onChange={(it) => onInputChange(it)}
         />
         <SpotSelectMenu
-          selected={DURATION_OPTIONS.find((it) => it.value === duration.unit)}
-          items={DURATION_OPTIONS}
+          selected={SPOT_DURATION_OPTIONS.find(
+            (it) => it.value === duration.unit,
+          )}
+          items={SPOT_DURATION_OPTIONS}
           onSelect={(it) => onUnitSelect(it.value as number)}
         />
       </div>
@@ -309,8 +257,10 @@ const FillDelayPanel = () => {
           onChange={(it) => onInputChange(it)}
         />
         <SpotSelectMenu
-          selected={DURATION_OPTIONS.find((it) => it.value === fillDelay.unit)}
-          items={DURATION_OPTIONS}
+          selected={SPOT_DURATION_OPTIONS.find(
+            (it) => it.value === fillDelay.unit,
+          )}
+          items={SPOT_DURATION_OPTIONS}
           onSelect={(it) => onUnitSelect(it.value as number)}
         />
       </div>
@@ -319,7 +269,7 @@ const FillDelayPanel = () => {
 };
 
 const ModuleInputs = () => {
-  const { swapModule } = useSpotContext();
+  const { swapModule } = useSpotUiContext();
 
   if (swapModule === Module.TWAP) {
     return (
@@ -414,7 +364,7 @@ const SubmitSwapMain = ({
 const SubmitSwap = () => {
   const { onSubmit, status, resetState,resetCurrentSwap, parsedError, confirmButtonLoading } =
     useSpot().orderExecutionPanel;
-  const { setInputAmount } = useSpotContext();
+  const { setInputAmount } = useActionHandlers();
 
   const orderType = useSpot().derivedFormData.orderType;
   const orderTitle = getOrderTitle(orderType);
@@ -533,7 +483,7 @@ const LimitPricePanel = () => {
     usd,
   } = useSpot().limitPricePanel;
 
-  const { swapModule } = useSpotContext();
+  const { swapModule } = useSpotUiContext();
 
   if (Number(SPOT_VERSION) < 2 && swapModule === Module.TAKE_PROFIT) {
     return null;
@@ -578,7 +528,7 @@ const TriggerPricePanel = () => {
     usd
   } = useSpot().triggerPricePanel;
 
-  const { swapModule } = useSpotContext();
+  const { swapModule } = useSpotUiContext();
 
 
   if (swapModule !== Module.TAKE_PROFIT && swapModule !== Module.STOP_LOSS) {
@@ -660,69 +610,29 @@ const Listener = () => {
   return null;
 };
 
-export function SpotForm({ swapType }: { swapType: SwapType }) {
-  const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
-  const { envMode } = useSwapParams();
-  const { setInputAmount } = useActionHandlers();
-  const { chainId, address } = useConnection();
-  const { priceProtection } = useSettings();
-  const swapModule = useMemo(() => getModule(swapType), [swapType]);
-  const callbacks = useCallbacks();
-  const partner = useSpotPartner();
-  const walletInteractions = useWalletInteractions();
-  const inputUsd = useUSDPrice({
-    token: inputCurrency?.address,
-  });
-  const outputUsd = useUSDPrice({
-    token: outputCurrency?.address,
-  });
-
-  const { wei: inputBalance } = useBalance(inputCurrency);
-  const { wei: outputBalance } = useBalance(outputCurrency);
-
+export function SpotForm() {
   return (
-    <Context.Provider value={{ swapModule, setInputAmount }}>
+    <SpotUiProvider>
       <FormContainer>
-        <Spot
-          chainId={chainId}
-          typedInputAmount={inputAmount}
-          walletInteractions={walletInteractions}
-          account={address}
-          partner={partner}
-          srcBalance={inputBalance}
-          dstBalance={outputBalance}
-          srcToken={useParseSpotTokens(inputCurrency)}
-          dstToken={useParseSpotTokens(outputCurrency)}
-          priceProtection={priceProtection}
-          module={swapModule}
-          srcUsd1Token={inputUsd.data.toString()}
-          dstUsd1Token={outputUsd.data.toString()}
-          marketReferencePrice={useSpotMarketReferencePrice()}
-          minChunkSizeUsd={5}
-          callbacks={callbacks}
-          isDev={envMode === "dev"}
-          fees={0.25}
-        >
-          <div className="flex flex-col gap-1">
-            <div className="flex flex-col gap-0">
-              <TokenPanel isSrcToken={true} />
-              <ToggleCurrencies />
-              <TokenPanel isSrcToken={false} />
-            </div>
-            <Prices />
-            <ModuleInputs />
-            <InputsErrorPanel />
-            <SubmitSwap />
-            <DisclaimerPanel />
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-0">
+            <TokenPanel isSrcToken={true} />
+            <ToggleCurrencies />
+            <TokenPanel isSrcToken={false} />
           </div>
-          <Portal containerId="spot-orders">
-            <SpotsOrders />
-          </Portal>
-        </Spot>
+          <Prices />
+          <ModuleInputs />
+          <InputsErrorPanel />
+          <SubmitSwap />
+          <DisclaimerPanel />
+        </div>
+        <Portal containerId="spot-orders">
+          <SpotsOrders />
+        </Portal>
         <SpotFooter />
         <Listener />
       </FormContainer>
-    </Context.Provider>
+    </SpotUiProvider>
   );
 }
 

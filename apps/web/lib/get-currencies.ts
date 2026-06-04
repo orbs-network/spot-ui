@@ -91,6 +91,10 @@ export const getCurrencies = async (
     const CURRENCY_LIST_LIMIT = 2000;
     return res.slice(0, CURRENCY_LIST_LIMIT);
   } catch (error) {
+    if (axios.isCancel(error)) {
+      throw error;
+    }
+
     console.error("Error fetching tokens:", error);
     throw error;
   }

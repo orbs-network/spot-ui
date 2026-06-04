@@ -112,6 +112,42 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+body.utila-mode {
+  --font-sans: var(--font-roboto);
+  --background: #ffffff;
+  --foreground: #3f4361;
+  --card: #f7f7f9;
+  --card-foreground: #3f4361;
+  --popover: #ffffff;
+  --popover-foreground: #3f4361;
+  --primary: #4564ff;
+  --primary-foreground: #ffffff;
+  --secondary: #f7f7f9;
+  --secondary-foreground: #3f4361;
+  --muted: #f7f7f9;
+  --muted-foreground: #777b92;
+  --accent: #f0f2ff;
+  --accent-foreground: #3f4361;
+  --destructive: #f04438;
+  --border: #e3e5eb;
+  --input: #e3e5eb;
+  --ring: #4564ff;
+  font-family: var(--font-roboto), sans-serif;
+}
+
+body.utila-mode [data-slot="dialog-overlay"] {
+  background: rgba(50, 55, 78, 0.45);
+}
+
+body.utila-mode [data-slot="dialog-content"] {
+  border-color: #e3e5eb;
+  color: #3f4361;
+}
+
+body.utila-mode .twap-orders__list {
+  max-height: min(72vh, 720px);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

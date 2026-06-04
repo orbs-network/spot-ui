@@ -6,6 +6,22 @@ import { DEFAULT_PRICE_PROTECTION, DEFAULT_SLIPPAGE } from "../consts";
 
 type CustomCurrencies = { [chainId: number]: Currency[] };
 
+type UtilaStore = {
+  walletAddress?: string;
+  vaultId?: string;
+  setWalletSession: (session: {
+    walletAddress: string;
+    vaultId: string;
+  }) => void;
+  clearWalletSession: () => void;
+};
+
+type UtilaFormStore = {
+  selectedWalletAddress?: string;
+  selectWallet: (address?: string) => void;
+  clearSelectedWallet: () => void;
+};
+
 type UserStore = {
   slippage: number;
   setSlippage: (slippage: number) => void;
@@ -37,6 +53,30 @@ export const useUserStore = create<UserStore>()(
     }
   )
 );
+
+export const useUtilaStore = create<UtilaStore>()(
+  persist(
+    (set) => ({
+      walletAddress: undefined,
+      vaultId: undefined,
+      setWalletSession: ({ walletAddress, vaultId }) =>
+        set({ walletAddress, vaultId }),
+      clearWalletSession: () =>
+        set({ walletAddress: undefined, vaultId: undefined }),
+    }),
+    {
+      name: "utila-store",
+      storage: createJSONStorage(() => localStorage),
+    },
+  ),
+);
+
+export const useUtilaFormStore = create<UtilaFormStore>((set) => ({
+  selectedWalletAddress: undefined,
+  selectWallet: (selectedWalletAddress?: string) =>
+    set({ selectedWalletAddress }),
+  clearSelectedWallet: () => set({ selectedWalletAddress: undefined }),
+}));
 
 type SwapStore = {
   inputAmount: string;

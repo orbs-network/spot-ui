@@ -34,6 +34,8 @@ const MAIN_CHAINS = [
   monad,
 ] as const;
 
+export const SWAP_SUPPORTED_CHAIN_IDS = MAIN_CHAINS.map((chain) => chain.id);
+
 const SPOT_CHAINS = [
   bsc,
   linea,

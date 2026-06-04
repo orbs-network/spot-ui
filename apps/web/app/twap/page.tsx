@@ -1,9 +1,8 @@
 
 import { SpotForm } from "@/components/spot/spot-form";
-import { SwapType } from "@/lib/types";
 
 export default function TwapPage() {
   return (
-    <SpotForm swapType={SwapType.TWAP} />
+    <SpotForm />
   );
 }

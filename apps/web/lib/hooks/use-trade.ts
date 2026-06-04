@@ -9,11 +9,11 @@ import {
   toAmountUI,
   toAmountWei,
 } from "../utils";
-import { useConnection } from "wagmi";
 import { useSwapStore } from "./store";
 import { useMemo } from "react";
 import { useUSDPrice } from "./use-usd-price";
 import { useIsSpotTab } from "./use-tabs";
+import { useUtilaWalletSession } from "./use-utila-wallet-session";
 
 const stopQuoteLiquidityHub = (_error?: string) => {
   if (!_error) return false;
@@ -35,7 +35,7 @@ const useQuoteLiquidityHub = (
   const liquidityHub = useLiquidityHub();
   const { slippage } = useSettings();
   const { pauseQuote } = useSwapStore();
-  const { chainId, address: account } = useConnection();
+  const { chainId, address: account } = useUtilaWalletSession();
   const inputCurrencyAddress = inputCurrency?.address ?? "";
   const outputCurrencyAddress = outputCurrency?.address ?? "";
   const isSpotTab = useIsSpotTab();
@@ -46,6 +46,8 @@ const useQuoteLiquidityHub = (
       outputCurrencyAddress,
       parsedInputAmount,
       slippage,
+      chainId,
+      account,
     ],
     queryFn: async ({ signal }) => {
       const quote = await liquidityHub.getQuote({

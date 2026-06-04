@@ -1,6 +1,6 @@
 {
   "name": "@orbs-network/spot-react",
-  "version": "1.1.25",
+  "version": "1.1.26",
   "description": "Spot React Components - React components for Spot SDK",
   "type": "module",
   "main": "./dist/spot-react.umd.cjs",
