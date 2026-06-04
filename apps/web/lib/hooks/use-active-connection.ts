@@ -6,7 +6,6 @@ export const useActiveConnection = () => {
   const connections = useConnections();
   const fallbackConnection = connections[0];
   const fallbackAddress = fallbackConnection?.accounts[0];
-  
 
   return useMemo(
     () => ({
