@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ConnectButton,
+  WalletButton,
   useAccountModal,
-  useConnectModal,
 } from "@rainbow-me/rainbowkit";
 import {
   ArrowLeftRightIcon,
@@ -25,6 +25,7 @@ import {
 } from "wagmi";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { useActiveConnection } from "@/lib/hooks/use-active-connection";
+import { useUtilaConnectRetry } from "@/lib/hooks/use-utila-connect-retry";
 import {
   Select,
   SelectContent,
@@ -231,8 +232,8 @@ const UtilaWalletButton = () => {
   const { address } = useActiveConnection();
   const connectedChainId = useChainId();
   const { openAccountModal } = useAccountModal();
-  const { openConnectModal } = useConnectModal();
   const { disconnect } = useDisconnect();
+  const { retryingConnect, startConnectRetry } = useUtilaConnectRetry();
   const [menuOpen, setMenuOpen] = useState(false);
   const label = address
     ? makeEllipsisAddress(address, { start: 6, end: 4 })
@@ -247,14 +248,23 @@ const UtilaWalletButton = () => {
 
   if (!address) {
     return (
-      <button
-        className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[7px] border border-[#e3e5eb] bg-white px-3 text-[13px] font-semibold text-[#3f4361] transition-colors hover:bg-[#f7f7f9]"
-        onClick={() => openConnectModal?.()}
-        type="button"
-      >
-        <span className="max-w-[150px] truncate">{label}</span>
-        <ChevronDownIcon className="size-4 text-[#70748d]" />
-      </button>
+      <WalletButton.Custom wallet="utila">
+        {({ connect, mounted }) => (
+          <button
+            className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[7px] border border-[#e3e5eb] bg-white px-3 text-[13px] font-semibold text-[#3f4361] transition-colors hover:bg-[#f7f7f9] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!mounted}
+            onClick={() => {
+              startConnectRetry(connect);
+            }}
+            type="button"
+          >
+            <span className="max-w-[150px] truncate">
+              {retryingConnect ? "Connecting..." : label}
+            </span>
+            <ChevronDownIcon className="size-4 text-[#70748d]" />
+          </button>
+        )}
+      </WalletButton.Custom>
     );
   }
 
@@ -399,14 +409,6 @@ const UtilaSidebar = ({ pathname }: { pathname: string }) => {
       style={{ width: UTILA_SIDEBAR_WIDTH }}
     >
       <UtilaLogo />
-      <button
-        className="mt-5 flex h-8 cursor-pointer items-center rounded-[7px] bg-[#4a60ff] px-4 text-[14px] font-bold text-white transition-colors hover:bg-[#4058f7]"
-        type="button"
-      >
-        <span className="min-w-0 flex-1 text-center">Transfer</span>
-        <span className="mx-3 h-4 w-px bg-white/25" />
-        <ChevronDownIcon className="size-4 shrink-0" />
-      </button>
       <div className="mt-4 flex flex-col gap-1">
         {UTILA_MENU_ITEMS.map((item) => (
           <UtilaSidebarItem

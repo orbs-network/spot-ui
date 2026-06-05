@@ -16,14 +16,17 @@ import {
   SwapStatus as SpotSwapStatus,
   useSpot,
 } from "@orbs-network/spot-react";
+import type { Quote } from "@orbs-network/liquidity-hub-sdk";
+import { getNetwork } from "@orbs-network/spot-ui";
 import { SwapStatus as HubSwapStatus } from "@orbs-network/swap-ui";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { WalletButton } from "@rainbow-me/rainbowkit";
 import { Virtuoso } from "react-virtuoso";
 import {
   ArrowDownIcon,
   ArrowLeftRightIcon,
   CheckIcon,
   ChevronDownIcon,
+  ClockIcon,
   InfoIcon,
   SearchIcon,
   ShieldIcon,
@@ -73,9 +76,11 @@ import { useSwapBestTrade } from "@/lib/hooks/use-swap-best-trade";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { useActiveConnection } from "@/lib/hooks/use-active-connection";
+import { useUtilaConnectRetry } from "@/lib/hooks/use-utila-connect-retry";
 import { useUtilaSelectedWallet } from "@/lib/hooks/use-utila-selected-wallet";
 import { useUSDPrice, useUSDPrices } from "@/lib/hooks/use-usd-price";
 import { useTranslations } from "@/lib/use-translations";
+import { DEFAULT_PRICE_PROTECTION } from "@/lib/consts";
 import { Currency, Field, SwapStep, SwapType } from "@/lib/types";
 import {
   cn,
@@ -87,8 +92,21 @@ import {
   toAmountUI,
 } from "@/lib/utils";
 import { Spinner } from "./ui/spinner";
+import { zeroAddress } from "viem";
 
 const SLIPPAGE_OPTIONS = [1, 3, 5, 7, 10];
+const SWAP_SLIPPAGE_OPTIONS = [0.1, 0.3, 0.5, 0.7, 1];
+const DEFAULT_SWAP_SLIPPAGE = 0.5;
+const PRICE_PROTECTION_TOOLTIP =
+  "The protocol uses an oracle price to help protect users from unfavorable executions. If the execution price is worse than the oracle price by more than the allowed percentage, the transaction will not be executed.";
+const QUOTE_FEE_USD_KEYS = [
+  "protocolFeeUsd",
+  "protocolFeesUsd",
+  "feeUsd",
+  "feesUsd",
+  "partnerFeeUsd",
+  "integratorFeeUsd",
+] as const;
 
 const UTILA_SPOT_TABS = [
   { label: "Swap", value: SwapType.SWAP },
@@ -97,6 +115,41 @@ const UTILA_SPOT_TABS = [
   { label: "Stop Loss", value: SwapType.STOP_LOSS },
   { label: "Take Profit", value: SwapType.TAKE_PROFIT },
 ] as const;
+
+const getQuoteField = (quote: Quote | undefined, keys: readonly string[]) => {
+  if (!quote) return "";
+
+  const record = quote as Quote & Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value.toString();
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return "";
+};
+
+const useQuoteAgeLabel = (timestamp?: number) => {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!timestamp) return;
+
+    const interval = window.setInterval(() => setNow(Date.now()), 1_000);
+
+    return () => window.clearInterval(interval);
+  }, [timestamp]);
+
+  if (!timestamp) return "0s";
+
+  return `${Math.max(0, Math.floor((now - timestamp) / 1_000))}s`;
+};
 
 const UtilaNotice = () => {
   return (
@@ -1104,16 +1157,58 @@ const UtilaModuleInputs = () => {
   return <UtilaDurationPanel />;
 };
 
-const UtilaProtectionPanel = () => {
-  const { slippage, setSlippage } = useSettings();
+const UtilaProtectionPanel = ({ isSwap }: { isSwap: boolean }) => {
+  const { priceProtection, setPriceProtection, slippage, setSlippage } =
+    useSettings();
   const [customMode, setCustomMode] = useState(false);
+  const options = isSwap ? SWAP_SLIPPAGE_OPTIONS : SLIPPAGE_OPTIONS;
+  const value = isSwap ? slippage : priceProtection;
+  const setValue = isSwap ? setSlippage : setPriceProtection;
+
+  useEffect(() => {
+    if (!isSwap || customMode || options.includes(slippage)) {
+      return;
+    }
+
+    setSlippage(DEFAULT_SWAP_SLIPPAGE);
+  }, [customMode, isSwap, options, setSlippage, slippage]);
+
+  useEffect(() => {
+    if (isSwap) {
+      return;
+    }
+
+    setPriceProtection(DEFAULT_PRICE_PROTECTION);
+  }, [isSwap, setPriceProtection]);
 
   return (
     <div className="flex flex-col gap-3 mt-2">
       <div className="flex items-center justify-between">
-        <p className="text-[14px] font-normal text-[#717389]">
-          Slippage tolerance
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-[14px] font-normal text-[#717389]">
+            {isSwap ? "Slippage tolerance" : "Price protection"}
+          </p>
+          {!isSwap && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className="inline-flex size-4 cursor-help items-center justify-center text-[#717389]"
+                  type="button"
+                >
+                  <InfoIcon className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent
+                arrowClassName="bg-[#303030] fill-[#303030]"
+                className="max-w-[330px] bg-[#303030] text-white"
+                side="top"
+                sideOffset={6}
+              >
+                {PRICE_PROTECTION_TOOLTIP}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
         <button
           className="cursor-pointer text-[12px] font-normal leading-4 text-[#4a60ff]"
           onClick={() => setCustomMode((current) => !current)}
@@ -1127,21 +1222,21 @@ const UtilaProtectionPanel = () => {
           <div className="flex h-full items-center rounded-[7px] border border-[#4a60ff] px-4">
             <NumericInput
               className="h-full flex-1 bg-transparent text-[14px] font-normal text-[#3f4361]"
-              onChange={(value) => setSlippage(Number(value))}
-              value={slippage ? slippage.toString() : ""}
+              onChange={(nextValue) => setValue(Number(nextValue))}
+              value={value ? value.toString() : ""}
             />
             <span className="text-[14px] font-normal text-[#3f4361]">%</span>
           </div>
         ) : (
           <div className="grid h-full grid-cols-5 gap-[7.5px]">
-            {SLIPPAGE_OPTIONS.map((option) => (
+            {options.map((option) => (
               <button
                 className={cn(
                   "h-full cursor-pointer rounded-[8px] border border-[#e7e8eb] bg-transparent text-[14px] font-normal text-[#3f4361] transition-colors",
-                  option === slippage && "border-[#4a60ff] bg-[#edefff]",
+                  option === value && "border-[#4a60ff] bg-[#edefff]",
                 )}
                 key={option}
-                onClick={() => setSlippage(option)}
+                onClick={() => setValue(option)}
                 type="button"
               >
                 {option}%
@@ -1149,6 +1244,108 @@ const UtilaProtectionPanel = () => {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+const UtilaAvailableQuotesPanel = () => {
+  const {
+    inputCurrency,
+    outputCurrency,
+    parsedInputAmount,
+    trade,
+  } = useDerivedSwap();
+  const { chainId } = useSwapParams();
+  const quote = trade?.originalQuote as Quote | undefined;
+  const network = getNetwork(chainId);
+  const native = network?.native;
+  const nativeCurrency = useMemo((): Currency | undefined => {
+    if (!native) return undefined;
+
+    return {
+      address: zeroAddress,
+      decimals: native.decimals,
+      logoUrl: native.logoUrl,
+      name: native.symbol,
+      symbol: native.symbol,
+    };
+  }, [native]);
+  const quoteAge = useQuoteAgeLabel(quote?.timestamp);
+  const inputAmount = toAmountUI(parsedInputAmount, inputCurrency?.decimals);
+  const outputAmount = toAmountUI(trade?.outAmount, outputCurrency?.decimals);
+  const rate =
+    BN(inputAmount || "0").gt(0) && BN(outputAmount || "0").gt(0)
+      ? BN(outputAmount).div(inputAmount).toString()
+      : "";
+  const rateUsd = useUSDPrice({
+    amount: rate,
+    disabled: !outputCurrency || !rate || BN(rate || "0").lte(0),
+    token: outputCurrency?.address,
+  });
+  const protocolFeeUsd = getQuoteField(quote, QUOTE_FEE_USD_KEYS);
+  const networkFeeAmount = toAmountUI(
+    quote?.gasAmountOut ?? trade?.gas,
+    nativeCurrency?.decimals,
+  );
+  const networkFeeUsd = useUSDPrice({
+    amount: networkFeeAmount,
+    disabled:
+      !nativeCurrency || !networkFeeAmount || BN(networkFeeAmount || "0").lte(0),
+    token: nativeCurrency?.address,
+  });
+  const showNetworkFee =
+    Boolean(nativeCurrency) && BN(networkFeeAmount || "0").gt(0);
+
+  if (!quote || !inputCurrency || !outputCurrency || !rate) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h3 className="text-[14px] font-normal text-[#717389]">
+        Available Quotes
+      </h3>
+      <div className="rounded-[10px] border border-[#4a60ff] bg-[#eff1ff] p-3 text-[#3f4361] shadow-[0_12px_24px_rgba(74,96,255,0.12)]">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center">
+            <span className="min-w-0 truncate text-[14px] font-semibold leading-5 text-[#3f4361]">
+              Liquidity Hub
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[#3f4361]">
+            <ClockIcon className="size-3.5 fill-[#3f4361] text-[#3f4361]" />
+            <span>{quoteAge}</span>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-col gap-2 text-[13px] leading-5">
+          <p className="break-words font-normal">
+            <span className="font-bold">Rate:</span>{" "}
+            1 {inputCurrency.symbol} = {formatDecimals(rate, 18)}{" "}
+            {outputCurrency.symbol}
+            {rateUsd.formatted && <span> (~${rateUsd.formatted})</span>}
+          </p>
+          {protocolFeeUsd && (
+            <p className="font-normal">
+              <span className="font-bold">Protocol fees:</span> ≈ $
+              {formatDecimals(protocolFeeUsd, 2)}
+            </p>
+          )}
+          {showNetworkFee && (
+            <p className="flex flex-wrap items-center gap-1.5 font-normal">
+              <span className="font-bold">Estimated network fee:</span>
+              <CurrencyLogo className="size-4" currency={nativeCurrency} />
+              <span className="font-bold">
+                {formatDecimals(networkFeeAmount, 18)} {nativeCurrency?.symbol}
+              </span>
+              {networkFeeUsd.formatted && (
+                <span className="text-[#70748d]">
+                  (≈ ${networkFeeUsd.formatted})
+                </span>
+              )}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1278,7 +1475,7 @@ const UtilaSubmitMain = ({
 const UtilaSubmitOrder = () => {
   const { setInputAmount } = useActionHandlers();
   const { address } = useActiveConnection();
-  const { openConnectModal } = useConnectModal();
+  const { retryingConnect, startConnectRetry } = useUtilaConnectRetry();
   const { disabled, loading } = useSpot().submitOrderButton;
   const {
     confirmButtonLoading,
@@ -1314,22 +1511,40 @@ const UtilaSubmitOrder = () => {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <button
-        className="mt-2 flex h-10 w-full items-center justify-center rounded-[8px] bg-[#cfd0d8] px-4 text-[16px] font-normal text-white transition-colors enabled:bg-[#4564ff] enabled:hover:bg-[#3152ff]"
-        disabled={Boolean(address) && (disabled || loading)}
-        onClick={() => {
-          if (!address) {
-            openConnectModal?.();
-            return;
-          }
+      <WalletButton.Custom wallet="utila">
+        {({
+          connect,
+          loading: connectLoading,
+          mounted,
+          ready,
+        }) => (
+          <button
+            className="mt-2 flex h-10 w-full items-center justify-center rounded-[8px] bg-[#cfd0d8] px-4 text-[16px] font-normal text-white transition-colors enabled:bg-[#4564ff] enabled:hover:bg-[#3152ff]"
+            disabled={
+              address
+                ? disabled || loading
+                : !mounted || !ready || connectLoading || retryingConnect
+            }
+            onClick={() => {
+              if (!address) {
+                startConnectRetry(connect);
+                return;
+              }
 
-          setOpen(true);
-        }}
-        type="button"
-      >
-        {buttonText}
-        {address && loading && <Spinner className="size-4" />}
-      </button>
+              setOpen(true);
+            }}
+            type="button"
+          >
+            {!address && (connectLoading || retryingConnect)
+              ? "Connecting..."
+              : buttonText}
+            {((address && loading) ||
+              (!address && (connectLoading || retryingConnect))) && (
+              <Spinner className="size-4" />
+            )}
+          </button>
+        )}
+      </WalletButton.Custom>
       <DialogContent className="max-w-[520px] border-[#e3e5eb] bg-white text-[#3f4361]">
         <DialogHeader>
           <DialogTitle className="text-[18px] font-semibold text-[#3f4361]">
@@ -1630,8 +1845,8 @@ const UtilaSwapSuccess = () => {
 const UtilaSubmitSwap = () => {
   const { setInputAmount } = useActionHandlers();
   const { address } = useActiveConnection();
+  const { retryingConnect, startConnectRetry } = useUtilaConnectRetry();
   const { disabled, text } = useUtilaSwapButtonState();
-  const { openConnectModal } = useConnectModal();
   const { currentStepIndex, onSwapBestTrade, reset, status, totalSteps } =
     useSwapBestTrade();
   const [open, setOpen] = useState(false);
@@ -1652,37 +1867,49 @@ const UtilaSubmitSwap = () => {
     },
     [reset, setInputAmount, status],
   );
-  const onButtonClick = useCallback(
-    () => {
-      if (!address) {
-        openConnectModal?.();
-        return;
-      }
-
-      setOpen(true);
-      if (status !== HubSwapStatus.LOADING) {
-        reset();
-      }
-    },
-    [
-      address,
-      openConnectModal,
-      reset,
-      status,
-    ],
-  );
+  const onButtonClick = useCallback(() => {
+    setOpen(true);
+    if (status !== HubSwapStatus.LOADING) {
+      reset();
+    }
+  }, [reset, status]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <button
-        className="mt-2 flex h-10 w-full items-center justify-center rounded-[8px] bg-[#cfd0d8] px-4 text-[16px] font-normal text-white transition-colors enabled:bg-[#4564ff] enabled:hover:bg-[#3152ff]"
-        disabled={disabled}
-        onClick={onButtonClick}
-        type="button"
-      >
-        {text}
-        {status === HubSwapStatus.LOADING && <Spinner className="size-4" />}
-      </button>
+      <WalletButton.Custom wallet="utila">
+        {({
+          connect,
+          loading: connectLoading,
+          mounted,
+          ready,
+        }) => (
+          <button
+            className="mt-2 flex h-10 w-full items-center justify-center rounded-[8px] bg-[#cfd0d8] px-4 text-[16px] font-normal text-white transition-colors enabled:bg-[#4564ff] enabled:hover:bg-[#3152ff]"
+            disabled={
+              address
+                ? disabled
+                : !mounted || !ready || connectLoading || retryingConnect
+            }
+            onClick={() => {
+              if (!address) {
+                startConnectRetry(connect);
+                return;
+              }
+
+              onButtonClick();
+            }}
+            type="button"
+          >
+            {!address && (connectLoading || retryingConnect)
+              ? "Connecting..."
+              : text}
+            {(status === HubSwapStatus.LOADING ||
+              (!address && (connectLoading || retryingConnect))) && (
+              <Spinner className="size-4" />
+            )}
+          </button>
+        )}
+      </WalletButton.Custom>
       <DialogContent className="max-w-[520px] border-[#e3e5eb] bg-white text-[#3f4361]">
         <DialogHeader>
           <DialogTitle className="text-[18px] font-semibold text-[#3f4361]">
@@ -1757,7 +1984,8 @@ const UtilaSpotForm = ({ swapType }: { swapType: SwapType }) => {
           <UtilaModuleInputs />
         </>
       )}
-      <UtilaProtectionPanel />
+      <UtilaProtectionPanel isSwap={isSwap} />
+      {isSwap && <UtilaAvailableQuotesPanel />}
       {isSwap ? (
         <>
           <UtilaSwapValidationError />

@@ -33,6 +33,7 @@ const useCallbacks = () => {
   const wrapToastId = useRef<number>(null);
   const approveToastId = useRef<number>(null);
   const createOrderToastId = useRef<number>(null);
+  const cancelOrderToastId = useRef<number>(null);
   const { inputCurrency, outputCurrency } = useDerivedSwap();
   const { handleCurrencyChange } = useActionHandlers();
   const { chainId } = useConnection();
@@ -163,8 +164,35 @@ const useCallbacks = () => {
     refetchBalances();
   }, [refetchBalances]);
 
-  const onOrderCancelled = useCallback((props: OnCancelOrderSuccess) => {
-    toast.success("Order cancelled");
+  const onCancelOrderRequest = useCallback(() => {
+    cancelOrderToastId.current = toast.loading("Canceling order...", {
+      description: "Proceed in wallet",
+    }) as number;
+  }, []);
+
+  const onCancelOrderSuccess = useCallback(({ explorerUrl }: OnCancelOrderSuccess) => {
+    toast.success("Order cancelled", {
+      id: cancelOrderToastId.current as number,
+      description: explorerUrl ? (
+        <a
+          href={explorerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-blue-500 hover:text-blue-600"
+        >
+          View on explorer
+        </a>
+      ) : undefined,
+    });
+    cancelOrderToastId.current = null;
+  }, []);
+
+  const onCancelOrderFailed = useCallback((error: Error) => {
+    toast.error("Failed to cancel order", {
+      id: cancelOrderToastId.current as number,
+      description: error.message,
+    });
+    cancelOrderToastId.current = null;
   }, []);
 
   const onCopy = useCallback(() => {
@@ -183,7 +211,9 @@ const useCallbacks = () => {
     onSubmitOrderRejected,
     onOrderCreated,
     onOrdersProgressUpdate,
-    onOrderCancelled,
+    onCancelOrderRequest,
+    onCancelOrderSuccess,
+    onCancelOrderFailed,
     onCopy,
   };
 };

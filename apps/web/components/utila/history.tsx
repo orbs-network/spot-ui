@@ -840,14 +840,8 @@ const UtilaCancelOrderButton = ({
   size?: "row" | "drawer";
 }) => {
   const { address } = useActiveConnection();
-  const { cancelOrder, error, isError, isLoading } = useCancelOrder(order);
+  const { cancelOrder, isLoading } = useCancelOrder(order);
   const isDrawer = size === "drawer";
-
-  useEffect(() => {
-    if (!isError) return;
-
-    toast.error(error || "Failed to cancel order");
-  }, [error, isError]);
 
   if (order.status !== OrderStatus.Open) return null;
 
