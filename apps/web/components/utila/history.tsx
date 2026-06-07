@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   CalendarIcon,
   CheckCircleIcon,
@@ -9,6 +15,7 @@ import {
   CopyIcon,
   DownloadIcon,
   InfoIcon,
+  ListFilterIcon,
   Loader2Icon,
   SearchIcon,
   WalletIcon,
@@ -34,6 +41,11 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -70,6 +82,35 @@ const HISTORY_ROW_SELECTED_INTERACTION_CLASS =
   "hover:bg-[#f4f5ff] hover:[&>td]:bg-[#f4f5ff] focus-visible:bg-[#f4f5ff] focus-visible:[&>td]:bg-[#f4f5ff]";
 const HISTORY_ROW_INTERACTION_CLASS =
   "hover:bg-[#f8f8f9] hover:[&>td]:bg-[#f8f8f9] focus-visible:bg-[#f8f8f9] focus-visible:[&>td]:bg-[#f8f8f9]";
+const MOBILE_DRAWER_QUERY = "(max-width: 767px)";
+
+const subscribeToMobileDrawer = (onStoreChange: () => void) => {
+  if (typeof window === "undefined") return () => {};
+
+  const mediaQuery = window.matchMedia(MOBILE_DRAWER_QUERY);
+
+  mediaQuery.addEventListener("change", onStoreChange);
+
+  return () => mediaQuery.removeEventListener("change", onStoreChange);
+};
+
+const getMobileDrawerSnapshot = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia(MOBILE_DRAWER_QUERY).matches;
+
+const getServerMobileDrawerSnapshot = () => false;
+
+const useIsMobileDrawer = () =>
+  useSyncExternalStore(
+    subscribeToMobileDrawer,
+    getMobileDrawerSnapshot,
+    getServerMobileDrawerSnapshot,
+  );
+
+type UtilaDerivedHistoryOrder = NonNullable<
+  ReturnType<typeof useDerivedHistoryOrder>
+>;
+type UtilaDerivedOrderFill = UtilaDerivedHistoryOrder["fills"][number];
 
 const orderTypes = [
   OrderType.TWAP_MARKET,
@@ -84,6 +125,9 @@ const orderTypes = [
 const formatCreatedAt = (createdAt?: number) => {
   if (!createdAt) return "-";
 
+  const timestamp =
+    createdAt < 1_000_000_000_000 ? createdAt * 1_000 : createdAt;
+
   return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     hour: "2-digit",
@@ -92,7 +136,7 @@ const formatCreatedAt = (createdAt?: number) => {
     month: "short",
     second: "2-digit",
     year: "numeric",
-  }).format(new Date(createdAt));
+  }).format(new Date(timestamp));
 };
 
 const getStatusLabel = (status: OrderStatus) => {
@@ -129,6 +173,12 @@ const isPositiveValue = (value?: string | number) => {
   if (value === undefined || value === null || value === "") return false;
 
   return BN(value).gt(0);
+};
+
+const isGreaterThanOneValue = (value?: string | number) => {
+  if (value === undefined || value === null || value === "") return false;
+
+  return BN(value).gt(1);
 };
 
 const formatTokenAmount = (value?: string, token?: Token, decimals = 6) => {
@@ -345,7 +395,7 @@ const DrawerRow = ({
   }
 
   return (
-    <div className="grid min-h-[46px] grid-cols-[148px_minmax(0,1fr)] gap-5 border-b border-[#e4e6ec] py-[14px] text-[14px] leading-5">
+    <div className="grid min-h-[46px] grid-cols-1 gap-1 border-b border-[#e4e6ec] py-[14px] text-[14px] leading-5 sm:grid-cols-[148px_minmax(0,1fr)] sm:gap-5">
       <div className="flex min-w-0 items-center gap-1.5 self-start">
         <p className="font-normal text-[#70748d]">{label}</p>
         {tooltip && (
@@ -449,6 +499,130 @@ const DrawerTokenAmount = ({
   );
 };
 
+const UtilaOrderFillCard = ({
+  dstToken,
+  fill,
+  index,
+  srcToken,
+}: {
+  dstToken?: Token;
+  fill: UtilaDerivedOrderFill;
+  index: number;
+  srcToken?: Token;
+}) => {
+  const inputToken = srcToken ?? fill.srcToken;
+  const outputToken = dstToken ?? fill.dstToken;
+
+  return (
+    <article className="rounded-[8px] border border-[#e3e5eb] bg-white px-3">
+      <div className="flex min-h-[46px] items-center justify-between gap-4 border-b border-[#e4e6ec] py-[14px]">
+        <p className="text-[14px] font-bold text-[#3f4361]">
+          Fill #{index + 1}
+        </p>
+        <p className="whitespace-nowrap text-[13px] font-medium text-[#70748d]">
+          {formatCreatedAt(fill.timestamp)}
+        </p>
+      </div>
+      <DrawerRow label="Input amount">
+        <DrawerTokenAmount token={inputToken} value={fill.srcAmount} />
+      </DrawerRow>
+      <DrawerRow label="Received">
+        <DrawerTokenAmount token={outputToken} value={fill.dstAmount} />
+      </DrawerRow>
+      <DrawerRow label="Transaction hash" show={Boolean(fill.txHash)}>
+        <CopyableText
+          compact
+          toastMessage="Transaction hash copied"
+          value={fill.txHash}
+        />
+      </DrawerRow>
+    </article>
+  );
+};
+
+const UtilaOrderFillsDrawer = ({
+  dstToken,
+  fills,
+  onOpenChange,
+  open,
+  orderTitle,
+  srcToken,
+}: {
+  dstToken?: Token;
+  fills: UtilaDerivedOrderFill[];
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  orderTitle: string;
+  srcToken?: Token;
+}) => {
+  const isMobileDrawer = useIsMobileDrawer();
+
+  return (
+    <Drawer modal={false} open={open} onOpenChange={onOpenChange}>
+      <DrawerContent
+        className={cn(
+          "z-[60] gap-0 overflow-hidden bg-white p-0 text-[#3f4361]",
+          isMobileDrawer
+            ? "h-[calc(100dvh-104px)] w-full max-w-none rounded-t-[12px] border-x-0 border-b-0 border-t border-[#e3e5eb] shadow-[0_-5px_20px_rgba(42,47,74,0.16)]"
+            : "top-16 left-auto h-auto w-[min(90vw,650px)] max-w-[650px] rounded-none border-y-0 border-r-0 border-l border-[#e3e5eb] shadow-[-5px_0_20px_rgba(42,47,74,0.16)]",
+        )}
+        data-utila-fills-drawer
+        side={isMobileDrawer ? "bottom" : "right"}
+        showCloseButton={false}
+        showOverlay={false}
+      >
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="border-b border-[#e4e6ec] px-4 pt-5 pb-4 sm:px-8 sm:pt-7 sm:pb-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <DrawerTitle className="min-w-0 truncate text-[20px] font-bold leading-7 text-[#3f4361] sm:text-[22px] sm:leading-8">
+                  Order fills
+                </DrawerTitle>
+                <p className="mt-1 text-[13px] font-medium text-[#70748d]">
+                  {orderTitle} · {fills.length}{" "}
+                  {fills.length === 1 ? "fill" : "fills"}
+                </p>
+              </div>
+              <DrawerClose asChild>
+                <button
+                  aria-label="Close order fills"
+                  className="flex size-8 cursor-pointer items-center justify-center rounded-[7px] text-[#3f4361] hover:bg-[#f4f5f8]"
+                  type="button"
+                >
+                  <XIcon className="size-6" />
+                </button>
+              </DrawerClose>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-8 sm:py-6">
+            {fills.length ? (
+              <div className="flex flex-col gap-3">
+                {fills.map((fill, index) => (
+                  <UtilaOrderFillCard
+                    dstToken={dstToken}
+                    fill={fill}
+                    index={index}
+                    key={`${fill.txHash || "fill"}-${index}`}
+                    srcToken={srcToken}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-full min-h-[280px] flex-col items-center justify-center gap-3 text-[#70748d]">
+                <WalletIcon className="size-8" />
+                <p className="text-[14px] font-semibold">
+                  No fills for this order yet
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+};
+
 const TimelineValue = ({
   completedAt,
   createdAt,
@@ -494,15 +668,20 @@ const TimelineValue = ({
 };
 
 const UtilaOrderDetailsDrawer = ({
+  fillsDrawerOpen,
+  onFillsDrawerOpenChange,
   onOpenChange,
   open,
   selectedOrderId,
 }: {
+  fillsDrawerOpen: boolean;
+  onFillsDrawerOpenChange: (open: boolean) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   selectedOrderId: string;
 }) => {
   const { orders } = useSpot().orderHistoryPanel;
+  const isMobileDrawer = useIsMobileDrawer();
 
   const order = useMemo(
     () => orders.all.find((order) => order.id === selectedOrderId),
@@ -524,30 +703,39 @@ const UtilaOrderDetailsDrawer = ({
 
   if (!order) return null;
 
+  const orderTitle = getOrderTitle(order.type);
+
   return (
     <Drawer modal={false} open={open} onOpenChange={onOpenChange}>
       <DrawerContent
-        className="top-16 left-auto h-auto w-[min(90vw,750px)] max-w-[750px] gap-0 overflow-hidden rounded-none border-y-0 border-r-0 border-l border-[#e3e5eb] bg-white p-0 text-[#3f4361] shadow-[-5px_0_20px_rgba(42,47,74,0.16)]"
+        className={cn(
+          "gap-0 overflow-hidden bg-white p-0 text-[#3f4361]",
+          isMobileDrawer
+            ? "h-[calc(100dvh-104px)] w-full max-w-none rounded-t-[12px] border-x-0 border-b-0 border-t border-[#e3e5eb] shadow-[0_-5px_20px_rgba(42,47,74,0.16)]"
+            : "top-16 left-auto h-auto w-[min(90vw,750px)] max-w-[750px] rounded-none border-y-0 border-r-0 border-l border-[#e3e5eb] shadow-[-5px_0_20px_rgba(42,47,74,0.16)]",
+        )}
         onInteractOutside={(event) => {
           const target = event.target;
 
           if (
             target instanceof Element &&
-            target.closest("[data-utila-history-row]")
+            (target.closest("[data-utila-history-row]") ||
+              target.closest("[data-utila-fills-drawer]"))
           ) {
             event.preventDefault();
           }
         }}
+        side={isMobileDrawer ? "bottom" : "right"}
         showCloseButton={false}
         showOverlay={false}
       >
         <div className="flex h-full min-h-0 flex-col">
-          <div className="border-b border-[#e4e6ec] px-8 pt-7 pb-6">
-            <div className="flex items-start justify-between gap-6">
+          <div className="border-b border-[#e4e6ec] px-4 pt-5 pb-4 sm:px-8 sm:pt-7 sm:pb-6">
+            <div className="flex items-start justify-between gap-4 sm:gap-6">
               <div className="min-w-0">
                 <div className="flex min-w-0 flex-wrap items-center gap-3">
-                  <DrawerTitle className="min-w-0 truncate text-[22px] font-bold leading-8 text-[#3f4361]">
-                    {getOrderTitle(order.type)}
+                  <DrawerTitle className="min-w-0 truncate text-[20px] font-bold leading-7 text-[#3f4361] sm:text-[22px] sm:leading-8">
+                    {orderTitle}
                   </DrawerTitle>
                   <span
                     className={cn(
@@ -566,9 +754,17 @@ const UtilaOrderDetailsDrawer = ({
                     <CopyIcon className="size-4" />
                     Copy ID
                   </CopyAction>
+                  <button
+                    className="inline-flex cursor-pointer items-center gap-2 text-[14px] font-semibold text-[#4564ff] transition-colors hover:text-[#3152ff]"
+                    onClick={() => onFillsDrawerOpenChange(true)}
+                    type="button"
+                  >
+                    Order fills ({fills.length})
+                    <ChevronRightIcon className="size-4" />
+                  </button>
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-5">
+              <div className="flex shrink-0 items-center gap-2 sm:gap-5">
                 <UtilaCancelOrderButton order={order} size="drawer" />
                 <DrawerClose asChild>
                   <button
@@ -583,7 +779,7 @@ const UtilaOrderDetailsDrawer = ({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-8 pb-10">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 sm:px-8 sm:pb-10">
             <DrawerRow
               label="Input amount"
               show={isPositiveValue(derivedOrder?.srcAmountUI)}
@@ -672,7 +868,7 @@ const UtilaOrderDetailsDrawer = ({
             </DrawerRow>
             <DrawerRow
               label="Min received"
-              show={isPositiveValue(derivedOrder?.dstMinAmountUI)}
+              show={isGreaterThanOneValue(derivedOrder?.dstMinAmount)}
               tooltip={UTILA_ORDER_TOOLTIPS.minReceived}
             >
               <DrawerTokenAmount
@@ -680,13 +876,13 @@ const UtilaOrderDetailsDrawer = ({
                 value={derivedOrder?.dstMinAmountUI}
               />
             </DrawerRow>
-        
+
             <DrawerRow
               label="Min received per chunk"
               show={
                 derivedOrder &&
                 derivedOrder?.totalTrades > 1 &&
-                isPositiveValue(derivedOrder?.minDestAmountPerTradeUI)
+                isGreaterThanOneValue(derivedOrder?.minDestAmountPerTrade)
               }
               tooltip={UTILA_ORDER_TOOLTIPS.minReceived}
             >
@@ -757,6 +953,14 @@ const UtilaOrderDetailsDrawer = ({
           </div>
         </div>
       </DrawerContent>
+      <UtilaOrderFillsDrawer
+        dstToken={dstToken}
+        fills={fills}
+        onOpenChange={onFillsDrawerOpenChange}
+        open={open && fillsDrawerOpen}
+        orderTitle={orderTitle}
+        srcToken={srcToken}
+      />
     </Drawer>
   );
 };
@@ -920,10 +1124,6 @@ const HistoryRow = ({
   selected: boolean;
   srcToken?: Currency;
 }) => {
-  const { address } = useActiveConnection();
-  const isConnectedMaker =
-    address && order.maker.toLowerCase() === address.toLowerCase();
-
   return (
     <tr
       className={cn(
@@ -1011,6 +1211,218 @@ const HistorySkeleton = () => {
   );
 };
 
+const HistoryEmptyState = ({ className }: { className?: string }) => (
+  <div
+    className={cn(
+      "flex flex-col items-center justify-center gap-3 text-[#70748d]",
+      className,
+    )}
+  >
+    <WalletIcon className="size-8" />
+    <p className="text-[14px] font-semibold">No Spot orders found</p>
+  </div>
+);
+
+const HistoryMobileSkeleton = () => (
+  <div className="flex flex-col gap-2 p-3">
+    {Array.from({ length: 5 }).map((_, index) => (
+      <div
+        className="rounded-[8px] border border-[#eceef3] bg-white p-3"
+        key={index}
+      >
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-6 w-20 rounded-[7px]" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <Skeleton className="mt-3 h-4 w-full" />
+      </div>
+    ))}
+  </div>
+);
+
+const HistoryMobileCard = ({
+  dstToken,
+  onSelect,
+  order,
+  selected,
+  srcToken,
+}: {
+  dstToken?: Currency;
+  onSelect: (order: Order) => void;
+  order: Order;
+  selected: boolean;
+  srcToken?: Currency;
+}) => {
+  return (
+    <div
+      className={cn(
+        "cursor-pointer border-b border-[#eceef3] bg-white p-3 transition-colors last:border-b-0 focus-visible:outline-none",
+        selected ? HISTORY_ROW_HIGHLIGHT_CLASS : "hover:bg-[#f8f8f9]",
+      )}
+      data-utila-history-row
+      onClick={() => onSelect(order)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(order);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[14px] font-bold leading-5 text-[#2f344e]">
+            {getOrderTitle(order.type)}
+          </p>
+          <p className="mt-0.5 text-[12px] font-medium leading-4 text-[#70748d]">
+            {formatCreatedAt(order.createdAt)}
+          </p>
+        </div>
+        <span
+          className={cn(
+            "inline-flex h-[26px] shrink-0 items-center rounded-[7px] px-3 text-[12px] font-medium",
+            statusPillClassName(order.status),
+          )}
+        >
+          {order.status === OrderStatus.Completed && (
+            <CheckCircleIcon className="mr-1 size-3" />
+          )}
+          {getStatusLabel(order.status)}
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="min-w-0 rounded-[7px] bg-[#fbfbfd] p-2">
+          <p className="mb-1 text-[11px] font-semibold uppercase text-[#70748d]">
+            From
+          </p>
+          <TokenValue currency={srcToken} />
+        </div>
+        <div className="min-w-0 rounded-[7px] bg-[#fbfbfd] p-2">
+          <p className="mb-1 text-[11px] font-semibold uppercase text-[#70748d]">
+            To
+          </p>
+          <TokenValue currency={dstToken} />
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase text-[#70748d]">
+            Input amount
+          </p>
+          <AmountValue order={order} srcToken={srcToken} />
+        </div>
+        <ProgressValue value={order.progress} />
+      </div>
+    </div>
+  );
+};
+
+const UtilaHistoryFilters = ({
+  activeFilterCount,
+  onClear,
+  onStatusChange,
+  onTypeChange,
+  status,
+  type,
+}: {
+  activeFilterCount: number;
+  onClear: () => void;
+  onStatusChange: (status: string) => void;
+  onTypeChange: (type: string) => void;
+  status: string;
+  type: string;
+}) => {
+  const statusLabel =
+    status === ALL_STATUSES ? "Status" : getStatusLabel(status as OrderStatus);
+  const typeLabel =
+    type === ALL_TYPES ? "Transaction Type" : getOrderTitle(type as OrderType);
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          className={cn(
+            "inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-[7px] border border-[#dfe2ec] bg-white px-3 text-[13px] font-semibold text-[#4564ff] transition-colors hover:bg-[#f4f5ff] sm:h-8",
+            activeFilterCount > 0 && "border-[#4564ff] bg-[#f4f5ff]",
+          )}
+          type="button"
+        >
+          <ListFilterIcon className="size-4" />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="flex size-4 items-center justify-center rounded-full bg-[#4564ff] text-[10px] font-bold leading-none text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-[min(calc(100vw-24px),320px)] rounded-[8px] border-[#dfe2ec] bg-white p-3 text-[#3f4361] shadow-[0_8px_24px_rgba(42,47,74,0.12)]"
+        sideOffset={8}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[13px] font-bold text-[#2f344e]">Filters</p>
+          {activeFilterCount > 0 && (
+            <button
+              className="cursor-pointer text-[12px] font-semibold text-[#4564ff] hover:text-[#3152ff]"
+              onClick={onClear}
+              type="button"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div className="mt-3 flex flex-col gap-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-semibold text-[#70748d]">
+              Status
+            </span>
+            <Select onValueChange={onStatusChange} value={status}>
+              <SelectTrigger className="h-9 w-full rounded-[7px] border-[#dfe2ec] bg-[#fbfbfd] text-[13px] font-medium text-[#3f4361] shadow-none">
+                <SelectValue>{statusLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent className="border-[#dfe2ec] bg-white text-[#3f4361]">
+                <SelectItem value={ALL_STATUSES}>All statuses</SelectItem>
+                {Object.values(OrderStatus).map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {getStatusLabel(item)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-semibold text-[#70748d]">
+              Transaction Type
+            </span>
+            <Select onValueChange={onTypeChange} value={type}>
+              <SelectTrigger className="h-9 w-full rounded-[7px] border-[#dfe2ec] bg-[#fbfbfd] text-[13px] font-medium text-[#3f4361] shadow-none">
+                <SelectValue>{typeLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent className="border-[#dfe2ec] bg-white text-[#3f4361]">
+                <SelectItem value={ALL_TYPES}>All transaction types</SelectItem>
+                {orderTypes.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {getOrderTitle(item)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 const UtilaHistoryTable = () => {
   const { isLoading, orders } = useSpot().orderHistoryPanel;
   const { address } = useActiveConnection();
@@ -1021,6 +1433,7 @@ const UtilaHistoryTable = () => {
   const [page, setPage] = useState(1);
   const [selectedOrderId, setSelectedOrderId] = useState<string>();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [fillsDrawerOpen, setFillsDrawerOpen] = useState(false);
   const filteredOrders = useFilteredOrders({ query, status, type });
   const pageCount = Math.max(
     1,
@@ -1049,21 +1462,41 @@ const UtilaHistoryTable = () => {
   const handleSelectOrder = useCallback(
     (order: Order) => {
       if (drawerOpen && selectedOrderId === order.id) {
+        setFillsDrawerOpen(false);
         setDrawerOpen(false);
         return;
       }
 
+      setFillsDrawerOpen(false);
       setSelectedOrderId(order.id);
       setDrawerOpen(true);
     },
-    [drawerOpen, selectedOrderId, setSelectedOrderId, setDrawerOpen],
+    [
+      drawerOpen,
+      selectedOrderId,
+      setFillsDrawerOpen,
+      setSelectedOrderId,
+      setDrawerOpen,
+    ],
   );
+  const handleDrawerOpenChange = useCallback((nextOpen: boolean) => {
+    if (!nextOpen) {
+      setFillsDrawerOpen(false);
+    }
+
+    setDrawerOpen(nextOpen);
+  }, []);
   const handleStatusChange = useCallback((nextStatus: string) => {
     setStatus(nextStatus);
     setPage(1);
   }, []);
   const handleTypeChange = useCallback((nextType: string) => {
     setType(nextType);
+    setPage(1);
+  }, []);
+  const handleClearFilters = useCallback(() => {
+    setStatus(ALL_STATUSES);
+    setType(ALL_TYPES);
     setPage(1);
   }, []);
   const handleQueryChange = useCallback(
@@ -1082,41 +1515,25 @@ const UtilaHistoryTable = () => {
   const handleExportOrders = useCallback(() => {
     exportOrdersToCsv(orders.all, currencyByAddress);
   }, [currencyByAddress, orders.all]);
+  const activeFilterCount =
+    Number(status !== ALL_STATUSES) + Number(type !== ALL_TYPES);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-4">
-      <div className="shrink-0 flex flex-wrap items-center gap-2">
-        <Select onValueChange={handleStatusChange} value={status}>
-          <SelectTrigger className="h-8 w-[220px] rounded-[7px] border-[#dfe2ec] bg-[#fbfbfd] text-[13px] font-medium text-[#70748d] shadow-none">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="border-[#dfe2ec] bg-white text-[#3f4361]">
-            <SelectItem value={ALL_STATUSES}>Status</SelectItem>
-            {Object.values(OrderStatus).map((item) => (
-              <SelectItem key={item} value={item}>
-                {getStatusLabel(item)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select onValueChange={handleTypeChange} value={type}>
-          <SelectTrigger className="h-8 w-[220px] rounded-[7px] border-[#dfe2ec] bg-[#fbfbfd] text-[13px] font-medium text-[#70748d] shadow-none">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="border-[#dfe2ec] bg-white text-[#3f4361]">
-            <SelectItem value={ALL_TYPES}>Transaction Type</SelectItem>
-            {orderTypes.map((item) => (
-              <SelectItem key={item} value={item}>
-                {getOrderTitle(item)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="relative h-8 w-[260px]">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-3 sm:gap-4">
+      <div className="flex shrink-0 items-center gap-2">
+        <UtilaHistoryFilters
+          activeFilterCount={activeFilterCount}
+          onClear={handleClearFilters}
+          onStatusChange={handleStatusChange}
+          onTypeChange={handleTypeChange}
+          status={status}
+          type={type}
+        />
+        <div className="relative h-9 min-w-0 flex-1 sm:h-8 sm:max-w-[320px]">
           <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#70748d]" />
           <Input
             aria-label="Search order history"
-            className="h-8 rounded-[7px] border-[#dfe2ec] bg-white pl-9 text-[13px] font-medium text-[#3f4361] shadow-none placeholder:text-[#70748d] focus-visible:border-[#4564ff] focus-visible:ring-0"
+            className="h-full rounded-[7px] border-[#dfe2ec] bg-white pl-9 text-[13px] font-medium text-[#3f4361] shadow-none placeholder:text-[#70748d] focus-visible:border-[#4564ff] focus-visible:ring-0"
             onChange={handleQueryChange}
             placeholder="Address or order id"
             value={query}
@@ -1124,8 +1541,8 @@ const UtilaHistoryTable = () => {
         </div>
       </div>
 
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[7px] border border-[#e3e5eb] bg-white shadow-[0_2px_8px_rgba(42,47,74,0.08)]">
-        <div className="flex h-[64px] shrink-0 items-center justify-between border-b border-[#eef0f4] px-6">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[7px] border border-[#e3e5eb] bg-white shadow-[0_2px_8px_rgba(42,47,74,0.08)]">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-[#eef0f4] px-3 sm:h-[64px] sm:px-6">
           <h1 className="text-[15px] font-bold text-[#2f344e]">
             Transactions ({orders.all.length})
           </h1>
@@ -1152,64 +1569,84 @@ const UtilaHistoryTable = () => {
           )}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
-          <table className="min-w-[1360px] w-full border-collapse text-left">
-            <thead className="sticky top-0 z-10">
-              <tr className="h-[49px] border-b border-[#eceef3] bg-white">
-                {[
-                  "CREATED",
-                  "TYPE",
-                  "INITIATOR",
-                  "FROM",
-                  "TO",
-                  "AMOUNT",
-                  "PROGRESS",
-                  "STATUS",
-                ].map((header) => (
-                  <th
-                    className="px-3 text-[12px] font-bold uppercase text-[#2f344e] first:px-6"
-                    key={header}
-                  >
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <HistorySkeleton />
-              ) : filteredOrders.length ? (
-                paginatedOrders.map((order) => (
-                  <HistoryRow
-                    dstToken={currencyByAddress.get(
-                      order.dstTokenAddress.toLowerCase(),
-                    )}
-                    key={order.id}
-                    onSelect={handleSelectOrder}
-                    order={order}
-                    selected={drawerOpen && selectedOrderId === order.id}
-                    srcToken={currencyByAddress.get(
-                      order.srcTokenAddress.toLowerCase(),
-                    )}
-                  />
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={8}>
-                    <div className="flex h-[360px] flex-col items-center justify-center gap-3 text-[#70748d]">
-                      <WalletIcon className="size-8" />
-                      <p className="text-[14px] font-semibold">
-                        No Spot orders found
-                      </p>
-                    </div>
-                  </td>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <div className="h-full overflow-y-auto sm:hidden">
+            {isLoading ? (
+              <HistoryMobileSkeleton />
+            ) : filteredOrders.length ? (
+              paginatedOrders.map((order) => (
+                <HistoryMobileCard
+                  dstToken={currencyByAddress.get(
+                    order.dstTokenAddress.toLowerCase(),
+                  )}
+                  key={order.id}
+                  onSelect={handleSelectOrder}
+                  order={order}
+                  selected={drawerOpen && selectedOrderId === order.id}
+                  srcToken={currencyByAddress.get(
+                    order.srcTokenAddress.toLowerCase(),
+                  )}
+                />
+              ))
+            ) : (
+              <HistoryEmptyState className="h-full min-h-[360px]" />
+            )}
+          </div>
+
+          <div className="hidden h-full overflow-auto sm:block">
+            <table className="min-w-[1360px] w-full border-collapse text-left">
+              <thead className="sticky top-0 z-10">
+                <tr className="h-[49px] border-b border-[#eceef3] bg-white">
+                  {[
+                    "CREATED",
+                    "TYPE",
+                    "INITIATOR",
+                    "FROM",
+                    "TO",
+                    "AMOUNT",
+                    "PROGRESS",
+                    "STATUS",
+                  ].map((header) => (
+                    <th
+                      className="px-3 text-[12px] font-bold uppercase text-[#2f344e] first:px-6"
+                      key={header}
+                    >
+                      {header}
+                    </th>
+                  ))}
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <HistorySkeleton />
+                ) : filteredOrders.length ? (
+                  paginatedOrders.map((order) => (
+                    <HistoryRow
+                      dstToken={currencyByAddress.get(
+                        order.dstTokenAddress.toLowerCase(),
+                      )}
+                      key={order.id}
+                      onSelect={handleSelectOrder}
+                      order={order}
+                      selected={drawerOpen && selectedOrderId === order.id}
+                      srcToken={currencyByAddress.get(
+                        order.srcTokenAddress.toLowerCase(),
+                      )}
+                    />
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={8}>
+                      <HistoryEmptyState className="h-[360px]" />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        <div className="flex h-12 shrink-0 items-center justify-end gap-8 border-t border-[#eef0f4] px-6 text-[13px] font-medium text-[#3f4361]">
+        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-t border-[#eef0f4] px-3 text-[12px] font-medium text-[#3f4361] sm:justify-end sm:gap-8 sm:px-6 sm:text-[13px]">
           <span>
             {filteredOrders.length
               ? `${pageStartIndex + 1} to ${pageEndIndex} of ${
@@ -1245,7 +1682,9 @@ const UtilaHistoryTable = () => {
 
       {selectedOrderId && (
         <UtilaOrderDetailsDrawer
-          onOpenChange={setDrawerOpen}
+          fillsDrawerOpen={fillsDrawerOpen}
+          onFillsDrawerOpenChange={setFillsDrawerOpen}
+          onOpenChange={handleDrawerOpenChange}
           open={drawerOpen}
           selectedOrderId={selectedOrderId}
         />
@@ -1272,7 +1711,7 @@ const Listeners = () => {
 
 export function UtilaHistory() {
   return (
-    <main className="ml-[230px] h-[calc(100vh-64px)] w-[calc(100vw-230px)] overflow-hidden bg-white px-6 py-5 text-[#3f4361]">
+    <main className="h-[calc(100dvh-104px)] w-full min-w-0 overflow-hidden bg-white px-3 py-3 text-[#3f4361] md:ml-[230px] md:h-[calc(100vh-64px)] md:w-[calc(100vw-230px)] md:px-6 md:py-5">
       <UtilaHistoryTable />
       <Listeners />
     </main>

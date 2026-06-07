@@ -32,6 +32,11 @@ const useStep = () => {
         title: "Approve",
         footerText: "Approve your tokens",
       };
+    } else if (currentStep === SwapStep.SIGN) {
+      return {
+        title: "Sign",
+        footerText: "Sign the swap request in your wallet",
+      };
     } else if (currentStep === SwapStep.SWAP) {
       return {
         title: "Swap",

@@ -85,6 +85,7 @@ const utilaWallet: WalletList[number]["wallets"][number] = (
   options,
 ): Wallet => {
   const walletConnect = walletConnectWallet(options);
+  const getWalletConnectUri = (uri: string) => uri;
 
   return {
     ...walletConnect,
@@ -93,6 +94,12 @@ const utilaWallet: WalletList[number]["wallets"][number] = (
     shortName: "Utila",
     iconUrl: UTILA_ICON_URL,
     iconBackground: "#111638",
+    mobile: {
+      getUri: getWalletConnectUri,
+    },
+    qrCode: {
+      getUri: getWalletConnectUri,
+    },
   };
 };
 

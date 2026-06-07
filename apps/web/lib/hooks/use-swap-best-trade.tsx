@@ -42,15 +42,19 @@ const usePrepareQuote = () => {
   });
 };
 
-const getTotalSteps = (shouldWrap: boolean, shouldApprove: boolean) => {
-  let totalSteps = 1;
+const getSwapSteps = (shouldWrap: boolean, shouldApprove: boolean) => {
+  const steps: SwapStep[] = [];
+
   if (shouldWrap) {
-    totalSteps++;
+    steps.push(SwapStep.WRAP);
   }
   if (shouldApprove) {
-    totalSteps++;
+    steps.push(SwapStep.APPROVE);
   }
-  return totalSteps;
+
+  steps.push(SwapStep.SIGN, SwapStep.SWAP);
+
+  return steps;
 };
 
 const useToasts = () => {
@@ -146,6 +150,7 @@ export const useSwapBestTrade = () => {
     updateStore,
     totalSteps,
     currentStepIndex,
+    steps,
     resetStore,
     txHash,
   } = useBestTradeSwapStore();
@@ -188,7 +193,8 @@ export const useSwapBestTrade = () => {
       const isNativeIn = isNativeAddress(inputCurrency.address);
 
       const hasAllowance = await ensureAllowance();
-      updateStore({ totalSteps: getTotalSteps(isNativeIn, !hasAllowance) });
+      const steps = getSwapSteps(isNativeIn, !hasAllowance);
+      updateStore({ steps, totalSteps: steps.length });
 
       if (isNativeIn) {
         updateStore({ currentStep: SwapStep.WRAP });
@@ -208,10 +214,14 @@ export const useSwapBestTrade = () => {
         updateStore({ currentStepIndex });
       }
 
-      updateStore({ currentStep: SwapStep.SWAP });
+      updateStore({ currentStep: SwapStep.SIGN });
       const quote = await prepareQuote();
-      toasts.onSwapRequest();
       const signature = await signEip(quote);
+      currentStepIndex++;
+      updateStore({ currentStepIndex });
+
+      updateStore({ currentStep: SwapStep.SWAP });
+      toasts.onSwapRequest();
       const tx = await liquidityHubClient.swap(quote, signature);
       toasts.onSwapSuccess();
       updateStore({ txHash: tx as `0x${string}` });      
@@ -243,6 +253,7 @@ export const useSwapBestTrade = () => {
     status,
     totalSteps,
     currentStepIndex,
+    steps,
     txHash,
     reset: resetStore,
   };

@@ -35,9 +35,9 @@ export default function RootLayout({
       >
           <Providers>
             <Toaster />
-            <div className="flex min-h-screen flex-col bg-zinc-50 font-sans">
+            <div className="flex min-h-screen w-full min-w-0 flex-col overflow-x-hidden bg-zinc-50 font-sans">
               <Navigation />
-              <div className="flex flex-1 items-center justify-center">
+              <div className="flex w-full min-w-0 flex-1 items-center justify-center">
                 {children}
               </div>
             </div>

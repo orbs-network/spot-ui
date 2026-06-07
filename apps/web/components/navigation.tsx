@@ -37,7 +37,6 @@ const NAV_ITEMS = [
   },
 ] as const;
 
-const UTILA_SIDEBAR_WIDTH = 230;
 const UTILA_MENU_ITEMS = [
   { href: "/", icon: ArrowLeftRightIcon, label: "Swap" },
   { href: "/history", icon: ReceiptTextIcon, label: "Order History" },
@@ -79,7 +78,7 @@ const UtilaChainDisplay = () => {
   }
 
   return (
-    <div className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-[#e3e5eb] bg-white px-3 text-[13px] font-semibold text-[#3f4361]">
+    <div className="inline-flex h-8 items-center gap-2 rounded-[7px] border border-[#e3e5eb] bg-white px-2 text-[12px] font-semibold text-[#3f4361] sm:h-9 sm:px-3 sm:text-[13px]">
       <UtilaChainLogo chain={connectedChain} />
       <span className="hidden max-w-[140px] truncate sm:inline">
         {connectedChain.name}
@@ -101,14 +100,14 @@ const UtilaWalletButton = () => {
       <WalletButton.Custom wallet="utila">
         {({ connect, mounted }) => (
           <button
-            className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[7px] border border-[#e3e5eb] bg-white px-3 text-[13px] font-semibold text-[#3f4361] transition-colors hover:bg-[#f7f7f9] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-[7px] border border-[#e3e5eb] bg-white px-2 text-[12px] font-semibold text-[#3f4361] transition-colors hover:bg-[#f7f7f9] disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:gap-2 sm:px-3 sm:text-[13px]"
             disabled={!mounted}
             onClick={() => {
               startConnectRetry(connect);
             }}
             type="button"
           >
-            <span className="max-w-[150px] truncate">
+            <span className="max-w-[112px] truncate sm:max-w-[150px]">
               {retryingConnect ? "Connecting..." : label}
             </span>
             <ChevronDownIcon className="size-4 text-[#70748d]" />
@@ -120,22 +119,34 @@ const UtilaWalletButton = () => {
 
   return (
     <button
-      className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[7px] border border-[#e3e5eb] bg-white px-3 text-[13px] font-semibold text-[#3f4361] transition-colors hover:bg-[#f7f7f9]"
+      className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-[7px] border border-[#e3e5eb] bg-white px-2 text-[12px] font-semibold text-[#3f4361] transition-colors hover:bg-[#f7f7f9] sm:h-9 sm:gap-2 sm:px-3 sm:text-[13px]"
       onClick={() => openAccountModal?.()}
       type="button"
     >
-      <span className="max-w-[150px] truncate">{label}</span>
+      <span className="max-w-[112px] truncate sm:max-w-[150px]">{label}</span>
       <ChevronDownIcon className="size-4 text-[#70748d]" />
     </button>
   );
 };
 
-const UtilaLogo = () => {
+const UtilaLogo = ({
+  className,
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) => {
   return (
-    <div className="flex h-11 items-center gap-2 px-2 text-white">
+    <div
+      className={cn(
+        "flex h-11 items-center gap-2 px-2 text-white",
+        compact && "h-8 px-0",
+        className,
+      )}
+    >
       <svg
         aria-hidden="true"
-        className="size-7 shrink-0"
+        className={cn("size-7 shrink-0", compact && "size-6")}
         fill="none"
         viewBox="0 0 32 24"
       >
@@ -154,7 +165,14 @@ const UtilaLogo = () => {
           strokeWidth="4"
         />
       </svg>
-      <span className="text-[24px] font-medium tracking-normal">utila</span>
+      <span
+        className={cn(
+          "text-[24px] font-medium tracking-normal",
+          compact && "text-[20px]",
+        )}
+      >
+        utila
+      </span>
     </div>
   );
 };
@@ -200,8 +218,7 @@ const UtilaSidebarItem = ({
 const UtilaSidebar = ({ pathname }: { pathname: string }) => {
   return (
     <aside
-      className="fixed inset-y-0 left-0 z-50 flex w-[230px] flex-col bg-[#111638] px-4 py-7 text-[#c6cada] shadow-[12px_0_24px_rgba(17,22,56,0.12)]"
-      style={{ width: UTILA_SIDEBAR_WIDTH }}
+      className="fixed inset-y-0 left-0 z-50 hidden w-[230px] flex-col bg-[#111638] px-4 py-7 text-[#c6cada] shadow-[12px_0_24px_rgba(17,22,56,0.12)] md:flex"
     >
       <UtilaLogo />
       <div className="mt-4 flex flex-col gap-1">
@@ -219,16 +236,49 @@ const UtilaSidebar = ({ pathname }: { pathname: string }) => {
   );
 };
 
+const UtilaMobileMenu = ({ pathname }: { pathname: string }) => {
+  return (
+    <div className="grid h-12 grid-cols-2 gap-2 border-t border-[#e7e8eb] bg-white px-3 py-2 md:hidden">
+      {UTILA_MENU_ITEMS.map(({ href, icon: Icon, label }) => {
+        const active = href === "/" ? pathname === "/" : pathname === href;
+
+        return (
+          <Link
+            className={cn(
+              "flex min-w-0 items-center justify-center gap-2 rounded-[7px] px-3 text-[13px] font-semibold transition-colors",
+              active
+                ? "bg-[#eef0ff] text-[#4564ff]"
+                : "text-[#5f647d] hover:bg-[#f7f7f9] hover:text-[#3f4361]",
+            )}
+            href={href}
+            key={href}
+          >
+            <Icon className="size-4 shrink-0" />
+            <span className="truncate">{label}</span>
+          </Link>
+        );
+      })}
+    </div>
+  );
+};
+
 const UtilaNavigation = ({ pathname }: { pathname: string }) => {
   return (
     <>
       <UtilaSidebar pathname={pathname} />
       <nav
-        className="sticky top-0 z-40 ml-[230px] flex h-16 items-center justify-end gap-3 border-b border-[#e7e8eb] bg-white px-6 text-[#3f4361]"
-        style={{ marginLeft: UTILA_SIDEBAR_WIDTH }}
+        className="sticky top-0 z-40 flex flex-col border-b border-[#e7e8eb] bg-white text-[#3f4361] md:ml-[230px]"
       >
-        <UtilaChainDisplay />
-        <UtilaWalletButton />
+        <div className="flex h-14 items-center justify-between gap-3 px-3 sm:px-4 md:h-16 md:justify-end md:px-6">
+          <div className="flex shrink-0 items-center gap-2 md:hidden">
+            <UtilaLogo className="text-black" compact />
+          </div>
+          <div className="flex min-w-0 items-center justify-end gap-2 sm:gap-3">
+            <UtilaChainDisplay />
+            <UtilaWalletButton />
+          </div>
+        </div>
+        <UtilaMobileMenu pathname={pathname} />
       </nav>
     </>
   );

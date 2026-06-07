@@ -14,6 +14,18 @@ const isUtilaConnector = (connector: { id: string; name: string }) => {
   );
 };
 
+const isMobileBrowser = () => {
+  if (typeof window === "undefined") return false;
+
+  const userAgent = window.navigator.userAgent.toLowerCase();
+
+  return (
+    /android|iphone|ipad|ipod|mobile/.test(userAgent) ||
+    (window.navigator.maxTouchPoints > 1 &&
+      /macintosh/.test(userAgent))
+  );
+};
+
 export const useUtilaConnectRetry = () => {
   const { address } = useActiveConnection();
   const { connectModalOpen } = useConnectModal();
@@ -44,10 +56,11 @@ export const useUtilaConnectRetry = () => {
   }, []);
 
   const startConnectRetry = useCallback(
-    (openConnect: () => Promise<void>) => {
+    (openConnect: () => Promise<void> | void) => {
       clearConnectRetry();
       hasObservedConnectModalOpenRef.current = false;
       setRetryingConnect(true);
+      const shouldRepeatConnectClick = !isMobileBrowser();
 
       const clickConnect = () => {
         if (connectClickInFlightRef.current) {
@@ -55,7 +68,7 @@ export const useUtilaConnectRetry = () => {
         }
 
         connectClickInFlightRef.current = true;
-        void openConnect()
+        void Promise.resolve(openConnect())
           .catch(() => {})
           .finally(() => {
             connectClickInFlightRef.current = false;
@@ -85,7 +98,9 @@ export const useUtilaConnectRetry = () => {
 
       connectRetryKickoffRef.current = window.setTimeout(tryReconnect, 250);
       connectRetryIntervalRef.current = window.setInterval(() => {
-        clickConnect();
+        if (shouldRepeatConnectClick) {
+          clickConnect();
+        }
         tryReconnect();
       }, 1_000);
       connectRetryTimeoutRef.current = window.setTimeout(() => {

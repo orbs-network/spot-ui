@@ -50,14 +50,21 @@ function DrawerContent({
   className,
   overlayClassName,
   children,
+  side = "right",
   showCloseButton = true,
   showOverlay = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   overlayClassName?: string
+  side?: "right" | "bottom"
   showCloseButton?: boolean
   showOverlay?: boolean
 }) {
+  const sideClassName =
+    side === "bottom"
+      ? "right-0 bottom-0 left-0 w-full max-w-none border-t data-[state=closed]:slide-out-to-bottom-full data-[state=open]:slide-in-from-bottom-full"
+      : "top-0 right-0 bottom-0 h-full w-3/4 max-w-sm border-l data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full"
+
   return (
     <DrawerPortal>
       {showOverlay && <DrawerOverlay className={overlayClassName} />}
@@ -67,7 +74,8 @@ function DrawerContent({
           event.preventDefault()
         }}
         className={cn(
-          "fixed top-0 right-0 bottom-0 z-50 flex h-full w-3/4 max-w-sm flex-col border-l bg-background shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-right-full data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-right-full",
+          "fixed z-50 flex flex-col bg-background shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+          sideClassName,
           className,
         )}
         {...props}

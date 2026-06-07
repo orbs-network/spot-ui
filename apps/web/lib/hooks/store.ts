@@ -57,6 +57,7 @@ type BestTradeSwapStore = {
   totalSteps?: number;
   currentStep?: SwapStep;
   currentStepIndex?: number;
+  steps?: SwapStep[];
   txHash?: string;
   updateStore: (data: Partial<BestTradeSwapStore>) => void;
   resetStore: () => void;
@@ -71,6 +72,7 @@ export const useBestTradeSwapStore = create<BestTradeSwapStore>((set) => ({
       totalSteps: undefined,
       currentStep: undefined,
       currentStepIndex: undefined,
+      steps: undefined,
       txHash: undefined,
     }),
 }));

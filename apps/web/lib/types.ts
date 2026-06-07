@@ -31,6 +31,7 @@ export enum SwapType {
 export enum SwapStep {
     WRAP = 'WRAP',
     APPROVE = 'APPROVE',
+    SIGN = 'SIGN',
     SWAP = 'SWAP',
 }
 
