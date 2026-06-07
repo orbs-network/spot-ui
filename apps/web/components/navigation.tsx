@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { label: "Swap", path: "/", external: false },
   { label: "Predictions", path: "/predictions", external: false },
   { label: "Explorer", path: "https://orbs-explorer.vercel.app/", external: true },
+  { label: "Utila", path: "https://utila-spot.vercel.app", external: true },
 ] as const;
 
 export function Navigation() {
