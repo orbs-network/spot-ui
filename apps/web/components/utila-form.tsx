@@ -24,13 +24,11 @@ import { Virtuoso } from "react-virtuoso";
 import {
   ArrowDownIcon,
   ArrowLeftRightIcon,
-  CheckIcon,
   ChevronDownIcon,
   ClockIcon,
   InfoIcon,
   SearchIcon,
   ShieldIcon,
-  WalletIcon,
   XIcon,
 } from "lucide-react";
 import { CurrencyLogo } from "@/components/ui/currency-logo";
@@ -42,11 +40,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { NumericInput } from "@/components/ui/numeric-input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -69,7 +62,6 @@ import {
 import { useActionHandlers } from "@/lib/hooks/use-action-handlers";
 import { useBalance, useBalances } from "@/lib/hooks/use-balances";
 import { useCurrencies, useCurrency } from "@/lib/hooks/use-currencies";
-import { useCurrenciesQuery } from "@/lib/hooks/use-currencies-query";
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
 import { useBestTradeSwapStore } from "@/lib/hooks/store";
 import { useSwapBestTrade } from "@/lib/hooks/use-swap-best-trade";
@@ -77,8 +69,7 @@ import { useSettings } from "@/lib/hooks/use-settings";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { useActiveConnection } from "@/lib/hooks/use-active-connection";
 import { useUtilaConnectRetry } from "@/lib/hooks/use-utila-connect-retry";
-import { useUtilaSelectedWallet } from "@/lib/hooks/use-utila-selected-wallet";
-import { useUSDPrice, useUSDPrices } from "@/lib/hooks/use-usd-price";
+import { useUSDPrice } from "@/lib/hooks/use-usd-price";
 import { useTranslations } from "@/lib/use-translations";
 import { DEFAULT_PRICE_PROTECTION } from "@/lib/consts";
 import { Currency, Field, SwapStep, SwapType } from "@/lib/types";
@@ -88,7 +79,6 @@ import {
   getExplorerUrl,
   getOrderTitle,
   isNativeAddress,
-  makeEllipsisAddress,
   toAmountUI,
 } from "@/lib/utils";
 import { Spinner } from "./ui/spinner";
@@ -170,184 +160,6 @@ const UtilaNotice = () => {
         </a>
       </div>
     </div>
-  );
-};
-
-const UtilaWalletSelector = () => {
-  const { address } = useActiveConnection();
-  const { selectWallet, selectedWalletAddress } = useUtilaSelectedWallet();
-  const [open, setOpen] = useState(false);
-  const { data: balances } = useBalances({ disabled: !address });
-  const { data: currencies = [] } = useCurrenciesQuery({ disabled: !address });
-
-  const tokensWithBalance = useMemo(() => {
-    if (!balances) return [];
-
-    return currencies.filter((currency) =>
-      BN(balances[currency.address] || "0").gt(0),
-    );
-  }, [balances, currencies]);
-
-  const tokenAddresses = useMemo(
-    () => tokensWithBalance.map((currency) => currency.address),
-    [tokensWithBalance],
-  );
-  const { data: usdPrices } = useUSDPrices(
-    tokenAddresses,
-    !address || tokenAddresses.length === 0,
-  );
-
-  const totalUsd = useMemo(() => {
-    if (!balances || !usdPrices) return "0";
-
-    const value = tokensWithBalance.reduce((acc, currency) => {
-      const raw = balances[currency.address] || "0";
-      const amount = BN(raw).div(BN(10).pow(currency.decimals));
-      const usd =
-        usdPrices[currency.address] ??
-        usdPrices[currency.address.toLowerCase()] ??
-        0;
-
-      return acc.plus(amount.multipliedBy(usd));
-    }, BN(0));
-
-    return formatDecimals(value.toString(), 2);
-  }, [balances, tokensWithBalance, usdPrices]);
-
-  const visibleTokenIcons = tokensWithBalance.slice(0, 3);
-  const tokenCountLabel = `${tokensWithBalance.length} Token${
-    tokensWithBalance.length === 1 ? "" : "s"
-  }`;
-  const walletOptions = useMemo(() => {
-    if (!address) return [];
-
-    return [
-      {
-        address,
-        addressCount: 1,
-        name: "main",
-        shortAddress: makeEllipsisAddress(address, { start: 6, end: 4 }),
-        tokenCountLabel,
-        totalUsd,
-        visibleTokenIcons,
-      },
-    ];
-  }, [address, tokenCountLabel, totalUsd, visibleTokenIcons]);
-  const selectedWallet = useMemo(() => {
-    if (!selectedWalletAddress) return undefined;
-
-    return walletOptions.find(
-      (wallet) =>
-        wallet.address.toLowerCase() === selectedWalletAddress.toLowerCase(),
-    );
-  }, [selectedWalletAddress, walletOptions]);
-
-  const onSelectWallet = useCallback(
-    (walletAddress: string) => {
-      selectWallet(walletAddress);
-      setOpen(false);
-    },
-    [selectWallet],
-  );
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className={cn(
-            "flex h-12 w-full items-center justify-between rounded-[8px] bg-[#f8f8f9] px-3 text-left text-[14px] font-normal text-[#3f4361] transition-colors hover:bg-[#f6f6f8] cursor-pointer",
-          )}
-          type="button"
-        >
-          <span>{selectedWallet?.name ?? "Select wallet"}</span>
-          <ChevronDownIcon
-            className={cn(
-              "size-4 text-[#6d7088] transition-transform",
-              open && "rotate-180",
-            )}
-          />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="center"
-        className="w-[calc(var(--radix-popover-trigger-width)*0.95)] translate-y-[-10px] rounded-t-none rounded-[8px] border border-[#d9dbe6] bg-white p-0 text-[#3f4361] shadow-[0_10px_24px_rgba(55,60,90,0.14)]"
-        sideOffset={0}
-      >
-        <div className="px-4 py-2.5 text-[12px] font-bold text-[#2f344e]">
-          Showing {walletOptions.length} out of {walletOptions.length} Results
-        </div>
-        <div className="px-3 pb-3">
-          {walletOptions.length ? (
-            walletOptions.map((wallet) => {
-              const selected =
-                selectedWalletAddress?.toLowerCase() ===
-                wallet.address.toLowerCase();
-
-              return (
-                <button
-                  className={cn(
-                    "flex w-full cursor-pointer rounded-[7px] border px-5 py-4 text-left transition-colors",
-                    selected
-                      ? "border-[#cdd3ff] bg-[#eff1ff] hover:bg-[#e9ecff]"
-                      : "border-[#e2e4ed] bg-white hover:border-[#cdd3ff] hover:bg-[#f7f8ff]",
-                  )}
-                  key={wallet.address}
-                  onClick={() => onSelectWallet(wallet.address)}
-                  type="button"
-                >
-                  <div className="flex w-full items-center justify-between gap-4">
-                    <div className="flex min-w-0 flex-col gap-3">
-                      <div className="flex items-center gap-2">
-                        <span className="flex size-4 items-center justify-center rounded-[3px] border border-[#8b90a7]">
-                          <WalletIcon className="size-3 text-[#3f4361]" />
-                        </span>
-                        <p className="text-[13px] font-bold text-[#2f344e]">
-                          {wallet.name}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3 pl-6 text-[14px] font-medium text-[#70748d]">
-                        <span>
-                          {wallet.addressCount} Address
-                          {wallet.addressCount === 1 ? "" : "es"}
-                        </span>
-                        <span className="h-4 w-px bg-[#c8cbe0]" />
-                        <span className="flex items-center gap-1">
-                          <span className="flex -space-x-1">
-                            {wallet.visibleTokenIcons.map((currency) => (
-                              <CurrencyLogo
-                                className="size-4 rounded-full border border-white"
-                                currency={currency}
-                                key={currency.address}
-                              />
-                            ))}
-                          </span>
-                          <span>{wallet.tokenCountLabel}</span>
-                        </span>
-                        <span className="text-[13px] font-medium text-[#85899d]">
-                          {wallet.shortAddress}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <p className="text-[14px] font-bold text-[#2f344e]">
-                        ≈ ${wallet.totalUsd || "0"}
-                      </p>
-                      {selected && (
-                        <CheckIcon className="size-4 text-[#4564ff]" />
-                      )}
-                    </div>
-                  </div>
-                </button>
-              );
-            })
-          ) : (
-            <div className="rounded-[7px] border border-[#e4e6ee] bg-[#f8f8fa] px-5 py-4 text-[13px] font-semibold text-[#70748d]">
-              Connect a wallet from the app navbar to view wallet details.
-            </div>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 };
 
@@ -714,12 +526,12 @@ const UtilaTokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
 
   const { value: dstAmount, isLoading } = useSpot().dstTokenPanel;
   const { handleCurrencyChange, setInputAmount } = useActionHandlers();
-  const { selectedWalletAddress } = useUtilaSelectedWallet();
-  const hasSelectedWallet = Boolean(selectedWalletAddress);
+  const { address } = useActiveConnection();
+  const hasConnectedWallet = Boolean(address);
   const hasInputToken = Boolean(inputCurrency);
   const canSelectToken = isSrcToken
-    ? hasSelectedWallet
-    : hasSelectedWallet && hasInputToken;
+    ? hasConnectedWallet
+    : hasConnectedWallet && hasInputToken;
   const currency =
     canSelectToken && (isSrcToken || hasInputToken)
       ? isSrcToken
@@ -727,7 +539,7 @@ const UtilaTokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
         : outputCurrency
       : undefined;
   const amount = isSrcToken ? inputAmount : formatDecimals(dstAmount, 6);
-  const displayAmount = hasSelectedWallet && currency ? amount : "";
+  const displayAmount = hasConnectedWallet && currency ? amount : "";
   const { ui: balanceRaw } = useBalance(currency);
   const { formatted: usdPrice } = useUSDPrice({
     amount,
@@ -816,7 +628,7 @@ const UtilaTokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
           {isSrcToken && (
             <UtilaPercentageButtons
               currency={currency}
-              disabled={!hasSelectedWallet || !currency}
+              disabled={!hasConnectedWallet || !currency}
             />
           )}
         </div>
@@ -1579,7 +1391,6 @@ const useUtilaSwapButtonState = () => {
     inputCurrency: inputCurrencyAddress,
     outputCurrency: outputCurrencyAddress,
   } = useSwapParams();
-  const { selectedWalletAddress } = useUtilaSelectedWallet();
   const inputTokenSelected = Boolean(inputCurrencyAddress);
   const outputTokenSelected = Boolean(outputCurrencyAddress);
   const {
@@ -1608,7 +1419,6 @@ const useUtilaSwapButtonState = () => {
     !outputTokenSelected;
   const text = useMemo(() => {
     if (!address) return "Connect Wallet";
-    if (!selectedWalletAddress) return "Select wallet";
     if (missingToken) return "Select token";
     if (enterAmount) return "Enter an amount";
     if (isLoadingTrade) return "Fetching quote...";
@@ -1626,12 +1436,10 @@ const useUtilaSwapButtonState = () => {
     insufficientLiquidity,
     isLoadingTrade,
     missingToken,
-    selectedWalletAddress,
   ]);
   const disabled =
     Boolean(address) &&
-    (!selectedWalletAddress ||
-      missingToken ||
+    (missingToken ||
       enterAmount ||
       isLoadingTrade ||
       insufficientBalance ||
@@ -1972,7 +1780,6 @@ const UtilaSpotForm = ({ swapType }: { swapType: SwapType }) => {
 
   return (
     <div className="flex flex-col gap-2">
-      <UtilaWalletSelector />
       <div className="flex flex-col">
         <UtilaTokenPanel isSrcToken />
         <UtilaToggleCurrencies />

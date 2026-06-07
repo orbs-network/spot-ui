@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useReconnect } from "wagmi";
 import { useActiveConnection } from "./use-active-connection";
 
@@ -15,12 +16,15 @@ const isUtilaConnector = (connector: { id: string; name: string }) => {
 
 export const useUtilaConnectRetry = () => {
   const { address } = useActiveConnection();
+  const { connectModalOpen } = useConnectModal();
   const { connectors: reconnectConnectors, mutate: reconnectWallet } =
     useReconnect();
   const [retryingConnect, setRetryingConnect] = useState(false);
   const connectRetryIntervalRef = useRef<number | null>(null);
   const connectRetryTimeoutRef = useRef<number | null>(null);
   const connectRetryKickoffRef = useRef<number | null>(null);
+  const connectClickInFlightRef = useRef(false);
+  const hasObservedConnectModalOpenRef = useRef(false);
 
   const clearConnectRetry = useCallback(() => {
     if (connectRetryKickoffRef.current) {
@@ -42,9 +46,23 @@ export const useUtilaConnectRetry = () => {
   const startConnectRetry = useCallback(
     (openConnect: () => Promise<void>) => {
       clearConnectRetry();
+      hasObservedConnectModalOpenRef.current = false;
       setRetryingConnect(true);
 
-      void openConnect().catch(() => {});
+      const clickConnect = () => {
+        if (connectClickInFlightRef.current) {
+          return;
+        }
+
+        connectClickInFlightRef.current = true;
+        void openConnect()
+          .catch(() => {})
+          .finally(() => {
+            connectClickInFlightRef.current = false;
+          });
+      };
+
+      clickConnect();
 
       const tryReconnect = () => {
         const utilaConnectors = reconnectConnectors.filter(isUtilaConnector);
@@ -58,6 +76,7 @@ export const useUtilaConnectRetry = () => {
               }
 
               clearConnectRetry();
+              hasObservedConnectModalOpenRef.current = false;
               setRetryingConnect(false);
             },
           },
@@ -65,9 +84,13 @@ export const useUtilaConnectRetry = () => {
       };
 
       connectRetryKickoffRef.current = window.setTimeout(tryReconnect, 250);
-      connectRetryIntervalRef.current = window.setInterval(tryReconnect, 1_000);
+      connectRetryIntervalRef.current = window.setInterval(() => {
+        clickConnect();
+        tryReconnect();
+      }, 1_000);
       connectRetryTimeoutRef.current = window.setTimeout(() => {
         clearConnectRetry();
+        hasObservedConnectModalOpenRef.current = false;
         setRetryingConnect(false);
       }, 60_000);
     },
@@ -80,6 +103,7 @@ export const useUtilaConnectRetry = () => {
     }
 
     clearConnectRetry();
+    hasObservedConnectModalOpenRef.current = false;
 
     const timeout = window.setTimeout(() => {
       setRetryingConnect(false);
@@ -87,6 +111,26 @@ export const useUtilaConnectRetry = () => {
 
     return () => window.clearTimeout(timeout);
   }, [address, clearConnectRetry]);
+
+  useEffect(() => {
+    if (connectModalOpen) {
+      hasObservedConnectModalOpenRef.current = true;
+      return;
+    }
+
+    if (!retryingConnect || !hasObservedConnectModalOpenRef.current) {
+      return;
+    }
+
+    clearConnectRetry();
+    hasObservedConnectModalOpenRef.current = false;
+
+    const timeout = window.setTimeout(() => {
+      setRetryingConnect(false);
+    });
+
+    return () => window.clearTimeout(timeout);
+  }, [clearConnectRetry, connectModalOpen, retryingConnect]);
 
   useEffect(() => {
     return clearConnectRetry;

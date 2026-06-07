@@ -6,12 +6,6 @@ import { DEFAULT_PRICE_PROTECTION, DEFAULT_SLIPPAGE } from "../consts";
 
 type CustomCurrencies = { [chainId: number]: Currency[] };
 
-type UtilaFormStore = {
-  selectedWalletAddress?: string;
-  selectWallet: (address?: string) => void;
-  clearSelectedWallet: () => void;
-};
-
 type UserStore = {
   slippage: number;
   setSlippage: (slippage: number) => void;
@@ -43,13 +37,6 @@ export const useUserStore = create<UserStore>()(
     }
   )
 );
-
-export const useUtilaFormStore = create<UtilaFormStore>((set) => ({
-  selectedWalletAddress: undefined,
-  selectWallet: (selectedWalletAddress?: string) =>
-    set({ selectedWalletAddress }),
-  clearSelectedWallet: () => set({ selectedWalletAddress: undefined }),
-}));
 
 type SwapStore = {
   inputAmount: string;
