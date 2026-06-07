@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useFormatNumber, useToAmountUI } from "./common";
 import { Currency } from "../types";
 import { useDerivedSwap } from "./use-derived-swap";
@@ -42,10 +42,13 @@ export const fetchBalances = async ({
 export const useBalances = ({
   addresses: requestedAddresses,
   disabled = false,
+  placeholderData,
 }: {
   addresses?: string[];
   disabled?: boolean;
+  placeholderData?: Record<string, string>;
 } = {}) => {
+  const queryClient = useQueryClient();
   const { address, chainId } = useActiveConnection();
   const addresses = useMemo(
     () =>
@@ -60,14 +63,47 @@ export const useBalances = ({
     [address, addresses, chainId],
   );
 
-  return useQuery<Record<string, string>>({
+  const query = useQuery<Record<string, string>>({
     queryKey,
     queryFn: () => fetchBalances({ address, chainId, tokens: addresses }),
     enabled: !disabled && !!chainId && !!address && addresses.length > 0,
+    placeholderData,
     refetchInterval: 60_000,
     staleTime: 60_000,
     gcTime: Infinity,
   });
+
+  useEffect(() => {
+    if (!query.data || !chainId || !address || addresses.length <= 1) {
+      return;
+    }
+
+    addresses.forEach((tokenAddress) => {
+      const balance =
+        query.data?.[tokenAddress] ??
+        Object.entries(query.data ?? {}).find(
+          ([address]) => address.toLowerCase() === tokenAddress.toLowerCase(),
+        )?.[1];
+
+      if (balance === undefined) return;
+
+      queryClient.setQueryData<Record<string, string>>(
+        getBalancesQueryKey(chainId, address, [tokenAddress]),
+        (prevBalances) => {
+          if (prevBalances?.[tokenAddress] === balance) {
+            return prevBalances;
+          }
+
+          return {
+            ...(prevBalances ?? {}),
+            [tokenAddress]: balance,
+          };
+        },
+      );
+    });
+  }, [address, addresses, chainId, query.data, queryClient]);
+
+  return query;
 };
 
 export const useRefetchSelectedCurrenciesBalances = () => {
@@ -105,14 +141,50 @@ export const useRefetchSelectedCurrenciesBalances = () => {
 };
 
 export const useBalance = (currency?: Currency) => {
+  const queryClient = useQueryClient();
+  const { address, chainId } = useActiveConnection();
   const currencyAddress = currency?.address;
   const addresses = useMemo(
     () => (currencyAddress ? [currencyAddress] : []),
     [currencyAddress],
   );
+  const cachedBalance = useMemo(() => {
+    if (!address || !chainId || !currencyAddress) {
+      return undefined;
+    }
+
+    const cachedBalances = queryClient.getQueriesData<Record<string, string>>({
+      queryKey: ["balances", chainId, address],
+    });
+
+    for (const [, balances] of cachedBalances) {
+      if (!balances) continue;
+
+      const balance =
+        balances[currencyAddress] ??
+        Object.entries(balances).find(
+          ([address]) =>
+            address.toLowerCase() === currencyAddress.toLowerCase(),
+        )?.[1];
+
+      if (balance !== undefined) {
+        return balance;
+      }
+    }
+
+    return undefined;
+  }, [address, chainId, currencyAddress, queryClient]);
+  const placeholderData = useMemo(
+    () =>
+      currencyAddress && cachedBalance !== undefined
+        ? { [currencyAddress]: cachedBalance }
+        : undefined,
+    [cachedBalance, currencyAddress],
+  );
   const { data: balances, isLoading, refetch } = useBalances({
     addresses,
     disabled: !currency,
+    placeholderData,
   });
   const balance = useMemo(() => {
     return balances?.[currencyAddress ?? ""];

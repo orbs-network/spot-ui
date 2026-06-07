@@ -111,9 +111,25 @@ const useCallbacks = () => {
         dstTokenAddress={outputCurrency?.address}
       />,
       {
-        description: "Proceed in wallet",
+        description: "Proceed in the Utila mobile app",
       },
     ) as number;
+  }, [inputCurrency?.address, outputCurrency?.address]);
+
+  const onSignOrderSuccess = useCallback(() => {
+    if (!createOrderToastId.current) return;
+
+    toast.loading(
+      <TokensPair
+        prefix="Creating order"
+        srcTokenAddress={inputCurrency?.address}
+        dstTokenAddress={outputCurrency?.address}
+      />,
+      {
+        id: createOrderToastId.current,
+        description: "Submitting order...",
+      },
+    );
   }, [inputCurrency?.address, outputCurrency?.address]);
 
   const onCreateOrderSuccess = useCallback(() => {
@@ -206,6 +222,7 @@ const useCallbacks = () => {
     onWrapSuccess,
     onApproveSuccess,
     onCreateOrderSuccess,
+    onSignOrderSuccess,
     onOrderFilled,
     onSubmitOrderFailed,
     onSubmitOrderRejected,

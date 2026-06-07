@@ -94,9 +94,8 @@ const utilaWallet: WalletList[number]["wallets"][number] = (
     shortName: "Utila",
     iconUrl: UTILA_ICON_URL,
     iconBackground: "#111638",
-    mobile: {
-      getUri: getWalletConnectUri,
-    },
+    // Utila has no registered mobile native/universal WalletConnect link yet.
+    // Returning a raw wc: URI lets mobile browsers route to another wallet app.
     qrCode: {
       getUri: getWalletConnectUri,
     },

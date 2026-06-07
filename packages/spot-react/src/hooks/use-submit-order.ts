@@ -107,6 +107,7 @@ export const useSignOrder = () => {
       const { order, domain, types, primaryType } = rePermitData;
 
       analytics.onSignOrderRequest(order);
+      callbacks?.onSignOrderRequest?.();
       let signatureStr: `0x${string}`;
       try {
         signatureStr = await walletInteractions.signOrder({
@@ -130,7 +131,6 @@ export const useSignOrder = () => {
         r: parsedSignature.r,
         s: parsedSignature.s,
       };
-      callbacks?.onSignOrderRequest?.();
 
       const newOrder = await submitOrder(order, signature, isDev);
       callbacks?.onOrderCreated?.(newOrder);

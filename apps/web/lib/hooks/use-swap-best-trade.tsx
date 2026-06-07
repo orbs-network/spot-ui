@@ -88,13 +88,30 @@ const useToasts = () => {
     });
   }, [inputCurrency?.symbol]);
 
+  const onSignRequest = useCallback(() => {
+    swapToastId.current = toast.loading(
+      <TokensPair
+        prefix="Swapping"
+        srcTokenAddress={inputCurrency?.address}
+        dstTokenAddress={outputCurrency?.address}
+      />,
+      {
+        description: "Proceed in the Utila mobile app",
+      }
+    ) as number;
+  }, [inputCurrency?.address, outputCurrency?.address]);
+
   const onSwapRequest = useCallback(() => {
     swapToastId.current = toast.loading(
       <TokensPair
         prefix="Swapping"
         srcTokenAddress={inputCurrency?.address}
         dstTokenAddress={outputCurrency?.address}
-      />
+      />,
+      {
+        id: swapToastId.current as number,
+        description: "Submitting swap...",
+      }
     ) as number;
   }, [inputCurrency?.address, outputCurrency?.address]);
 
@@ -134,6 +151,7 @@ const useToasts = () => {
   return {
     onWrapRequest,
     onApproveRequest,
+    onSignRequest,
     onSwapRequest,
     onSwapSuccess,
     onApproveSuccess,
@@ -215,6 +233,7 @@ export const useSwapBestTrade = () => {
       }
 
       updateStore({ currentStep: SwapStep.SIGN });
+      toasts.onSignRequest();
       const quote = await prepareQuote();
       const signature = await signEip(quote);
       currentStepIndex++;
