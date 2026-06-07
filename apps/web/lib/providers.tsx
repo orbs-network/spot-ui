@@ -9,6 +9,7 @@ import { QueryProvider } from "./query-provider";
 
 import { Spinner } from "@/components/ui/spinner";
 import dynamic from "next/dynamic";
+import { useUtilaDisconnectSync } from "./hooks/use-utila-disconnect-sync";
 const AppProvider = dynamic(() => import("./context").then((mod) => mod.AppProvider), { ssr: false });
 
 const queryClient = new QueryClient();
@@ -30,6 +31,12 @@ const WagmiWrapper = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+const UtilaDisconnectSync = () => {
+  useUtilaDisconnectSync();
+
+  return null;
+};
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isUtila = pathname === "/" || pathname === "/history";
@@ -42,6 +49,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryProvider>
         <WagmiWrapper>
           <QueryClientProvider client={queryClient}>
+            <UtilaDisconnectSync />
             <RainbowKitProvider theme={rainbowTheme}>
               <AppProvider>
               {children}

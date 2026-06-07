@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,19 +9,10 @@ import {
 } from "@rainbow-me/rainbowkit";
 import {
   ArrowLeftRightIcon,
-  CheckIcon,
   ChevronDownIcon,
-  LogOutIcon,
-  PencilIcon,
   ReceiptTextIcon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import {
-  useChainId,
-  useChains,
-  useDisconnect,
-  useSwitchChain,
-} from "wagmi";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { useActiveConnection } from "@/lib/hooks/use-active-connection";
 import { useUtilaConnectRetry } from "@/lib/hooks/use-utila-connect-retry";
@@ -33,13 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { getNetwork, SPOT_VERSION } from "@orbs-network/spot-ui";
 import { cn, makeEllipsisAddress } from "@/lib/utils";
+import { useMemo } from "react";
 
 const NAV_ITEMS = [
   { label: "Swap", path: "/", external: false },
@@ -81,170 +67,34 @@ const UtilaChainLogo = ({
   );
 };
 
-const UtilaChainSelector = () => {
-  const chains = useChains();
-  const connectedChainId = useChainId();
-  const switchChain = useSwitchChain();
-  const {
-    chainId: selectedChainId,
-    queryChainId,
-    setSelectedChainId,
-    setSelectedChainIdAndClearCurrencies,
-  } = useSwapParams();
-  const [open, setOpen] = useState(false);
-  const hasRestoredQueryChainRef = useRef(false);
-  const supportedChains = chains;
-  const isQueryChainSupported = supportedChains.some(
-    (chain) => chain.id === queryChainId,
-  );
-  const validSelectedChainId = supportedChains.some(
-    (chain) => chain.id === selectedChainId,
-  )
-    ? selectedChainId
-    : connectedChainId;
-  const selectedChain =
-    supportedChains.find((chain) => chain.id === validSelectedChainId) ??
-    supportedChains[0];
+const UtilaChainDisplay = () => {
+  const { address: connectedAddress, chainId: connectedChainId } =
+    useActiveConnection();
+  const connectedChain = useMemo(() => {
+    return connectedChainId ? getNetwork(connectedChainId) : undefined;
+  }, [connectedChainId]);
 
-  useEffect(() => {
-    if (!supportedChains.length) {
-      return;
-    }
-
-    const connectedChainSupported = supportedChains.some(
-      (chain) => chain.id === connectedChainId,
-    );
-    const fallbackChainId = connectedChainSupported
-      ? connectedChainId
-      : supportedChains[0]?.id;
-
-    if (!queryChainId) {
-      if (fallbackChainId) {
-        setSelectedChainId(fallbackChainId, "replaceIn");
-      }
-
-      return;
-    }
-
-    if (!isQueryChainSupported) {
-      if (fallbackChainId) {
-        setSelectedChainIdAndClearCurrencies(fallbackChainId, "replaceIn");
-      }
-
-      return;
-    }
-
-    if (!hasRestoredQueryChainRef.current) {
-      hasRestoredQueryChainRef.current = true;
-
-      if (connectedChainId && connectedChainId !== queryChainId) {
-        switchChain.mutate({ chainId: queryChainId });
-      }
-    }
-  }, [
-    connectedChainId,
-    isQueryChainSupported,
-    queryChainId,
-    setSelectedChainId,
-    setSelectedChainIdAndClearCurrencies,
-    supportedChains,
-    switchChain,
-  ]);
-
-  const onSelectChain = useCallback(
-    (chainId: number) => {
-      if (selectedChain?.id === chainId) {
-        setOpen(false);
-        return;
-      }
-
-      setSelectedChainIdAndClearCurrencies(chainId, "replaceIn");
-
-      if (connectedChainId !== chainId) {
-        switchChain.mutate({ chainId });
-      }
-
-      setOpen(false);
-    },
-    [
-      connectedChainId,
-      selectedChain?.id,
-      setSelectedChainIdAndClearCurrencies,
-      switchChain,
-    ],
-  );
-
-  if (!supportedChains.length) {
+  if (!connectedAddress || !connectedChain) {
     return null;
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[7px] border border-[#e3e5eb] bg-white px-3 text-[13px] font-semibold text-[#3f4361] transition-colors hover:bg-[#f7f7f9]"
-          type="button"
-        >
-          <UtilaChainLogo chain={selectedChain} />
-          <span className="hidden max-w-[140px] truncate sm:inline">
-            {selectedChain?.name ?? "Select chain"}
-          </span>
-          <ChevronDownIcon
-            className={cn(
-              "size-4 text-[#70748d] transition-transform",
-              open && "rotate-180",
-            )}
-          />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-[260px] rounded-[8px] border-[#dfe2ec] bg-white p-2 text-[#3f4361] shadow-[0_8px_24px_rgba(42,47,74,0.14)]"
-        sideOffset={8}
-      >
-        <div className="flex flex-col gap-1">
-          {supportedChains.map((chain) => {
-            const selected = selectedChain?.id === chain.id;
-
-            return (
-              <button
-                className={cn(
-                  "flex h-10 cursor-pointer items-center gap-3 rounded-[7px] px-3 text-left text-[13px] font-semibold transition-colors hover:bg-[#f4f5ff]",
-                  selected && "bg-[#f4f5ff]",
-                )}
-                key={chain.id}
-                onClick={() => onSelectChain(chain.id)}
-                type="button"
-              >
-                <UtilaChainLogo chain={chain} />
-                <span className="min-w-0 flex-1 truncate">{chain.name}</span>
-                {selected && <CheckIcon className="size-4 text-[#4564ff]" />}
-              </button>
-            );
-          })}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <div className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-[#e3e5eb] bg-white px-3 text-[13px] font-semibold text-[#3f4361]">
+      <UtilaChainLogo chain={connectedChain} />
+      <span className="hidden max-w-[140px] truncate sm:inline">
+        {connectedChain.name}
+      </span>
+    </div>
   );
 };
 
 const UtilaWalletButton = () => {
   const { address } = useActiveConnection();
-  const connectedChainId = useChainId();
   const { openAccountModal } = useAccountModal();
-  const { disconnect } = useDisconnect();
   const { retryingConnect, startConnectRetry } = useUtilaConnectRetry();
-  const [menuOpen, setMenuOpen] = useState(false);
   const label = address
     ? makeEllipsisAddress(address, { start: 6, end: 4 })
     : "Connect wallet";
-  const networkName = connectedChainId
-    ? getNetwork(connectedChainId)?.name
-    : undefined;
-  const onLogout = useCallback(() => {
-    disconnect();
-    setMenuOpen(false);
-  }, [disconnect]);
 
   if (!address) {
     return (
@@ -269,69 +119,14 @@ const UtilaWalletButton = () => {
   }
 
   return (
-    <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[7px] border border-[#e3e5eb] bg-white px-3 text-[13px] font-semibold text-[#3f4361] transition-colors hover:bg-[#f7f7f9]"
-          type="button"
-        >
-          <span className="max-w-[150px] truncate">{label}</span>
-          <ChevronDownIcon
-            className={cn(
-              "size-4 text-[#70748d] transition-transform",
-              menuOpen && "rotate-180",
-            )}
-          />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-[255px] rounded-[5px] border border-[#d8dbe6] bg-white p-0 text-[#20263d] shadow-[0_8px_24px_rgba(42,47,74,0.14)]"
-        sideOffset={7}
-      >
-        <div className="flex flex-col">
-          <div className="px-4 py-3">
-            <div>
-              <div className="min-w-0">
-                <p className="text-[13px] font-normal text-[#747891]">
-                  Wallet address
-                </p>
-                <p className="mt-1 truncate text-[14px] font-medium text-[#20263d]">
-                  {makeEllipsisAddress(address, { start: 10, end: 6 })}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4">
-              <p className="text-[13px] font-normal text-[#747891]">Network</p>
-              <p className="mt-1 truncate text-[14px] font-medium text-[#20263d]">
-                {networkName || "-"}
-              </p>
-            </div>
-          </div>
-          <div className="border-t border-[#e5e7ee] py-1">
-            <button
-              className="flex h-10 w-full cursor-pointer items-center gap-2 px-4 text-left text-[14px] font-normal text-[#20263d] transition-colors hover:bg-[#f4f5ff]"
-              onClick={() => {
-                setMenuOpen(false);
-                openAccountModal?.();
-              }}
-              type="button"
-            >
-              <PencilIcon className="size-4 text-[#747891]" />
-              <span>Manage wallet</span>
-            </button>
-            <button
-              className="flex h-10 w-full cursor-pointer items-center gap-2 px-4 text-left text-[14px] font-normal text-[#20263d] transition-colors hover:bg-[#f4f5ff]"
-              onClick={onLogout}
-              type="button"
-            >
-              <LogOutIcon className="size-4 text-[#747891]" />
-              <span>Logout</span>
-            </button>
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <button
+      className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[7px] border border-[#e3e5eb] bg-white px-3 text-[13px] font-semibold text-[#3f4361] transition-colors hover:bg-[#f7f7f9]"
+      onClick={() => openAccountModal?.()}
+      type="button"
+    >
+      <span className="max-w-[150px] truncate">{label}</span>
+      <ChevronDownIcon className="size-4 text-[#70748d]" />
+    </button>
   );
 };
 
@@ -432,7 +227,7 @@ const UtilaNavigation = ({ pathname }: { pathname: string }) => {
         className="sticky top-0 z-40 ml-[230px] flex h-16 items-center justify-end gap-3 border-b border-[#e7e8eb] bg-white px-6 text-[#3f4361]"
         style={{ marginLeft: UTILA_SIDEBAR_WIDTH }}
       >
-        <UtilaChainSelector />
+        <UtilaChainDisplay />
         <UtilaWalletButton />
       </nav>
     </>

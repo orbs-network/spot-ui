@@ -115,8 +115,8 @@ const TxError = ({ error }: { error?: ParsedError }) => {
   return (
     <div className="twap-error">
       <h2 className="twap-error-title">Transaction failed</h2>
-      {error?.code && (
-        <p className="twap-error-code">Error code: {error?.code}</p>
+      {error?.message && (
+        <p className="twap-error-code">{error.message}</p>
       )}
       <WrapMsg />
     </div>

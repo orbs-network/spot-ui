@@ -40,7 +40,6 @@ import {
 } from "./spot-ui-provider";
 import { SpotsOrders } from "./orders";
 import { SubmitOrderPanel } from "./submit-order-panel";
-import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { SpotFooter } from "./footer";
 import { useTranslations } from "@/lib/use-translations";
 
@@ -282,29 +281,21 @@ const ModuleInputs = () => {
 };
 
 const SubmitSwapError = ({
-  code,
   onClose,
   message,
 }: {
   message: string;
-  code: number;
   onClose: () => void;
 }) => {
-  const { envMode } = useSwapParams();
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 bg-destructive/50 p-2 rounded-md">
         <div className="flex flex-row gap-2">
           <AlertTriangleIcon className="size-4 text-foreground relative top-0.5" />
           <p className="text-sm text-foreground flex-1 font-medium">
-            Error code: {code}
+            {message || "Transaction failed"}
           </p>
         </div>
-        {envMode === "dev" && (
-          <p className="text-sm text-foreground flex-1 font-medium max-h-[200px] overflow-y-auto">
-            {message}
-          </p>
-        )}
       </div>
       <div className="w-full flex justify-center">
         <Button onClick={onClose}>Close</Button>
@@ -402,7 +393,6 @@ const SubmitSwap = () => {
           {parsedError ? (
             <SubmitSwapError
               message={parsedError.message}
-              code={parsedError.code}
               onClose={onClose}
             />
           ) : (

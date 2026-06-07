@@ -13,7 +13,7 @@ import { SwapStatus } from "@orbs-network/swap-ui";
 import { SwapStep } from "../types";
 import { toast } from "sonner";
 import { useBalances } from "./use-balances";
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import TokensPair from "@/components/tokens-pair";
 import { useSwapParams } from "./use-swap-params";
 
@@ -154,7 +154,17 @@ export const useSwapBestTrade = () => {
   const { parsedInputAmount, inputCurrency, outputCurrency } = useDerivedSwap();
   const liquidityHubClient = useLiquidityHub();
   const { setPauseQuote } = useSwapStore();
-  const { refetch: refetchBalances } = useBalances();
+  const balanceAddresses = useMemo(
+    () =>
+      [inputCurrency?.address, outputCurrency?.address].filter(
+        (address): address is string => Boolean(address),
+      ),
+    [inputCurrency?.address, outputCurrency?.address],
+  );
+  const { refetch: refetchBalances } = useBalances({
+    addresses: balanceAddresses,
+    disabled: balanceAddresses.length === 0,
+  });
   const { mutateAsync: getTransactionReceiptCallback } =
     useGetTransactionReceiptCallback();
   const { ensureAllowance, approve } = useApproval(

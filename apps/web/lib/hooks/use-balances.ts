@@ -3,10 +3,8 @@ import axios from "axios";
 import { useMemo } from "react";
 import { useFormatNumber, useToAmountUI } from "./common";
 import { Currency } from "../types";
-import { useCurrenciesQuery } from "./use-currencies-query";
 import { useDerivedSwap } from "./use-derived-swap";
 import { useActiveConnection } from "./use-active-connection";
-import { useSwapParams } from "./use-swap-params";
 
 const getBalancesAddressesKey = (addresses: string[]) =>
   [...addresses]
@@ -28,6 +26,10 @@ export const fetchBalances = async ({
   chainId?: number;
   tokens: string[];
 }) => {
+  if (!address || !chainId || tokens.length === 0) {
+    return {};
+  }
+
   const response = await axios.post("/api/balances", {
     chainId,
     address,
@@ -37,32 +39,27 @@ export const fetchBalances = async ({
   return response.data as Record<string, string>;
 };
 
-const useQueryKey = (disabled = false) => {
-  const { chainId } = useSwapParams();
-  const { address } = useActiveConnection();
-  const { data: currencies } = useCurrenciesQuery({ disabled });
-  const addresses = useMemo(
-    () => currencies?.map((it) => it.address) ?? [],
-    [currencies],
-  );
-  return useMemo(
-    () => getBalancesQueryKey(chainId, address, addresses),
-    [chainId, address, addresses],
-  );
-};
-
 export const useBalances = ({
+  addresses: requestedAddresses,
   disabled = false,
-}: { disabled?: boolean } = {}) => {
-  const { chainId } = useSwapParams();
-  const { address } = useActiveConnection();
-  const { data: currencies } = useCurrenciesQuery({ disabled });
+}: {
+  addresses?: string[];
+  disabled?: boolean;
+} = {}) => {
+  const { address, chainId } = useActiveConnection();
   const addresses = useMemo(
-    () => currencies?.map((it) => it.address) ?? [],
-    [currencies],
+    () =>
+      [...new Set((requestedAddresses ?? []).filter(Boolean))].sort((a, b) =>
+        a.toLowerCase().localeCompare(b.toLowerCase()),
+      ),
+    [requestedAddresses],
   );
 
-  const queryKey = useQueryKey(disabled);
+  const queryKey = useMemo(
+    () => getBalancesQueryKey(chainId, address, addresses),
+    [address, addresses, chainId],
+  );
+
   return useQuery<Record<string, string>>({
     queryKey,
     queryFn: () => fetchBalances({ address, chainId, tokens: addresses }),
@@ -75,10 +72,8 @@ export const useBalances = ({
 
 export const useRefetchSelectedCurrenciesBalances = () => {
   const queryClient = useQueryClient();
-  const { chainId } = useSwapParams();
-  const { address } = useActiveConnection();
+  const { address, chainId } = useActiveConnection();
   const { inputCurrency, outputCurrency } = useDerivedSwap();
-  const queryKey = useQueryKey();
   return useMutation({
     mutationFn: async () => {
       const addresses = [inputCurrency?.address, outputCurrency?.address].filter(
@@ -90,23 +85,38 @@ export const useRefetchSelectedCurrenciesBalances = () => {
         tokens: addresses,
       });
       queryClient.setQueryData<Record<string, string>>(
-        queryKey,
+        getBalancesQueryKey(chainId, address, addresses),
         (prevBalances) => {
           if (!prevBalances) return newBalances;
           return { ...prevBalances, ...newBalances };
         },
       );
+      addresses.forEach((tokenAddress) => {
+        queryClient.setQueryData<Record<string, string>>(
+          getBalancesQueryKey(chainId, address, [tokenAddress]),
+          (prevBalances) => ({
+            ...(prevBalances ?? {}),
+            [tokenAddress]: newBalances[tokenAddress] ?? "0",
+          }),
+        );
+      });
     },
   });
 };
 
 export const useBalance = (currency?: Currency) => {
+  const currencyAddress = currency?.address;
+  const addresses = useMemo(
+    () => (currencyAddress ? [currencyAddress] : []),
+    [currencyAddress],
+  );
   const { data: balances, isLoading, refetch } = useBalances({
+    addresses,
     disabled: !currency,
   });
   const balance = useMemo(() => {
-    return balances?.[currency?.address ?? ""];
-  }, [balances, currency]);
+    return balances?.[currencyAddress ?? ""];
+  }, [balances, currencyAddress]);
 
   const ui = useToAmountUI(currency?.decimals, balance);
 

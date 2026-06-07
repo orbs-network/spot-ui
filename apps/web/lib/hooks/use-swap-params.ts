@@ -1,33 +1,29 @@
 import {
-  NumberParam,
   StringParam,
   useQueryParam,
   useQueryParams,
   type UrlUpdateType,
 } from "use-query-params";
 import { SwapType } from "../types";
-import { useChainId } from "wagmi";
 import { useCallback, useMemo } from "react";
 import { getDefaultTokensForChain } from "../utils";
+import { useActiveConnection } from "./use-active-connection";
 
 export const useSwapParams = () => {
   const [swapParams, setSwapParams] = useQueryParams({
-    chainId: NumberParam,
     inputCurrency: StringParam,
     outputCurrency: StringParam,
   });
 
-  const connectedChainId = useChainId();
+  const { chainId: connectedChainId } = useActiveConnection();
   const [swapType, setSwapType] = useQueryParam("swapType", StringParam);
   const [envMode, setEnvMode] = useQueryParam("env", StringParam);
-  const selectedChainId = swapParams.chainId ?? undefined;
-  const chainId = selectedChainId ?? connectedChainId;
 
   const defaultTokens = useMemo(() => {
-    if (!chainId) return undefined;
+    if (!connectedChainId) return undefined;
 
-    return getDefaultTokensForChain(chainId);
-  }, [chainId]);
+    return getDefaultTokensForChain(connectedChainId);
+  }, [connectedChainId]);
 
   const queryInputCurrency = swapParams.inputCurrency ?? undefined;
   const queryOutputCurrency = swapParams.outputCurrency ?? undefined;
@@ -68,27 +64,6 @@ export const useSwapParams = () => {
     [setSwapParams],
   );
 
-  const setSelectedChainId = useCallback(
-    (nextChainId?: number, updateType: UrlUpdateType = "replaceIn") => {
-      setSwapParams({ chainId: nextChainId }, updateType);
-    },
-    [setSwapParams],
-  );
-
-  const setSelectedChainIdAndClearCurrencies = useCallback(
-    (nextChainId: number, updateType: UrlUpdateType = "replaceIn") => {
-      setSwapParams(
-        {
-          chainId: nextChainId,
-          inputCurrency: undefined,
-          outputCurrency: undefined,
-        },
-        updateType,
-      );
-    },
-    [setSwapParams],
-  );
-
   return {
     inputCurrency: effectiveInput,
     setInputCurrency,
@@ -98,10 +73,7 @@ export const useSwapParams = () => {
     setSwapType,
     toggleCurrencies,
     setCurrencies,
-    chainId,
-    queryChainId: selectedChainId,
-    setSelectedChainId,
-    setSelectedChainIdAndClearCurrencies,
+    chainId: connectedChainId,
     envMode: (envMode === "dev" ? "dev" : "prod") as "prod" | "dev",
     setEnvMode,
   };

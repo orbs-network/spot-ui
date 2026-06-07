@@ -31,11 +31,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${roboto.variable} ${robotoMono.variable} antialiased dark`}
+        className={`${roboto.variable} ${robotoMono.variable} antialiased`}
       >
           <Providers>
             <Toaster />
-            <div className="flex min-h-screen flex-col bg-zinc-50 font-sans dark:bg-black">
+            <div className="flex min-h-screen flex-col bg-zinc-50 font-sans">
               <Navigation />
               <div className="flex flex-1 items-center justify-center">
                 {children}

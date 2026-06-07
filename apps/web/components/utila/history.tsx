@@ -8,6 +8,7 @@ import {
   ChevronRightIcon,
   CopyIcon,
   DownloadIcon,
+  InfoIcon,
   Loader2Icon,
   SearchIcon,
   WalletIcon,
@@ -22,6 +23,7 @@ import {
   type Order,
   type Token,
 } from "@orbs-network/spot-react";
+import { getNetwork } from "@orbs-network/spot-ui";
 import BN from "bignumber.js";
 import { toast } from "sonner";
 import { CurrencyLogo } from "@/components/ui/currency-logo";
@@ -49,6 +51,7 @@ import { useCopyToClipboard } from "@/lib/hooks/common";
 import { useActiveConnection } from "@/lib/hooks/use-active-connection";
 import { useCurrenciesQuery } from "@/lib/hooks/use-currencies-query";
 import { useSpotToken } from "@/lib/hooks/spot-hooks";
+import { UTILA_ORDER_TOOLTIPS } from "@/lib/utila-tooltips";
 import { Currency } from "@/lib/types";
 import {
   cn,
@@ -137,41 +140,6 @@ const formatTokenAmount = (value?: string, token?: Token, decimals = 6) => {
   return `${amount || "0"}${token?.symbol ? ` ${token.symbol}` : ""}`;
 };
 
-const formatUsd = (value?: string) => {
-  if (!isPositiveValue(value)) {
-    return "";
-  }
-
-  return formatDecimals(value, 2);
-};
-
-const getProportionalUsdc = ({
-  amount,
-  totalAmount,
-  totalUsdc,
-}: {
-  amount?: string;
-  totalAmount?: string;
-  totalUsdc?: string;
-}) => {
-  if (
-    !isPositiveValue(amount) ||
-    !isPositiveValue(totalAmount) ||
-    !isPositiveValue(totalUsdc)
-  ) {
-    return undefined;
-  }
-
-  const amountValue = amount as string;
-  const totalAmountValue = totalAmount as string;
-  const totalUsdcValue = totalUsdc as string;
-
-  return BN(totalUsdcValue)
-    .multipliedBy(amountValue)
-    .dividedBy(totalAmountValue)
-    .toString();
-};
-
 const clampProgress = (value?: number) => {
   if (value === undefined || Number.isNaN(value)) return 0;
 
@@ -180,6 +148,23 @@ const clampProgress = (value?: number) => {
 
 const formatProgress = (value?: number) =>
   `${formatDecimals(clampProgress(value).toString(), 2) || "0"}%`;
+
+const formatOrderDuration = (milliseconds?: number) => {
+  if (!milliseconds) return "";
+
+  const minutes = Math.max(1, Math.round(milliseconds / 60_000));
+  if (minutes % 1_440 === 0) {
+    const days = minutes / 1_440;
+    return `${days} ${days === 1 ? "day" : "days"}`;
+  }
+
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+
+  return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+};
 
 const formatPrice = (
   value: string | undefined,
@@ -193,6 +178,28 @@ const formatPrice = (
   return `1 ${srcToken?.symbol || "token"} = ${formatDecimals(value, 8)} ${
     dstToken?.symbol || "token"
   }`;
+};
+
+const UtilaChainLogo = ({
+  chain,
+}: {
+  chain?: { id: number; name: string; iconUrl?: string; logoUrl?: string };
+}) => {
+  const logoUrl = chain ? (chain.iconUrl ?? chain.logoUrl) : "";
+  const name = chain?.name ?? "Chain";
+
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#eef0ff] text-[10px] font-bold text-[#4564ff]",
+        logoUrl && "bg-cover bg-center bg-no-repeat text-transparent",
+      )}
+      style={logoUrl ? { backgroundImage: `url(${logoUrl})` } : undefined}
+    >
+      {!logoUrl && name[0]}
+    </span>
+  );
 };
 
 const tokenToCurrency = (token?: Token): Currency | undefined => {
@@ -246,7 +253,6 @@ const exportOrdersToCsv = (
     "To token",
     "To token address",
     "Input amount",
-    "Input amount USD",
     "Order ID",
     "Order hash",
     "Transaction hash",
@@ -267,13 +273,12 @@ const exportOrdersToCsv = (
         getOrderTitle(order.type),
         getStatusLabel(order.status),
         getChainName(order.chainId) || `Chain ${order.chainId}`,
-        "main",
+        order.maker,
         srcToken?.symbol,
         order.srcTokenAddress,
         dstToken?.symbol,
         order.dstTokenAddress,
         srcAmount,
-        formatDecimals(order.orderDollarValueIn, 2),
         order.id,
         order.hash,
         order.txHash,
@@ -328,10 +333,12 @@ const DrawerRow = ({
   children,
   label,
   show = true,
+  tooltip,
 }: {
   children?: React.ReactNode;
   label: string;
   show?: boolean;
+  tooltip?: string;
 }) => {
   if (!show || children === null || children === undefined || children === "") {
     return null;
@@ -339,7 +346,29 @@ const DrawerRow = ({
 
   return (
     <div className="grid min-h-[46px] grid-cols-[148px_minmax(0,1fr)] gap-5 border-b border-[#e4e6ec] py-[14px] text-[14px] leading-5">
-      <p className="font-normal text-[#70748d]">{label}</p>
+      <div className="flex min-w-0 items-center gap-1.5 self-start">
+        <p className="font-normal text-[#70748d]">{label}</p>
+        {tooltip && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="inline-flex size-4 shrink-0 cursor-help items-center justify-center text-[#717389]"
+                type="button"
+              >
+                <InfoIcon className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent
+              arrowClassName="bg-[#303030] fill-[#303030]"
+              className="max-w-[330px] bg-[#303030] text-white"
+              side="top"
+              sideOffset={6}
+            >
+              {tooltip}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
       <div className="min-w-0 font-medium text-[#3f4361]">{children}</div>
     </div>
   );
@@ -396,15 +425,11 @@ const DrawerTokenOnly = ({ token }: { token?: Token }) => {
 
 const DrawerTokenAmount = ({
   token,
-  usdc,
   value,
 }: {
   token?: Token;
-  usdc?: string;
   value?: string;
 }) => {
-  const formattedUsdc = formatUsd(usdc);
-
   if (!isPositiveValue(value)) {
     return null;
   }
@@ -419,12 +444,6 @@ const DrawerTokenAmount = ({
       )}
       <span className="min-w-0 break-all">
         {formatTokenAmount(value, token, 8)}
-        {formattedUsdc && (
-          <span className="font-medium text-[#70748d]">
-            {" "}
-            (≈ {formattedUsdc} USDC)
-          </span>
-        )}
       </span>
     </div>
   );
@@ -494,24 +513,14 @@ const UtilaOrderDetailsDrawer = ({
   const dstToken = useSpotToken(order?.dstTokenAddress);
   const derivedOrder = useDerivedHistoryOrder(order, srcToken, dstToken);
 
+  const chain = order ? getNetwork(order.chainId) : undefined;
   const chainName =
-    getChainName(order?.chainId ?? 0) || `Chain ${order?.chainId ?? 0}`;
+    chain?.name || getChainName(order?.chainId ?? 0) || `Chain ${order?.chainId ?? 0}`;
   const fills = derivedOrder?.fills ?? [];
   const completedAt =
     order?.filledOrderTimestamp ||
     fills[fills.length - 1]?.timestamp ||
     (order?.status === OrderStatus.Completed ? order?.createdAt : undefined);
-  const inputAmountUsdc = order?.orderDollarValueIn;
-  const inputAmountPerTradeUsdc = getProportionalUsdc({
-    amount: derivedOrder?.sizePerTradeUI,
-    totalAmount: derivedOrder?.srcAmountUI,
-    totalUsdc: inputAmountUsdc,
-  });
-  const amountInFilledUsdc = getProportionalUsdc({
-    amount: derivedOrder?.amountInFilledUI,
-    totalAmount: derivedOrder?.srcAmountUI,
-    totalUsdc: inputAmountUsdc,
-  });
 
   if (!order) return null;
 
@@ -551,7 +560,7 @@ const UtilaOrderDetailsDrawer = ({
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-4">
                   <CopyAction
-                    toastMessage="Transaction ID copied"
+                    toastMessage="Order ID copied"
                     value={order.id}
                   >
                     <CopyIcon className="size-4" />
@@ -581,18 +590,19 @@ const UtilaOrderDetailsDrawer = ({
             >
               <DrawerTokenAmount
                 token={srcToken}
-                usdc={inputAmountUsdc}
                 value={derivedOrder?.srcAmountUI}
               />
             </DrawerRow>
             <DrawerRow label="Initiator" show={Boolean(order.maker)}>
-              main
+              <CopyableText
+                compact
+                toastMessage="Initiator copied"
+                value={order.maker}
+              />
             </DrawerRow>
             <DrawerRow label="Blockchain" show={Boolean(chainName)}>
               <span className="inline-flex items-center gap-2">
-                <span className="flex size-5 items-center justify-center rounded-full bg-[#183955] text-[10px] font-bold text-white">
-                  {chainName[0]}
-                </span>
+                <UtilaChainLogo chain={chain} />
                 {chainName}
               </span>
             </DrawerRow>
@@ -617,12 +627,20 @@ const UtilaOrderDetailsDrawer = ({
               />
             </DrawerRow>
             <DrawerRow label="Order ID" show={Boolean(order.id)}>
-              <CopyableText compact value={order.id} />
+              <CopyableText
+                compact
+                toastMessage="Order ID copied"
+                value={order.id}
+              />
             </DrawerRow>
             <DrawerRow label="Order type" show={Boolean(order.type)}>
               {getOrderTitle(order.type)}
             </DrawerRow>
-            <DrawerRow label="Deadline" show={Boolean(derivedOrder?.deadline)}>
+            <DrawerRow
+              label="Expiration"
+              show={Boolean(derivedOrder?.deadline)}
+              tooltip={UTILA_ORDER_TOOLTIPS.expiration}
+            >
               {formatCreatedAt(derivedOrder?.deadline)}
             </DrawerRow>
             <DrawerRow label="From token" show={Boolean(srcToken)}>
@@ -632,38 +650,61 @@ const UtilaOrderDetailsDrawer = ({
               <DrawerTokenOnly token={dstToken} />
             </DrawerRow>
             <DrawerRow
-              label="Input amount per trade"
+              label="Individual trade size"
               show={
                 derivedOrder &&
                 derivedOrder?.totalTrades > 1 &&
                 isPositiveValue(derivedOrder?.sizePerTradeUI)
               }
+              tooltip={UTILA_ORDER_TOOLTIPS.individualTradeSize}
             >
               <DrawerTokenAmount
                 token={srcToken}
-                usdc={inputAmountPerTradeUsdc}
                 value={derivedOrder?.sizePerTradeUI}
               />
             </DrawerRow>
             <DrawerRow
-              label="Min amount out"
-              show={isPositiveValue(derivedOrder?.dstMinAmountUI)}
+              label="No. of trades"
+              show={derivedOrder && derivedOrder?.totalTrades > 1}
+              tooltip={UTILA_ORDER_TOOLTIPS.numberOfTrades}
             >
-              {formatTokenAmount(derivedOrder?.dstMinAmountUI, dstToken, 8)}
+              {derivedOrder?.totalTrades}
             </DrawerRow>
             <DrawerRow
-              label="Min amount out per chunk"
+              label="Min received"
+              show={isPositiveValue(derivedOrder?.dstMinAmountUI)}
+              tooltip={UTILA_ORDER_TOOLTIPS.minReceived}
+            >
+              <DrawerTokenAmount
+                token={dstToken}
+                value={derivedOrder?.dstMinAmountUI}
+              />
+            </DrawerRow>
+        
+            <DrawerRow
+              label="Min received per chunk"
               show={
                 derivedOrder &&
                 derivedOrder?.totalTrades > 1 &&
                 isPositiveValue(derivedOrder?.minDestAmountPerTradeUI)
               }
+              tooltip={UTILA_ORDER_TOOLTIPS.minReceived}
             >
-              {formatTokenAmount(
-                derivedOrder?.minDestAmountPerTradeUI,
-                dstToken,
-                8,
-              )}
+              <DrawerTokenAmount
+                token={dstToken}
+                value={derivedOrder?.minDestAmountPerTradeUI}
+              />
+            </DrawerRow>
+            <DrawerRow
+              label="Trade interval"
+              show={
+                derivedOrder &&
+                derivedOrder?.totalTrades > 1 &&
+                Boolean(derivedOrder.tradeInterval)
+              }
+              tooltip={UTILA_ORDER_TOOLTIPS.tradeInterval}
+            >
+              {formatOrderDuration(derivedOrder?.tradeInterval)}
             </DrawerRow>
             <DrawerRow
               label="Amount filled"
@@ -676,18 +717,14 @@ const UtilaOrderDetailsDrawer = ({
                 {isPositiveValue(derivedOrder?.amountInFilledUI) && (
                   <DrawerTokenAmount
                     token={srcToken}
-                    usdc={amountInFilledUsdc}
                     value={derivedOrder?.amountInFilledUI}
                   />
                 )}
                 {isPositiveValue(derivedOrder?.amountOutFilledUI) && (
-                  <span className="text-[#70748d]">
-                    {formatTokenAmount(
-                      derivedOrder?.amountOutFilledUI,
-                      dstToken,
-                      8,
-                    )}
-                  </span>
+                  <DrawerTokenAmount
+                    token={dstToken}
+                    value={derivedOrder?.amountOutFilledUI}
+                  />
                 )}
               </div>
             </DrawerRow>
@@ -706,12 +743,14 @@ const UtilaOrderDetailsDrawer = ({
             <DrawerRow
               label="Limit price"
               show={isPositiveValue(derivedOrder?.limitPriceUI)}
+              tooltip={UTILA_ORDER_TOOLTIPS.limitPrice}
             >
               {formatPrice(derivedOrder?.limitPriceUI, srcToken, dstToken)}
             </DrawerRow>
             <DrawerRow
-              label="Trigger price"
+              label="Trigger Price"
               show={isPositiveValue(derivedOrder?.triggerPriceUI)}
+              tooltip={UTILA_ORDER_TOOLTIPS.triggerPrice}
             >
               {formatPrice(derivedOrder?.triggerPriceUI, srcToken, dstToken)}
             </DrawerRow>
@@ -796,18 +835,12 @@ const AmountValue = ({
     toAmountUI(order.srcAmount, srcToken?.decimals),
     8,
   );
-  const usd = formatDecimals(order.orderDollarValueIn, 2);
 
   return (
     <div className="min-w-0">
       <p className="truncate text-[13px] font-bold leading-4 text-[#3f4361]">
         {amount || "0"} {srcToken?.symbol || ""}
       </p>
-      {usd && (
-        <p className="text-[12px] font-medium leading-4 text-[#70748d]">
-          {"\u2248"} ${usd}
-        </p>
-      )}
     </div>
   );
 };
@@ -925,13 +958,8 @@ const HistoryRow = ({
       </td>
       <td className="min-w-[240px] px-3 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#455b66] text-[12px] font-bold text-white">
-            {isConnectedMaker ? "M" : "A"}
-          </span>
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-medium leading-4 text-[#3f4361]">
-              {isConnectedMaker ? "main" : "Address"}
-            </p>
+
             <p className="truncate text-[12px] font-medium leading-4 text-[#70748d]">
               {makeEllipsisAddress(order.maker, { start: 8, end: 6 })}
             </p>

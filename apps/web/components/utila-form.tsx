@@ -13,11 +13,11 @@ import {
   Module,
   ORBS_TWAP_FAQ_URL,
   SPOT_VERSION,
+  Steps,
   SwapStatus as SpotSwapStatus,
   useSpot,
 } from "@orbs-network/spot-react";
 import type { Quote } from "@orbs-network/liquidity-hub-sdk";
-import { getNetwork } from "@orbs-network/spot-ui";
 import { SwapStatus as HubSwapStatus } from "@orbs-network/swap-ui";
 import { WalletButton } from "@rainbow-me/rainbowkit";
 import { Virtuoso } from "react-virtuoso";
@@ -54,7 +54,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { SubmitOrderPanel } from "@/components/spot/submit-order-panel";
 import {
   SPOT_DURATION_OPTIONS,
   useSpotUiContext,
@@ -72,6 +71,7 @@ import { useUtilaConnectRetry } from "@/lib/hooks/use-utila-connect-retry";
 import { useUSDPrice } from "@/lib/hooks/use-usd-price";
 import { useTranslations } from "@/lib/use-translations";
 import { DEFAULT_PRICE_PROTECTION } from "@/lib/consts";
+import { UTILA_ORDER_TOOLTIPS } from "@/lib/utila-tooltips";
 import { Currency, Field, SwapStep, SwapType } from "@/lib/types";
 import {
   cn,
@@ -82,11 +82,11 @@ import {
   toAmountUI,
 } from "@/lib/utils";
 import { Spinner } from "./ui/spinner";
-import { zeroAddress } from "viem";
 
 const SLIPPAGE_OPTIONS = [1, 3, 5, 7, 10];
 const SWAP_SLIPPAGE_OPTIONS = [0.1, 0.3, 0.5, 0.7, 1];
 const DEFAULT_SWAP_SLIPPAGE = 0.5;
+const TOKEN_BALANCE_PROBE_LIMIT = 64;
 const PRICE_PROTECTION_TOOLTIP =
   "The protocol uses an oracle price to help protect users from unfavorable executions. If the execution price is worse than the oracle price by more than the allowed percentage, the transaction will not be executed.";
 const QUOTE_FEE_USD_KEYS = [
@@ -253,18 +253,34 @@ const UtilaTokenSelector = ({
   const { currencies, isLoading } = useCurrencies(search, {
     disabled: tokenListDisabled,
   });
+  const balanceProbeCurrencies = useMemo(
+    () =>
+      onlyWithBalance
+        ? currencies.slice(0, TOKEN_BALANCE_PROBE_LIMIT)
+        : [],
+    [currencies, onlyWithBalance],
+  );
+  const balanceProbeAddresses = useMemo(
+    () => balanceProbeCurrencies.map((item) => item.address),
+    [balanceProbeCurrencies],
+  );
   const { data: balances, isLoading: isBalancesLoading } = useBalances({
-    disabled: tokenListDisabled,
+    addresses: balanceProbeAddresses,
+    disabled:
+      tokenListDisabled ||
+      !onlyWithBalance ||
+      balanceProbeAddresses.length === 0,
   });
   const selectableCurrencies = useMemo(() => {
     if (!onlyWithBalance) return currencies;
 
-    return currencies.filter((item) =>
+    return balanceProbeCurrencies.filter((item) =>
       BN(balances?.[item.address] || "0").gt(0),
     );
-  }, [balances, currencies, onlyWithBalance]);
+  }, [balanceProbeCurrencies, balances, currencies, onlyWithBalance]);
   const isTokenListLoading =
-    isLoading || (onlyWithBalance && isBalancesLoading);
+    isLoading ||
+    (onlyWithBalance && balanceProbeAddresses.length > 0 && isBalancesLoading);
   const isEmpty = !isTokenListLoading && selectableCurrencies.length === 0;
 
   const currency = useCurrency(currencyId);
@@ -986,12 +1002,12 @@ const UtilaProtectionPanel = ({ isSwap }: { isSwap: boolean }) => {
   }, [customMode, isSwap, options, setSlippage, slippage]);
 
   useEffect(() => {
-    if (isSwap) {
+    if (isSwap || priceProtection === DEFAULT_PRICE_PROTECTION) {
       return;
     }
 
     setPriceProtection(DEFAULT_PRICE_PROTECTION);
-  }, [isSwap, setPriceProtection]);
+  }, [isSwap, priceProtection, setPriceProtection]);
 
   return (
     <div className="flex flex-col gap-3 mt-2">
@@ -1068,21 +1084,7 @@ const UtilaAvailableQuotesPanel = () => {
     parsedInputAmount,
     trade,
   } = useDerivedSwap();
-  const { chainId } = useSwapParams();
   const quote = trade?.originalQuote as Quote | undefined;
-  const network = getNetwork(chainId);
-  const native = network?.native;
-  const nativeCurrency = useMemo((): Currency | undefined => {
-    if (!native) return undefined;
-
-    return {
-      address: zeroAddress,
-      decimals: native.decimals,
-      logoUrl: native.logoUrl,
-      name: native.symbol,
-      symbol: native.symbol,
-    };
-  }, [native]);
   const quoteAge = useQuoteAgeLabel(quote?.timestamp);
   const inputAmount = toAmountUI(parsedInputAmount, inputCurrency?.decimals);
   const outputAmount = toAmountUI(trade?.outAmount, outputCurrency?.decimals);
@@ -1096,18 +1098,20 @@ const UtilaAvailableQuotesPanel = () => {
     token: outputCurrency?.address,
   });
   const protocolFeeUsd = getQuoteField(quote, QUOTE_FEE_USD_KEYS);
-  const networkFeeAmount = toAmountUI(
+  const networkCostAmount = toAmountUI(
     quote?.gasAmountOut ?? trade?.gas,
-    nativeCurrency?.decimals,
+    outputCurrency?.decimals,
   );
-  const networkFeeUsd = useUSDPrice({
-    amount: networkFeeAmount,
+  const networkCostUsd = useUSDPrice({
+    amount: networkCostAmount,
     disabled:
-      !nativeCurrency || !networkFeeAmount || BN(networkFeeAmount || "0").lte(0),
-    token: nativeCurrency?.address,
+      !outputCurrency ||
+      !networkCostAmount ||
+      BN(networkCostAmount || "0").lte(0),
+    token: outputCurrency?.address,
   });
-  const showNetworkFee =
-    Boolean(nativeCurrency) && BN(networkFeeAmount || "0").gt(0);
+  const showNetworkCost =
+    Boolean(outputCurrency) && BN(networkCostAmount || "0").gt(0);
 
   if (!quote || !inputCurrency || !outputCurrency || !rate) {
     return null;
@@ -1143,18 +1147,10 @@ const UtilaAvailableQuotesPanel = () => {
               {formatDecimals(protocolFeeUsd, 2)}
             </p>
           )}
-          {showNetworkFee && (
+          {showNetworkCost && (
             <p className="flex flex-wrap items-center gap-1.5 font-normal">
-              <span className="font-bold">Estimated network fee:</span>
-              <CurrencyLogo className="size-4" currency={nativeCurrency} />
-              <span className="font-bold">
-                {formatDecimals(networkFeeAmount, 18)} {nativeCurrency?.symbol}
-              </span>
-              {networkFeeUsd.formatted && (
-                <span className="text-[#70748d]">
-                  (≈ ${networkFeeUsd.formatted})
-                </span>
-              )}
+              <span className="font-bold">Network cost:</span>
+              <span>≈ ${networkCostUsd.formatted || "0"}</span>
             </p>
           )}
         </div>
@@ -1205,82 +1201,327 @@ const UtilaDisclaimer = () => {
   );
 };
 
-const UtilaSubmitError = ({
-  code,
-  message,
-  onClose,
+const tokenToCurrency = (token?: {
+  address?: string;
+  decimals?: number;
+  logoUrl?: string;
+  symbol?: string;
+}): Currency | undefined => {
+  if (!token?.address || token.decimals === undefined || !token.symbol) {
+    return undefined;
+  }
+
+  return {
+    address: token.address,
+    decimals: token.decimals,
+    logoUrl: token.logoUrl || "",
+    name: token.symbol,
+    symbol: token.symbol,
+  };
+};
+
+const formatOrderDate = (value?: number) => {
+  if (!value) return "";
+
+  const timestamp = value < 1_000_000_000_000 ? value * 1_000 : value;
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(timestamp));
+};
+
+const formatOrderDuration = (milliseconds?: number) => {
+  if (!milliseconds) return "";
+
+  const minutes = Math.max(1, Math.round(milliseconds / 60_000));
+  if (minutes % 1_440 === 0) {
+    const days = minutes / 1_440;
+    return `${days} ${days === 1 ? "day" : "days"}`;
+  }
+
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+
+  return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+};
+
+const formatOrderUsdSuffix = (value?: string) => {
+  const formatted = formatDecimals(value, 2);
+
+  return formatted ? ` (≈ $${formatted})` : "";
+};
+
+const UtilaOrderDetailRow = ({
+  label,
+  tooltip,
+  value,
 }: {
-  code: number;
-  message: string;
-  onClose: () => void;
-}) => {
-  const { envMode } = useSwapParams();
+  label: string;
+  tooltip?: string;
+  value: string;
+}) => (
+  <div className="flex min-h-8 items-center justify-between gap-4 border-b border-[#eceef3] py-2 last:border-b-0">
+    <div className="flex items-center gap-1.5">
+      <p className="text-[13px] font-medium text-[#70748d]">{label}</p>
+      {tooltip && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              className="inline-flex size-4 cursor-help items-center justify-center text-[#717389]"
+              type="button"
+            >
+              <InfoIcon className="size-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent
+            arrowClassName="bg-[#303030] fill-[#303030]"
+            className="max-w-[330px] bg-[#303030] text-white"
+            side="top"
+            sideOffset={6}
+          >
+            {tooltip}
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+    <p className="min-w-0 truncate text-right text-[13px] font-semibold text-[#3f4361]">
+      {value}
+    </p>
+  </div>
+);
+
+const UtilaOrderSummary = () => {
+  const order = useSpot().derivedFormData;
+  const srcCurrency = tokenToCurrency(order.srcToken);
+  const dstCurrency = tokenToCurrency(order.dstToken);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-[8px] bg-[#fff1f0] p-3 text-[#b42318]">
-        <p className="text-[14px] font-semibold">Error code: {code}</p>
-        {envMode === "dev" && (
-          <p className="mt-2 max-h-[200px] overflow-y-auto text-[13px] font-medium">
-            {message}
-          </p>
-        )}
-      </div>
-      <button
-        className="h-10 rounded-[8px] bg-[#4564ff] text-[15px] font-semibold text-white"
-        onClick={onClose}
-        type="button"
-      >
-        Close
-      </button>
+    <div className="flex flex-col gap-3 rounded-[8px] border border-[#e3e5eb] bg-[#fbfbfd] p-3">
+      {[
+        {
+          amount: order.srcAmountUI,
+          currency: srcCurrency,
+          label: "From",
+          usd: order.srcAmountUsd,
+        },
+        {
+          amount: order.dstAmountUI,
+          currency: dstCurrency,
+          label: "To",
+          usd: order.dstAmountUsd,
+        },
+      ].map((row) => (
+        <div
+          className="flex items-center justify-between gap-4"
+          key={row.label}
+        >
+          <div className="min-w-0">
+            <p className="text-[12px] font-medium text-[#70748d]">
+              {row.label}
+            </p>
+            <p className="mt-1 truncate text-[15px] font-semibold text-[#3f4361]">
+              {formatDecimals(row.amount || "0", 6)} {row.currency?.symbol}
+            </p>
+            <p className="mt-0.5 text-[12px] font-medium text-[#70748d]">
+              ≈ ${formatDecimals(row.usd || "0", 2) || "0"}
+            </p>
+          </div>
+          <CurrencyLogo className="size-8 shrink-0" currency={row.currency} />
+        </div>
+      ))}
     </div>
   );
 };
 
-const UtilaSubmitMain = ({
-  orderTitle,
-  onSubmit,
-  swapLoading,
-}: {
-  orderTitle: string;
-  onSubmit: () => void;
-  swapLoading: boolean;
-}) => {
-  const [disclaimerAccept, setDisclaimerAccept] = useState(true);
+const UtilaOrderDetails = ({ orderTitle }: { orderTitle: string }) => {
+  const t = useTranslations();
+  const order = useSpot().derivedFormData;
+  const srcSymbol = order.srcToken?.symbol || "";
+  const dstSymbol = order.dstToken?.symbol || "";
+  const totalTrades = order.totalTrades || 1;
+  const rows = [
+    { label: "Order type", value: `${orderTitle} order` },
+    order.triggerPriceUI && {
+      label: t("triggerPrice"),
+      tooltip: UTILA_ORDER_TOOLTIPS.triggerPrice,
+      value: `1 ${srcSymbol} = ${formatDecimals(
+        order.triggerPriceUI,
+        6,
+      )} ${dstSymbol}${formatOrderUsdSuffix(order.triggerPriceUsd)}`,
+    },
+    order.limitPriceUI && {
+      label: t("limitPrice"),
+      tooltip: UTILA_ORDER_TOOLTIPS.limitPrice,
+      value: `1 ${srcSymbol} = ${formatDecimals(
+        order.limitPriceUI,
+        6,
+      )} ${dstSymbol}${formatOrderUsdSuffix(order.limitPriceUsd)}`,
+    },
+    order.minDestAmountPerTradeUI && {
+      label: t(totalTrades > 1 ? "minReceivedPerTrade" : "minReceived"),
+      tooltip: UTILA_ORDER_TOOLTIPS.minReceived,
+      value: `${formatDecimals(
+        order.minDestAmountPerTradeUI,
+        6,
+      )} ${dstSymbol}${formatOrderUsdSuffix(order.minDestAmountPerTradeUsd)}`,
+    },
+    totalTrades > 1 &&
+      order.sizePerTradeUI && {
+        label: t("individualTradeSize"),
+        tooltip: UTILA_ORDER_TOOLTIPS.individualTradeSize,
+        value: `${formatDecimals(order.sizePerTradeUI, 6)} ${srcSymbol}`,
+      },
+    totalTrades > 1 && {
+      label: t("numberOfTrades"),
+      tooltip: UTILA_ORDER_TOOLTIPS.numberOfTrades,
+      value: `${totalTrades}`,
+    },
+    totalTrades > 1 &&
+      order.tradeInterval && {
+        label: t("tradeIntervalLabel"),
+        tooltip: UTILA_ORDER_TOOLTIPS.tradeInterval,
+        value: formatOrderDuration(order.tradeInterval),
+      },
+    order.deadline && {
+      label: t("expirationLabel"),
+      tooltip: UTILA_ORDER_TOOLTIPS.expiration,
+      value: formatOrderDate(order.deadline),
+    },
+    order.feesAmount && {
+      label: t("fees", { value: `${order.feesPercentage}%` }),
+      value: `${formatDecimals(order.feesAmountUI, 6)} ${dstSymbol}${
+        order.feesUsd ? ` (≈ $${formatDecimals(order.feesUsd, 2)})` : ""
+      }`,
+    },
+  ].filter(Boolean) as Array<{
+    label: string;
+    tooltip?: string;
+    value: string;
+  }>;
 
   return (
-    <SubmitOrderPanel
-      orderTitle={orderTitle}
-      reviewDetails={
-        <>
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[14px] font-medium text-[#3f4361]">
-              Accept{" "}
-              <a
-                className="font-semibold text-[#4564ff]"
-                href={DISCLAIMER_URL}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                Disclaimer
-              </a>
-            </p>
-            <Switch
-              checked={disclaimerAccept}
-              onCheckedChange={setDisclaimerAccept}
-            />
-          </div>
-          <button
-            className="flex h-11 w-full items-center justify-center rounded-[8px] bg-[#4564ff] text-[16px] font-semibold text-white disabled:bg-[#c9ccd6]"
-            disabled={!disclaimerAccept || swapLoading}
-            onClick={onSubmit}
-            type="button"
+    <div className="rounded-[8px] border border-[#e3e5eb] bg-white px-3">
+      {rows.map((row) => (
+        <UtilaOrderDetailRow
+          key={row.label}
+          label={row.label}
+          tooltip={row.tooltip}
+          value={row.value}
+        />
+      ))}
+    </div>
+  );
+};
+
+const UtilaOrderStepText = ({ status }: { status?: SpotSwapStatus }) => {
+  const { step } = useSpot().orderExecutionPanel;
+
+  if (status !== SpotSwapStatus.LOADING) return null;
+
+  const text =
+    step === Steps.WRAP
+      ? "Wrapping native token"
+      : step === Steps.APPROVE
+        ? "Approving token"
+        : step === Steps.CREATE
+          ? "Creating order"
+          : "Preparing order";
+
+  return (
+    <p className="text-center text-[13px] font-medium text-[#70748d]">{text}</p>
+  );
+};
+
+const UtilaOrderSuccess = ({ orderTitle }: { orderTitle: string }) => {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-[8px] bg-[#eaf8f2] p-4 text-center">
+        <p className="text-[16px] font-semibold text-[#249064]">
+          {orderTitle} order created
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const UtilaOrderFailed = ({
+  message,
+  onTryAgain,
+}: {
+  message?: string;
+  onTryAgain: () => void;
+}) => (
+  <div className="flex flex-col gap-4">
+    <div className="rounded-[8px] bg-[#fff1f0] p-4 text-center">
+      <p className="text-[16px] font-semibold text-[#b42318]">Order failed</p>
+      <p className="mt-2 max-h-[200px] overflow-y-auto whitespace-pre-wrap break-words text-[13px] font-medium text-[#b42318]">
+        {message || "Transaction failed"}
+      </p>
+    </div>
+    <button
+      className="h-10 rounded-[8px] bg-[#4564ff] text-[15px] font-semibold text-white"
+      onClick={onTryAgain}
+      type="button"
+    >
+      Try again
+    </button>
+  </div>
+);
+
+const UtilaOrderReview = ({
+  orderTitle,
+  onSubmit,
+  loading,
+}: {
+  orderTitle: string;
+  onSubmit: () => Promise<unknown> | void;
+  loading: boolean;
+}) => {
+  const [disclaimerAccept, setDisclaimerAccept] = useState(true);
+  const { status, stepIndex, totalSteps } = useSpot().orderExecutionPanel;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <UtilaOrderSummary />
+      <UtilaOrderDetails orderTitle={orderTitle} />
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[14px] font-medium text-[#3f4361]">
+          Accept{" "}
+          <a
+            className="font-semibold text-[#4564ff]"
+            href={DISCLAIMER_URL}
+            rel="noopener noreferrer"
+            target="_blank"
           >
-            {swapLoading ? "Creating..." : "Create Order"}
-          </button>
-        </>
-      }
-    />
+            Disclaimer
+          </a>
+        </p>
+        <Switch
+          checked={disclaimerAccept}
+          onCheckedChange={setDisclaimerAccept}
+        />
+      </div>
+      <UtilaOrderStepText status={status} />
+      {status === SpotSwapStatus.LOADING && totalSteps ? (
+        <p className="text-center text-[12px] font-medium text-[#70748d]">
+          Step {(stepIndex ?? 0) + 1} of {totalSteps}
+        </p>
+      ) : null}
+      <button
+        className="flex h-11 w-full items-center justify-center rounded-[8px] bg-[#4564ff] text-[16px] font-semibold text-white disabled:bg-[#c9ccd6]"
+        disabled={!disclaimerAccept || loading}
+        onClick={() => {
+          void Promise.resolve(onSubmit()).catch(() => {});
+        }}
+        type="button"
+      >
+        {loading ? "Creating..." : "Create Order"}
+        {loading && <Spinner className="size-4" />}
+      </button>
+    </div>
   );
 };
 
@@ -1305,6 +1546,9 @@ const UtilaSubmitOrder = () => {
       : loading
         ? "Fetching quote..."
         : "Place Order";
+  const isCreatingOrder =
+    status === SpotSwapStatus.LOADING || Boolean(confirmButtonLoading);
+  const isOrderFailed = status === SpotSwapStatus.FAILED || Boolean(parsedError);
 
   const onClose = useCallback(
     (nextOpen: boolean) => {
@@ -1360,24 +1604,25 @@ const UtilaSubmitOrder = () => {
       <DialogContent className="max-w-[520px] border-[#e3e5eb] bg-white text-[#3f4361]">
         <DialogHeader>
           <DialogTitle className="text-[18px] font-semibold text-[#3f4361]">
-            {parsedError
-              ? "Error Creating Order"
-              : status
-                ? " "
-                : `${orderTitle} order`}
+            {status === SpotSwapStatus.SUCCESS
+              ? `${orderTitle} order created`
+              : isOrderFailed
+                ? "Order failed"
+                : `Review ${orderTitle} order`}
           </DialogTitle>
         </DialogHeader>
-        {parsedError ? (
-          <UtilaSubmitError
-            code={parsedError.code}
-            message={parsedError.message}
-            onClose={() => onClose(false)}
+        {status === SpotSwapStatus.SUCCESS ? (
+          <UtilaOrderSuccess orderTitle={orderTitle} />
+        ) : isOrderFailed ? (
+          <UtilaOrderFailed
+            message={parsedError?.message}
+            onTryAgain={resetCurrentSwap}
           />
         ) : (
-          <UtilaSubmitMain
+          <UtilaOrderReview
+            loading={isCreatingOrder}
             onSubmit={onSubmit}
             orderTitle={orderTitle}
-            swapLoading={Boolean(confirmButtonLoading)}
           />
         )}
       </DialogContent>
@@ -1627,7 +1872,7 @@ const UtilaSwapDetails = () => {
 
 const UtilaSwapSuccess = () => {
   const { txHash } = useSwapBestTrade();
-  const { chainId } = useSwapParams();
+  const { chainId } = useActiveConnection();
 
   return (
     <div className="flex flex-col gap-4">

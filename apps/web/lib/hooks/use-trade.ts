@@ -14,7 +14,6 @@ import { useMemo } from "react";
 import { useUSDPrice } from "./use-usd-price";
 import { useIsSpotTab } from "./use-tabs";
 import { useActiveConnection } from "./use-active-connection";
-import { useSwapParams } from "./use-swap-params";
 
 const stopQuoteLiquidityHub = (_error?: string) => {
   if (!_error) return false;
@@ -36,7 +35,7 @@ const useQuoteLiquidityHub = (
   const liquidityHub = useLiquidityHub();
   const { slippage } = useSettings();
   const { pauseQuote } = useSwapStore();
-  const { chainId } = useSwapParams();
+  const { chainId } = useActiveConnection();
   const { address: account } = useActiveConnection();
   const inputCurrencyAddress = inputCurrency?.address ?? "";
   const outputCurrencyAddress = outputCurrency?.address ?? "";
