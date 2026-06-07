@@ -19,8 +19,8 @@ const robotoMono = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: "dSpot",
-  description: "dSpot",
+  title: "Utila Spot",
+  description: "Utila Spot",
 };
 
 export default function RootLayout({
