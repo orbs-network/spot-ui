@@ -1,6 +1,6 @@
 import Configs from "@orbs-network/twap/configs.json";
 import { networks } from "./networks";
-import { Config, TimeDuration, TimeUnit } from "./types";
+import { Config, Partners, TimeDuration, TimeUnit } from "./types";
 import spotPkg from "@orbs-network/spot/package.json";
 
 
@@ -21,6 +21,38 @@ export const getApiEndpoint = (isDev: boolean) => {
     return PROD_API_URL_V2;
   }
   return PROD_API_URL;
+};
+
+export const getOrderApiEndpoints = (isDev: boolean) => {
+  const isSpotV2 = Number(SPOT_VERSION) >= 2;
+  if (isDev) {
+    return [DEV_API_URL];
+  }
+  if (isSpotV2) {
+    return [PROD_API_URL_V2, PROD_API_URL];
+  }
+  return [PROD_API_URL];
+};
+
+const LEGACY_ORDER_SINK_EXCHANGE_BY_PARTNER: Partial<Record<Partners, string>> =
+  {
+    [Partners.Thena]: "0xB75218ba5A99bF57Fd02556B70F05A4A0f1Dbe67",
+  };
+
+export const getOrderSinkExchange = ({
+  endpoint,
+  exchange,
+  partner,
+}: {
+  endpoint: string;
+  exchange?: string;
+  partner?: Partners;
+}) => {
+  if (endpoint === PROD_API_URL && partner) {
+    return LEGACY_ORDER_SINK_EXCHANGE_BY_PARTNER[partner] || exchange;
+  }
+
+  return exchange;
 };
 export const SUGGEST_CHUNK_VALUE = 100;
 

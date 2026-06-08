@@ -5,6 +5,22 @@ import BN from "bignumber.js";
 import { InputErrors } from "..";
 import { useSpotContext } from "../spot-context";
 import { useTrades } from "./use-trades";
+import { millisToDays, millisToMinutes } from "../utils";
+
+const formatFillDelayErrorValue = (milliseconds: number) => {
+  const days = millisToDays(milliseconds);
+  if (days >= 1) {
+    return `${days.toFixed(days % 1 ? 1 : 0)} ${days === 1 ? "day" : "days"}`;
+  }
+
+  const hours = millisToMinutes(milliseconds) / 60;
+  if (hours >= 1) {
+    return `${hours.toFixed(hours % 1 ? 1 : 0)} ${hours === 1 ? "hour" : "hours"}`;
+  }
+
+  const minutes = millisToMinutes(milliseconds);
+  return `${minutes.toFixed(minutes % 1 ? 1 : 0)} ${minutes === 1 ? "minute" : "minutes"}`;
+};
 
 const useFillDelayError = (fillDelay: TimeDuration) => {
   const { totalTrades } = useTrades();
@@ -15,6 +31,7 @@ const useFillDelayError = (fillDelay: TimeDuration) => {
     return {
       type: InputErrors.MIN_FILL_DELAY,
       value: value,
+      args: { fillDelay: formatFillDelayErrorValue(value) },
     };
   }, [fillDelay, typedInputAmount, marketPrice]);
 
@@ -25,6 +42,7 @@ const useFillDelayError = (fillDelay: TimeDuration) => {
     return {
       type: InputErrors.MAX_FILL_DELAY,
       value: value,
+      args: { fillDelay: formatFillDelayErrorValue(value) },
     };
   }, [fillDelay, typedInputAmount, marketPrice, totalTrades]);
 

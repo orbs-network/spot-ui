@@ -371,7 +371,6 @@ export const getConfig = (partner: Partners, chainId = 0): SpotConfig => {
 export const getPartners = (): PartnerPayloadItem[] => {
   const raw = Spot.raw as Record<string, any>;
   const globalDex = raw["*"]?.dex ?? {};
-console.log({globalDex});
 
   return Object.entries(raw)
     .filter(([chainId]) => chainId !== "*")

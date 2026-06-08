@@ -22,7 +22,14 @@ export const getAccountOrders = async ({
 }): Promise<Order[]> => {    
   const allOrders = await Promise.all([
     !config ? Promise.resolve([]) : getV1Orders({ chainId, signal, page, limit, filters: { accounts: [account], configs: config.twapConfig ? [config.twapConfig] : [] } }),
-    getV2Orders({ chainId, signal, account, exchange: config?.adapter, isDev }),
+    getV2Orders({
+      chainId,
+      signal,
+      account,
+      exchange: config?.adapter,
+      partner: config?.partner,
+      isDev,
+    }),
   ]).then(([graphOrders, apiOrders]) => {
     return [...graphOrders, ...apiOrders];
   });

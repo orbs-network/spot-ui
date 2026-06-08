@@ -45,6 +45,7 @@ const useOrdersQueryKey = () => {
       "useTwapOrderHistoryManager",
       account,
       config?.adapter,
+      config?.partner,
       chainId,
       isDev,
     ],

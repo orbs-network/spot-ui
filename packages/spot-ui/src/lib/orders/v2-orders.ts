@@ -1,7 +1,19 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable no-constant-condition */
-import { getApiEndpoint, maxUint256, SPOT_VERSION } from "../consts";
-import { OrderStatus, OrderType, OrderV2, Order, OrderFill } from "../types";
+import {
+  getOrderApiEndpoints,
+  getOrderSinkExchange,
+  maxUint256,
+  SPOT_VERSION,
+} from "../consts";
+import {
+  OrderStatus,
+  OrderType,
+  OrderV2,
+  Order,
+  OrderFill,
+  Partners,
+} from "../types";
 import BN from "bignumber.js";
 
 const getOrderType = (order: OrderV2) => {
@@ -198,33 +210,68 @@ export const getOrders = async ({
   signal,
   account,
   exchange,
+  partner,
   isDev = false,
 }: {
   chainId: number;
   signal?: AbortSignal;
   account?: string;
   exchange?: string;
+  partner?: Partners;
   isDev?: boolean;
 }): Promise<Order[]> => {
   try {
     if (!account) return [];
-    const exchangeQuery = exchange ? `&exchange=${exchange}` : "";
-    const response = await fetch(
-      `${getApiEndpoint(isDev)}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
-      {
-        signal,
-      },
+    const endpoints = getOrderApiEndpoints(isDev);
+    const ordersById = new Map<string, Order>();
+
+    const ordersByEndpoint = await Promise.all(
+      endpoints.map(async (endpoint) => {
+        try {
+          const orderSinkExchange = getOrderSinkExchange({
+            endpoint,
+            exchange,
+            partner,
+          });
+          const exchangeQuery = orderSinkExchange
+            ? `&exchange=${orderSinkExchange}`
+            : "";
+
+          const response = await fetch(
+            `${endpoint}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
+            {
+              signal,
+            },
+          );
+
+          const payload = await response.json();
+
+          if (!payload || !Array.isArray(payload.orders)) {
+            return [];
+          }
+
+          const orders: Order[] = [];
+          for (const rawOrder of payload.orders as OrderV2[]) {
+            try {
+              orders.push(buildV2Order(rawOrder));
+            } catch (error) {
+              continue;
+            }
+          }
+          return orders;
+        } catch (error) {
+          return [];
+        }
+      }),
     );
 
-    const payload = await response.json();
+    ordersByEndpoint.flat().forEach((order) => {
+      if (!ordersById.has(order.id)) {
+        ordersById.set(order.id, order);
+      }
+    });
 
-    if (!payload || !Array.isArray(payload.orders)) {
-      return [];
-    }
-
-    
-
-    return (payload.orders as OrderV2[]).map(buildV2Order);
+    return Array.from(ordersById.values());
   } catch (error) {
     return [];
   }
