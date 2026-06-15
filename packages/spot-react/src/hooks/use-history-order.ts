@@ -21,6 +21,7 @@ const useFills = (fills?: OrderFill[], srcToken?: Token, dstToken?: Token) => {
   return useMemo(() => {
     return fills
       ?.map((fill) => ({
+        rawFill: fill,
         srcToken: srcToken!,
         dstToken: dstToken!,
         srcAmount: toAmountUi(fill.inAmount, srcToken?.decimals),
