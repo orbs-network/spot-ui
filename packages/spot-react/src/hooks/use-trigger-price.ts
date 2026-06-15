@@ -61,7 +61,7 @@ export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
 };
 
 export const useTriggerPrice = () => {
-  const { dstToken, marketPrice, module, callbacks } = useSpotContext();
+  const { dstToken, dstUsd1Token, marketPrice, module, callbacks } = useSpotContext();
   const updateState = useSpotStore((s) => s.updateState);
   const defaultTriggerPricePercent = useDefaultTriggerPricePercent();
   const typedPercent = useSpotStore((s) => s.state.triggerPricePercent);
@@ -87,16 +87,19 @@ export const useTriggerPrice = () => {
     ),
   });
   const error = useTriggerPriceError(result.amount);
+  const amountUI = useAmountUi(dstToken?.decimals || 18, result.amount);
+  const usd = useUsdAmount(amountUI, dstUsd1Token);
   const { amount: triggerAmountPerChunk, amountUI: triggerAmountPerChunkUI,usd: triggerAmountPerChunkUsd } = useTriggerAmountPerChunk(result.amount);
 
   return useMemo(() => {
     return {
       ...result,
+      amountUI: BN(amountUI).isNaN() ? "" : amountUI,
+      usd: BN(usd).isNaN() ? "" : usd,
       error,
       pricePerChunk: triggerAmountPerChunk,
       pricePerChunkUI: triggerAmountPerChunkUI,
       pricePerChunkUsd: triggerAmountPerChunkUsd,
     };
-  }, [result, error, triggerAmountPerChunk, triggerAmountPerChunkUI, triggerAmountPerChunkUsd]);
+  }, [result, amountUI, usd, error, triggerAmountPerChunk, triggerAmountPerChunkUI, triggerAmountPerChunkUsd]);
 };
-

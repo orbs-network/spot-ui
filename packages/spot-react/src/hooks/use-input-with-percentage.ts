@@ -1,8 +1,6 @@
 import { useMemo, useCallback } from "react";
 import BN from "bignumber.js";
-import { useSpotContext } from "../spot-context";
-import { toAmountUi, toAmountWei } from "../utils";
-import { useUsdAmount } from "./helper-hooks";
+import { toAmountWei } from "../utils";
 import { usePricePanel } from "./use-price-panel";
 
 export const useInputWithPercentage = ({
@@ -20,7 +18,6 @@ export const useInputWithPercentage = ({
   setValue: (value?: string) => void;
   setPercentage: (percentage?: string | null) => void;
 }) => {
-  const { srcUsd1Token, dstUsd1Token } = useSpotContext();
   const { isInverted } = usePricePanel();
   const priceWei = useMemo(() => {
     const getPriceWei = () => {
@@ -74,32 +71,12 @@ export const useInputWithPercentage = ({
     return "";
   }, [priceWei, initialPrice, percentage]);
 
-  const amountUI = useMemo(() => {
-    let result = "";
-    if (typedValue !== undefined) {
-      result = typedValue;
-    } else {
-      const amount = toAmountUi(priceWei, tokenDecimals);
-      if (BN(amount || "0").isZero()) {
-        return "";
-      }
-
-      result = isInverted ? BN(1).div(amount).toFixed() : amount;
-    }
-
-    return result
-  }, [typedValue, tokenDecimals, priceWei, isInverted]);
-
-  const usd = useUsdAmount(isInverted ? srcUsd1Token : dstUsd1Token, amountUI || "0");
-
   return {
     amount: BN(priceWei).isNaN() ? "" : priceWei,
-    amountUI: BN(amountUI).isNaN() ? "" : amountUI,
+    typedValue,
     selectedPercentage,
     onChange,
     onPercentageChange,
-    isInverted,
-    usd: BN(usd).isNaN() ? "" : usd,
     isTypedValue: typedValue !== undefined,
   };
 };

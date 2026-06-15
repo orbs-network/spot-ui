@@ -7,6 +7,7 @@ import BN from "bignumber.js";
 import { useTriggerPrice } from "./use-trigger-price";
 import { useDefaultLimitPricePercent } from "./use-default-values";
 import { getStopLossLimitPriceError, getTakeProfitLimitPriceError, InputErrors } from "@orbs-network/spot-ui";
+import { useAmountUi, useUsdAmount } from "./helper-hooks";
 
 
 export const useLimitPriceError = (limitPriceWei?: string) => {
@@ -43,7 +44,7 @@ export const useLimitPriceError = (limitPriceWei?: string) => {
 };
 
 export const useLimitPrice = () => {
-  const { dstToken, marketPrice, callbacks } = useSpotContext();
+  const { dstToken, dstUsd1Token, marketPrice, callbacks } = useSpotContext();
   const updateState = useSpotStore((s) => s.updateState);
   const defaultLimitPricePercent = useDefaultLimitPricePercent();
   const typedPercent = useSpotStore((s) => s.state.limitPricePercent);
@@ -68,13 +69,17 @@ export const useLimitPrice = () => {
   });
 
   const error = useLimitPriceError(result.amount);
+  const amountUI = useAmountUi(dstToken?.decimals || 18, result.amount);
+  const usd = useUsdAmount(amountUI, dstUsd1Token);
 
   return useMemo(() => {
     return {
       ...result,
+      amountUI: BN(amountUI).isNaN() ? "" : amountUI,
+      usd: BN(usd).isNaN() ? "" : usd,
       error,
     };
-  }, [result, error]);
+  }, [result, amountUI, usd, error]);
 };
 
 export const useLimitPriceToggle = () => {
