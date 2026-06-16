@@ -11,6 +11,8 @@ Recommended pattern:
 3. Have child components call that context/hook directly. Do not pass hook-returned values through intermediate components.
 4. Pass all required values directly into `SpotProvider`; avoid a separate `useSpotProviderProps()` hook whose only job is forwarding props.
 
+If child components need many of the same props, stop passing a long prop list and wrap those shared values/actions in a focused local context. The context should hold DEX adapter state, DEX callbacks, formatting helpers, and cross-component UI state; it should not mirror every `useSpot()` panel value, because children can call `useSpot()` directly.
+
 The adapter should answer these questions explicitly:
 
 | Value | Source | Shape passed to Spot |
@@ -56,6 +58,23 @@ function SpotOrderFormContent({ module }: { module: Module }) {
   );
 }
 ```
+
+Keep the adapter small enough to read. When the Spot integration grows, split it by responsibility:
+
+```txt
+components/spot/
+  spot-form.tsx
+  token-inputs-section.tsx
+  price-config-section.tsx
+  submit-order-modal.tsx
+  orders-modal.tsx
+  order-details.tsx
+  context.tsx
+  hooks.ts
+  utils.ts
+```
+
+Use the DEX's existing folder conventions if they differ; the point is to avoid one large file that mixes provider setup, wallet adapters, form sections, modals, history rows, formatting, and transaction helpers.
 
 ## Props
 

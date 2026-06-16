@@ -60,6 +60,8 @@ Cancel orders use a separate `useCancelOrder` hook (see Cancel Order section bel
 
 ## Form Structure
 
+For a small proof of integration, form sections can live near the main form. For a production DEX integration, split sections into focused components and put shared DEX adapter state/actions behind a local context hook instead of threading many props through the tree.
+
 ```tsx
 function SpotFormContent({ module }) {
   return (
@@ -379,7 +381,7 @@ function SubmitOrderSection() {
 
 ## Submit Modal
 
-Build your submit order UI using `useSpot().orderExecutionPanel` for execution state and `useSpot().derivedFormData` for order review details.
+Build your submit order UI using `useSpot().orderExecutionPanel` for execution state and `useSpot().derivedFormData` for order review details. Use `@orbs-network/swap-ui` for the order creation/progress flow UI inside the modal. The host DEX can still provide the modal shell, backdrop, close button, and surrounding layout, but the execution state content should be driven by `SwapFlow`.
 
 When `orderExecutionPanel.status` is not `undefined`, switch from review mode to execution mode:
 
@@ -391,6 +393,73 @@ When `orderExecutionPanel.status` is not `undefined`, switch from review mode to
 - Render the built progress/swap-flow state from `orderExecutionPanel`.
 
 This mirrors the reference submit panel: review details are shown only before submission; progress/success/failure content owns the modal after submission begins.
+
+### swap-ui flow
+
+Verify current public exports before implementation. `@orbs-network/swap-ui` exposes `SwapFlow` and `SwapStatus`; use them rather than building a custom progress modal from scratch. `spot-react` also exports a `SwapStatus` enum, so alias the two imports when mapping execution state into `SwapFlow`.
+
+```tsx
+import {
+  SwapStatus as SpotSwapStatus,
+  useExplorerLink,
+  useSpot,
+} from "@orbs-network/spot-react";
+import { SwapFlow, SwapStatus as SwapUiStatus } from "@orbs-network/swap-ui";
+
+function SpotOrderFlow() {
+  const {
+    status,
+    parsedError,
+    srcToken,
+    dstToken,
+    step,
+    stepIndex,
+    totalSteps,
+    wrapTxHash,
+    approveTxHash,
+  } = useSpot().orderExecutionPanel;
+  const form = useSpot().derivedFormData;
+  const progressTxHash = approveTxHash || wrapTxHash;
+  const explorerUrl = useExplorerLink(progressTxHash);
+
+  const swapStatus =
+    status === SpotSwapStatus.SUCCESS
+      ? SwapUiStatus.SUCCESS
+      : status === SpotSwapStatus.FAILED
+        ? SwapUiStatus.FAILED
+        : SwapUiStatus.LOADING;
+
+  return (
+    <SwapFlow
+      className="spot-order-flow"
+      inAmount={form.srcAmountUI}
+      outAmount={form.dstAmountUI}
+      inToken={{ symbol: srcToken?.symbol }}
+      outToken={{ symbol: dstToken?.symbol }}
+      swapStatus={swapStatus}
+      currentStep={{ title: step ? t(`spot.step.${step}`) : t("spot.step.createOrder") }}
+      currentStepIndex={stepIndex}
+      totalSteps={totalSteps}
+      components={{
+        SrcTokenLogo: <DexTokenLogo token={srcToken} />,
+        DstTokenLogo: <DexTokenLogo token={dstToken} />,
+        Loader: <DexSpinner />,
+        Main: <SwapFlow.Main inUsd={form.srcAmountUsd} outUsd={form.dstAmountUsd} />,
+        Success: (
+          <SwapFlow.Success
+            title={t("spot.orderCreated")}
+            footerLink={explorerUrl}
+            footerText={explorerUrl ? t("viewOnExplorer") : undefined}
+          />
+        ),
+        Failed: <SwapFlow.Failed error={parsedError?.message} />,
+      }}
+    />
+  );
+}
+```
+
+Style the `SwapFlow` wrapper with the DEX theme. Do not copy the reference screenshot colors literally unless the integrated DEX already uses that palette; map the accent, surfaces, borders, and backgrounds to the host DEX design.
 
 ### orderExecutionPanel provides:
 - `onSubmit` — trigger the order creation flow
@@ -450,7 +519,7 @@ function SubmitOrderModal({ isOpen, onClose }) {
                 </Button>
               </>
             )}
-            {/* Swap progress UI when status is set */}
+            {status && <SpotOrderFlow />}
           </>
         )}
       </DialogContent>

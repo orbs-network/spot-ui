@@ -2,19 +2,19 @@
 
 ## Install
 
-Always install the latest version with the host DEX's package manager. Do not mix lockfiles.
+Always install the latest versions with the host DEX's package manager. Do not mix lockfiles.
 ```bash
-npm install @orbs-network/spot-react@latest
-# or: pnpm add @orbs-network/spot-react@latest
-# or: yarn add @orbs-network/spot-react@latest
+npm install @orbs-network/spot-react@latest @orbs-network/swap-ui@latest
+# or: pnpm add @orbs-network/spot-react@latest @orbs-network/swap-ui@latest
+# or: yarn add @orbs-network/spot-react@latest @orbs-network/swap-ui@latest
 ```
 
 If migrating from the old TWAP library:
 ```bash
-npm uninstall @orbs-network/twap-ui && npm install @orbs-network/spot-react@latest
+npm uninstall @orbs-network/twap-ui && npm install @orbs-network/spot-react@latest @orbs-network/swap-ui@latest
 ```
 
-Verify `@orbs-network/spot-react` appears in `package.json` dependencies.
+Verify `@orbs-network/spot-react` and `@orbs-network/swap-ui` appear in `package.json` dependencies. Use `@orbs-network/swap-ui` for the Spot order creation/progress flow modal content, then skin it with the host DEX colors, backgrounds, typography, and token-logo components.
 
 ### Peer Dependencies
 
@@ -48,6 +48,7 @@ Every DEX requires its own on-chain configuration (partner name, adapter address
 - [ ] Quote hook exposes the output raw amount and, ideally, the input amount used to produce that quote so stale quotes can be detected
 - [ ] Token selector can be reused without allowing chain switching, or a small Spot-only option can be added to hide the chain selector
 - [ ] If a component doesn't exist (e.g. Select, Switch), plan to create one using DEX styles
+- [ ] `@orbs-network/swap-ui` is installed for the order flow UI modal
 - [ ] All peer dependencies are installed
 
 **After writing code:**
@@ -56,6 +57,8 @@ Every DEX requires its own on-chain configuration (partner name, adapter address
 - [ ] TypeScript types match between DEX and spot-react
 - [ ] Objects passed to SpotProvider are wrapped in `useMemo`; functions in `useCallback`
 - [ ] Values that children can read from hooks are not passed through props
+- [ ] Long child prop lists are replaced with a small local context/hook
+- [ ] Large Spot files are split into focused components, hooks, context, and utils files
 - [ ] Raw Spot amounts are converted into the DEX's native amount type before display when possible
 - [ ] `walletInteractions` implements all 5 methods and waits for receipts on write transactions
 - [ ] Lifecycle callbacks cover balance refetch for wrap, order creation, fills/progress, and cancellation
@@ -64,12 +67,13 @@ Every DEX requires its own on-chain configuration (partner name, adapter address
 
 ## Minimum Steps
 
-1. Install `@orbs-network/spot-react@latest` and peer dependencies.
+1. Install `@orbs-network/spot-react@latest`, `@orbs-network/swap-ui@latest`, and peer dependencies.
 2. Implement the required `walletInteractions` adapter using the DEX's existing wallet library.
 3. Identify the DEX source of truth for selected tokens, typed amount, balances, quote output, and USD prices.
-4. Add a small DEX-owned Spot swap-state adapter/context if multiple Spot components need those values.
+4. Add a small DEX-owned Spot swap-state adapter/context if multiple Spot components need those values, callbacks, or derived helpers.
 5. Mount `SpotProvider` with all required props passed directly (see [02-provider.md](02-provider.md)).
 6. Build the form using `useSpot()` hook panels (see [03-panels.md](03-panels.md)).
 7. Place Spot tabs alongside the Swap tab in the same container.
-8. Add order history and cancellation inside `SpotProvider` scope or through a context-preserving portal.
-9. Review the checklist in [04-principles.md](04-principles.md).
+8. Build submit/progress modal content with `@orbs-network/swap-ui`.
+9. Add order history and cancellation inside `SpotProvider` scope or through a context-preserving portal.
+10. Review the checklist in [04-principles.md](04-principles.md) and the screenshots in [05-ui-reference.md](05-ui-reference.md).
