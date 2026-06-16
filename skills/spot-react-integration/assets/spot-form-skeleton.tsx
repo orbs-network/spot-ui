@@ -111,7 +111,7 @@ function LimitPriceSection({ module }: { module: Module }) {
           <span>{invertedDstToken?.symbol}</span>
           <input
             type="number"
-            value={percentage || ""}
+            value={percentage || "0"}
             onChange={(e) => onPercentageChange(e.target.value)}
           />
           {usd && <span>${usd}</span>}
@@ -152,7 +152,7 @@ function TriggerPriceSection({ module }: { module: Module }) {
       <span>{invertedDstToken?.symbol}</span>
       <input
         type="number"
-        value={percentage || ""}
+        value={percentage || "0"}
         onChange={(e) => onPercentageChange(e.target.value)}
       />
       {usd && <span>${usd}</span>}
@@ -207,6 +207,7 @@ function TradeSizeSection() {
       />
       {totalTrades > 1 && fromToken && (
         <span>
+          {/* DEX: Prefer converting spot.tradesAmountPanel.amountPerTrade raw amount to the DEX amount type before display. */}
           {amountPerTradeUI} {fromToken.symbol} per trade (${amountPerTradeUsd})
         </span>
       )}
@@ -242,7 +243,9 @@ function TradeIntervalSection() {
 function InputErrorPanel() {
   const error = useSpot().inputError;
   if (!error) return null;
-  // DEX: Use your i18n system: t(error.type, error.args)
+  // DEX: Use your i18n system: t(error.type, formatErrorArgs(error.args))
+  // error.args is an optional Record<string, string>. Current duration/fill-delay
+  // args are human-readable, but keep custom formatting for older/custom errors.
   return <p style={{ color: "red" }}>{error.type}</p>;
 }
 
@@ -413,7 +416,16 @@ export function SpotForm({
         // refetchBalances();
       },
       onOrderCreated: () => {
-        // toast.success("Order created");
+        // Usually no toast: submit modal already shows success.
+        // refetchBalances();
+      },
+      onOrderFilled: () => {
+        // refetchBalances();
+        // toast.success("Order filled");
+      },
+      onCancelOrderSuccess: () => {
+        // refetchBalances();
+        // toast.success("Order cancelled");
       },
       onSubmitOrderFailed: () => {
         // toast.error("Failed");

@@ -4,6 +4,30 @@ All panel data is accessed via the `useSpot()` hook. Each property returns a pan
 
 The snippets below are intentionally framework-neutral. Replace placeholder components such as `CurrencyInputPanel`, `Select`, `Button`, `Dialog`, `ConnectWalletButton`, `SwitchNetworkButton`, and `DisclaimerAccept` with existing DEX components, and source variables such as `address`, `chainId`, `inputValue`, and `setInputAmount` from the DEX state/hooks.
 
+## Display Amounts
+
+Spot panel raw amount fields are raw integer strings. Convert them to the DEX's native amount type before display whenever the DEX has one, then display with the DEX formatter or `.toSignificant()` / `.toExact()`.
+
+```tsx
+function useDexAmountFromRawAmount(currency?: Currency, rawAmount?: string) {
+  return useMemo(() => {
+    if (!currency || rawAmount === undefined || rawAmount === "") return undefined;
+    try {
+      // Replace CurrencyAmount with the host DEX's amount type/helper.
+      // Some DEXes need currency.wrapped, TokenAmount, or a JSBI/BigInt raw value.
+      return CurrencyAmount.fromRawAmount(currency, rawAmount);
+    } catch {
+      return undefined;
+    }
+  }, [currency, rawAmount]);
+}
+
+const amountPerTrade = useDexAmountFromRawAmount(inputCurrency, spot.tradesAmountPanel.amountPerTrade);
+return amountPerTrade ? `${amountPerTrade.toSignificant()} ${inputCurrency.symbol}` : undefined;
+```
+
+Use raw fields such as `dstTokenPanel.valueWei`, `amountPerTrade`, `price`, `amountPerChunk`, `feesAmount`, and history fill amounts as the conversion source. Use `*UI` fields when preserving the user's typed string in an editable input or when the host DEX has no amount object type.
+
 ## useSpot() Reference
 
 ```tsx
@@ -76,6 +100,8 @@ function TokenInputsSection() {
 }
 ```
 
+If Spot reuses the DEX token selector, keep it on the connected/account chain and hide chain switching inside token search. The user should switch networks through the DEX's normal network control, not from the Spot token modal. If the DEX selector does not support this, add a small optional prop such as `hideNetworkFilter` and enable it only for Spot.
+
 ## Price Panels
 
 ```tsx
@@ -127,8 +153,9 @@ function TriggerPriceRow() {
         value={isTypedValue ? priceUI : formatDecimals(priceUI, 6)}
         onChange={(e) => onInputChange(e.target.value)}
       />
-      <span>{invertedDstToken?.symbol} ({percentage}%)</span>
-      <span>${usd}</span>
+      <span>{invertedDstToken?.symbol}</span>
+      <input value={percentage || "0"} onChange={(e) => onPercentageChange(e.target.value)} />
+      {usd && <span>${usd}</span>}
       <button onClick={onReset}>Reset</button>
     </div>
   );
@@ -157,8 +184,9 @@ function LimitPriceRow({ showToggle }) {
             value={isTypedValue ? priceUI : formatDecimals(priceUI, 6)}
             onChange={(e) => onInputChange(e.target.value)}
           />
-          <span>{invertedDstToken?.symbol} ({percentage}%)</span>
-          <span>${usd}</span>
+          <span>{invertedDstToken?.symbol}</span>
+          <input value={percentage || "0"} onChange={(e) => onPercentageChange(e.target.value)} />
+          {usd && <span>${usd}</span>}
           <button onClick={onReset}>Reset</button>
         </>
       )}
@@ -166,6 +194,8 @@ function LimitPriceRow({ showToggle }) {
   );
 }
 ```
+
+Limit and trigger percentage fields should be editable, not passive labels. If Spot does not provide a percentage yet, render a stable `"0"` / `"0%"` placeholder instead of `undefined` so the input layout does not jump.
 
 ## Duration Panel (Limit, Stop-Loss, Take-Profit)
 
@@ -206,11 +236,13 @@ function TradeSizeSection() {
       {totalTrades > 1 && fromToken && (
         <p>{amountPerTradeUI} {fromToken.symbol} per trade (${amountPerTradeUsd})</p>
       )}
-      {error && <p className="error">{t(error.type, error.args)}</p>}
+      {error && <p className="error">{t(error.type, formatErrorArgs(error.args))}</p>}
     </div>
   );
 }
 ```
+
+Prefer `amountPerTrade` plus a DEX amount conversion over `amountPerTradeUI` when the DEX has a `CurrencyAmount`/`TokenAmount` type. Display the token symbol near the per-trade value. Do not show max-trade helper text unless the DEX product explicitly wants it.
 
 ## Trade Interval (TWAP only)
 
@@ -238,23 +270,50 @@ function TradeIntervalSection() {
 ## Input Errors
 
 ```tsx
+function formatErrorArgs(args?: Record<string, string>) {
+  if (!args) return {};
+  // Current spot-react duration/fill-delay args are already human-readable.
+  // Keep this helper for DEX i18n shaping or older/custom integrations that expose numeric values.
+  return Object.fromEntries(
+    Object.entries(args).map(([key, value]) => [key, humanizeErrorArg(value)]),
+  );
+}
+
 function InputErrorPanel() {
   const error = useSpot().inputError;
   if (!error) return null;
 
-  // error.type is a translation key, error.args contains parameters
-  // Use your i18n system: t(error.type, error.args)
-  return <p className="error">{t(error.type, error.args)}</p>;
+  // error.type is a translation key. error.args is an optional parameter object.
+  return <p className="error">{t(error.type, formatErrorArgs(error.args))}</p>;
 }
 ```
 
 ### Error keys reference:
-- `enterAmount`, `insufficientFunds`, `emptyLimitPrice`, `emptyTriggerPrice`, `noLiquidity`
+- `insufficientFunds`, `emptyLimitPrice`, `missingLimitPrice`, `emptyTriggerPrice`
 - `maxChunksError` (`{ maxChunks }`), `minChunksError` (`{ minChunks }`)
-- `minTradeSizeError` (`{ minTradeSize }`), `maxOrderSizeError` (`{ maxOrderSize }`)
+- `minTradeSizeError` (`{ minTradeSize }`), `maxOrderSize` (`{ maxOrderSize }` when emitted)
 - `minDurationError` / `maxDurationError` (`{ duration }`)
 - `minFillDelayError` / `maxFillDelayError` (`{ fillDelay }`)
 - `StopLossTriggerPriceError`, `TakeProfitTriggerPriceError`, `triggerLimitPriceError`
+
+Do not render raw millisecond values from custom or older error args. If a value such as `300000` reaches the UI, display it as `5 minutes`.
+
+```tsx
+function formatDurationMs(ms: number): string {
+  const minutes = ms / 60_000;
+  if (Number.isInteger(minutes) && minutes < 60) return `${minutes} minutes`;
+  const hours = minutes / 60;
+  if (Number.isInteger(hours) && hours < 24) return `${hours} hours`;
+  const days = hours / 24;
+  return Number.isInteger(days) ? `${days} days` : `${minutes} minutes`;
+}
+
+function humanizeErrorArg(value: string) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return value;
+  return numeric >= 60_000 ? formatDurationMs(numeric) : value;
+}
+```
 
 ## Disclaimer Panel
 
@@ -273,6 +332,8 @@ function DisclaimerPanel() {
   );
 }
 ```
+
+When the host DEX has a collapsible disclaimer pattern, follow it. Keep the disclaimer text in the DEX's card/surface style, with a "Learn more" link to `DISCLAIMER_URL` / `ORBS_TWAP_FAQ_URL` as appropriate.
 
 ## Submit Order
 
@@ -301,7 +362,7 @@ function SubmitOrderSection() {
   }, [isSuccess, resetCurrentSwap, resetState, setInputAmount, status]);
 
   if (!address) return <ConnectWalletButton />;
-  if (chainId && !supportedChains.includes(chainId)) {
+  if (!chainId || !supportedChains.includes(chainId)) {
     return <SwitchNetworkButton targetChainId={supportedChains[0]} />;
   }
 
@@ -319,6 +380,17 @@ function SubmitOrderSection() {
 ## Submit Modal
 
 Build your submit order UI using `useSpot().orderExecutionPanel` for execution state and `useSpot().derivedFormData` for order review details.
+
+When `orderExecutionPanel.status` is not `undefined`, switch from review mode to execution mode:
+
+- Hide review details.
+- Hide the confirm/submit button.
+- Hide secondary close/cancel buttons in the modal footer.
+- Hide the modal title if the swap/progress component already renders the current step title.
+- Keep the top-right close button only if the DEX normally allows closing progress modals.
+- Render the built progress/swap-flow state from `orderExecutionPanel`.
+
+This mirrors the reference submit panel: review details are shown only before submission; progress/success/failure content owns the modal after submission begins.
 
 ### orderExecutionPanel provides:
 - `onSubmit` — trigger the order creation flow
@@ -452,6 +524,40 @@ function OrderPreview({ order }) {
   );
 }
 ```
+
+For production DEXes, order history and order fills can grow large. Use the virtualization library already installed in the host app (for example `react-window`, `react-virtual`, or `react-virtuoso`) for both:
+
+- the top-level orders list
+- the selected order's fills list
+
+Store only the selected `orderId` in React state. In details/fills components, look up the current order from `useSpot().orderHistoryPanel.orders.all` by id. This keeps the details view live if the order updates while the modal is open. If the host app has no virtualization library and adding one is out of scope, keep the list simple but avoid storing a copied selected order object.
+
+```tsx
+function OrderHistoryModal() {
+  const [selectedOrderId, setSelectedOrderId] = useState<string | undefined>();
+  const orders = useSpot().orderHistoryPanel.orders.all;
+  const selectedOrder = orders.find((order) => order.id === selectedOrderId);
+
+  return selectedOrder ? (
+    <OrderDetails orderId={selectedOrder.id} />
+  ) : (
+    <FixedSizeList itemCount={orders.length} itemSize={118} itemData={{ orders, setSelectedOrderId }}>
+      {OrderRow}
+    </FixedSizeList>
+  );
+}
+```
+
+Order details should use DEX-native accordion/panel rows and fit content height rather than forcing the same tall modal as the list view. Include:
+
+- execution summary
+- order info
+- order fills
+- cancel button for `OrderStatus.Open`
+- explorer link for recipient/address fields when available
+- copy-to-clipboard feedback for order id / tx hash if the DEX has toasts
+
+Do not render sink URLs in the user-facing modal unless the host product explicitly requests them.
 
 ## Helper Hooks
 

@@ -1,8 +1,67 @@
 # SpotProvider Setup
 
+## Own DEX Swap State Outside Spot
+
+Keep the DEX swap form as the source of truth for selected tokens, typed input amount, balances, USD amounts, and quotes. Spot should adapt that state; it should not create a parallel swap form store.
+
+Recommended pattern:
+
+1. Read the DEX swap-form hook/context in one small adapter.
+2. Expose only the Spot-relevant values through a DEX-owned context if multiple Spot components need them.
+3. Have child components call that context/hook directly. Do not pass hook-returned values through intermediate components.
+4. Pass all required values directly into `SpotProvider`; avoid a separate `useSpotProviderProps()` hook whose only job is forwarding props.
+
+The adapter should answer these questions explicitly:
+
+| Value | Source | Shape passed to Spot |
+| --- | --- | --- |
+| Source/destination tokens | DEX token selection state | `Token` objects with `address`, `symbol`, `decimals`, `logoUrl` |
+| Typed source amount | DEX input state | User-facing decimal string, e.g. `"1.25"` |
+| Quote output | DEX quote/router state | Raw destination token amount for the current typed amount |
+| Quote freshness | DEX quote request metadata | Whether the quote was produced for the current typed amount/token pair |
+| Balances | DEX balance hooks | Raw integer strings |
+| USD prices | DEX price hooks | USD value of one whole token as a string |
+| Chain/account | Connected wallet/account hooks | Connected `chainId` and address |
+
+```tsx
+function SpotOrderForm({ module }: { module: Module }) {
+  return (
+    <SpotSwapFormStateProvider>
+      <SpotOrderFormContent module={module} />
+    </SpotSwapFormStateProvider>
+  );
+}
+
+function SpotOrderFormContent({ module }: { module: Module }) {
+  const {
+    inputCurrency,
+    outputCurrency,
+    inputBalance,
+    outputBalance,
+    typedInputAmount,
+    marketReferencePrice,
+  } = useSpotSwapFormState();
+
+  return (
+    <SpotProvider
+      module={module}
+      typedInputAmount={typedInputAmount}
+      marketReferencePrice={marketReferencePrice}
+      srcBalance={inputBalance?.quotient.toString()}
+      dstBalance={outputBalance?.quotient.toString()}
+      srcToken={currencyToSpotToken(inputCurrency)}
+      dstToken={currencyToSpotToken(outputCurrency)}
+      // other props...
+    />
+  );
+}
+```
+
 ## Props
 
 Wrap objects with `useMemo` and functions with `useCallback` so SpotProvider does not re-render unnecessarily.
+
+If the DEX returns large objects whose identity changes every render, destructure the primitive fields you need before memoizing and use those primitive fields in dependency arrays. This is especially important for quote state, balances, tokens, callbacks, and wallet adapters.
 
 ```tsx
 import {
@@ -11,14 +70,38 @@ import {
   Partners,
   type Token,
   type WalletInteractions,
+  type Callbacks,
+  type MarketReferencePrice,
 } from "@orbs-network/spot-react";
 import { useMemo } from "react";
 
-const marketReferencePrice = useMemo(() => ({
-  value: trade?.outAmount,
-  isLoading,
-  noLiquidity: Boolean(typedValue) && !isLoading && !trade?.outAmount,
-}), [trade?.outAmount, isLoading, typedValue]);
+const {
+  quotedInputAmount = "",
+  quoteOutputRaw,
+  isQuoteLoading,
+} = dexSwapState;
+
+const marketReferencePrice = useMemo<MarketReferencePrice>(() => {
+  const shouldQuote = Boolean(
+    typedInputAmount && inputCurrency && outputCurrency,
+  );
+  const isQuoteStale = shouldQuote && typedInputAmount !== quotedInputAmount;
+  const outputAmount = !shouldQuote || isQuoteStale ? undefined : quoteOutputRaw;
+  const isLoading = shouldQuote && (isQuoteStale || isQuoteLoading);
+
+  return {
+    value: outputAmount,
+    isLoading,
+    noLiquidity: shouldQuote && !isLoading && !outputAmount,
+  };
+}, [
+  inputCurrency,
+  isQuoteLoading,
+  outputCurrency,
+  quoteOutputRaw,
+  quotedInputAmount,
+  typedInputAmount,
+]);
 
 const srcToken = useMemo((): Token | undefined => {
   if (!inputCurrency) return undefined;
@@ -79,46 +162,66 @@ const walletInteractions = useMemo<WalletInteractions>(() => ({
   },
 }), [dexWallet]);
 
-const callbacks = useMemo(() => ({
+const callbacks = useMemo<Callbacks>(() => ({
   // Order lifecycle
-  onOrderCreated: (order) => toast.success("Order created"),
+  // Usually keep creation silent because the submit modal already shows success.
+  onOrderCreated: () => refetchBalances(),
   onSubmitOrderFailed: ({ message }) => toast.error(message),
   onSubmitOrderRejected: () => toast.error("Order rejected"),
-  onOrderFilled: (order) => toast.success("Order filled"),
-  onOrdersProgressUpdate: (orders) => {
+  onOrderFilled: () => {
+    toast.success("Order filled");
+    refetchBalances();
+  },
+  onOrdersProgressUpdate: (_orders) => {
     refetchBalances(); // refetch balances when order progress changes
   },
 
   // Wrap & approve
   onWrapRequest: () => {},
-  onWrapSuccess: ({ txHash, explorerUrl, amount }) => {
+  onWrapSuccess: ({
+    txHash: _txHash,
+    explorerUrl: _explorerUrl,
+    amount: _amount,
+  }) => {
     toast.success("Wrapped");
     refetchBalances(); // refetch balances after wrap
   },
   onApproveRequest: () => {},
-  onApproveSuccess: ({ txHash, explorerUrl, token, amount }) => toast.success("Approved"),
+  onApproveSuccess: ({
+    txHash: _txHash,
+    explorerUrl: _explorerUrl,
+    token: _token,
+    amount: _amount,
+  }) => toast.success("Approved"),
 
   // Signing
   onSignOrderRequest: () => {},
-  onSignOrderSuccess: (signature) => {},
+  onSignOrderSuccess: (_signature) => {},
   onSignOrderError: (error) => toast.error(error.message),
 
   // Cancel
-  onCancelOrderRequest: (order) => {},
-  onCancelOrderSuccess: ({ order, txHash, explorerUrl }) => toast.success("Cancelled"),
+  onCancelOrderRequest: (_order) => {},
+  onCancelOrderSuccess: ({
+    order: _order,
+    txHash: _txHash,
+    explorerUrl: _explorerUrl,
+  }) => {
+    toast.success("Cancelled");
+    refetchBalances();
+  },
   onCancelOrderFailed: (error) => toast.error(error.message),
 
   // Field change callbacks (useful for analytics or syncing external state)
-  onLimitPriceChange: (typedLimitPrice) => {},
-  onTriggerPriceChange: (typedTriggerPrice) => {},
-  onDurationChange: (typedDuration) => {},
-  onFillDelayChange: (typedFillDelay) => {},
-  onChunksChange: (typedChunks) => {},
-  onLimitPricePercentChange: (percent) => {},
-  onTriggerPricePercentChange: (percent) => {},
+  onLimitPriceChange: (_typedLimitPrice) => {},
+  onTriggerPriceChange: (_typedTriggerPrice) => {},
+  onDurationChange: (_typedDuration) => {},
+  onFillDelayChange: (_typedFillDelay) => {},
+  onChunksChange: (_typedChunks) => {},
+  onLimitPricePercentChange: (_percent) => {},
+  onTriggerPricePercentChange: (_percent) => {},
 
   onCopy: () => toast.success("Copied"),
-}), [refetchBalances]);
+}), [refetchBalances, toast]);
 
 <SpotProvider
   partner={Partners.Quick}
@@ -143,6 +246,10 @@ const callbacks = useMemo(() => ({
 
 The code above assumes a fictional `dexWallet` adapter. Replace it with the DEX's existing wallet/client helpers. The important part is the contract: write methods return a transaction hash only after the receipt is confirmed, and read/sign methods return the raw allowance string or signature string expected by the type.
 
+Pass a resolved `priceProtection` number. If the DEX setting has a default, resolve it before rendering `SpotProvider` (for example destructure with a default) instead of passing `priceProtection ?? DEFAULT_PRICE_PROTECTION` inline.
+
+If the DEX quote stores the quoted input amount in raw units instead of the user-facing typed amount, compare against the DEX's current raw source amount instead. Quote freshness checks must compare the same representation.
+
 ### Full Props Reference
 
 | Prop | Type | Required | Description |
@@ -166,7 +273,7 @@ The code above assumes a fictional `dexWallet` adapter. Replace it with the DEX'
 | `callbacks` | `Callbacks` | No | Lifecycle event handlers |
 | `fees` | `number` | No | Fee percentage (e.g. 0.25) |
 | `isDev` | `boolean` | No | Enable dev mode |
-| `overrides` | `Overrides` | No | Custom wrap/approve/order handlers and initial state |
+| `overrides` | `Overrides` | No | Initial Spot form state such as default chunks, duration, fill delay, trigger price, limit price, and market/limit mode |
 
 ## WalletInteractions
 
@@ -187,7 +294,24 @@ The write methods should not return immediately after wallet submission. Wait fo
 - `marketReferencePrice.value` should be the DEX quote output amount for the current `typedInputAmount`, not a standalone token price. The provider converts it into a per-unit market price internally.
 - `srcBalance` and `dstBalance` are raw wei strings. Pass them from the DEX balance hooks so `submitOrderButton.disabled` and validation match the swap form.
 - `srcUsd1Token` and `dstUsd1Token` are the USD value of one token. They are optional in the type, but real integrations should pass them because loading states, minimum trade size, and review details depend on them.
+- Get `chainId` from the connected account/wallet hook wherever Spot needs chain identity. Avoid mixing router, quote, and account chain sources.
 - `chainId` and `account` may be missing while disconnected. Keep the form rendered; only swap the submit area to the DEX's connect-wallet or switch-network control.
+- When `chainId` is missing or unsupported, `SpotProvider` internally falls back to the partner's first supported chain for config lookups. The DEX UI must still block submission with connect/switch-network controls until the wallet is on a supported chain.
+- If the DEX quote result exposes the input amount used for the quote, treat a mismatch with the current typed amount as a stale quote. While stale, set `marketReferencePrice.value` to `undefined` and `isLoading` to `true` so typing a new input amount triggers a fresh quote state instead of showing an old output.
+- Compute `srcUsd1Token` and `dstUsd1Token` as the USD value of one token. Prefer the DEX's direct one-token USD hook. If unavailable, derive it as `usdAmount / tokenAmount` from the current swap form amounts. Pass strings; omit only when no valid positive value is available.
+
+```tsx
+function getUsdValuePerToken(tokenAmount?: CurrencyAmount<Currency>, usdAmount?: CurrencyAmount<Currency>) {
+  const tokenValue = Number(tokenAmount?.toSignificant(18));
+  const usdValue = Number(usdAmount?.toSignificant(18));
+
+  if (!Number.isFinite(tokenValue) || !Number.isFinite(usdValue) || tokenValue <= 0 || usdValue <= 0) {
+    return undefined;
+  }
+
+  return String(usdValue / tokenValue);
+}
+```
 
 ## Input Amount Reset & Form Reset
 
@@ -221,7 +345,12 @@ const onClose = useCallback(() => {
 
 Balance refetching is handled via callbacks, not a prop. Wire `refetchBalances` into:
 - `onWrapSuccess` — after token wrap completes
-- `onOrdersProgressUpdate` — when order fills update
+- `onOrderCreated` — after the order is accepted by the order sink
+- `onOrderFilled` — after an observed order reaches completed status
+- `onOrdersProgressUpdate` — when one or more observed orders change fill progress
+- `onCancelOrderSuccess` — after cancellation transaction confirms
+
+Avoid showing a toast for `onOrderCreated` unless the host DEX explicitly asks for one. The submit flow success state already tells the user the order was created. Fill and cancel toasts are still useful because they can happen outside the modal.
 
 ## Price Protection
 
