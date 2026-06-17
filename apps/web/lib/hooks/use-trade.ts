@@ -98,10 +98,10 @@ const useSyntheticTrade = (
 ) => {
   const srcUSDPrice = useUSDPrice({
     token: inputCurrency?.address,
-  }).data;
+  });
   const dstUSDPrice = useUSDPrice({
     token: outputCurrency?.address,
-  }).data;
+  });
 
 
   return useMemo(() => {
@@ -114,9 +114,17 @@ const useSyntheticTrade = (
         };
       }
 
-      if (!srcUSDPrice || !dstUSDPrice) {
+      if (srcUSDPrice.isLoading || dstUSDPrice.isLoading) {
         return {
           isLoading: true,
+          trade: undefined,
+          refetch: () => {},
+        };
+      }
+
+      if (!srcUSDPrice.data || !dstUSDPrice.data) {
+        return {
+          isLoading: false,
           trade: undefined,
           refetch: () => {},
         };
@@ -128,7 +136,10 @@ const useSyntheticTrade = (
       );
 
       const marketPrice = toAmountWei(
-        BN(srcUSDPrice).div(dstUSDPrice).multipliedBy(typedSrcAmount).toFixed(),
+        BN(srcUSDPrice.data)
+          .div(dstUSDPrice.data)
+          .multipliedBy(typedSrcAmount)
+          .toFixed(),
         outputCurrency?.decimals ?? 18
       );
 
@@ -154,8 +165,10 @@ const useSyntheticTrade = (
       };
     }
   }, [
-    srcUSDPrice,
-    dstUSDPrice,
+    srcUSDPrice.data,
+    srcUSDPrice.isLoading,
+    dstUSDPrice.data,
+    dstUSDPrice.isLoading,
     inputCurrency,
     outputCurrency,
     parsedInputAmount,

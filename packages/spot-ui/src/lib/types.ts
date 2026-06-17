@@ -285,6 +285,7 @@ export enum Partners {
   Sushiswap = "sushiswap",
   Agent = "agent",
   Utila = "utila",
+  Ring = "ring",
 }
 
 

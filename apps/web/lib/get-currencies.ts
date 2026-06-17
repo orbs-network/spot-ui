@@ -9,6 +9,7 @@ import {
   getNativeTokenLogoUrl,
   sortByBaseAssets,
 } from "./utils";
+import { megaethChain } from "./chains";
 
 const coingekoChainToName = {
   [chains.flare.id]: "flare-network",
@@ -28,6 +29,10 @@ const coingekoChainToName = {
   [chains.avalanche.id]: "avalanche",
   [chains.optimism.id]: "optimistic-ethereum",
   [chains.mantle.id]: "mantle",
+  [chains.hyperEvm.id]: "hyperevm",
+  [chains.unichain.id]: "unichain",
+  [chains.xLayer.id]: "x-layer",
+  [megaethChain.id]: "megaeth",
 };
 
 export const getCurrencies = async (

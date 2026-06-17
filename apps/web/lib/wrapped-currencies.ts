@@ -16,6 +16,34 @@ export const wCurrencies: Record<number, Currency> = {
       logoUrl: "https://s2.coinmarketcap.com/static/img/coins/128x128/1839.png",
       name: "Wrapped BNB",
     },
+    130: {
+      symbol: "WETH",
+      address: "0x4200000000000000000000000000000000000006",
+      decimals: 18,
+      logoUrl: "https://tokens-data.1inch.io/images/130/0x4200000000000000000000000000000000000006_0x042e6d078c6cf9e13a618396b0aa40181bcb43921ebdb5fabc8fb1124d516156.webp",
+      name: "Wrapped Ether",
+    },
+    196: {
+      symbol: "WOKB",
+      address: "0xe538905cf8410324e03A5A23C1c177a474D59b2b",
+      decimals: 18,
+      logoUrl: "https://s2.coinmarketcap.com/static/img/coins/128x128/3897.png",
+      name: "Wrapped OKB",
+    },
+    999: {
+      symbol: "WHYPE",
+      address: "0x5555555555555555555555555555555555555555",
+      decimals: 18,
+      logoUrl: "https://s2.coinmarketcap.com/static/img/coins/128x128/32196.png",
+      name: "Wrapped HYPE",
+    },
+    4326: {
+      symbol: "WETH",
+      address: "0x4200000000000000000000000000000000000006",
+      decimals: 18,
+      logoUrl: "https://tokens-data.1inch.io/images/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.png",
+      name: "Wrapped Ether",
+    },
     137: {
       symbol: "WPOL",
       address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
@@ -164,4 +192,3 @@ export const wCurrencies: Record<number, Currency> = {
       name: "Wrapped Mantle",
     },
   };
-  

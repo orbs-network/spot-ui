@@ -166,6 +166,9 @@ const Content = (props: SpotProps) => {
     [props.partner]
   );
 
+  console.log({supportedChains});
+  
+
   const chainId = useMemo(() => {
     const supportedChain = supportedChains[0] as number;
     if (!props.chainId) {
@@ -180,6 +183,7 @@ const Content = (props: SpotProps) => {
     () => getConfig(props.partner, chainId),
     [props.partner, chainId]
   );
+  
 
   const marketReferencePrice = useParsedMarketPrice(props);
   const minChunkSizeUsd = useMemo(

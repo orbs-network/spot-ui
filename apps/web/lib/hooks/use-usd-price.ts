@@ -5,17 +5,34 @@ import BN from "bignumber.js";
 import { useMemo } from "react";
 import { useFormatNumber } from "./common";
 
-export const useUSDPrices = (tokens?: string[], disabled?: boolean) => {
+export const useUSDPrices = (
+  tokens?: Array<string | undefined>,
+  disabled?: boolean,
+) => {
   const { chainId } = useConnection();
-  return useQuery({
-    queryKey: ["usd-price", tokens?.join(",") ?? "", chainId],
+  const tokenKey = useMemo(
+    () => (tokens ?? []).filter(Boolean).join(","),
+    [tokens],
+  );
+  const normalizedTokens = useMemo(
+    () => tokenKey.split(",").filter(Boolean),
+    [tokenKey],
+  );
+  const enabled = normalizedTokens.length > 0 && !!chainId && !disabled;
+  const query = useQuery({
+    queryKey: ["usd-price", tokenKey, chainId],
     queryFn: async () => {
-      const response = await getUSDPrice(tokens!, chainId!);
+      const response = await getUSDPrice(normalizedTokens, chainId!);
       return response;
     },
-    enabled: !!tokens && !!tokens.length && !!chainId && !!chainId && !disabled,
+    enabled,
     staleTime: Infinity,
   });
+
+  return {
+    ...query,
+    isLoading: enabled ? query.isLoading : false,
+  };
 };
 
 export const useUSDPrice = ({
@@ -28,7 +45,10 @@ export const useUSDPrice = ({
   amount?: string;
   disabled?: boolean;
 }) => {
-  const { data: usdPrices, isLoading, isError } = useUSDPrices([token!], disabled);
+  const { data: usdPrices, isLoading, isError } = useUSDPrices(
+    token ? [token] : [],
+    disabled,
+  );
   const data = useMemo(() => {
     return BN(usdPrices?.[token!] ?? 0)
       .multipliedBy(amount ?? 0)
