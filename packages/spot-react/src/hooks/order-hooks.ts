@@ -69,6 +69,22 @@ export const useAddNewOrder = () => {
   );
 };
 
+export const useUpdateCachedOrderStatus = () => {
+  const queryClient = useQueryClient();
+  const queryKey = useOrdersQueryKey();
+
+  return useCallback(
+    (orderId: string, status: OrderStatus) => {
+      queryClient.setQueryData<Order[]>(queryKey, (orders) =>
+        orders?.map((order) =>
+          order.id === orderId ? { ...order, status } : order,
+        ),
+      );
+    },
+    [queryClient, queryKey],
+  );
+};
+
 const useOrderFilledCallback = () => {
   const { callbacks } = useSpotContext();
   const queryClient = useQueryClient();
@@ -105,8 +121,24 @@ const useOrderFilledCallback = () => {
   );
 };
 
+const mergeCachedV1Orders = (
+  orders: Order[],
+  cachedOrders?: Order[],
+): Order[] => {
+  const orderIds = new Set(orders.map((order) => order.id));
+  const cachedV1Orders =
+    cachedOrders?.filter(
+      (order) => order.version === 1 && !orderIds.has(order.id),
+    ) ?? [];
+
+  return [...orders, ...cachedV1Orders].sort(
+    (a, b) => b.createdAt - a.createdAt,
+  );
+};
+
 export const useOrdersQuery = () => {
   const { account, config, chainId, isDev } = useSpotContext();
+  const queryClient = useQueryClient();
 
   const queryKey = useOrdersQueryKey();
   const orderFilledCallback = useOrderFilledCallback();
@@ -114,20 +146,24 @@ export const useOrdersQuery = () => {
     refetchInterval: REFETCH_ORDER_HISTORY,
     refetchOnWindowFocus: true,
     retry: false,
+    gcTime: Infinity,
     staleTime: Infinity,
     queryKey,
     queryFn: async ({ signal }) => {
       if (!account || !chainId || !config) return [];
+      const cachedOrders = queryClient.getQueryData<Order[]>(queryKey);
+      const includeV1GraphOrders = !cachedOrders;
       const orders = await getAccountOrders({
         signal,
         chainId,
         config,
         account,
         isDev,
+        includeV1GraphOrders,
       });
 
       orderFilledCallback(orders);
-      return orders.map((order) => {
+      const parsedOrders = orders.map((order) => {
         if (config?.twapConfig) {
           return {
             ...order,
@@ -136,6 +172,10 @@ export const useOrdersQuery = () => {
         }
         return order;
       });
+
+      return includeV1GraphOrders
+        ? parsedOrders
+        : mergeCachedV1Orders(parsedOrders, cachedOrders);
     },
   });
 

@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useSpotContext } from "../spot-context";
 import { getExplorerUrl, isTxRejected } from "../utils";
 import { useSpotStore } from "../store";
-import { useOrdersQuery } from "./order-hooks";
+import { useOrdersQuery, useUpdateCachedOrderStatus } from "./order-hooks";
 import { useCallback, useMemo } from "react";
 
 const MAX_CANCEL_POLL_ATTEMPTS = 60;
@@ -67,6 +67,7 @@ export const useCancelOrder = (order?: Order) => {
     useSpotContext();
   const refetchUntilStatusSynced =
     useCancelOrderRefetchUntilStatusSynced().mutateAsync;
+  const updateCachedOrderStatus = useUpdateCachedOrderStatus();
   const {
     cancelOrders: cancelOrdersState,
     setCancelOrder,
@@ -104,10 +105,17 @@ export const useCancelOrder = (order?: Order) => {
         if (!txHash) throw new Error("failed to cancel order");
         analytics.onCancelOrderSuccess(txHash);
 
-        await refetchUntilStatusSynced(order.id);
+        if (order.version === 1) {
+          updateCachedOrderStatus(order.id, OrderStatus.Cancelled);
+        } else {
+          await refetchUntilStatusSynced(order.id);
+        }
 
         callbacks?.onCancelOrderSuccess?.({
-          order,
+          order:
+            order.version === 1
+              ? { ...order, status: OrderStatus.Cancelled }
+              : order,
           txHash,
           explorerUrl: getExplorerUrl(txHash, chainId),
         });
