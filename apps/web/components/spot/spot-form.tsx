@@ -689,6 +689,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           walletInteractions={walletInteractions}
           account={address}
           partner={partner}
+          appId="orbs-spot-ui"
           srcBalance={inputBalance}
           dstBalance={outputBalance}
           srcToken={useParseSpotTokens(inputCurrency)}

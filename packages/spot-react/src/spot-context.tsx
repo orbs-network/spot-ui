@@ -166,9 +166,6 @@ const Content = (props: SpotProps) => {
     [props.partner]
   );
 
-  console.log({supportedChains});
-  
-
   const chainId = useMemo(() => {
     const supportedChain = supportedChains[0] as number;
     if (!props.chainId) {
@@ -192,8 +189,8 @@ const Content = (props: SpotProps) => {
   );
 
   useEffect(() => {
-    analytics.init(config, minChunkSizeUsd, chainId);
-  }, [config, chainId, minChunkSizeUsd]);
+    analytics.init(config, minChunkSizeUsd, chainId, props.appId);
+  }, [config, chainId, minChunkSizeUsd, props.appId]);
 
 
   return (

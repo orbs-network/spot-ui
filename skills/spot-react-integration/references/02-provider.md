@@ -257,6 +257,7 @@ const callbacks = useMemo<Callbacks>(() => ({
   dstUsd1Token={outputUsd}
   chainId={chainId}
   account={address}
+  appId="my-dex"
   walletInteractions={walletInteractions}
   fees={0.25}
   callbacks={callbacks}
@@ -282,6 +283,7 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 | `walletInteractions` | `WalletInteractions` | Yes | Wallet interaction handlers implemented by the DEX |
 | `chainId` | `number` | No | Connected chain ID |
 | `account` | `string` | No | Connected wallet address |
+| `appId` | `string` | No | Analytics app ID |
 | `srcToken` | `Token` | No | `{ address, symbol, decimals, logoUrl }` |
 | `dstToken` | `Token` | No | `{ address, symbol, decimals, logoUrl }` |
 | `srcBalance` | `string` | No | Source balance in wei |

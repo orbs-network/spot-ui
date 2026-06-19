@@ -59,6 +59,7 @@ interface Data {
   _id: string;
   spotVersion?: string;
   uiVersion?: string;
+  appId?: string;
   origin?: string;
   actionError?: string;
   cancelOrderSuccess?: boolean;
@@ -290,13 +291,14 @@ class Analytics {
     });
   }
 
-  init(config: SpotConfig, minChunkSizeUsd: number, chainId?: number) {
+  init(config: SpotConfig, minChunkSizeUsd: number, chainId?: number, appId?: string) {
     this.config = config;
-    if (chainId !== this.data?.chainId) {
+    if (chainId !== this.data?.chainId || appId !== this.data?.appId) {
       this.data = {
         _id: generateId(),
         action: "module-import",
         uiVersion: UI_VERSION,
+        appId,
         ...getConfigDetails(config, minChunkSizeUsd, chainId),
         origin: window.location.origin,
       };
@@ -327,6 +329,7 @@ class Analytics {
           _id: generateId(),
           action: "reset",
           uiVersion: UI_VERSION,
+          appId: this.data.appId,
           origin: this.data.origin,
           spotVersion: spotPkg.version,
           partner: this.data.partner,

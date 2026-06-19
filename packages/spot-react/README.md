@@ -42,6 +42,7 @@ function App() {
       chainId={137}                              // Polygon
       walletInteractions={walletInteractions}    // Wallet interaction handlers
       account={walletAddress}                    // Connected wallet address
+      appId="my-dex"                             // Optional analytics app ID
       partner={Partners.Quick}                   // DEX partner
       module={Module.TWAP}                       // Order type
       typedInputAmount={inputAmount}             // User-typed amount (string)
@@ -160,6 +161,7 @@ const walletInteractions: WalletInteractions = {
 | `walletInteractions` | `WalletInteractions` | Yes | Wallet interaction handlers |
 | `chainId` | `number` | No | Connected chain ID |
 | `account` | `string` | No | Connected wallet address |
+| `appId` | `string` | No | Analytics app ID |
 | `srcToken` | `Token` | No | `{ address, symbol, decimals, logoUrl }` |
 | `dstToken` | `Token` | No | `{ address, symbol, decimals, logoUrl }` |
 | `srcBalance` | `string` | No | Source balance in wei |

@@ -135,6 +135,7 @@ export interface SpotProps {
   walletInteractions: WalletInteractions;
   chainId?: number;
   account?: string;
+  appId?: string;
   enableQueryParams?: boolean;
   partner: Partners;
   srcToken?: Token;
