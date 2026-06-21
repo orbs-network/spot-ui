@@ -699,7 +699,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           srcUsd1Token={inputUsd.data.toString()}
           dstUsd1Token={outputUsd.data.toString()}
           marketReferencePrice={useSpotMarketReferencePrice()}
-          minChunkSizeUsd={5}
+          minChunkSizeUsd={1}
           callbacks={callbacks}
           isDev={envMode === "dev"}
           fees={0.25}

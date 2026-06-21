@@ -18,6 +18,7 @@ const useMinTradeSizeError = () => {
     return BN(minChunkSizeUsd).gt(BN(typedInputAmountUsd || "0")) ? {
       type: InputErrors.MIN_TRADE_SIZE_ERROR,
       value: minChunkSizeUsd,
+      args: { minTradeSize: `${minChunkSizeUsd}` },
     } : undefined;
   }, [minChunkSizeUsd, typedInputAmountUsd]);
 };
