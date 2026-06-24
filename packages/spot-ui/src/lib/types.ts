@@ -1,4 +1,3 @@
-
 export type Config = {
   chainName: string;
   chainId: number;
@@ -34,7 +33,6 @@ export enum OrderFilter {
   Completed = "COMPLETED",
   Expired = "EXPIRED",
 }
-
 
 export enum TimeUnit {
   Minutes = 60 * 1000,
@@ -78,7 +76,6 @@ export type OrderFill = {
   timestamp: number;
   txHash: string;
 };
-
 
 export type Order = {
   repermitDigest: string;
@@ -159,7 +156,6 @@ export interface RePermitOrder {
   };
 }
 
-
 export type Signature = {
   v: `0x${string}`;
   r: `0x${string}`;
@@ -186,7 +182,6 @@ export type OrderV1 = {
   ask_srcToken: string;
   ask_dstToken: string;
 };
-
 
 type OrderV2Chunk = {
   blockId: number;
@@ -243,7 +238,6 @@ export type GetV1OrdersFilters = {
   orderType?: "limit" | "market";
 };
 
-
 export type OrderV2 = {
   hash: string;
   metadata: {
@@ -286,8 +280,8 @@ export enum Partners {
   Agent = "agent",
   Utila = "utila",
   Ring = "ring",
+  EfficientFrontier = "ef",
 }
-
 
 export type SpotConfig = {
   partner: Partners;
@@ -303,10 +297,6 @@ export type SpotConfig = {
   wm: Address;
   twapConfig?: Config;
 };
-
-
-
-
 
 export enum InputErrors {
   EMPTY_LIMIT_PRICE = "emptyLimitPrice",
@@ -332,8 +322,6 @@ export type PartnerPayloadItem = {
   name: string;
   config: SpotConfig | undefined;
 };
-
-
 
 export type InputError = {
   type: InputErrors;
