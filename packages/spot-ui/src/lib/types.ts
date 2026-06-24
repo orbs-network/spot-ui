@@ -281,6 +281,7 @@ export enum Partners {
   Utila = "utila",
   Ring = "ring",
   EfficientFrontier = "ef",
+  HtDigital = "ht",
 }
 
 export type SpotConfig = {

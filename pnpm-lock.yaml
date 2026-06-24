@@ -248,8 +248,8 @@ importers:
   packages/spot-ui:
     dependencies:
       '@orbs-network/spot':
-        specifier: ^2.6.3
-        version: 2.6.3
+        specifier: ^2.6.4
+        version: 2.6.4
       '@orbs-network/twap':
         specifier: ^2.7.28
         version: 2.7.28
@@ -1322,8 +1322,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@orbs-network/spot@2.6.3':
-    resolution: {integrity: sha512-hCMXkWhjhgeTmYgHYbaylBnB4L0QvZVpYYaARzddwjEeI/agSllQozjPVsaftFW9sE6cySVGl6nC1J2UD0wcFw==}
+  '@orbs-network/spot@2.6.4':
+    resolution: {integrity: sha512-38XFzwvQw9MXV0wvWYbvLLO5qhM+M3VfbwilPjwjHXfi59tjy5F2mhiNCfd2Ow2J/jPbhgvKQtctwDxx0DlJrw==}
 
   '@orbs-network/swap-ui@0.0.61':
     resolution: {integrity: sha512-GCPAXf69usNQulQbMNGpGW+cgvoeu/R6T8xKiL7pSMMYs6L2sMP8b2YBeHn53lO8/LRaFrFDf28EB7Gh7xzgiQ==}
@@ -6791,7 +6791,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@orbs-network/spot@2.6.3': {}
+  '@orbs-network/spot@2.6.4': {}
 
   '@orbs-network/swap-ui@0.0.61(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
