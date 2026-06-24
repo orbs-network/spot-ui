@@ -3,5 +3,5 @@ import { useSwapParams } from "./use-swap-params";
 
 export const useLiquidityHub = () => {
   const { chainId } = useSwapParams();
-  return constructSDK({ chainId: chainId || 1, partner: "playground" });
+  return constructSDK({ chainId: chainId || 1, partner: "utila" });
 };
