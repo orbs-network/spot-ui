@@ -22,6 +22,16 @@ import {
 } from "./types";
 import { findTimeUnit, getQueryParam, getTimeDurationMillis } from "./utils";
 
+const RING_ALLOWED_CHAIN_IDS = new Set([1, 56, 42161, 8453]);
+
+const isPartnerChainAllowed = (partner: Partners, chainId: number) => {
+  if (partner === Partners.Ring) {
+    return RING_ALLOWED_CHAIN_IDS.has(chainId);
+  }
+
+  return true;
+};
+
 // values calculations
 
 export const getDestTokenAmount = (
@@ -350,6 +360,12 @@ const getTwapConfig = (partner: Partners, chainId: number) => {
 };
 
 export const getConfig = (partner: Partners, chainId = 0): SpotConfig => {
+  if (!isPartnerChainAllowed(partner, chainId)) {
+    throw new Error(
+      `Partner "${partner}" is not supported on chain ${chainId}`,
+    );
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { abi, ...dexConfig } = Spot.config(chainId, partner);
 
@@ -375,14 +391,23 @@ export const getPartners = (): PartnerPayloadItem[] => {
   return Object.entries(raw)
     .filter(([chainId]) => chainId !== "*")
     .flatMap(([chainId, chainCfg]) => {
+      const numericChainId = Number(chainId);
       const dex = { ...globalDex, ...(chainCfg?.dex ?? {}) };
       if (!dex || typeof dex !== "object") return [];
 
-      return Object.entries(dex).map(([name]) => ({
-        chainId: Number(chainId),
-        name: name,
-        config: getConfig(name as Partners, Number(chainId)),
-      }));
+      return Object.entries(dex).flatMap(([name]) => {
+        const partner = name as Partners;
+
+        if (!isPartnerChainAllowed(partner, numericChainId)) return [];
+
+        return [
+          {
+            chainId: numericChainId,
+            name: name,
+            config: getConfig(partner, numericChainId),
+          },
+        ];
+      });
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 };
