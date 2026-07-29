@@ -67,13 +67,13 @@ export const orderBy = <T>(
 };
 
 export const amountUi = (decimals?: number, amount?: string) => {
-  if (!decimals || !amount) return "";
-  const precision = BN(10).pow(decimals || 0);
+  if (decimals == null || !amount) return "";
+  const precision = BN(10).pow(decimals);
   return BN(amount).times(precision).idiv(precision).div(precision).toFixed();
 };
 
 export const amountBN = (decimals?: number, amount?: string) => {
-  if (!decimals || !amount) return "";
+  if (decimals == null || !amount) return "";
   return parsebn(amount)
     .times(BN(10).pow(decimals))
     .decimalPlaces(0)

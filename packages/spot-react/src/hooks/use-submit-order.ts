@@ -18,7 +18,7 @@ import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { useSwapExecution } from "./use-swap-execution";
 
-import { useOrdersQuery } from "./order-hooks";
+import { useOrdersQuery, useAddNewOrder } from "./order-hooks";
 import { useNetwork } from "./helper-hooks";
 import { useTriggerPrice } from "./use-trigger-price";
 import { useTrades } from "./use-trades";
@@ -91,6 +91,7 @@ export const useSignOrder = () => {
     useSpotContext();
   const rePermitData = useRePermitOrderData();
   const { refetch: refetchOrders } = useOrdersQuery();
+  const addNewOrder = useAddNewOrder();
 
   return useMutation({
     mutationFn: async () => {
@@ -134,7 +135,11 @@ export const useSignOrder = () => {
 
       const newOrder = await submitOrder(order, signature, isDev);
       callbacks?.onOrderCreated?.(newOrder);
-      await refetchOrders();
+      // Optimistically insert the authoritative created order so it shows in
+      // history immediately, since the indexer usually hasn't ingested it yet.
+      addNewOrder(newOrder);
+      // Reconcile with the indexer in the background (don't block on it).
+      refetchOrders();
       return newOrder;
     },
   });
@@ -312,6 +317,20 @@ export const useSubmitOrderMutation = () => {
 
   return useMutation({
     mutationFn: async () => {
+      // Guard against double-submit: if an execution is already in flight in the
+      // current slot, ignore the duplicate click instead of launching a second
+      // concurrent flow (which would wrap/approve/sign the order twice).
+      const activeExecution =
+        useSpotStore.getState().state.swapExecutions[
+          useSpotStore.getState().state.swapExecutionIndex
+        ];
+      if (
+        activeExecution?.status === SwapStatus.LOADING ||
+        activeExecution?.allowanceLoading
+      ) {
+        return;
+      }
+
       const wrapRequired = isNativeAddress(srcToken?.address || " ");
 
       try {
@@ -395,6 +414,7 @@ export const useSubmitOrderMutation = () => {
             step: undefined,
             status: undefined,
             stepIndex: undefined,
+            allowanceLoading: false,
             error: error as Error,
           });
         } else {
@@ -402,6 +422,7 @@ export const useSubmitOrderMutation = () => {
           callbacks?.onSubmitOrderFailed?.(parsedError);
           updateSwapExecution({
             status: SwapStatus.FAILED,
+            allowanceLoading: false,
             parsedError,
             error: error as Error,
           });

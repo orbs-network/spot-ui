@@ -69,23 +69,45 @@ const Listeners = (props: SpotProps) => {
     return () => clearInterval(id);
   }, [updateStore]);
 
-  useEffect(() => {
-    const isMarketOrderProp = props.overrides?.state?.isMarketOrder
+  const overrideState = props.overrides?.state;
+  const {
+    isMarketOrder: isMarketOrderProp,
+    chunks: overrideChunks,
+    fillDelay: overrideFillDelay,
+    duration: overrideDuration,
+    limitPrice: overrideLimitPrice,
+    triggerPrice: overrideTriggerPrice,
+    triggerPricePercent: overrideTriggerPricePercent,
+    limitPricePercent: overrideLimitPricePercent,
+  } = overrideState ?? {};
 
-    if(isMarketOrderProp !== undefined) {
+  useEffect(() => {
+    if (isMarketOrderProp !== undefined) {
       updateStore({ isMarketOrder: isMarketOrderProp });
     }
 
     updateStore({
-      typedChunks: props.overrides?.state?.chunks,
-      typedFillDelay: props.overrides?.state?.fillDelay,
-      typedDuration: props.overrides?.state?.duration,
-      typedLimitPrice: props.overrides?.state?.limitPrice,
-      typedTriggerPrice: props.overrides?.state?.triggerPrice,
-      triggerPricePercent: props.overrides?.state?.triggerPricePercent,
-      limitPricePercent: props.overrides?.state?.limitPricePercent,
+      typedChunks: overrideChunks,
+      typedFillDelay: overrideFillDelay,
+      typedDuration: overrideDuration,
+      typedLimitPrice: overrideLimitPrice,
+      typedTriggerPrice: overrideTriggerPrice,
+      triggerPricePercent: overrideTriggerPricePercent,
+      limitPricePercent: overrideLimitPricePercent,
     });
-  }, [props.overrides?.state, props.module]);
+    // Depend on the primitive override fields so an inline `overrides` object
+    // literal does not refire this effect and wipe user-typed values.
+  }, [
+    updateStore,
+    isMarketOrderProp,
+    overrideChunks,
+    overrideFillDelay,
+    overrideDuration,
+    overrideLimitPrice,
+    overrideTriggerPrice,
+    overrideTriggerPricePercent,
+    overrideLimitPricePercent,
+  ]);
 
 
 
@@ -145,8 +167,13 @@ const useParsedMarketPrice = ({
       return marketReferencePrice;
     }
 
+    // Keep the per-token rate fractional. Rounding to whole dst-wei here
+    // (.decimalPlaces(0)) skews the reference price for low-priced / low-decimal
+    // pairs (e.g. a 12.5 wei/token rate → 13, a ~4% error) and that skew flows
+    // into the limit-order min-out. Downstream converts to wei and rounds the
+    // final amounts, so carrying full precision on the rate is strictly better.
     const value = BN(marketReferencePrice.value || 0)
-      .dividedBy(typedInputAmount || 0).decimalPlaces(0)
+      .dividedBy(typedInputAmount || 0)
       .toFixed();
 
     return {
@@ -193,35 +220,67 @@ const Content = (props: SpotProps) => {
   }, [config, chainId, minChunkSizeUsd, props.appId]);
 
 
+  const contextValue = useMemo(
+    () => ({
+      typedInputAmount: props.typedInputAmount,
+      minChunkSizeUsd,
+      account: props.account as `0x${string}` | undefined,
+      walletInteractions: props.walletInteractions,
+      marketPrice:
+        swapExecution.acceptedMarketPrice || marketReferencePrice.value,
+      marketPriceLoading:
+        !swapExecution.acceptedMarketPrice && marketReferencePrice.isLoading,
+      noLiquidity:
+        !swapExecution.acceptedMarketPrice && marketReferencePrice.noLiquidity,
+      config,
+      slippage: props.priceProtection,
+      supportedChains,
+      chainId,
+      partner: props.partner,
+      module: props.module,
+      fees: props.fees || 0,
+      overrides: props.overrides,
+      callbacks: props.callbacks,
+      srcUsd1Token: props.srcUsd1Token,
+      dstUsd1Token: props.dstUsd1Token,
+      srcBalance: props.srcBalance,
+      dstBalance: props.dstBalance,
+      srcToken: swapExecution.srcToken || props.srcToken,
+      dstToken: swapExecution.dstToken || props.dstToken,
+      isDev: props.isDev,
+    }),
+    [
+      props.typedInputAmount,
+      minChunkSizeUsd,
+      props.account,
+      props.walletInteractions,
+      swapExecution.acceptedMarketPrice,
+      swapExecution.srcToken,
+      swapExecution.dstToken,
+      marketReferencePrice.value,
+      marketReferencePrice.isLoading,
+      marketReferencePrice.noLiquidity,
+      config,
+      props.priceProtection,
+      supportedChains,
+      chainId,
+      props.partner,
+      props.module,
+      props.fees,
+      props.overrides,
+      props.callbacks,
+      props.srcUsd1Token,
+      props.dstUsd1Token,
+      props.srcBalance,
+      props.dstBalance,
+      props.srcToken,
+      props.dstToken,
+      props.isDev,
+    ]
+  );
+
   return (
-    <SpotContext.Provider
-      value={{
-        typedInputAmount: props.typedInputAmount,
-        minChunkSizeUsd,
-        account: props.account as `0x${string}` | undefined,
-        walletInteractions: props.walletInteractions,
-        marketPrice: swapExecution.acceptedMarketPrice || marketReferencePrice.value,
-        marketPriceLoading:
-          !swapExecution.acceptedMarketPrice && marketReferencePrice.isLoading,
-        noLiquidity: !swapExecution.acceptedMarketPrice && marketReferencePrice.noLiquidity,
-        config,
-        slippage: props.priceProtection,
-        supportedChains,
-        chainId,
-        partner: props.partner,
-        module: props.module,
-        fees: props.fees || 0,
-        overrides: props.overrides,
-        callbacks: props.callbacks,
-        srcUsd1Token: props.srcUsd1Token,
-        dstUsd1Token: props.dstUsd1Token,
-        srcBalance: props.srcBalance,
-        dstBalance: props.dstBalance,
-        srcToken: swapExecution.srcToken || props.srcToken,
-        dstToken: swapExecution.dstToken || props.dstToken,
-        isDev: props.isDev,
-      }}
-    >
+    <SpotContext.Provider value={contextValue}>
       <Listeners {...props} />
       <SpotDataProvider>
         <ErrorWrapper>{props.children}</ErrorWrapper>

@@ -11,7 +11,11 @@ interface Args {
 
 
 const analyticsCallbacks = {
-  liquidityHubId: analyticsInstance.globalData.liquidityHubId,
+  // Use a getter so consumers read the current id rather than the empty
+  // snapshot captured at module import time.
+  get liquidityHubId() {
+    return analyticsInstance.globalData.liquidityHubId;
+  },
   swap: {
     onSuccess: analyticsInstance.onSwapSuccess.bind(analyticsInstance),
     onFailed: analyticsInstance.onSwapFailed.bind(analyticsInstance),

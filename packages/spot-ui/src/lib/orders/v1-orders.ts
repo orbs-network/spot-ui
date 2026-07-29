@@ -147,10 +147,13 @@ const buildV1Order = (
   status: OrderStatus
 ): Order => {
   const parsedFills = parseFills(fills || ([] as FillV1[]));
-  const chunks = new BN(order.ask_srcAmount || 0)
-    .div(order.ask_srcBidAmount) // Avoid division by zero
-    .integerValue(BN.ROUND_FLOOR)
-    .toNumber();
+  const bidAmount = new BN(order.ask_srcBidAmount || 0);
+  const chunks = bidAmount.gt(0)
+    ? new BN(order.ask_srcAmount || 0)
+        .div(bidAmount)
+        .integerValue(BN.ROUND_FLOOR)
+        .toNumber()
+    : 1;
   const isFilled = fills?.length === chunks;
   const filledOrderTimestamp = isFilled
     ? fills?.[fills?.length - 1]?.timestamp

@@ -39,13 +39,9 @@ async function main() {
     process.exit(0)
   }
 
-  // Update version
-  console.log('\n📝 Updating version...')
-  pkgJson.version = newVersion
-  writePackageJson(pkg.path, pkgJson)
-  console.log(`  ✓ ${pkg.name}`)
-
-  // Build packages (spot-react depends on spot-ui)
+  // Build first with the current version so a build failure never leaves the
+  // working tree with a bumped-but-unpublished version.
+  // (spot-react depends on spot-ui)
   console.log('\n🔨 Building packages...')
   try {
     execSync('pnpm build:spot-ui && pnpm build:spot-react', { cwd: rootDir, stdio: 'inherit' })
@@ -53,6 +49,13 @@ async function main() {
     console.error('\n❌ Build failed\n')
     process.exit(1)
   }
+
+  // Update version only after a successful build.
+  console.log('\n📝 Updating version...')
+  const originalPkgJson = getPackageJson(pkg.path)
+  pkgJson.version = newVersion
+  writePackageJson(pkg.path, pkgJson)
+  console.log(`  ✓ ${pkg.name}`)
 
   const otp = await promptOtp()
   const otpFlag = otp ? `--otp ${otp}` : ''
@@ -66,7 +69,8 @@ async function main() {
     })
     console.log(`\n✅ ${pkg.name}@${newVersion} published!\n`)
   } catch (error) {
-    console.error(`\n❌ Failed to publish ${pkg.name}\n`)
+    console.error(`\n❌ Failed to publish ${pkg.name}, reverting version\n`)
+    writePackageJson(pkg.path, originalPkgJson)
     process.exit(1)
   }
 }

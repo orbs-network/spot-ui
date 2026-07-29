@@ -18,12 +18,20 @@ export async function promptOtp() {
   const value = await input({
     message: 'Enter npm OTP code (or press Enter to skip)',
     default: '',
+    validate: (v) =>
+      v.trim() === '' || /^\d{6,}$/.test(v.trim()) || 'OTP must be digits only',
   });
   return value.trim();
 }
 
 export function bumpVersion(version, type) {
-  const [major, minor, patch] = version.split('.').map(Number);
+  // Parse only the core "major.minor.patch", ignoring any prerelease/build
+  // metadata (e.g. "1.2.3-beta.0") so Number() never yields NaN.
+  const match = String(version).match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    throw new Error(`Invalid semver version: "${version}"`);
+  }
+  const [major, minor, patch] = match.slice(1).map(Number);
   switch (type) {
     case 'major':
       return `${major + 1}.0.0`;

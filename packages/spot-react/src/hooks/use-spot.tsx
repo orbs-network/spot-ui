@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useMemo } from "react";
 import { useTradesPanel } from "./use-trades";
 import { useDurationPanel } from "./use-duration";
 import { useFillDelayPanel } from "./use-fill-delay";
@@ -66,24 +66,44 @@ export const SpotDataProvider = ({
   const refetchUntilStatusSynced = useCancelOrderRefetchUntilStatusSynced();
   const { module } = useSpotContext();
 
-  const value = {
-    tradesAmountPanel,
-    durationPanel,
-    fillDelayPanel,
-    limitPricePanel,
-    triggerPricePanel,
-    pricePanel,
-    dstTokenPanel,
-    disclaimerPanel,
-    inputError,
-    submitOrderButton,
-    derivedFormData,
-    orderHistoryPanel,
-    orderExecutionPanel,
-    supportedChains,
-    refetchUntilStatusSynced,
-    module,
-  };
+  const value = useMemo(
+    () => ({
+      tradesAmountPanel,
+      durationPanel,
+      fillDelayPanel,
+      limitPricePanel,
+      triggerPricePanel,
+      pricePanel,
+      dstTokenPanel,
+      disclaimerPanel,
+      inputError,
+      submitOrderButton,
+      derivedFormData,
+      orderHistoryPanel,
+      orderExecutionPanel,
+      supportedChains,
+      refetchUntilStatusSynced,
+      module,
+    }),
+    [
+      tradesAmountPanel,
+      durationPanel,
+      fillDelayPanel,
+      limitPricePanel,
+      triggerPricePanel,
+      pricePanel,
+      dstTokenPanel,
+      disclaimerPanel,
+      inputError,
+      submitOrderButton,
+      derivedFormData,
+      orderHistoryPanel,
+      orderExecutionPanel,
+      supportedChains,
+      refetchUntilStatusSynced,
+      module,
+    ]
+  );
 
   return (
     <SpotDataContext.Provider value={value}>

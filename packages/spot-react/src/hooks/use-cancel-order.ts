@@ -45,12 +45,16 @@ const useCancelOrderState = () => {
       orderId: string,
       data: { status: SwapStatus; txHash?: string; error?: string },
     ) => {
+      // Read the latest state at write time to avoid clobbering concurrent
+      // cancellations with a stale render-time snapshot.
+      const current = useSpotStore.getState().state.cancelOrders;
       updateState({
-        cancelOrders: { ...cancelOrders, [orderId]: data },
+        cancelOrders: { ...current, [orderId]: data },
       });
     },
     clearCancelOrder: (orderId: string) => {
-      const { [orderId]: _, ...rest } = cancelOrders;
+      const current = useSpotStore.getState().state.cancelOrders;
+      const { [orderId]: _, ...rest } = current;
       updateState({ cancelOrders: rest });
     },
   };
@@ -105,10 +109,18 @@ export const useCancelOrder = (order?: Order) => {
         if (!txHash) throw new Error("failed to cancel order");
         analytics.onCancelOrderSuccess(txHash);
 
-        if (order.version === 1) {
-          updateCachedOrderStatus(order.id, OrderStatus.Cancelled);
-        } else {
-          await refetchUntilStatusSynced(order.id);
+        // The cancel is confirmed on-chain once we have a txHash. Update the
+        // cache optimistically for both versions so an indexer lag doesn't get
+        // reported to the user as a failed cancellation.
+        updateCachedOrderStatus(order.id, OrderStatus.Cancelled);
+        if (order.version !== 1) {
+          // Best-effort reconcile with the indexer; a timeout here must not
+          // flip an already-successful cancel to FAILED.
+          try {
+            await refetchUntilStatusSynced(order.id);
+          } catch (syncError) {
+            console.warn("cancel status sync lagging", syncError);
+          }
         }
 
         callbacks?.onCancelOrderSuccess?.({

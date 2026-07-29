@@ -5,8 +5,15 @@ import { isNativeAddress } from "./util";
 type Status = "waiting" | "success" | "failed" | "disabled";
 type Stage = "init" | "quote" | "approval" | "wrap" | "signature" | "swap";
 
-const getDexOutAmountWS = (dexMinAmountOut = 0, slippage = 0) => {
-  const base = BigInt(dexMinAmountOut);
+const getDexOutAmountWS = (dexMinAmountOut: string | number = "0", slippage = 0) => {
+  let base: bigint;
+  try {
+    // Keep the wei value as a string; routing it through Number loses integer
+    // precision above 2^53 and throws on non-integer floats.
+    base = BigInt(dexMinAmountOut || 0);
+  } catch {
+    base = 0n;
+  }
   const slip = BigInt(Math.round(slippage * 100)) || 0n;
   return (base + (base * slip) / 10000n).toString();
 };
@@ -32,14 +39,17 @@ const sendBI = async (data: any) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(data),
+      // Allow the request to complete even if the page is unloading (e.g. a BI
+      // event fired right after a successful swap navigates away).
+      keepalive: true,
     });
   } catch (error) {
     console.error(error);
   }
 };
 function generateId() {
-  const part1 = Math.random().toString(36).substring(2, 16); // Generate 16 random characters
-  const part2 = Math.random().toString(36).substring(2, 16); // Generate another 16 random characters
+  const part1 = Math.random().toString(36).substring(2, 16); // ~14 random chars
+  const part2 = Math.random().toString(36).substring(2, 16); // ~14 more random chars
   const timestamp = Date.now().toString(36); // Generate a timestamp
   return `id_${part1 + part2 + timestamp}`; // Concatenate all parts
 }
@@ -225,7 +235,9 @@ export class Analytics {
         (this.globalData.dstTokenAddress &&
           args.dstTokenAddress !== this.globalData.dstTokenAddress) ||
         (this.globalData.srcAmount &&
-          args.inAmount !== this.globalData.srcAmount)
+          args.inAmount !== this.globalData.srcAmount) ||
+        (this.globalData.walletAddress &&
+          args.account !== this.globalData.walletAddress)
       ) {
         this.updateGlobalData({
           sessionId: generateId(),
@@ -252,7 +264,7 @@ export class Analytics {
         slippage: args.slippage,
         walletAddress: args.account,
         dexOutAmountWS: getDexOutAmountWS(
-          Number(args.dexMinAmountOut || "0"),
+          args.dexMinAmountOut || "0",
           args.slippage
         ),
         srcAmount: args.inAmount,

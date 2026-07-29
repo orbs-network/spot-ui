@@ -78,6 +78,10 @@ export const fetchQuote = async (
     const response = await promiseWithTimeout(
       fetch(`${apiUrl}/quote?chainId=${chainId}`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({
           inToken: args.fromToken,
           outToken: args.toToken,
@@ -93,7 +97,11 @@ export const fetchQuote = async (
       }),
       args.timeout || QUOTE_TIMEOUT
     );
-    const quote = await response.json();
+    const quote = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(quote?.error || `Quote request failed (${response.status})`);
+    }
 
     if (!quote) {
       throw new Error("No result");

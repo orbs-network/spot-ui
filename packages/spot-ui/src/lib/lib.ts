@@ -39,7 +39,7 @@ export const getDestTokenAmount = (
   limitPrice?: string,
   srcTokenDecimals?: number,
 ) => {
-  if (!srcAmount || !limitPrice || !srcTokenDecimals) return undefined;
+  if (!srcAmount || !limitPrice || srcTokenDecimals == null) return undefined;
 
   const result = BN(srcAmount).times(limitPrice);
   const decimalAdjustment = BN(10).pow(srcTokenDecimals);
@@ -52,7 +52,7 @@ export const getDestTokenMinAmountPerChunk = (
   isMarketOrder?: boolean,
   srcTokenDecimals?: number,
 ) => {
-  if (isMarketOrder || !srcTokenDecimals || !srcChunkAmount || !limitPrice)
+  if (isMarketOrder || srcTokenDecimals == null || !srcChunkAmount || !limitPrice)
     return BN(0).toString();
   const result = BN(srcChunkAmount).times(BN(limitPrice));
   const decimalAdjustment = BN(10).pow(srcTokenDecimals);
@@ -70,7 +70,7 @@ export const getTriggerPricePerChunk = (
     return "0";
   }
 
-  if (!srcTokenDecimals || !srcChunkAmount || !triggerPrice) return;
+  if (srcTokenDecimals == null || !srcChunkAmount || !triggerPrice) return;
   const result = BN(srcChunkAmount).times(BN(triggerPrice));
   const decimalAdjustment = BN(10).pow(srcTokenDecimals);
   const adjustedResult = result.div(decimalAdjustment);

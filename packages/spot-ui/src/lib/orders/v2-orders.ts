@@ -26,11 +26,12 @@ const getOrderType = (order: OrderV2) => {
   const isStopLoss =
     (!isLegacyTakeProfit && BN(stop || 0).gt(0)) ||
     BN(triggerLower || 0).gt(0);
+  const chunkAmount = BN(order.order.witness.input.amount);
   const chunks =
     order.metadata.chunks?.length ||
-    BN(order.order.witness.input.maxAmount)
-      .div(BN(order.order.witness.input.amount))
-      .toNumber();
+    (chunkAmount.gt(0)
+      ? BN(order.order.witness.input.maxAmount).div(chunkAmount).toNumber()
+      : order.metadata.expectedChunks || 1);
 
   if (isTakeProfit) {
     return isLimit ? OrderType.TAKE_PROFIT_LIMIT : OrderType.TAKE_PROFIT_MARKET;
@@ -59,6 +60,7 @@ const getProgress = (order: OrderV2) => {
     order.metadata.chunks?.filter((chunk) => chunk.status === "success")
       .length || 0;
   const totalChunks = order.metadata.expectedChunks || 0;
+  if (!totalChunks) return 0;
   const progress = BN(successChunks).dividedBy(totalChunks).toNumber();
 
   if (progress >= 0.99) return 100;
@@ -72,7 +74,7 @@ const getStatus = (order: OrderV2, progress: number) => {
     return OrderStatus.Completed;
   if (["pending", "eligible"].includes(order.metadata.status))
     return OrderStatus.Open;
-  if (order.metadata.description.toLowerCase() === "cancelled by contract")
+  if (order.metadata.description?.toLowerCase() === "cancelled by contract")
     return OrderStatus.Cancelled;
 
   return OrderStatus.Expired;
@@ -128,9 +130,9 @@ const getAmountsSpotV2 = (order: OrderV2): Amounts => {
   return {
     dstMinAmountPerTrade,
     triggerPricePerTrade: isTakeProfitOrder ? triggerUpper : triggerLower,
-    dstMinAmountTotal: BN(dstMinAmountPerTrade)
-      .multipliedBy(totalTradesAmount)
-      .toFixed(),
+    dstMinAmountTotal: dstMinAmountPerTrade
+      ? BN(dstMinAmountPerTrade).multipliedBy(totalTradesAmount).toFixed()
+      : "",
   };
 };
 
@@ -145,10 +147,11 @@ const getAmountsProd = (order: OrderV2): Amounts => {
     dstMinAmountPerTrade: isTakeProfit ? "" : dstMinAmountPerTrade,
     triggerPricePerTrade: isTakeProfit
       ? dstMinAmountPerTrade
-      : BN(order.order.witness.output.stop || "").toFixed(),
-    dstMinAmountTotal: isTakeProfit
-      ? ""
-      : BN(dstMinAmountPerTrade).multipliedBy(totalTradesAmount).toFixed(),
+      : BN(order.order.witness.output.stop || 0).toFixed(),
+    dstMinAmountTotal:
+      isTakeProfit || !dstMinAmountPerTrade
+        ? ""
+        : BN(dstMinAmountPerTrade).multipliedBy(totalTradesAmount).toFixed(),
   };
 };
 

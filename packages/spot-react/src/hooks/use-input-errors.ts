@@ -12,15 +12,22 @@ import { useUsdAmount } from "./helper-hooks";
 
 const useMinTradeSizeError = () => {
   const { minChunkSizeUsd, typedInputAmount, srcUsd1Token } = useSpotContext();
-  const typedInputAmountUsd = useUsdAmount(typedInputAmount, srcUsd1Token)
+  const typedInputAmountUsd = useUsdAmount(typedInputAmount, srcUsd1Token);
   return useMemo(() => {
+    // Don't flag a min-trade-size error before the user has entered an amount
+    // (or before a USD price is available to evaluate it).
+    if (!BN(typedInputAmount || 0).gt(0) || !typedInputAmountUsd) {
+      return undefined;
+    }
 
-    return BN(minChunkSizeUsd).gt(BN(typedInputAmountUsd || "0")) ? {
-      type: InputErrors.MIN_TRADE_SIZE_ERROR,
-      value: minChunkSizeUsd,
-      args: { minTradeSize: `${minChunkSizeUsd}` },
-    } : undefined;
-  }, [minChunkSizeUsd, typedInputAmountUsd]);
+    return BN(minChunkSizeUsd).gt(BN(typedInputAmountUsd))
+      ? {
+          type: InputErrors.MIN_TRADE_SIZE_ERROR,
+          value: minChunkSizeUsd,
+          args: { minTradeSize: `${minChunkSizeUsd}` },
+        }
+      : undefined;
+  }, [minChunkSizeUsd, typedInputAmount, typedInputAmountUsd]);
 };
 
 export function useInputErrors() {

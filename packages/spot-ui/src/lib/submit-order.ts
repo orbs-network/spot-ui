@@ -15,6 +15,10 @@ export const submitOrder = async (order: RePermitOrder, signature: Signature, is
 
     const response = await fetch(`${getApiEndpoint(isDev)}/orders/new`, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify(body),
     });
     const data = await response.json().catch(() => ({}));

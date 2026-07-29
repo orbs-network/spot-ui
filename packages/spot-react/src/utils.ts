@@ -7,13 +7,13 @@ import {
 import BN from "bignumber.js";
 
 export const toAmountWei = (value?: string, decimals?: number) => {
-  if (!decimals || !value || BN(value).isNaN()) return "";
+  if (decimals == null || !value || BN(value).isNaN()) return "";
   return BN(value).multipliedBy(BN(10).pow(decimals)).toFixed(0);
 };
 
 export const toAmountUi = (value?: string, decimals?: number) => {
   try {
-    if (!decimals || !value || BN(value).isNaN()) return "";
+    if (decimals == null || !value || BN(value).isNaN()) return "";
     return BN(value).dividedBy(BN(10).pow(decimals)).toFixed();
   } catch (error) {
     console.error(error);
@@ -104,5 +104,6 @@ export { eqIgnoreCase, isNativeAddress };
 export const getExplorerUrl = (txHash: string, chainId?: number) => {
   if (!chainId) return "";
   const network = getNetwork(chainId);
-  return `${network?.explorer}/tx/${txHash}`;
+  if (!network?.explorer) return "";
+  return `${network.explorer}/tx/${txHash}`;
 };

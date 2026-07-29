@@ -63,9 +63,7 @@ export const MAX_ORDER_DURATION_MILLIS =  60 * 24 * 60 * 60 * 1000; // 60 days
 
 export const MIN_ORDER_DURATION_MILLIS = 5 * 60 * 1000;
 
-export const MIN_FILL_DELAY_MINUTES = new Date(
-  MIN_FILL_DELAY_MILLIS
-).getMinutes();
+export const MIN_FILL_DELAY_MINUTES = MIN_FILL_DELAY_MILLIS / (60 * 1000);
 
 const getGfURL = (name: string) => {
   return `https://hub.orbs.network/api/private/project_cm7nb67z86nyr01z12gs0fxpf/subgraphs/orbs-twap-${name}/prod/gn`;

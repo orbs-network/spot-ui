@@ -501,8 +501,8 @@ export const networks = {
       decimals: 18,
       logoUrl: "https://berascan.com/token/images/wrappedbera_ofc_64.png",
     },
-    publicRpcUrl: "wss://rpc.berachain-apis.com",
-    logoUrl: "https://katana.network/assets/katana-logo.svg",
+    publicRpcUrl: "https://rpc.berachain.com",
+    logoUrl: "https://berascan.com/token/images/wrappedbera_ofc_64.png",
     explorer: "https://berascan.com", // placeholder — replace with actual if known
     eip1559: true,
   },
