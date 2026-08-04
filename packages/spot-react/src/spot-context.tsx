@@ -248,6 +248,7 @@ const Content = (props: SpotProps) => {
       srcToken: swapExecution.srcToken || props.srcToken,
       dstToken: swapExecution.dstToken || props.dstToken,
       isDev: props.isDev,
+      supportLegacyOrders: props.supportLegacyOrders ?? false,
     }),
     [
       props.typedInputAmount,
@@ -276,6 +277,7 @@ const Content = (props: SpotProps) => {
       props.srcToken,
       props.dstToken,
       props.isDev,
+      props.supportLegacyOrders,
     ]
   );
 

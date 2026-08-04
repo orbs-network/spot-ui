@@ -39,7 +39,8 @@ export const useOrderType = () => {
 };
 
 const useOrdersQueryKey = () => {
-  const { account, config, chainId, isDev } = useSpotContext();
+  const { account, config, chainId, isDev, supportLegacyOrders } =
+    useSpotContext();
   return useMemo(
     () => [
       "useTwapOrderHistoryManager",
@@ -48,8 +49,9 @@ const useOrdersQueryKey = () => {
       config?.partner,
       chainId,
       isDev,
+      supportLegacyOrders,
     ],
-    [account, config, chainId, isDev],
+    [account, config, chainId, isDev, supportLegacyOrders],
   );
 };
 
@@ -137,7 +139,8 @@ const mergeCachedV1Orders = (
 };
 
 export const useOrdersQuery = () => {
-  const { account, config, chainId, isDev } = useSpotContext();
+  const { account, config, chainId, isDev, supportLegacyOrders } =
+    useSpotContext();
   const queryClient = useQueryClient();
 
   const queryKey = useOrdersQueryKey();
@@ -152,7 +155,7 @@ export const useOrdersQuery = () => {
     queryFn: async ({ signal }) => {
       if (!account || !chainId || !config) return [];
       const cachedOrders = queryClient.getQueryData<Order[]>(queryKey);
-      const includeV1GraphOrders = !cachedOrders;
+      const includeV1GraphOrders = supportLegacyOrders && !cachedOrders;
       const orders = await getAccountOrders({
         signal,
         chainId,
@@ -173,9 +176,11 @@ export const useOrdersQuery = () => {
         return order;
       });
 
-      return includeV1GraphOrders
-        ? parsedOrders
-        : mergeCachedV1Orders(parsedOrders, cachedOrders);
+      if (!supportLegacyOrders || includeV1GraphOrders) {
+        return parsedOrders;
+      }
+
+      return mergeCachedV1Orders(parsedOrders, cachedOrders);
     },
   });
 

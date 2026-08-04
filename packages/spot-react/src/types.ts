@@ -153,6 +153,7 @@ export interface SpotProps {
   minChunkSizeUsd: number;
   typedInputAmount: string;
   isDev?: boolean;
+  supportLegacyOrders?: boolean;
 }
 
 export interface SpotContextType {
@@ -179,6 +180,7 @@ export interface SpotContextType {
   overrides?: Overrides;
   callbacks?: Callbacks;
   isDev?: boolean;
+  supportLegacyOrders: boolean;
 }
 
 

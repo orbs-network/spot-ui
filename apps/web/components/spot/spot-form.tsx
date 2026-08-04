@@ -669,6 +669,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const swapModule = useMemo(() => getModule(swapType), [swapType]);
   const callbacks = useCallbacks();
   const partner = useSpotPartner();
+  const supportLegacyOrders = false;
   const walletInteractions = useWalletInteractions();
   const inputUsd = useUSDPrice({
     token: inputCurrency?.address,
@@ -702,6 +703,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           minChunkSizeUsd={1}
           callbacks={callbacks}
           isDev={envMode === "dev"}
+          supportLegacyOrders={supportLegacyOrders}
           fees={0.25}
         >
           <div className="flex flex-col gap-1">

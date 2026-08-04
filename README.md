@@ -97,12 +97,6 @@ web
       └── spot-ui (getConfig, buildRePermitOrderData, submitOrder, types)
 ```
 
-## Integration Guides
-
-| Guide | Description |
-|-------|-------------|
-| [Order Sink Integration](docs/order-sink-integration.md) | Framework-agnostic guide for building `buildRePermitOrderData`, collecting the EIP-712 signature, submitting orders, fetching V2 Order Sink orders, and cancelling V2 orders. |
-
 ## License
 
 MIT
