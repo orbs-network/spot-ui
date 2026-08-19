@@ -283,6 +283,7 @@ export enum Partners {
   EfficientFrontier = "ef",
   HtDigital = "ht",
   Ginco = "ginco",
+  Katana = "katana",
 }
 
 export type SpotConfig = {
