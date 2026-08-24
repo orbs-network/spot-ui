@@ -37,12 +37,16 @@ export const getOrderApiEndpoints = (isDev: boolean) => {
   return [PROD_API_URL];
 };
 
-const LEGACY_ORDER_SINK_EXCHANGE_BY_PARTNER: Partial<Record<Partners, string>> =
-  {
-    [Partners.Thena]: "0xB75218ba5A99bF57Fd02556B70F05A4A0f1Dbe67",
-  };
+const LEGACY_ORDER_SINK_EXCHANGES_BY_PARTNER: Partial<
+  Record<Partners, string[]>
+> = {
+  [Partners.Thena]: ["0xB75218ba5A99bF57Fd02556B70F05A4A0f1Dbe67"],
+  [Partners.Katana]: [
+    "0x2e43A28FAf083717CcD9B246d97C61E1Bc9914Df",
+  ],
+};
 
-export const getOrderSinkExchange = ({
+export const getOrderSinkExchanges = ({
   endpoint,
   exchange,
   partner,
@@ -51,11 +55,19 @@ export const getOrderSinkExchange = ({
   exchange?: string;
   partner?: Partners;
 }) => {
-  if (endpoint === PROD_API_URL && partner) {
-    return LEGACY_ORDER_SINK_EXCHANGE_BY_PARTNER[partner] || exchange;
-  }
+  const isProdEndpoint = [PROD_API_URL, PROD_API_URL_V2].includes(endpoint);
+  const legacyExchanges =
+    isProdEndpoint && partner
+      ? LEGACY_ORDER_SINK_EXCHANGES_BY_PARTNER[partner] || []
+      : [];
+  const exchanges = exchange ? [exchange, ...legacyExchanges] : legacyExchanges;
 
-  return exchange;
+  return exchanges.filter(
+    (address, index) =>
+      exchanges.findIndex(
+        (candidate) => candidate.toLowerCase() === address.toLowerCase(),
+      ) === index,
+  );
 };
 export const SUGGEST_CHUNK_VALUE = 100;
 
@@ -168,6 +180,9 @@ export const LEGACY_EXCHANGES_MAP: Record<string, string[]> = {
   ],
   [getPartnerIdentifier(Configs.SwapX)]: [
     "0xE5012eBDe5e26EE3Ea41992154731a03023CF274",
+  ],
+  [getPartnerIdentifier(Configs.SushiKatana)]: [
+    "0x92209481507e6B2d14C9b5b70Ed287024177220E",
   ],
 };
 export const DEFAULT_FILL_DELAY = {

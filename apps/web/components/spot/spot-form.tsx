@@ -673,7 +673,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const swapModule = useMemo(() => getModule(swapType), [swapType]);
   const callbacks = useCallbacks();
   const partner = useSpotPartner();
-  const supportLegacyOrders = false;
+  const supportLegacyOrders = true;
   const walletInteractions = useWalletInteractions();
   const inputUsd = useUSDPrice({
     token: inputCurrency?.address,

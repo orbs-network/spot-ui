@@ -356,6 +356,14 @@ export const getTwapConfig = (partner: Partners, chainId: number) => {
         return Configs.BlackholeAvax;
     }
   }
+  if (partner === Partners.Katana) {
+    switch (chainId) {
+      case 747474:
+        return Configs.SushiKatana;
+      default:
+        return Configs.SushiKatana;
+    }
+  }
 };
 
 export const getPartners = (): PartnerPayloadItem[] => {

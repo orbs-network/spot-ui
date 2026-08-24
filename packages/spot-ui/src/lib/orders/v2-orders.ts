@@ -2,7 +2,7 @@
 /* eslint-disable no-constant-condition */
 import {
   getOrderApiEndpoints,
-  getOrderSinkExchange,
+  getOrderSinkExchanges,
   maxUint256,
   SPOT_VERSION,
 } from "../consts";
@@ -228,47 +228,53 @@ export const getOrders = async ({
     const endpoints = getOrderApiEndpoints(isDev);
     const ordersById = new Map<string, Order>();
 
-    const ordersByEndpoint = await Promise.all(
-      endpoints.map(async (endpoint) => {
-        try {
-          const orderSinkExchange = getOrderSinkExchange({
-            endpoint,
-            exchange,
-            partner,
-          });
-          const exchangeQuery = orderSinkExchange
-            ? `&exchange=${orderSinkExchange}`
-            : "";
+    const ordersByRequest = await Promise.all(
+      endpoints.flatMap((endpoint) => {
+        const exchanges = getOrderSinkExchanges({
+          endpoint,
+          exchange,
+          partner,
+        });
+        const requestExchanges: Array<string | undefined> = exchanges.length
+          ? exchanges
+          : [undefined];
 
-          const response = await fetch(
-            `${endpoint}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
-            {
-              signal,
-            },
-          );
+        return requestExchanges.map(async (orderSinkExchange) => {
+          try {
+            const exchangeQuery = orderSinkExchange
+              ? `&exchange=${orderSinkExchange}`
+              : "";
 
-          const payload = await response.json();
+            const response = await fetch(
+              `${endpoint}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
+              {
+                signal,
+              },
+            );
 
-          if (!payload || !Array.isArray(payload.orders)) {
+            const payload = await response.json();
+
+            if (!payload || !Array.isArray(payload.orders)) {
+              return [];
+            }
+
+            const orders: Order[] = [];
+            for (const rawOrder of payload.orders as OrderV2[]) {
+              try {
+                orders.push(buildV2Order(rawOrder));
+              } catch (error) {
+                continue;
+              }
+            }
+            return orders;
+          } catch (error) {
             return [];
           }
-
-          const orders: Order[] = [];
-          for (const rawOrder of payload.orders as OrderV2[]) {
-            try {
-              orders.push(buildV2Order(rawOrder));
-            } catch (error) {
-              continue;
-            }
-          }
-          return orders;
-        } catch (error) {
-          return [];
-        }
+        });
       }),
     );
 
-    ordersByEndpoint.flat().forEach((order) => {
+    ordersByRequest.flat().forEach((order) => {
       if (!ordersById.has(order.id)) {
         ordersById.set(order.id, order);
       }
