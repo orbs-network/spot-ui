@@ -10,8 +10,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
-import { getPartners, SPOT_VERSION } from "@orbs-network/spot-ui";
-import { useMemo } from "react";
+import {
+  SPOT_VERSION,
+} from "@orbs-network/spot-ui";
+import { useRePermitData } from "@orbs-network/spot-react";
 import dynamic from "next/dynamic";
 import { Skeleton } from "../ui/skeleton";
 
@@ -21,12 +23,8 @@ const ReactJson = dynamic(() => import("react-json-view"), {
 });
 
 const ConfigDialog = () => {
-  const { partner } = useSwapParams();
-
-  const partnerConfig = useMemo(
-    () => getPartners().find((p) => `${p.name}_${p.chainId}` === partner),
-    [partner]
-  );
+  const { parsedPartner } = useSwapParams();
+  const { data: permitData } = useRePermitData();
 
   return (
     <Dialog>
@@ -38,11 +36,11 @@ const ConfigDialog = () => {
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="capitalize">
-            {partnerConfig?.name} Config
+            {parsedPartner} Config
           </DialogTitle>
         </DialogHeader>
         <ReactJson
-          src={partnerConfig?.config || {}}
+          src={permitData || {}}
           name={false}
           collapsed={1}
           enableClipboard={true}

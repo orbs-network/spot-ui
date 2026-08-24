@@ -318,6 +318,9 @@ The write methods should not return immediately after wallet submission. Wait fo
 - Get `chainId` from the connected account/wallet hook wherever Spot needs chain identity. Avoid mixing router, quote, and account chain sources.
 - `chainId` and `account` may be missing while disconnected. Keep the form rendered; only swap the submit area to the DEX's connect-wallet or switch-network control.
 - When `chainId` is missing or unsupported, `SpotProvider` internally falls back to the partner's first supported chain for config lookups. The DEX UI must still block submission with connect/switch-network controls until the wallet is on a supported chain.
+- RePermit configuration is fetched internally from the Orbs `/config` endpoint using `partner`, the resolved `chainId`, and `isDev`. Do not add a separate configuration fetch or pass the response through DEX context.
+- Successful configuration responses are cached and shared across Spot components. Initial failures are retried twice; expose the retry action from `useSpot().submitOrderButton` in the submit UI.
+- The SDK trusts successful configuration JSON. The response supplies the approval spender, v2 cancellation contract, adapter, reactor, and executor, so only use the trusted Orbs endpoint over TLS.
 - If the DEX quote result exposes the input amount used for the quote, treat a mismatch with the current typed amount as a stale quote. While stale, set `marketReferencePrice.value` to `undefined` and `isLoading` to `true` so typing a new input amount triggers a fresh quote state instead of showing an old output.
 - Compute `srcUsd1Token` and `dstUsd1Token` as the USD value of one token. Prefer the DEX's direct one-token USD hook. If unavailable, derive it as `usdAmount / tokenAmount` from the current swap form amounts. Pass strings; omit only when no valid positive value is available.
 

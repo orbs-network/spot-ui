@@ -10,7 +10,7 @@ export type Config = {
   partner: string;
   exchangeAddress: string;
   exchangeType: string;
-  pathfinderKey: string;
+  pathfinderKey?: string;
 };
 export enum Module {
   TWAP = "TWAP",
@@ -156,6 +156,19 @@ export interface RePermitOrder {
   };
 }
 
+export type RePermitData = {
+  domain: {
+    name: string;
+    version: string;
+    chainId: number;
+    verifyingContract: Address;
+  };
+  order: RePermitOrder;
+  partner?: string;
+  primaryType: string;
+  types: Record<string, { name: string; type: string }[]>;
+};
+
 export type Signature = {
   v: `0x${string}`;
   r: `0x${string}`;
@@ -286,21 +299,6 @@ export enum Partners {
   Katana = "katana",
 }
 
-export type SpotConfig = {
-  partner: Partners;
-  adapter: Address;
-  cosigner: Address;
-  executor: Address;
-  fee: Address;
-  reactor: Address;
-  refinery: Address;
-  repermit: Address;
-  router: Address;
-  type: string;
-  wm: Address;
-  twapConfig?: Config;
-};
-
 export enum InputErrors {
   EMPTY_LIMIT_PRICE = "emptyLimitPrice",
   MAX_CHUNKS = "maxChunksError",
@@ -323,7 +321,6 @@ export enum InputErrors {
 export type PartnerPayloadItem = {
   chainId: number;
   name: string;
-  config: SpotConfig | undefined;
 };
 
 export type InputError = {

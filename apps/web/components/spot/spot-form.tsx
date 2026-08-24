@@ -474,7 +474,7 @@ const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
   const t = useTranslations();
   const { partner } = useSwapParams();
 
-  const { disabled, loading } = useSpot().submitOrderButton;
+  const { disabled, error, loading, retry } = useSpot().submitOrderButton;
 
   const partnerChainId = useMemo(() => {
     const partnerChain = partner?.split("_")[1];
@@ -482,19 +482,23 @@ const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
   }, [partner]);
 
   const text = useMemo(() => {
+    if (error) {
+      return t("retryOrderConfiguration");
+    }
     if (loading) {
       return t("fetchingQuote");
     }
     return t("placeOrder");
-  }, [loading, t]);
+  }, [error, loading, t]);
 
   return (
     <SubmitSwapButton
-      onClick={onClick}
-      disabled={disabled}
+      onClick={error ? () => void retry() : onClick}
+      disabled={error ? loading : disabled}
       isLoading={loading}
       text={text}
       chainId={partnerChainId}
+      forceAction={Boolean(error)}
     />
   );
 };
@@ -721,8 +725,8 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           <Portal containerId="spot-orders">
             <SpotsOrders />
           </Portal>
+          <SpotFooter />
         </Spot>
-        <SpotFooter />
         <Listener />
       </FormContainer>
     </Context.Provider>

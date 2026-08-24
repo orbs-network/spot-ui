@@ -10,6 +10,7 @@ export * from "./types";
 export * from "./utils";
 export { useAmountUi, useExplorerLink, useNetwork } from "./hooks/helper-hooks";
 export { useSwapExecution } from "./hooks/use-swap-execution";
+export { useRePermitData } from "./hooks/use-repermit-data";
 export { type CancelOrderStatus } from "./hooks/use-cancel-order";
 
 // Set the UI version in spot-sdk for analytics
@@ -20,12 +21,13 @@ setUIVersion(pkg.version);
 export {
   // Types
   type Config,
-  type SpotConfig,
   type TimeDuration,
   type PartnerPayloadItem,
+  type RePermitData,
   type RePermitOrder,
   type Signature,
   type Address,
+  type BuildRePermitOrderDataParams,
   type Hex,
   type InputError,
 
@@ -39,10 +41,10 @@ export {
   InputErrors,
 
   // Functions
-  getConfig,
   getPartners,
   getMinChunkSizeUsd,
   buildRePermitOrderData,
+  fetchRePermitData,
   submitOrder,
   getNetwork,
   getPartnerChains,

@@ -1,4 +1,4 @@
-import { Partners, Module, Order, SpotConfig, TimeDuration, TWAP_ABI, REPERMIT_ABI } from "@orbs-network/spot-ui";
+import { Partners, Module, Order, TimeDuration, TWAP_ABI, REPERMIT_ABI } from "@orbs-network/spot-ui";
 export enum SwapStatus {
   LOADING = 1,
   SUCCESS = 2,
@@ -162,7 +162,6 @@ export interface SpotContextType {
   marketPriceLoading?: boolean;
   account?: `0x${string}`;
   noLiquidity?: boolean;
-  config: SpotConfig;
   supportedChains: number[];
   typedInputAmount: string;
   partner: Partners;

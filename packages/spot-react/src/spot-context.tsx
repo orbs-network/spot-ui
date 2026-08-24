@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useEffect, useMemo } from "react";
 import { SpotDataProvider } from "./hooks/use-spot";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
-  getConfig,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
+import {
   Module,
   analytics,
   getPartnerChains,
@@ -203,21 +205,14 @@ const Content = (props: SpotProps) => {
       : supportedChain;
   }, [props.chainId, supportedChains]);
 
-  const config = useMemo(
-    () => getConfig(props.partner, chainId),
-    [props.partner, chainId]
-  );
-  
-
   const marketReferencePrice = useParsedMarketPrice(props);
   const minChunkSizeUsd = useMemo(
     () => getMinChunkSizeUsd(props.minChunkSizeUsd),
     [props.minChunkSizeUsd]
   );
-
   useEffect(() => {
-    analytics.init(config, minChunkSizeUsd, chainId, props.appId);
-  }, [config, chainId, minChunkSizeUsd, props.appId]);
+    analytics.init(props.partner, minChunkSizeUsd, chainId, props.appId);
+  }, [props.partner, chainId, minChunkSizeUsd, props.appId]);
 
 
   const contextValue = useMemo(
@@ -232,7 +227,6 @@ const Content = (props: SpotProps) => {
         !swapExecution.acceptedMarketPrice && marketReferencePrice.isLoading,
       noLiquidity:
         !swapExecution.acceptedMarketPrice && marketReferencePrice.noLiquidity,
-      config,
       slippage: props.priceProtection,
       supportedChains,
       chainId,
@@ -261,7 +255,6 @@ const Content = (props: SpotProps) => {
       marketReferencePrice.value,
       marketReferencePrice.isLoading,
       marketReferencePrice.noLiquidity,
-      config,
       props.priceProtection,
       supportedChains,
       chainId,

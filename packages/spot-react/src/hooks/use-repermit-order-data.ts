@@ -6,55 +6,62 @@ import { useFillDelay } from "./use-fill-delay";
 import { useSrcAmount } from "./use-src-amount";
 import { useTrades } from "./use-trades";
 import { useTriggerPrice } from "./use-trigger-price";
-import {
-  buildRePermitOrderData,
-  getNetwork,
-  isNativeAddress,
-} from "@orbs-network/spot-ui";
+import { useSpotStore } from "../store";
+import { buildRePermitOrderData } from "@orbs-network/spot-ui";
+import { useRePermitData } from "./use-repermit-data";
 
 export const useRePermitOrderData = () => {
-  const { srcToken, dstToken, account, chainId, slippage, config, module, fees } =
+  const { srcToken, dstToken, account, chainId, slippage, module } =
     useSpotContext();
+  const currentTimeMillis = useSpotStore((s) => s.state.currentTime);
   const { amount: srcAmount } = useSrcAmount();
   const { amountPerTrade: srcAmountPerTrade, totalTrades } = useTrades();
   const deadlineMillis = useDeadline();
   const { amount: minDestAmountPerTrade } = useDstMinAmountPerTrade();
   const { pricePerChunk: triggerPricePerTrade } = useTriggerPrice();
   const { milliseconds: fillDelayMillis } = useFillDelay();
+  const { data: permitData, error, isLoading } = useRePermitData();
 
-  return useMemo(() => {
+  const data = useMemo(() => {
+    if (!permitData) return undefined;
+
     return buildRePermitOrderData({
       chainId,
-      srcToken: isNativeAddress(srcToken?.address || "")
-        ? getNetwork(chainId)?.wToken.address || ""
-        : srcToken?.address || "",
-      dstToken: dstToken?.address || "",
-      srcAmount,
+      srcTokenAddress: srcToken?.address || "",
+      dstTokenAddress: dstToken?.address || "",
+      totalSrcAmount: srcAmount,
+      currentTimeMillis,
       deadlineMillis,
-      fillDelayMillis: !totalTrades || totalTrades === 1 ? 0 : fillDelayMillis,
-      slippage: slippage * 100,
-      account: account as `0x${string}`,
+      fillDelayMillis,
+      totalTrades,
+      slippageBps: slippage * 100,
+      swapperAddress: account as `0x${string}`,
       srcAmountPerTrade,
-      dstMinAmountPerTrade: minDestAmountPerTrade,
+      minDstAmountPerTrade: minDestAmountPerTrade,
       triggerAmountPerTrade: triggerPricePerTrade,
-      config,
+      permitData,
       module,
-      feePercentage: fees,
     });
   }, [
+    permitData,
     srcToken,
     dstToken,
     account,
     chainId,
+    currentTimeMillis,
     slippage,
-    config,
     module,
     srcAmount,
     srcAmountPerTrade,
     totalTrades,
+    deadlineMillis,
     fillDelayMillis,
     minDestAmountPerTrade,
     triggerPricePerTrade,
-    fees,
   ]);
+
+  return useMemo(
+    () => ({ data, error, isLoading }),
+    [data, error, isLoading],
+  );
 };

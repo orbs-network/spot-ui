@@ -16,7 +16,6 @@ import {
   Module,
   PartnerPayloadItem,
   Partners,
-  SpotConfig,
   TimeDuration,
   TimeUnit,
 } from "./types";
@@ -275,7 +274,7 @@ export const getMaxChunksError = (
   };
 };
 
-const getTwapConfig = (partner: Partners, chainId: number) => {
+export const getTwapConfig = (partner: Partners, chainId: number) => {
   if (partner === Partners.Pancake) {
     switch (chainId) {
       case 56:
@@ -359,31 +358,6 @@ const getTwapConfig = (partner: Partners, chainId: number) => {
   }
 };
 
-export const getConfig = (partner: Partners, chainId = 0): SpotConfig => {
-  if (!isPartnerChainAllowed(partner, chainId)) {
-    throw new Error(
-      `Partner "${partner}" is not supported on chain ${chainId}`,
-    );
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { abi, ...dexConfig } = Spot.config(chainId, partner);
-
-  if (!dexConfig.reactor) {
-    throw new Error(
-      `Missing config for partner "${partner}" on chain ${chainId}: reactor address not found`,
-    );
-  }
-
-  const result = {
-    ...dexConfig,
-    partner,
-    twapConfig: getTwapConfig(partner, chainId) as Config | undefined,
-  };
-
-  return result;
-};
-
 export const getPartners = (): PartnerPayloadItem[] => {
   const raw = Spot.raw as Record<string, any>;
   const globalDex = raw["*"]?.dex ?? {};
@@ -404,7 +378,6 @@ export const getPartners = (): PartnerPayloadItem[] => {
           {
             chainId: numericChainId,
             name: name,
-            config: getConfig(partner, numericChainId),
           },
         ];
       });

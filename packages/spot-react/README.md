@@ -8,7 +8,13 @@ For the complete integration workflow, see the [Spot React integration skill](ht
 
 ## Before You Start
 
-Every DEX needs an Orbs Spot configuration with a partner name, adapter address, and supported chains. If the DEX does not already have a configuration or a member of the exported `Partners` enum, contact [@dTWAPSupportGroup](https://t.me/dTWAPSupportGroup) before integrating.
+Every DEX needs a member of the exported `Partners` enum and a server-side Orbs Spot configuration for its supported chains. The SDK fetches contract and adapter addresses from that configuration. If the DEX is not configured yet, contact [@dTWAPSupportGroup](https://t.me/dTWAPSupportGroup) before integrating.
+
+### RePermit configuration security
+
+The `/config` endpoint is a security boundary. The SDK trusts successful JSON responses without client-side schema or contract-identity validation. It uses `domain.verifyingContract` as the ERC-20 approval spender and the v2 cancellation contract, and uses the returned adapter, reactor, and executor when constructing orders. Deployments must use the trusted Orbs endpoint over TLS, and contract-address changes require explicit approval from the protocol/security owner.
+
+`SpotProvider` starts a shared configuration query as soon as the partner and chain are known. Concurrent consumers reuse the same query, successful responses remain cached for that partner/chain/environment, and failed requests are retried twice. `useRePermitData()` exposes the query state and `refetch`; the standard submit panel exposes the same recovery action as `useSpot().submitOrderButton.retry`.
 
 The completed integration should:
 
@@ -284,7 +290,7 @@ const spot = useSpot();
 | `pricePanel` | Inversion state/callback, source/destination tokens, market-price state |
 | `disclaimerPanel` | Disclaimer translation key or `undefined` |
 | `inputError` | `{ type, args }` or `undefined` |
-| `submitOrderButton` | `disabled`, `loading` |
+| `submitOrderButton` | `disabled`, `loading`, configuration `error`, and `retry` |
 | `orderExecutionPanel` | Submission, status, steps, errors, resets, resolved tokens, and tx hashes |
 | `orderHistoryPanel` | Filtered order lists, loading state, and `refetchOrders` |
 | `derivedFormData` | Review amounts, prices, timing, fees, order type, spender, and RePermit data |
@@ -293,6 +299,8 @@ const spot = useSpot();
 | `refetchUntilStatusSynced` | Mutation used to reconcile cancellation status |
 
 Child components should call `useSpot()` themselves instead of receiving hook-returned panels through intermediate props.
+
+When `submitOrderButton.error` is set, render a translated retry label and call `submitOrderButton.retry()` instead of opening the review modal. Keep the button disabled while `loading` is true. Legacy v1 order history does not depend on RePermit configuration; v2 history, approvals, v2 cancellation, and submission resume after a successful retry.
 
 ### Panel Visibility
 
@@ -432,18 +440,20 @@ Use the exported cancellation hook inside `SpotProvider`:
 import { OrderStatus, useCancelOrder } from "@orbs-network/spot-react";
 
 function CancelButton({ order }) {
-  const { cancelOrder, isLoading, isSuccess, isError, error, txHash } =
+  const { cancelOrder, disabled, isLoading, isSuccess, isError, error, txHash } =
     useCancelOrder(order);
 
   if (order.status !== OrderStatus.Open) return null;
 
   return (
-    <button onClick={cancelOrder} disabled={isLoading}>
+    <button onClick={cancelOrder} disabled={disabled || isLoading}>
       {isLoading ? "Cancelling..." : "Cancel"}
     </button>
   );
 }
 ```
+
+For v2 orders, `disabled` remains true while RePermit configuration is loading or unavailable. Legacy v1 history and cancellation do not require that configuration. V2 history is added after configuration succeeds because its request needs the returned exchange adapter.
 
 Order history is available from `useSpot().orderHistoryPanel`:
 
@@ -477,19 +487,19 @@ import {
   useAmountUi,      // (decimals?, rawAmount?) => formatted amount
   useExplorerLink,  // (txHash?) => explorer URL
   useNetwork,       // () => current network metadata
+  useRePermitData,  // () => { data, error, isLoading, refetch }
   useSignOrder,     // low-level signing hook
   useSubmitOrder,   // low-level submission mutation
   useSwapExecution, // low-level execution state
 } from "@orbs-network/spot-react";
 ```
 
-Normal integrations should submit through `useSpot().orderExecutionPanel`. Use the low-level hooks only when deliberately replacing the built-in execution flow.
+Normal integrations should submit through `useSpot().orderExecutionPanel`. Use the low-level hooks only when deliberately replacing the built-in execution flow. `useRePermitData()` must be called under `SpotProvider`; most integrations should use the configuration state already exposed by `useSpot().submitOrderButton`.
 
 Public utilities and constants include:
 
 ```tsx
 import {
-  getConfig,
   getMinChunkSizeUsd,
   getNetwork,
   getOrderExecutionRate,

@@ -1,6 +1,7 @@
 import {
   getOrderExecutionRate,
   getOrderFillDelayMillis,
+  getTwapConfig,
   Order,
   OrderFill,
 } from "@orbs-network/spot-ui";
@@ -47,7 +48,7 @@ export const useDerivedHistoryOrder = (
   srcToken?: Token,
   dstToken?: Token,
 ) => {
-  const { config } = useSpotContext();
+  const { chainId, partner } = useSpotContext();
 
   const limitPriceUI = useOrderLimitPrice(srcToken, dstToken, order);
   const triggerPriceUI = useOrderTriggerPriceRate(srcToken, dstToken, order);
@@ -56,10 +57,8 @@ export const useDerivedHistoryOrder = (
   const tradeInterval = useMemo(() => {
     if (!order) return 0;
     if (order.version === 2) return order.fillDelay;
-    if (config.twapConfig)
-      return getOrderFillDelayMillis(order, config.twapConfig);
-    return 0;
-  }, [order, config]);
+    return getOrderFillDelayMillis(order, getTwapConfig(partner, chainId));
+  }, [order, partner, chainId]);
 
   const fills = useFills(order?.fills, srcToken, dstToken) ?? [];
 

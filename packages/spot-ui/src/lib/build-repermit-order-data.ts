@@ -1,131 +1,135 @@
-import { Address, Module, RePermitOrder, SpotConfig } from "./types";
-import { getQueryParam, safeBNString } from "./utils";
 import {
-  EIP712_TYPES,
+  Address,
+  Module,
+  Partners,
+  RePermitData,
+  RePermitOrder,
+} from "./types";
+import {
+  getNetwork,
+  getQueryParam,
+  isNativeAddress,
+  safeBNString,
+} from "./utils";
+import {
+  getRePermitConfigEndpoint,
   QUERY_PARAMS,
-  REPERMIT_PRIMARY_TYPE,
 } from "./consts";
 import BN from "bignumber.js";
 
-type Props = {
+export type BuildRePermitOrderDataParams = {
   chainId: number;
-  srcToken: string;
-  dstToken: string;
-  srcAmount: string;
+  srcTokenAddress: string;
+  dstTokenAddress: string;
+  totalSrcAmount: string;
+  currentTimeMillis: number;
   deadlineMillis: number;
   fillDelayMillis: number;
-  slippage: number;
-  account: string;
+  totalTrades: number;
+  slippageBps: number;
+  swapperAddress: string;
   srcAmountPerTrade: string;
-  dstMinAmountPerTrade?: string;
+  minDstAmountPerTrade?: string;
   triggerAmountPerTrade?: string;
-  config: SpotConfig;
+  permitData: RePermitData;
   module: Module;
-  feePercentage?: number;
 };
 
-const getSharedOrderData = (
-  fillDelayMillis: number,
-  deadlineMillis: number,
-): {
-  nonce: string;
-  epoch: number;
-  deadline: string;
-  freshness: number;
-} => {
-  const nonce = Date.now().toString();
-  const epoch = parseInt((fillDelayMillis / 1000).toFixed(0));
-  const deadline = safeBNString(deadlineMillis / 1000);
-  const customFreshness = getQueryParam(QUERY_PARAMS.FRESHNESS);
-  const freshness = customFreshness ? parseInt(customFreshness) : 60;
-  return {
-    nonce,
-    epoch,
-    deadline,
-    freshness,
-  };
+export const fetchRePermitData = async (
+  partner: Partners,
+  chainId: number,
+  isDev = false,
+): Promise<RePermitData> => {
+  const query = new URLSearchParams({
+    partner,
+    chain: chainId.toString(),
+  });
+  const response = await fetch(`${getRePermitConfigEndpoint(isDev)}?${query}`);
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `Failed to fetch RePermit data for partner "${partner}" on chain ${chainId}: ${response.status}${message ? ` ${message}` : ""}`,
+    );
+  }
+
+  return response.json() as Promise<RePermitData>;
 };
 
 export const buildRePermitOrderData = ({
   chainId,
-  srcToken,
-  dstToken,
-  srcAmount,
+  srcTokenAddress,
+  dstTokenAddress,
+  totalSrcAmount,
+  currentTimeMillis,
   deadlineMillis,
   fillDelayMillis,
-  slippage,
-  account,
+  totalTrades,
+  slippageBps,
+  swapperAddress,
   srcAmountPerTrade,
-  dstMinAmountPerTrade = "0",
+  minDstAmountPerTrade = "0",
   triggerAmountPerTrade = "0",
-  config,
+  permitData,
   module,
-}: Props) => {
-  const { nonce, epoch, deadline, freshness } = getSharedOrderData(
-    fillDelayMillis,
-    deadlineMillis,
-  );
-
-  const start = Math.floor(Date.now() / 1000).toString();
-  const limit = dstMinAmountPerTrade;
-
-  const triggerLower =
-    module === Module.STOP_LOSS ? triggerAmountPerTrade : "0";
-  const triggerUpper =
-    module === Module.TAKE_PROFIT ? triggerAmountPerTrade : "0";
+}: BuildRePermitOrderDataParams) => {
+  const nonce = currentTimeMillis.toString();
+  const epoch =
+    !totalTrades || totalTrades === 1
+      ? 0
+      : parseInt((fillDelayMillis / 1000).toFixed(0));
+  const deadline = safeBNString(deadlineMillis / 1000);
+  const customFreshness = getQueryParam(QUERY_PARAMS.FRESHNESS);
+  const freshness = customFreshness ? parseInt(customFreshness) : 60;
+  const start = Math.floor(currentTimeMillis / 1000).toString();
+  const normalizedSrcTokenAddress = isNativeAddress(srcTokenAddress)
+    ? getNetwork(chainId)?.wToken.address || ""
+    : srcTokenAddress;
+  const limit = BN(minDstAmountPerTrade || 0).toFixed();
+  const triggerLower = BN(
+    module === Module.STOP_LOSS ? triggerAmountPerTrade || 0 : 0,
+  ).toFixed();
+  const triggerUpper = BN(
+    module === Module.TAKE_PROFIT ? triggerAmountPerTrade || 0 : 0,
+  ).toFixed();
 
   const orderData: RePermitOrder = {
+    ...permitData.order,
     permitted: {
-      token: srcToken as Address,
-      amount: srcAmount,
+      ...permitData.order.permitted,
+      token: normalizedSrcTokenAddress as Address,
+      amount: totalSrcAmount,
     },
-    spender: config.reactor,
     nonce,
     deadline,
     witness: {
-      reactor: config.reactor,
-      executor: config.executor,
-      exchange: {
-        adapter: config.adapter,
-        ref: config.fee,
-        share: 0,
-        data: "0x",
-      },
-      swapper: account as Address,
+      ...permitData.order.witness,
+      swapper: swapperAddress as Address,
       nonce,
       start,
       deadline,
-      chainid: chainId,
-      exclusivity: 0,
       epoch,
-      slippage,
+      slippage: slippageBps,
       freshness,
       input: {
-        token: srcToken as Address,
+        ...permitData.order.witness.input,
+        token: normalizedSrcTokenAddress as Address,
         amount: srcAmountPerTrade,
-        maxAmount: srcAmount,
+        maxAmount: totalSrcAmount,
       },
       output: {
-        token: dstToken as Address,
-        limit: BN(limit || 0).toFixed(),
-        triggerLower: BN(triggerLower || 0).toFixed(),
-        triggerUpper: BN(triggerUpper || 0).toFixed(),
-        recipient: account as Address,
+        ...permitData.order.witness.output,
+        token: dstTokenAddress as Address,
+        limit,
+        triggerLower,
+        triggerUpper,
+        recipient: swapperAddress as Address,
       },
     },
   };
 
-  const domain = {
-    name: "RePermit",
-    version: "1",
-    chainId,
-    verifyingContract: config.repermit,
-  };
-
   return {
-    domain,
+    ...permitData,
     order: orderData,
-    types: EIP712_TYPES,
-    primaryType: REPERMIT_PRIMARY_TYPE,
   };
 };

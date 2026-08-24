@@ -269,7 +269,7 @@ function SubmitOrderSection({
   setInputAmount: (v: string) => void;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { disabled, loading } = useSpot().submitOrderButton;
+  const { disabled, loading, error, retry } = useSpot().submitOrderButton;
   const {
     onSubmit,
     status,
@@ -300,8 +300,15 @@ function SubmitOrderSection({
 
   return (
     <>
-      <button onClick={() => setIsModalOpen(true)} disabled={disabled}>
-        {loading ? "Loading..." : "Place Order"}
+      <button
+        onClick={error ? () => void retry() : () => setIsModalOpen(true)}
+        disabled={error ? loading : disabled}
+      >
+        {error
+          ? "Retry order configuration"
+          : loading
+            ? "Loading..."
+            : "Place Order"}
       </button>
 
       {isModalOpen && (

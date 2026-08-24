@@ -8,6 +8,8 @@
   "tradeIntervalTooltip": "The estimated time that will elapse between each trade in your order. Note that as this time includes an allowance of two minutes for bidder auction and block settlement, which cannot be predicted exactly, actual time may vary.",
   "triggerPriceTooltip": "The price at which the order will be executed. If the market price is higher than the trigger price, the order will be executed at the market price.",
   "placeOrder": "Place order",
+  "orderConfigurationError": "Unable to load order configuration",
+  "retryOrderConfiguration": "Retry order configuration",
   "enterAmount": "Enter an amount",
   "emptyLimitPrice": "Limit price is required",
   "insufficientFunds": "Insufficient Balance",

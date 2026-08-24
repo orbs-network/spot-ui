@@ -6,6 +6,7 @@ import { getExplorerUrl, isTxRejected } from "../utils";
 import { useSpotStore } from "../store";
 import { useOrdersQuery, useUpdateCachedOrderStatus } from "./order-hooks";
 import { useCallback, useMemo } from "react";
+import { useRePermitData } from "./use-repermit-data";
 
 const MAX_CANCEL_POLL_ATTEMPTS = 60;
 
@@ -62,13 +63,19 @@ const useCancelOrderState = () => {
 
 export type CancelOrderStatus = {
   status: SwapStatus;
+  disabled?: boolean;
   txHash?: string;
   error?: string;
 };
 
 export const useCancelOrder = (order?: Order) => {
-  const { account, walletInteractions, config, callbacks, chainId } =
+  const { account, walletInteractions, callbacks, chainId } =
     useSpotContext();
+  const {
+    data: permitData,
+    error: permitDataError,
+    isLoading: permitDataLoading,
+  } = useRePermitData();
   const refetchUntilStatusSynced =
     useCancelOrderRefetchUntilStatusSynced().mutateAsync;
   const updateCachedOrderStatus = useUpdateCachedOrderStatus();
@@ -80,12 +87,16 @@ export const useCancelOrder = (order?: Order) => {
 
   const { mutateAsync: cancelOrderMf } = useMutation({
     mutationFn: async () => {
-      if (!account || !walletInteractions || !config) {
+      if (!account || !walletInteractions) {
         throw new Error("missing required parameters");
       }
 
       if (!order) {
         throw new Error("order is required");
+      }
+
+      if (order.version !== 1 && !permitData) {
+        throw new Error("RePermit data is unavailable");
       }
 
       const orderId = order.id;
@@ -101,7 +112,9 @@ export const useCancelOrder = (order?: Order) => {
         const txHash = await walletInteractions!.cancelOrder({
           order,
           contractAddress:
-            order.version === 1 ? order.twapAddress! : config!.repermit,
+            order.version === 1
+              ? order.twapAddress!
+              : permitData!.domain.verifyingContract,
           args: order.version === 1 ? [order.id] : [[order.repermitDigest]],
           abi: order.version === 1 ? TWAP_ABI : REPERMIT_ABI,
         });
@@ -152,14 +165,24 @@ export const useCancelOrder = (order?: Order) => {
 
   const cancelOrderState = useMemo(() => {
     const res = cancelOrdersState[order?.id || ""];
+    const requiresPermitData = Boolean(order && order.version !== 1);
     return {
       isLoading: res?.status === SwapStatus.LOADING,
+      disabled:
+        requiresPermitData &&
+        (permitDataLoading || Boolean(permitDataError) || !permitData),
       isSuccess: res?.status === SwapStatus.SUCCESS,
       isError: res?.status === SwapStatus.FAILED,
       error: res?.error,
       txHash: res?.txHash,
     };
-  }, [cancelOrdersState, order?.id]);
+  }, [
+    cancelOrdersState,
+    order,
+    permitData,
+    permitDataError,
+    permitDataLoading,
+  ]);
 
   const cancelOrder = useCallback(async () => {
     return cancelOrderMf();

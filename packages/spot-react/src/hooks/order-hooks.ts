@@ -1,5 +1,4 @@
 import {
-  getOrderFillDelayMillis,
   getAccountOrders,
   Order,
   OrderStatus,
@@ -7,6 +6,7 @@ import {
   getOrderExecutionRate,
   getOrderLimitPriceRate,
   getTriggerPriceRate,
+  getTwapConfig,
 } from "@orbs-network/spot-ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
@@ -15,6 +15,7 @@ import { useSpotContext } from "../spot-context";
 import { Token } from "../types";
 import { useSpotStore } from "../store";
 import { Module } from "@orbs-network/spot-ui";
+import { useRePermitData } from "./use-repermit-data";
 
 export const useOrderType = () => {
   const { module } = useSpotContext();
@@ -38,20 +39,56 @@ export const useOrderType = () => {
   }, [module, isMarketOrder]);
 };
 
+const buildOrdersQueryKey = (
+  account: string | undefined,
+  exchange: string | undefined,
+  partner: string,
+  chainId: number,
+  isDev: boolean | undefined,
+  supportLegacyOrders: boolean,
+) => [
+  "useTwapOrderHistoryManager",
+  account,
+  exchange,
+  partner,
+  chainId,
+  isDev,
+  supportLegacyOrders,
+];
+
 const useOrdersQueryKey = () => {
-  const { account, config, chainId, isDev, supportLegacyOrders } =
+  const { account, partner, chainId, isDev, supportLegacyOrders } =
+    useSpotContext();
+  const { data: permitData } = useRePermitData();
+  const exchange = permitData?.order.witness.exchange.adapter;
+  return useMemo(
+    () =>
+      buildOrdersQueryKey(
+        account,
+        exchange,
+        partner,
+        chainId,
+        isDev,
+        supportLegacyOrders,
+      ),
+    [account, exchange, partner, chainId, isDev, supportLegacyOrders],
+  );
+};
+
+const useOrdersWithoutConfigQueryKey = () => {
+  const { account, partner, chainId, isDev, supportLegacyOrders } =
     useSpotContext();
   return useMemo(
-    () => [
-      "useTwapOrderHistoryManager",
-      account,
-      config?.adapter,
-      config?.partner,
-      chainId,
-      isDev,
-      supportLegacyOrders,
-    ],
-    [account, config, chainId, isDev, supportLegacyOrders],
+    () =>
+      buildOrdersQueryKey(
+        account,
+        undefined,
+        partner,
+        chainId,
+        isDev,
+        supportLegacyOrders,
+      ),
+    [account, partner, chainId, isDev, supportLegacyOrders],
   );
 };
 
@@ -139,11 +176,18 @@ const mergeCachedV1Orders = (
 };
 
 export const useOrdersQuery = () => {
-  const { account, config, chainId, isDev, supportLegacyOrders } =
+  const { account, partner, chainId, isDev, supportLegacyOrders } =
     useSpotContext();
+  const { data: permitData } = useRePermitData();
   const queryClient = useQueryClient();
+  const twapConfig = useMemo(
+    () =>
+      supportLegacyOrders ? getTwapConfig(partner, chainId) : undefined,
+    [chainId, partner, supportLegacyOrders],
+  );
 
   const queryKey = useOrdersQueryKey();
+  const ordersWithoutConfigQueryKey = useOrdersWithoutConfigQueryKey();
   const orderFilledCallback = useOrderFilledCallback();
   const query = useQuery<Order[]>({
     refetchInterval: REFETCH_ORDER_HISTORY,
@@ -152,35 +196,31 @@ export const useOrdersQuery = () => {
     gcTime: Infinity,
     staleTime: Infinity,
     queryKey,
+    enabled: Boolean(account && chainId),
     queryFn: async ({ signal }) => {
-      if (!account || !chainId || !config) return [];
-      const cachedOrders = queryClient.getQueryData<Order[]>(queryKey);
+      if (!account || !chainId) return [];
+      const cachedOrders =
+        queryClient.getQueryData<Order[]>(queryKey) ??
+        queryClient.getQueryData<Order[]>(ordersWithoutConfigQueryKey);
       const includeV1GraphOrders = supportLegacyOrders && !cachedOrders;
       const orders = await getAccountOrders({
         signal,
         chainId,
-        config,
+        exchange: permitData?.order.witness.exchange.adapter,
+        partner,
+        twapConfig,
         account,
         isDev,
         includeV1GraphOrders,
+        includeV2Orders: Boolean(permitData),
       });
 
       orderFilledCallback(orders);
-      const parsedOrders = orders.map((order) => {
-        if (config?.twapConfig) {
-          return {
-            ...order,
-            fillDelayMillis: getOrderFillDelayMillis(order, config.twapConfig),
-          };
-        }
-        return order;
-      });
-
       if (!supportLegacyOrders || includeV1GraphOrders) {
-        return parsedOrders;
+        return orders;
       }
 
-      return mergeCachedV1Orders(parsedOrders, cachedOrders);
+      return mergeCachedV1Orders(orders, cachedOrders);
     },
   });
 

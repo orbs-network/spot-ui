@@ -200,11 +200,11 @@ export const numberToHex = (value: number | bigint, padding = 0): string => {
   return "0x" + hex;
 };
 
-export const getOrderFillDelayMillis = (order: Order, config: Config) => {
+export const getOrderFillDelayMillis = (order: Order, config?: Config) => {
   if (order.version === 1) {
     return (
       (order.fillDelay || 0) * 1000 +
-      getEstimatedDelayBetweenChunksMillis(config)
+      (config ? getEstimatedDelayBetweenChunksMillis(config) : 0)
     );
   }
   return (order.fillDelay || 0) * 1000;

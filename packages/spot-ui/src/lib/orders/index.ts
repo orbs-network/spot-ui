@@ -1,5 +1,4 @@
-import { SpotConfig } from "../types";
-import { Order } from "../types";
+import { Config, Order, Partners } from "../types";
 import { getOrders as getV1Orders } from "./v1-orders";
 import { getOrders as getV2Orders } from "./v2-orders";
 
@@ -8,22 +7,28 @@ export const getAccountOrders = async ({
   page,
   chainId,
   limit,
-  config,
+  exchange,
+  partner,
+  twapConfig,
   account,
   isDev = false,
   includeV1GraphOrders = true,
+  includeV2Orders = true,
 }: {
   signal?: AbortSignal;
   page?: number;
   limit?: number;
   chainId: number;
-  config?: SpotConfig;
+  exchange?: string;
+  partner: Partners;
+  twapConfig?: Config;
   account: string;
   isDev?: boolean;
   includeV1GraphOrders?: boolean;
+  includeV2Orders?: boolean;
 }): Promise<Order[]> => {
   const allOrders = await Promise.all([
-    !config || !includeV1GraphOrders
+    !twapConfig || !includeV1GraphOrders
       ? Promise.resolve([])
       : getV1Orders({
           chainId,
@@ -32,17 +37,19 @@ export const getAccountOrders = async ({
           limit,
           filters: {
             accounts: [account],
-            configs: config.twapConfig ? [config.twapConfig] : [],
+            configs: [twapConfig],
           },
         }),
-    getV2Orders({
-      chainId,
-      signal,
-      account,
-      exchange: config?.adapter,
-      partner: config?.partner,
-      isDev,
-    }),
+    includeV2Orders
+      ? getV2Orders({
+          chainId,
+          signal,
+          account,
+          exchange,
+          partner,
+          isDev,
+        })
+      : Promise.resolve([]),
   ]).then(([graphOrders, apiOrders]) => {
     return [...graphOrders, ...apiOrders];
   });

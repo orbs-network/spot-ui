@@ -1,5 +1,15 @@
-import { Address, Module, Partners, RePermitOrder, SpotConfig } from "./types";
+import type {
+  Address,
+  Config,
+  Module,
+  Partners,
+  RePermitData,
+  RePermitOrder,
+} from "./types";
 import spotPkg from "@orbs-network/spot/package.json";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import * as Spot from "@orbs-network/spot";
 
 
 const Version = 0.7;
@@ -25,35 +35,72 @@ interface Token {
   decimals: number;
 }
 
-const getConfigDetails = (config: SpotConfig, minChunkSizeUsd: number, chainId?: number) => {
+const getModuleImportDetails = (
+  partner: Partners,
+  minChunkSizeUsd: number,
+  chainId?: number,
+) => ({
+  spotVersion: spotPkg.version,
+  partner,
+  chainId: chainId || 0,
+  minChunkSizeUsd,
+});
+
+const getFetchedConfigDetails = (
+  permitData: RePermitData,
+  partner: Partners,
+  twapConfig?: Config,
+  minChunkSizeUsd?: number,
+) => {
+  const { witness } = permitData.order;
+  const legacyConfig = Spot.config(
+    permitData.domain.chainId,
+    partner,
+  ) as Partial<{
+    cosigner: Address;
+    fee: Address;
+    refinery: Address;
+    router: Address;
+    type: string;
+    wm: Address;
+  }> | undefined;
   return {
     spotVersion: spotPkg.version,
-    partner: config.partner,
-    adapter: config.adapter,
-    cosigner: config.cosigner,
-    executor: config.executor,
-    fee: config.fee,
-    reactor: config.reactor,
-    refinery: config.refinery,
-    repermit: config.repermit,
-    router: config.router,
-    type: config.type,
-    wm: config.wm,
-    chainName: config.twapConfig?.chainName || "",
-    chainId: chainId || 0,
-    twapVersion: config.twapConfig?.twapVersion || 0,
-    twapAddress: config.twapConfig?.twapAddress || "",
-    lensAddress: config.twapConfig?.lensAddress || "",
-    bidDelaySeconds: config.twapConfig?.bidDelaySeconds || 0,
-    minChunkSizeUsd,
-    name: config.twapConfig?.name || "",
-    exchangeAddress: config.twapConfig?.exchangeAddress || "",
-    exchangeType: config.twapConfig?.exchangeType || "",
-    pathfinderKey: config.twapConfig?.pathfinderKey || "",
+    partner,
+    cosigner: legacyConfig?.cosigner,
+    fee: legacyConfig?.fee,
+    refinery: legacyConfig?.refinery,
+    router: legacyConfig?.router,
+    type: legacyConfig?.type,
+    wm: legacyConfig?.wm,
+    adapter: witness.exchange.adapter,
+    executor: witness.executor,
+    reactor: witness.reactor,
+    repermit: permitData.domain.verifyingContract,
+    chainId: permitData.domain.chainId,
+    chainName: twapConfig?.chainName || "",
+    twapVersion: twapConfig?.twapVersion || 0,
+    twapAddress: twapConfig?.twapAddress || "",
+    lensAddress: twapConfig?.lensAddress || "",
+    bidDelaySeconds: twapConfig?.bidDelaySeconds || 0,
+    minChunkSizeUsd: minChunkSizeUsd || 0,
+    name: twapConfig?.name || "",
+    exchangeAddress: twapConfig?.exchangeAddress || "",
+    exchangeType: twapConfig?.exchangeType || "",
+    pathfinderKey: twapConfig?.pathfinderKey || "",
   };
 };
 
-type Action = "cancel order" | "wrap" | "approve" | "sign order" | "create order" | "module-import" | "reset" | "crash";
+type Action =
+  | "cancel order"
+  | "wrap"
+  | "approve"
+  | "sign order"
+  | "create order"
+  | "module-import"
+  | "config-update"
+  | "reset"
+  | "crash";
 
 interface Data {
   _id: string;
@@ -131,7 +178,9 @@ const sendBI = async (data: Partial<Data>) => {
 
 class Analytics {
   timeout: any = undefined;
-  config: SpotConfig | undefined;
+  configDetails: Partial<Data> = {};
+  configUpdateKey = "";
+  moduleImportKey = "";
   data: Data = {
     _id: generateId(),
   };
@@ -291,19 +340,61 @@ class Analytics {
     });
   }
 
-  init(config: SpotConfig, minChunkSizeUsd: number, chainId?: number, appId?: string) {
-    this.config = config;
-    if (chainId !== this.data?.chainId || appId !== this.data?.appId) {
-      this.data = {
+  init(
+    partner: Partners,
+    minChunkSizeUsd: number,
+    chainId?: number,
+    appId?: string,
+  ) {
+    const moduleImportKey = `${partner}:${chainId || 0}:${appId || ""}`;
+    if (moduleImportKey !== this.moduleImportKey) {
+      this.moduleImportKey = moduleImportKey;
+      const moduleImportData: Data = {
         _id: generateId(),
         action: "module-import",
         uiVersion: UI_VERSION,
         appId,
-        ...getConfigDetails(config, minChunkSizeUsd, chainId),
+        ...getModuleImportDetails(partner, minChunkSizeUsd, chainId),
         origin: window.location.origin,
       };
-      this.updateAndSend(this.data);
+      const configMatchesIntegration =
+        this.configDetails.partner === partner &&
+        this.configDetails.chainId === (chainId || 0);
+      if (!configMatchesIntegration) {
+        this.configDetails = {};
+      }
+      this.data = { ...moduleImportData, ...this.configDetails };
+      void sendBI(moduleImportData);
     }
+  }
+
+  onFetchedConfig(
+    permitData: RePermitData,
+    partner: Partners,
+    twapConfig?: Config,
+    minChunkSizeUsd?: number,
+    isDev = false,
+  ) {
+    const details = getFetchedConfigDetails(
+      permitData,
+      partner,
+      twapConfig,
+      minChunkSizeUsd,
+    );
+    const configUpdateKey = `${partner}:${details.chainId}:${isDev}:${details.repermit}:${details.adapter}:${details.executor}:${details.reactor}`;
+    if (configUpdateKey === this.configUpdateKey) return;
+    this.configUpdateKey = configUpdateKey;
+    this.configDetails = details;
+    this.data = { ...this.data, ...details };
+    void sendBI({
+      _id: generateId(),
+      action: "config-update",
+      uiVersion: UI_VERSION,
+      appId: this.data.appId,
+      origin:
+        typeof window === "undefined" ? undefined : window.location.origin,
+      ...details,
+    });
   }
 
   onCreateOrderError(error: any) {
@@ -359,12 +450,6 @@ class Analytics {
     );
   }
 
-  onLoad() {
-    this.updateAndSend({
-      action: "module-import",
-      origin: window.location.origin,
-    });
-  }
 }
 
 export const analytics = new Analytics();

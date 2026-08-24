@@ -28,6 +28,9 @@
 24. **Virtualized History** — Use existing virtualization for order history and fills lists when available. Store selected order id, not the selected order object.
 25. **No Hidden Unsupported Chain** — Because Spot can fall back internally to a supported partner chain for config, the host DEX must visibly block submission until the connected wallet is on a supported chain.
 26. **Visual References Are Structural** — Use [05-ui-reference.md](05-ui-reference.md) and the bundled screenshots for layout, hierarchy, density, and flow states. Adapt colors, backgrounds, radii, typography, and token-logo rendering to the integrated DEX.
+27. **Shared RePermit Query** — Let `spot-react` fetch configuration. Do not add a DEX-owned `/config` request or pass configuration through local context; all Spot consumers share the SDK query.
+28. **Configuration Recovery** — Keep submission disabled while configuration is loading or unavailable. When `submitOrderButton.error` is present, render a translated retry action that calls `submitOrderButton.retry()`.
+29. **Trusted Configuration Boundary** — The SDK trusts successful `/config` JSON and uses its contract addresses for approvals, cancellation, and order construction. Only use the trusted Orbs endpoint over TLS.
 
 ## Module Navigation
 
@@ -133,6 +136,8 @@ Keep `useSpot()` calls in the component that renders the data whenever possible.
 - [ ] Submit modal built using `useSpot().orderExecutionPanel` and `useSpot().derivedFormData`
 - [ ] Submit modal progress/success/failure states rendered with `@orbs-network/swap-ui`
 - [ ] Submit modal hides review details and submit/footer buttons while `orderExecutionPanel.status` is set
+- [ ] RePermit configuration errors render a translated retry action using `submitOrderButton.retry`
+- [ ] Submit remains disabled while RePermit configuration is loading or unavailable
 - [ ] Order cancellation uses `useCancelOrder(order)` hook
 - [ ] Order history built using `useSpot().orderHistoryPanel` and `useDerivedHistoryOrder()`
 - [ ] Order history and order fills virtualized for large lists; selected order stored by id

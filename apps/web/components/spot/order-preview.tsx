@@ -275,7 +275,7 @@ const AmountOutFilled = () => {
 export const CancelOrderButton = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
-  const { cancelOrder, isLoading } = useCancelOrder(order.original);
+  const { cancelOrder, disabled, isLoading } = useCancelOrder(order.original);
 
   if (!order || order.original.status !== OrderStatus.Open) return null;
 
@@ -283,7 +283,7 @@ export const CancelOrderButton = () => {
     <Button
       isLoading={isLoading}
       onClick={cancelOrder}
-      disabled={isLoading}
+      disabled={disabled || isLoading}
       className="twap-cancel-order"
     >
       {t("cancelOrder")}

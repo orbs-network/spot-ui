@@ -6,10 +6,12 @@ import { useSubmitOrderMutation } from "./use-submit-order";
 import { useSwapExecution } from "./use-swap-execution";
 import BN from "bignumber.js";
 import { useSpotStore } from "../store";
+import { useRePermitData } from "./use-repermit-data";
 
 export const useSubmitOrderPanel = () => {
   const swapExecution = useSwapExecution();
   const { srcToken, dstToken } = useSpotContext();
+  const { isLoading: rePermitLoading } = useRePermitData();
   const submitSwapMutation = useSubmitOrderMutation();
   const resetState = useSpotStore((s) => s.resetState);
   const onSubmitOrder = useCallback(
@@ -39,9 +41,18 @@ export const useSubmitOrderPanel = () => {
       isLoading: swapExecution?.status === SwapStatus.LOADING,
       isSuccess: swapExecution?.status === SwapStatus.SUCCESS,
       isFailed: swapExecution?.status === SwapStatus.FAILED,
-      confirmButtonLoading: swapExecutionData.allowanceLoading
+      confirmButtonLoading:
+        swapExecutionData.allowanceLoading || rePermitLoading,
     };
-  }, [onSubmitOrder, swapExecutionData, resetState, resetSwap, srcToken, dstToken]);
+  }, [
+    onSubmitOrder,
+    swapExecutionData,
+    resetState,
+    resetSwap,
+    srcToken,
+    dstToken,
+    rePermitLoading,
+  ]);
 };
 
 export const useSubmitOrderButton = () => {
@@ -55,6 +66,11 @@ export const useSubmitOrderButton = () => {
     noLiquidity,
     typedInputAmount,
   } = useSpotContext();
+  const {
+    error: permitDataError,
+    isLoading: permitDataLoading,
+    refetch: refetchPermitData,
+  } = useRePermitData();
 
   const isPropsLoading =
     marketPriceLoading ||
@@ -62,13 +78,14 @@ export const useSubmitOrderButton = () => {
     srcBalance === undefined ||
     BN(marketPrice || "0").isZero();
 
-  const buttonLoading = Boolean(
-    srcToken && dstToken && typedInputAmount && isPropsLoading,
-  );
+  const buttonLoading =
+    permitDataLoading ||
+    Boolean(srcToken && dstToken && typedInputAmount && isPropsLoading);
   const inputsError = useInputErrors();
 
   const disabled = Boolean(
     inputsError ||
+    permitDataError ||
     noLiquidity ||
     buttonLoading ||
     BN(typedInputAmount || "0").isZero() ||
@@ -79,7 +96,9 @@ export const useSubmitOrderButton = () => {
   return useMemo(() => {
     return {
       disabled,
+      error: permitDataError,
       loading: buttonLoading,
+      retry: refetchPermitData,
     };
-  }, [disabled, buttonLoading]);
+  }, [disabled, buttonLoading, permitDataError, refetchPermitData]);
 };

@@ -47,7 +47,7 @@ const spot = useSpot();
 | `spot.pricePanel` | `onInvert`, `isInverted`, `fromToken`, `toToken`, `isMarketPrice` |
 | `spot.disclaimerPanel` | Disclaimer string key or `undefined` |
 | `spot.inputError` | `{ type, args }` or `undefined` |
-| `spot.submitOrderButton` | `disabled`, `loading` |
+| `spot.submitOrderButton` | `disabled`, `loading`, configuration `error`, and `retry` |
 | `spot.orderExecutionPanel` | `onSubmit`, `status`, `resetCurrentSwap`, `resetState`, `parsedError`, `error`, `confirmButtonLoading`, `isLoading`, `isSuccess`, `isFailed`, `step`, `stepIndex`, `totalSteps`, `pendingSteps`, `srcToken`, `dstToken`, `wrapTxHash`, `approveTxHash` |
 | `spot.orderHistoryPanel` | `orders: { all, open, completed, cancelled, expired }`, `isLoading`, `isRefetching`, `refetchOrders` |
 | `spot.derivedFormData` | Computed: `srcAmountUI`, `dstAmountUI`, `srcAmountUsd`, `dstAmountUsd`, `limitPriceUI`, `triggerPriceUI`, `limitPriceUsd`, `triggerPriceUsd`, `totalTrades`, `sizePerTradeUI`, `sizePerTradeUsd`, `minDestAmountPerTradeUI`, `minDestAmountPerTradeUsd`, `deadline`, `tradeInterval`, `feesAmount`, `feesAmountUI`, `feesUsd`, `feesPercentage`, `orderType`, `isMarketOrder`, `isTriggerPrice`, `marketPrice`, `marketPriceUi`, `spender`, `rePermitData` |
@@ -344,7 +344,7 @@ Render the form normally even without `chainId` or `account`. Only the submit ar
 ```tsx
 function SubmitOrderSection() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { disabled, loading } = useSpot().submitOrderButton;
+  const { disabled, loading, error, retry } = useSpot().submitOrderButton;
   const { status, isSuccess, resetCurrentSwap, resetState } =
     useSpot().orderExecutionPanel;
   const supportedChains = useSpot().supportedChains;
@@ -370,14 +370,24 @@ function SubmitOrderSection() {
 
   return (
     <>
-      <Button onClick={() => setIsModalOpen(true)} disabled={disabled} isLoading={loading}>
-        {loading ? "Fetching quote..." : "Place order"}
+      <Button
+        onClick={error ? () => void retry() : () => setIsModalOpen(true)}
+        disabled={error ? loading : disabled}
+        isLoading={loading}
+      >
+        {error
+          ? t("retryOrderConfiguration")
+          : loading
+            ? t("fetchingQuote")
+            : t("placeOrder")}
       </Button>
       <SubmitOrderModal isOpen={isModalOpen} onClose={onClose} />
     </>
   );
 }
 ```
+
+The shared RePermit query starts when `partner` and the resolved chain are available. A successful response is reused across Spot consumers. Failed requests are retried twice; after that, `error` remains set until `retry()` succeeds. Do not open the review modal while this error is present.
 
 ## Submit Modal
 
@@ -536,12 +546,12 @@ Use the `useCancelOrder` hook for per-order cancellation with built-in status tr
 import { useCancelOrder, OrderStatus } from "@orbs-network/spot-react";
 
 function CancelButton({ order }) {
-  const { cancelOrder, isLoading } = useCancelOrder(order);
+  const { cancelOrder, disabled, isLoading } = useCancelOrder(order);
 
   if (order.status !== OrderStatus.Open) return null;
 
   return (
-    <button onClick={cancelOrder} disabled={isLoading}>
+    <button onClick={cancelOrder} disabled={disabled || isLoading}>
       {isLoading ? "Cancelling..." : "Cancel"}
     </button>
   );
@@ -550,6 +560,7 @@ function CancelButton({ order }) {
 
 `useCancelOrder(order)` returns:
 - `cancelOrder` — async function to trigger cancellation
+- `disabled` — `true` when a v2 order is waiting for RePermit configuration
 - `isLoading`, `isSuccess`, `isError` — status flags
 - `txHash` — transaction hash on success
 - `error` — error message on failure
@@ -559,6 +570,8 @@ Each order's cancel status is tracked independently, so multiple cancellations c
 ## Order History
 
 Build order history using `useSpot().orderHistoryPanel` for the list and `useDerivedHistoryOrder()` for individual order display:
+
+Legacy v1 history is independent of RePermit configuration and can load when `/config` is unavailable. V2 history is added after configuration succeeds because its request needs the returned exchange adapter.
 
 ```tsx
 import { useDerivedHistoryOrder, OrderStatus } from "@orbs-network/spot-react";
@@ -648,7 +661,15 @@ const formattedAmount = useAmountUi(decimals, amountWei);
 Normal integrations should use `useSpot().orderExecutionPanel` for submission. Only reach for these exported low-level hooks if the DEX intentionally replaces the built-in submit flow:
 
 ```tsx
-import { useSignOrder, useSubmitOrder, useSwapExecution } from "@orbs-network/spot-react";
+import {
+  useRePermitData,
+  useSignOrder,
+  useSubmitOrder,
+  useSwapExecution,
+} from "@orbs-network/spot-react";
+
+// Shared RePermit configuration state (advanced use only)
+const { data: permitData, error, isLoading, refetch } = useRePermitData();
 
 // Sign an order (low-level, usually handled by orderExecutionPanel)
 const signOrder = useSignOrder();
@@ -669,7 +690,6 @@ import {
   getNetwork,         // (chainId) => network config
   isNativeAddress,    // (address) => boolean
   eqIgnoreCase,       // (a, b) => case-insensitive address comparison
-  getConfig,          // (partner, chainId) => SpotConfig
   getMinChunkSizeUsd, // (minChunkSizeUsd) => applies query override if present
   getOrderExecutionRate,   // (srcFilled, dstFilled, srcDecimals, dstDecimals) => rate
   getOrderLimitPriceRate,  // (order, srcDecimals, dstDecimals) => rate

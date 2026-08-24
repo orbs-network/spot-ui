@@ -79,7 +79,7 @@ cd packages/spot-ui && pnpm publish --access public
 ├── apps/
 │   └── web/                    # Next.js app (SpotProvider, SpotForm, orders)
 ├── packages/
-│   ├── spot-ui/                # @orbs-network/spot-ui (config, order build, submit)
+│   ├── spot-ui/                # @orbs-network/spot-ui (order config fetch, build, submit)
 │   ├── spot-react/             # @orbs-network/spot-react (context, hooks, components)
 │   └── liquidity-hub-ui/      # @orbs-network/liquidity-hub-sdk
 ├── skills/
@@ -94,8 +94,16 @@ cd packages/spot-ui && pnpm publish --access public
 ```
 web
  └── spot-react (SpotProvider, useSubmitOrderPanel, Components.SubmitOrderPanel, Orders)
-      └── spot-ui (getConfig, buildRePermitOrderData, submitOrder, types)
+      └── spot-ui (fetchRePermitData, buildRePermitOrderData, submitOrder, types)
 ```
+
+## RePermit Configuration
+
+`@orbs-network/spot-react` fetches RePermit configuration from the Orbs `/config` endpoint as soon as the `partner` and `chainId` are available. All consumers share one React Query entry keyed by partner, chain, and environment, so a successful configuration is fetched once and reused across order building, approval, cancellation, analytics, and v2 order history.
+
+The query retries a failed request twice and exposes `refetch` through `useRePermitData()` and `useSpot().submitOrderButton.retry`. Integrations should render the configuration error as a retry action and keep order submission disabled while the request is loading or has failed. Legacy v1 history is fetched independently and remains available when the RePermit endpoint is unavailable.
+
+Successful JSON responses are trusted and used without client-side schema or contract-identity validation. `domain.verifyingContract` is used as the ERC-20 approval spender and v2 cancellation contract; the returned adapter, reactor, and executor are used for v2 orders. The endpoint is therefore security-critical and must be served by the trusted Orbs service over TLS.
 
 ## License
 

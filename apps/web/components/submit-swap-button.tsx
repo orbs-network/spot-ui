@@ -13,12 +13,14 @@ export const SubmitSwapButton = ({
   text,
   chainId,
   disabled,
+  forceAction = false,
 }: {
   onClick: () => void;
   isLoading: boolean;
   text: string;
   chainId?: number;
   disabled?: boolean;
+  forceAction?: boolean;
 }) => {
   const { address, chainId: currentChainId } = useConnection();
   const { openConnectModal } = useConnectModal();
@@ -35,9 +37,14 @@ export const SubmitSwapButton = ({
 
   const insufficientLiquidity = !isLoadingTrade && BN(trade?.outAmount ?? "0").isZero();
 
-  const _disabled = disabled || !inputCurrency || !outputCurrency || isLoading || insufficientBalance || enterAmount || insufficientLiquidity;
+  const _disabled = forceAction
+    ? disabled || isLoading
+    : disabled || !inputCurrency || !outputCurrency || isLoading || insufficientBalance || enterAmount || insufficientLiquidity;
 
   const _text = useMemo(() => {
+    if (forceAction) {
+      return text;
+    }
     if (enterAmount) {
       return "Enter an amount";
     }
@@ -51,7 +58,7 @@ export const SubmitSwapButton = ({
       return "Insufficient liquidity";
     }  
     return text;
-  }, [enterAmount, insufficientBalance, text, isLoadingTrade, insufficientLiquidity]);
+  }, [enterAmount, forceAction, insufficientBalance, text, isLoadingTrade, insufficientLiquidity]);
 
 
   if (!address) {

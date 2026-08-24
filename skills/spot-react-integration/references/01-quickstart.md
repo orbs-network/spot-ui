@@ -33,7 +33,9 @@ Note: `viem` is **not** required. The DEX provides wallet interactions via the `
 
 ## DEX Configuration
 
-Every DEX requires its own on-chain configuration (partner name, adapter address, supported chains). If the DEX does not already have a config, contact the Orbs team via the Telegram support group **[@dTWAPSupportGroup](https://t.me/dTWAPSupportGroup)** to get one created before starting the integration.
+Every DEX requires a server-side Orbs configuration keyed by partner and chain. `spot-react` fetches it from the Orbs `/config` endpoint; the host DEX should not maintain a local `SpotConfig`, call `getConfig`, or fetch the endpoint itself. If the DEX does not already have a config, contact the Orbs team via the Telegram support group **[@dTWAPSupportGroup](https://t.me/dTWAPSupportGroup)** to get one created before starting the integration.
+
+The SDK trusts a successful configuration response and uses its `domain.verifyingContract` for ERC-20 approval and v2 cancellation. Treat the endpoint as security-critical infrastructure.
 
 ## Pre-Integration Checklist
 
@@ -63,6 +65,8 @@ Every DEX requires its own on-chain configuration (partner name, adapter address
 - [ ] `walletInteractions` implements all 5 methods and waits for receipts on write transactions
 - [ ] Lifecycle callbacks cover balance refetch for wrap, order creation, fills/progress, and cancellation
 - [ ] The submit area renders connect-wallet/switch-network controls when account or connected chain is missing/unsupported
+- [ ] The submit area renders configuration failures as a retry action using `submitOrderButton.retry`
+- [ ] Submission stays disabled while RePermit configuration is loading or unavailable
 - [ ] The order history UI can handle many orders without forcing a huge modal or storing stale selected order objects
 
 ## Minimum Steps

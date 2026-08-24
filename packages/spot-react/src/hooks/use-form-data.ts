@@ -13,14 +13,13 @@ import { useBuildOrderInfo } from "./use-build-order-info";
 import { useSpotStore } from "../store";
 import { useOrderType } from "./order-hooks";
 import { useRePermitOrderData } from "./use-repermit-order-data";
+import { useRePermitData } from "./use-repermit-data";
 import { useSwapExecution } from "./use-swap-execution";
 import { OrderType } from "@orbs-network/spot-ui";
 import { toAmountUi } from "../utils";
-import { useAddresses } from "./use-addresses";
 
 export const useFormData = () => {
   const { srcToken, dstToken, account, marketPrice } = useSpotContext();
-  const { spender } = useAddresses();
   const { amount: _srcAmount } = useSrcAmount();
   const {
     amount: limitPrice,
@@ -48,7 +47,8 @@ export const useFormData = () => {
   const { amount: dstAmount, amountUI: dstAmountUI } = useDstTokenAmount();
   const { srcAmountUsd, dstAmountUsd } = useAmountsUsd();
   const { amount: feesAmount, amountUI: feesAmountUI, percent: feesPercent, usd: feesUsd } = useFees();
-  const rePermitData = useRePermitOrderData();
+  const { data: rePermitData } = useRePermitOrderData();
+  const { data: permitData } = useRePermitData();
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
   const createdAt = useSpotStore((s) => s.state.currentTime);
   const swapExecution = useSwapExecution();
@@ -112,7 +112,7 @@ export const useFormData = () => {
       isMarketOrder,
       marketPrice,
       marketPriceUi,
-      spender,
+      spender: permitData?.domain.verifyingContract || "",
     };
   }, [
     info,
@@ -125,6 +125,6 @@ export const useFormData = () => {
     isMarketOrder,
     marketPrice,
     marketPriceUi,
-    spender,
+    permitData,
   ]);
 };

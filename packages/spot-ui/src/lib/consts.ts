@@ -23,6 +23,9 @@ export const getApiEndpoint = (isDev: boolean) => {
   return PROD_API_URL;
 };
 
+export const getRePermitConfigEndpoint = (isDev = false) =>
+  `${isDev ? DEV_API_URL : PROD_API_URL_V2}/config`;
+
 export const getOrderApiEndpoints = (isDev: boolean) => {
   const isSpotV2 = Number(SPOT_VERSION) >= 2;
   if (isDev) {

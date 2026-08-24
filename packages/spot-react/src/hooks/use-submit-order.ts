@@ -26,6 +26,7 @@ import { useDeadline } from "./use-deadline";
 import { useFillDelay } from "./use-fill-delay";
 import { useDstMinAmountPerTrade } from "./use-dst-amount";
 import { useRePermitOrderData } from "./use-repermit-order-data";
+import { useRePermitData } from "./use-repermit-data";
 
 function parseSignatureBytes(sig: `0x${string}`) {
   const raw = sig.slice(2);
@@ -89,7 +90,11 @@ const useWrapToken = () => {
 export const useSignOrder = () => {
   const { account, walletInteractions, chainId, callbacks, isDev } =
     useSpotContext();
-  const rePermitData = useRePermitOrderData();
+  const {
+    data: rePermitData,
+    error: rePermitError,
+    isLoading: rePermitLoading,
+  } = useRePermitOrderData();
   const { refetch: refetchOrders } = useOrdersQuery();
   const addNewOrder = useAddNewOrder();
 
@@ -103,6 +108,12 @@ export const useSignOrder = () => {
       }
       if (!chainId) {
         throw new Error("missing chainId");
+      }
+      if (rePermitError) {
+        throw rePermitError;
+      }
+      if (rePermitLoading || !rePermitData) {
+        throw new Error("RePermit data is unavailable");
       }
 
       const { order, domain, types, primaryType } = rePermitData;
@@ -146,7 +157,8 @@ export const useSignOrder = () => {
 };
 
 const useHasAllowanceCallback = () => {
-  const { account, walletInteractions, config } = useSpotContext();
+  const { account, walletInteractions } = useSpotContext();
+  const { data: permitData } = useRePermitData();
 
   return useMutation({
     mutationFn: async ({
@@ -162,14 +174,14 @@ const useHasAllowanceCallback = () => {
       if (!account) {
         throw new Error("missing account");
       }
-      if (!config) {
-        throw new Error("missing config");
+      if (!permitData) {
+        throw new Error("RePermit data is unavailable");
       }
 
       const allowance = await walletInteractions
         .getAllowance({
           tokenAddress: tokenAddress,
-          spenderAddress: config.repermit,
+          spenderAddress: permitData.domain.verifyingContract,
         });
 
       const approvalRequired = BN(allowance || "0").lt(
@@ -182,8 +194,9 @@ const useHasAllowanceCallback = () => {
 };
 
 const useApproveToken = () => {
-  const { account, walletInteractions, config, chainId, callbacks } =
+  const { account, walletInteractions, chainId, callbacks } =
     useSpotContext();
+  const { data: permitData } = useRePermitData();
   const { mutateAsync: hasAllowanceCallback } = useHasAllowanceCallback();
 
   return useMutation({
@@ -205,15 +218,15 @@ const useApproveToken = () => {
       if (!walletInteractions) {
         throw new Error("missing walletInteractions");
       }
-      if (!config) {
-        throw new Error("missing config");
+      if (!permitData) {
+        throw new Error("RePermit data is unavailable");
       }
 
       analytics.onApproveRequest();
       const hash = await walletInteractions.approveToken({
         tokenAddress: token.address,
         amount: srcAmountWei,
-        spenderAddress: config.repermit,
+        spenderAddress: permitData.domain.verifyingContract,
       });
       if (!hash) {
         throw new Error("failed to approve token");
@@ -314,6 +327,7 @@ export const useSubmitOrderMutation = () => {
   const { update: updateSwapExecution } = useSwapExecution();
   const { amount: srcAmountWei } = useSrcAmount();
   const initOrderRequest = useInitOrderRequest().mutate;
+  const { isLoading: rePermitLoading } = useRePermitData();
 
   return useMutation({
     mutationFn: async () => {
@@ -325,6 +339,7 @@ export const useSubmitOrderMutation = () => {
           useSpotStore.getState().state.swapExecutionIndex
         ];
       if (
+        rePermitLoading ||
         activeExecution?.status === SwapStatus.LOADING ||
         activeExecution?.allowanceLoading
       ) {
