@@ -1,9 +1,13 @@
 import { analytics } from "./analytics";
 import { getApiEndpoint } from "./consts";
 import { buildV2Order } from "./orders/v2-orders";
-import { Order, RePermitOrder, Signature } from "./types";
+import { Order, RePermitOrder } from "./types";
 
-export const submitOrder = async (order: RePermitOrder, signature: Signature, isDev = false): Promise<Order> => {
+export const submitOrder = async (
+  order: RePermitOrder,
+  signature: `0x${string}`,
+  isDev = false,
+): Promise<Order> => {
   try {
     const body = {
       signature,

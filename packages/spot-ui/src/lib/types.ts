@@ -297,6 +297,7 @@ export enum Partners {
   HtDigital = "ht",
   Ginco = "ginco",
   Katana = "katana",
+  Unknown = "unknown",
 }
 
 export enum InputErrors {

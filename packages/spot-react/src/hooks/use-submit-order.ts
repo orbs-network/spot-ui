@@ -28,23 +28,6 @@ import { useDstMinAmountPerTrade } from "./use-dst-amount";
 import { useRePermitOrderData } from "./use-repermit-order-data";
 import { useRePermitData } from "./use-repermit-data";
 
-function parseSignatureBytes(sig: `0x${string}`) {
-  const raw = sig.slice(2);
-  if (raw.length === 128) {
-    // EIP-2098 compact signature (64 bytes): recover v from s high bit
-    const r = `0x${raw.slice(0, 64)}` as `0x${string}`;
-    const sHigh = parseInt(raw.charAt(64), 16);
-    const v = (sHigh >> 3) + 27;
-    const s = `0x${(sHigh & 0x7).toString(16)}${raw.slice(65, 128)}` as `0x${string}`;
-    return { r, s, v };
-  }
-  // Standard 65-byte signature
-  const r = `0x${raw.slice(0, 64)}` as `0x${string}`;
-  const s = `0x${raw.slice(64, 128)}` as `0x${string}`;
-  const v = parseInt(raw.slice(128, 130), 16);
-  return { r, s, v };
-}
-
 const useWrapToken = () => {
   const { account, walletInteractions, callbacks, chainId } = useSpotContext();
   const wToken = useNetwork()?.wToken;
@@ -136,15 +119,9 @@ export const useSignOrder = () => {
 
       analytics.onSignOrderSuccess(signatureStr);
       callbacks?.onSignOrderSuccess?.(signatureStr);
-      const parsedSignature = parseSignatureBytes(signatureStr);
-      const signature = {
-        v: `0x${parsedSignature.v.toString(16)}` as `0x${string}`,
-        r: parsedSignature.r,
-        s: parsedSignature.s,
-      };
       callbacks?.onSignOrderRequest?.();
 
-      const newOrder = await submitOrder(order, signature, isDev);
+      const newOrder = await submitOrder(order, signatureStr, isDev);
       callbacks?.onOrderCreated?.(newOrder);
       // Optimistically insert the authoritative created order so it shows in
       // history immediately, since the indexer usually hasn't ingested it yet.

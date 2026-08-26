@@ -401,7 +401,7 @@ export function SpotForm({
       cancelOrder: async (_props) => {
         throw new Error("DEX: implement cancelOrder");
       },
-      // DEX: sign the supplied EIP-712 typed data and return the signature hex string.
+      // DEX: return the wallet's original 0x-prefixed EIP-712 signature unchanged.
       signOrder: async (_props) => {
         throw new Error("DEX: implement signOrder");
       },

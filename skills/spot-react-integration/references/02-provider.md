@@ -264,7 +264,7 @@ const callbacks = useMemo<Callbacks>(() => ({
 />
 ```
 
-The code above assumes a fictional `dexWallet` adapter. Replace it with the DEX's existing wallet/client helpers. The important part is the contract: write methods return a transaction hash only after the receipt is confirmed, and read/sign methods return the raw allowance string or signature string expected by the type.
+The code above assumes a fictional `dexWallet` adapter. Replace it with the DEX's existing wallet/client helpers. The important part is the contract: write methods return a transaction hash only after the receipt is confirmed, allowance reads return a raw integer string, and `signOrder` returns the wallet's original `0x`-prefixed signature.
 
 Pass a resolved `priceProtection` number. If the DEX setting has a default, resolve it before rendering `SpotProvider` (for example destructure with a default) instead of passing `priceProtection ?? DEFAULT_PRICE_PROTECTION` inline.
 
@@ -305,10 +305,12 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 | `wrapNativeToken(amountWei)` | Deposit the native token into the chain's wrapped token contract. Wait for confirmation, throw if reverted, return the transaction hash. |
 | `approveToken({ tokenAddress, amount, spenderAddress })` | Approve the token for `spenderAddress`. You may approve `amount` or a higher allowance according to DEX policy. Wait for confirmation, throw if reverted, return the transaction hash. |
 | `cancelOrder({ order, contractAddress, args, abi })` | Call `cancel` on `contractAddress` using the supplied `abi` and `args`. Wait for confirmation, throw if reverted, return the transaction hash. |
-| `signOrder({ domain, types, primaryType, message, account })` | Sign the supplied EIP-712 typed data and return the signature hex string. |
+| `signOrder({ domain, types, primaryType, message, account })` | Sign the supplied EIP-712 typed data and return the wallet's original `0x`-prefixed signature. |
 | `getAllowance({ tokenAddress, spenderAddress })` | Read ERC-20 allowance for the connected account and return the raw wei value as a string. |
 
 The write methods should not return immediately after wallet submission. Wait for the transaction receipt so Spot can show correct progress and surface reverted transactions as failures.
+
+Spot forwards the signature returned by `signOrder` unchanged to order submission. Do not split it into `{ v, r, s }`, rewrite its recovery byte, or normalize compact and standard representations.
 
 ## Quote, Balance, and Price Inputs
 

@@ -31,6 +31,7 @@
 27. **Shared RePermit Query** — Let `spot-react` fetch configuration. Do not add a DEX-owned `/config` request or pass configuration through local context; all Spot consumers share the SDK query.
 28. **Configuration Recovery** — Keep submission disabled while configuration is loading or unavailable. When `submitOrderButton.error` is present, render a translated retry action that calls `submitOrderButton.retry()`.
 29. **Trusted Configuration Boundary** — The SDK trusts successful `/config` JSON and uses its contract addresses for approvals, cancellation, and order construction. Only use the trusted Orbs endpoint over TLS.
+30. **Preserve Wallet Signatures** — Return the wallet's original `0x`-prefixed value from `signOrder`. Spot submits it unchanged; do not split it into `{ v, r, s }`, rewrite `v`, or normalize its bytes.
 
 ## Module Navigation
 
@@ -118,7 +119,7 @@ Keep `useSpot()` calls in the component that renders the data whenever possible.
 
 - [ ] `@orbs-network/spot-react@latest` installed with all peer dependencies (no viem required)
 - [ ] `@orbs-network/swap-ui@latest` installed and used for order creation/progress modal content
-- [ ] `walletInteractions` provided with all 5 methods (`wrapNativeToken`, `approveToken`, `cancelOrder`, `signOrder`, `getAllowance`) and write methods wait for receipts
+- [ ] `walletInteractions` provided with all 5 methods (`wrapNativeToken`, `approveToken`, `cancelOrder`, `signOrder`, `getAllowance`); write methods wait for receipts and `signOrder` returns the wallet signature unchanged
 - [ ] `typedInputAmount` from DEX state
 - [ ] DEX swap state exposed through local context/hook where needed; no prop drilling of hook-returned values
 - [ ] Long child prop lists replaced with a focused local context/hook

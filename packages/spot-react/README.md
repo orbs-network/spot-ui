@@ -268,8 +268,10 @@ const walletInteractions: WalletInteractions = {
 | `wrapNativeToken(amountWei)` | Wrap native currency, wait for confirmation, return tx hash |
 | `approveToken({ tokenAddress, amount, spenderAddress })` | Approve the requested spender, wait for confirmation, return tx hash |
 | `cancelOrder({ order, contractAddress, args, abi })` | Call `cancel` with the supplied ABI and args, wait for confirmation, return tx hash |
-| `signOrder({ domain, types, primaryType, message, account })` | Sign the supplied EIP-712 data and return signature hex |
+| `signOrder({ domain, types, primaryType, message, account })` | Sign the supplied EIP-712 data and return the wallet's original `0x`-prefixed signature |
 | `getAllowance({ tokenAddress, spenderAddress })` | Return the connected account's raw allowance as a string |
+
+The signature returned by `signOrder` is submitted unchanged. Do not split it into `{ v, r, s }`, rewrite its recovery byte, or otherwise normalize the wallet's byte representation.
 
 ## Building the Form with useSpot()
 

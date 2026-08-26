@@ -97,6 +97,10 @@ web
       └── spot-ui (fetchRePermitData, buildRePermitOrderData, submitOrder, types)
 ```
 
+## Order Signatures
+
+`walletInteractions.signOrder` must return the wallet's original `0x`-prefixed EIP-712 signature. `spot-react` forwards that value unchanged to `spot-ui` and the order submission request. Do not split the signature into `{ v, r, s }`, rewrite `v`, or normalize its byte representation.
+
 ## RePermit Configuration
 
 `@orbs-network/spot-react` fetches RePermit configuration from the Orbs `/config` endpoint as soon as the `partner` and `chainId` are available. All consumers share one React Query entry keyed by partner, chain, and environment, so a successful configuration is fetched once and reused across order building, approval, cancellation, analytics, and v2 order history.
