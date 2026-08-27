@@ -45,6 +45,18 @@ pnpm build:spot     # Build spot SDK
 pnpm build:spot-ui  # Build spot-ui components
 ```
 
+## Integrating Liquidity Hub in React
+
+Install the framework-agnostic Liquidity Hub SDK in the React application:
+
+```bash
+npm install @orbs-network/liquidity-hub-sdk @tanstack/react-query
+```
+
+Create one SDK client per active chain, request a Liquidity Hub quote alongside the DEX quote, and compare their minimum output amounts. If Liquidity Hub wins, wrap native input when necessary, approve Permit2, sign the quote's EIP-712 data, and call `sdk.swap`. If the DEX route wins or the Liquidity Hub request fails, keep the existing DEX swap as the fallback.
+
+The complete guide uses exactly two source files: a TypeScript SDK/execution module and a React module with TanStack Query's `useQuery` and `useMutation`. It is available in the [`@orbs-network/liquidity-hub-sdk` README](packages/liquidity-hub-ui/README.md#react-integration).
+
 ## Publishing to npm
 
 Before publishing, make sure you're logged in to npm:
