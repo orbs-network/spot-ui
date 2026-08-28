@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3007",
+    "prebuild": "pnpm --filter @orbs-network/spot-ui build && pnpm --filter @orbs-network/liquidity-hub-sdk build && pnpm --filter @orbs-network/spot-react build",
     "build": "next build",
     "start": "next start --port 3002",
     "lint": "eslint"

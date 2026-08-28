@@ -6,7 +6,7 @@
     "prepare": "node scripts/setup-git-hooks.mjs",
     "dev": "pnpm --filter web dev",
     "start": "pnpm --filter web start",
-    "build": "pnpm build:spot-ui && pnpm build:liquidity-hub && pnpm build:spot-react && pnpm --filter web build",
+    "build": "pnpm --filter web build",
     "build:spot-ui": "pnpm --filter @orbs-network/spot-ui build",
     "build:liquidity-hub": "pnpm --filter @orbs-network/liquidity-hub-sdk build",
     "build:spot-react": "pnpm --filter @orbs-network/spot-react build",
