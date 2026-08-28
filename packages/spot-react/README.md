@@ -289,6 +289,7 @@ const spot = useSpot();
 | `fillDelayPanel` | `fillDelay`, input/unit callbacks, `milliseconds`, `error` |
 | `limitPricePanel` | Raw/UI price, percentage, toggle, input/reset callbacks, tokens, USD, loading/error state |
 | `triggerPricePanel` | Raw/UI trigger price, percentage, input/reset callbacks, tokens, per-chunk amounts, USD, error state |
+| `chartPricePanel` | Active chart lines for Limit, Stop-loss, and Take-profit prices, with token orientation and edit/reset callbacks |
 | `pricePanel` | Inversion state/callback, source/destination tokens, market-price state |
 | `disclaimerPanel` | Disclaimer translation key or `undefined` |
 | `inputError` | `{ type, args }` or `undefined` |
@@ -301,6 +302,134 @@ const spot = useSpot();
 | `refetchUntilStatusSynced` | Mutation used to reconcile cancellation status |
 
 Child components should call `useSpot()` themselves instead of receiving hook-returned panels through intermediate props.
+
+### Chart Price Controls
+
+`chartPricePanel` exposes the active order prices in the same orientation as
+`pricePanel.fromToken` → `pricePanel.toToken`. Each line contains a stable
+`id`, semantic `kind`, UI and raw prices, loading state, tokens, and
+`onPriceChange`. Calling `onPriceChange` from a chart drag updates the existing
+order form, clears the percentage preset, and fires the normal Spot
+callback—there is no parallel chart state to reconcile.
+
+`SpotPriceChart` renders a responsive TradingView Lightweight candlestick chart
+with the active Limit, Stop-loss, and Take-profit controls. Pass source-token →
+destination-token history as Unix timestamps and numeric closing prices; the
+component derives each candle's open from the preceding close and handles the
+form's inverse-price mode itself. Pass each current market tick through
+`livePrice` and `liveTimestamp`; the chart updates the active candle's high, low,
+and close without rebuilding the historical series or disturbing a price-line
+drag.
+
+```tsx
+<SpotPriceChart
+  data={history}
+  livePrice={latestPairPrice}
+  liveTimestamp={Math.floor(Date.now() / 1_000)}
+  liveStatus={streamConnected ? "live" : "connecting"}
+  marketKey={`${chainId}:${sourceToken.address}:${destinationToken.address}`}
+  barIntervalSeconds={60 * 60}
+  timeframeLabel="7D · 1h candles"
+/>
+```
+
+`liveTimestamp` uses Unix seconds. `marketKey` must change with the chain or
+token pair so accumulated live candles reset. `barIntervalSeconds` defaults to
+one hour. A polling source updates the current bar on each response, while a
+WebSocket can pass every received tick for sub-second high/low/close updates.
+Chart decimals adapt to the current market price by default: two decimals for
+prices at or above 100, four at or above 1, six at or above 0.01, and eight for
+smaller values. Pass `pricePrecision` to override this behavior.
+
+```tsx
+import {
+  SpotPriceChart,
+  SpotProvider,
+  type SpotChartPoint,
+} from "@orbs-network/spot-react";
+
+function OrderScreen({ history }: { history: SpotChartPoint[] }) {
+  return (
+    <SpotProvider {...spotConfig}>
+      <SpotPriceChart
+        data={history}
+        loading={!history.length}
+        timeframeLabel="7D · 1h"
+      />
+      <OrderForm />
+    </SpotProvider>
+  );
+}
+```
+
+The visible markers are draggable and expose keyboard-accessible sliders:
+focus one and use the arrow keys, or hold Shift for a larger step. When an
+active form price is initially empty, the chart seeds it from the most recent
+market point so the user can manipulate it immediately.
+
+Price validation is shared with the Spot form. Active prices are required,
+stop loss must stay below market, take profit must stay above market, and an
+execution limit must stay below its trigger (the comparisons reverse when the
+pair is inverted). Invalid chart markers use the error color, expose
+`aria-invalid`, and render an inline message. Custom integrations can read each
+line's `error` or call the exported `validateLimitPrice` and
+`validateTriggerPrice` helpers directly.
+
+Apps that already embed a TradingView Trading Platform chart exposing
+`createOrderLine` can render the lower-level connector instead:
+
+```tsx
+import {
+  SpotTradingViewPriceLines,
+  type TradingViewChartWithOrderLines,
+} from "@orbs-network/spot-react";
+
+function SpotChartPriceLines({
+  chart,
+}: {
+  chart?: TradingViewChartWithOrderLines;
+}) {
+  return (
+    <SpotTradingViewPriceLines
+      chart={chart}
+      pricePrecision={6}
+      colors={{
+        limit: "#3b82f6",
+        stopLoss: "#ef4444",
+        takeProfit: "#22c55e",
+      }}
+    />
+  );
+}
+```
+
+The connector creates editable dashed order lines, updates them in place, and
+removes stale lines when the module or price mode changes. Dragging a line
+writes the rounded chart price back through `spot-react`.
+Use `formatLabel` and `formatModifyTooltip` to pass the host app's localized
+copy.
+Keep the matching form inputs visible as the keyboard-accessible alternative to
+dragging a native chart line.
+
+For a fully custom chart or overlay, consume the same headless model directly:
+
+```tsx
+const { lines, fromToken, toToken } = useSpot().chartPricePanel;
+
+return lines.map((line) => (
+  <DexChartPriceLine
+    key={line.id}
+    label={line.label}
+    price={line.price}
+    pair={`${fromToken?.symbol}/${toToken?.symbol}`}
+    onPriceChange={line.onPriceChange}
+  />
+));
+```
+
+Limit and optional TWAP limit orders expose a Limit line. Stop-loss and
+Take-profit modules expose their trigger line and, when limit execution is
+enabled, a second Limit line.
 
 When `submitOrderButton.error` is set, render a translated retry label and call `submitOrderButton.retry()` instead of opening the review modal. Keep the button disabled while `loading` is true. Legacy v1 order history does not depend on RePermit configuration; v2 history, approvals, v2 cancellation, and submission resume after a successful retry.
 

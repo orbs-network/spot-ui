@@ -6,41 +6,26 @@ import { Module } from "../types";
 import BN from "bignumber.js";
 import { useTriggerPrice } from "./use-trigger-price";
 import { useDefaultLimitPricePercent } from "./use-default-values";
-import { getStopLossLimitPriceError, getTakeProfitLimitPriceError, InputErrors } from "@orbs-network/spot-ui";
 import { useAmountUi, useUsdAmount } from "./helper-hooks";
+import { validateLimitPrice } from "../price-validation";
 
 
 export const useLimitPriceError = (limitPriceWei?: string) => {
-  const { module, marketPrice, typedInputAmount } = useSpotContext();
+  const { module, marketPrice } = useSpotContext();
   const { amount: triggerPrice } = useTriggerPrice();
 
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
-  return useMemo(() => {
-    if (BN(typedInputAmount || "0").isZero() || !triggerPrice || !marketPrice) return;
-    const _stopLossError = getStopLossLimitPriceError(triggerPrice, limitPriceWei, isMarketOrder, module);
-    const _takeProfitError = getTakeProfitLimitPriceError(triggerPrice, limitPriceWei, isMarketOrder, module);
-
-    if (_stopLossError?.isError) {
-      return {
-        type: InputErrors.TRIGGER_LIMIT_PRICE_GREATER_THAN_TRIGGER_PRICE,
-        value: _stopLossError.value,
-      };
-    }
-
-    if (_takeProfitError?.isError) {
-      return {
-        type: InputErrors.TRIGGER_LIMIT_PRICE_GREATER_THAN_TRIGGER_PRICE,
-        value: _takeProfitError.value,
-      };
-    }
-
-    if (limitPriceWei && BN(limitPriceWei || 0).isZero()) {
-      return {
-        type: InputErrors.MISSING_LIMIT_PRICE,
-        value: limitPriceWei || "",
-      };
-    }
-  }, [limitPriceWei, triggerPrice, module, isMarketOrder, typedInputAmount, marketPrice]);
+  return useMemo(
+    () =>
+      validateLimitPrice({
+        marketPrice,
+        triggerPrice,
+        limitPrice: limitPriceWei,
+        isMarketOrder: Boolean(isMarketOrder),
+        module,
+      }),
+    [isMarketOrder, limitPriceWei, marketPrice, module, triggerPrice],
+  );
 };
 
 export const useLimitPrice = () => {

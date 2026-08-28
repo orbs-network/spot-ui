@@ -54,17 +54,24 @@ const Tabs = () => {
   );
 };
 
-export function FormContainer({ children }: { children: React.ReactNode }) {
+export function FormContainer({
+  children,
+  sideContent,
+}: {
+  children: React.ReactNode;
+  sideContent?: React.ReactNode;
+}) {
   const selectedTab = useSelectedFormTab();
-  return (
-    <div className="flex flex-col gap-4 max-w-md w-full mx-auto mt-10 mb-[100px]">
+
+  const form = (
+    <div className="flex min-w-0 flex-col gap-4">
       <PartnerSelector />
 
       <Tabs />
-      <div className=" rounded-lg border border-border p-4 w-full flex flex-col gap-4">
-        <div className="flex flex-row gap-2 justify-between items-center">
+      <div className="flex w-full flex-col gap-4 rounded-lg border border-border p-4">
+        <div className="flex flex-row items-center justify-between gap-2">
           <h2 className="text-2xl font-bold">{selectedTab?.fullLabel}</h2>
-          <div className="flex flex-row gap-2 ml-auto">
+          <div className="ml-auto flex flex-row gap-2">
             <SettingsModal />
             <SpotOrders />
           </div>
@@ -72,6 +79,21 @@ export function FormContainer({ children }: { children: React.ReactNode }) {
         {children}
       </div>
       <PoweredBy />
+    </div>
+  );
+
+  if (sideContent) {
+    return (
+      <div className="mx-auto mt-10 mb-[100px] grid w-full max-w-[1400px] grid-cols-1 items-start gap-4 px-4 lg:grid-cols-[minmax(0,1fr)_28rem]">
+        <div className="min-w-0">{sideContent}</div>
+        {form}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4 max-w-md w-full mx-auto mt-10 mb-[100px]">
+      {form}
     </div>
   );
 }

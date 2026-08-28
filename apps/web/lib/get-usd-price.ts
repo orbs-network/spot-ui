@@ -49,6 +49,29 @@ export interface LlamaPriceResponse {
   coins: Record<string, LlamaPriceResult>;
 }
 
+interface LlamaHistoricalPrice {
+  timestamp: number;
+  price: number;
+}
+
+interface LlamaHistoricalPriceResponse {
+  coins: Record<
+    string,
+    {
+      prices?: LlamaHistoricalPrice[];
+    }
+  >;
+}
+
+export interface HistoricalPairPricePoint {
+  /** Unix timestamp in seconds. */
+  time: number;
+  /** Destination-token units for one source token. */
+  value: number;
+}
+
+export type CurrentPairPricePoint = HistoricalPairPricePoint;
+
 type DexScreenerPair = {
   priceUsd?: string;
   priceNative?: string;
@@ -79,6 +102,139 @@ function normalizeToken(token: string, chainId: number): string | null {
 
 function roundPrice(price: number): number {
   return BN(price).decimalPlaces(6).toNumber();
+}
+
+function getHourlyPricesByTimestamp(prices?: LlamaHistoricalPrice[]) {
+  const result = new Map<number, number>();
+
+  for (const point of prices ?? []) {
+    if (
+      !Number.isFinite(point.timestamp) ||
+      !Number.isFinite(point.price) ||
+      point.price <= 0
+    ) {
+      continue;
+    }
+
+    const hour = Math.floor(point.timestamp / 3_600) * 3_600;
+    result.set(hour, point.price);
+  }
+
+  return result;
+}
+
+/**
+ * Returns hourly source/destination market prices for the previous seven days.
+ * Native currencies are resolved through the same wrapped-token mapping used by
+ * the current-price endpoint.
+ */
+export async function getHistoricalPairPrices(
+  sourceToken: string,
+  destinationToken: string,
+  chainId: number,
+  signal?: AbortSignal,
+): Promise<HistoricalPairPricePoint[]> {
+  const chainName = chainIdToLlamaName[chainId];
+  const normalizedSource = normalizeToken(sourceToken, chainId);
+  const normalizedDestination = normalizeToken(destinationToken, chainId);
+
+  if (!chainName || !normalizedSource || !normalizedDestination) return [];
+
+  const sourceId = `${chainName}:${normalizedSource}`;
+  const destinationId = `${chainName}:${normalizedDestination}`;
+  const coinIds = Array.from(new Set([sourceId, destinationId]));
+  const start = Math.floor(Date.now() / 1_000) - 7 * 24 * 60 * 60;
+  const url = new URL(
+    `https://coins.llama.fi/chart/${coinIds.join(",")}`,
+  );
+  url.searchParams.set("start", start.toString());
+  url.searchParams.set("span", "168");
+  url.searchParams.set("period", "1h");
+
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`Historical price request failed (${response.status})`);
+  }
+
+  const data: LlamaHistoricalPriceResponse = await response.json();
+  const sourcePrices = getHourlyPricesByTimestamp(data.coins?.[sourceId]?.prices);
+
+  if (sourceId === destinationId) {
+    return [...sourcePrices.keys()]
+      .sort((a, b) => a - b)
+      .map((time) => ({ time, value: 1 }));
+  }
+
+  const destinationPrices = getHourlyPricesByTimestamp(
+    data.coins?.[destinationId]?.prices,
+  );
+
+  return [...sourcePrices]
+    .flatMap(([time, sourcePrice]) => {
+      const destinationPrice = destinationPrices.get(time);
+      if (!destinationPrice) return [];
+      const pairPrice = sourcePrice / destinationPrice;
+      if (!Number.isFinite(pairPrice) || pairPrice <= 0) return [];
+
+      return [
+        {
+          time,
+          value: BN(pairPrice).decimalPlaces(12).toNumber(),
+        },
+      ];
+    })
+    .sort((a, b) => a.time - b.time);
+}
+
+/**
+ * Returns the latest destination-token price for one source token. DefiLlama
+ * is used first so the live tick and seven-day history share a price source;
+ * the existing USD-price fallback covers tokens DefiLlama cannot price.
+ */
+export async function getCurrentPairPrice(
+  sourceToken: string,
+  destinationToken: string,
+  chainId: number,
+  signal?: AbortSignal,
+): Promise<CurrentPairPricePoint | null> {
+  const chainName = chainIdToLlamaName[chainId];
+  const normalizedSource = normalizeToken(sourceToken, chainId);
+  const normalizedDestination = normalizeToken(destinationToken, chainId);
+  const time = Math.floor(Date.now() / 1_000);
+
+  if (!normalizedSource || !normalizedDestination) return null;
+  if (normalizedSource === normalizedDestination) return { time, value: 1 };
+
+  if (chainName) {
+    const sourceId = `${chainName}:${normalizedSource}`;
+    const destinationId = `${chainName}:${normalizedDestination}`;
+    const url = `https://coins.llama.fi/prices/current/${sourceId},${destinationId}`;
+
+    try {
+      const response = await fetch(url, { signal });
+      if (response.ok) {
+        const data: LlamaPriceResponse = await response.json();
+        const sourcePrice = data.coins?.[sourceId]?.price;
+        const destinationPrice = data.coins?.[destinationId]?.price;
+        const value = Number(sourcePrice) / Number(destinationPrice);
+
+        if (Number.isFinite(value) && value > 0) {
+          return { time, value };
+        }
+      }
+    } catch (error) {
+      if (signal?.aborted) throw error;
+    }
+  }
+
+  const prices = await getUSDPrice(
+    [sourceToken, destinationToken],
+    chainId,
+  );
+  const value =
+    Number(prices[sourceToken]) / Number(prices[destinationToken]);
+
+  return Number.isFinite(value) && value > 0 ? { time, value } : null;
 }
 
 function getDexScreenerTokenPrice(pair: DexScreenerPair, token: string) {

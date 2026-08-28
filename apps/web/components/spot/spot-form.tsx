@@ -17,6 +17,7 @@ import {
   useSpot,
   SPOT_VERSION,
   ORBS_TWAP_FAQ_URL,
+  SpotPriceChart,
   SwapStatus,
 } from "@orbs-network/spot-react";
 import { useFormatNumber } from "@/lib/hooks/common";
@@ -54,6 +55,7 @@ import { SubmitOrderPanel } from "./submit-order-panel";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { SpotFooter } from "./footer";
 import { useTranslations } from "@/lib/use-translations";
+import { useSpotChartData } from "@/lib/hooks/use-spot-chart-data";
 
 const { useCallbacks } = SpotHooks;
 const Context = createContext<{
@@ -73,6 +75,19 @@ const DURATION_OPTIONS = [
   { text: "Hours", value: TimeUnit.Hours },
   { text: "Days", value: TimeUnit.Days },
 ];
+
+const SPOT_CHART_COLORS = {
+  background: "#151515",
+  border: "#2f2f32",
+  grid: "#27272a",
+  text: "#f4f4f5",
+  mutedText: "#a1a1aa",
+  series: "#ff37c7",
+  areaTop: "rgba(255, 55, 199, 0.28)",
+  areaBottom: "rgba(255, 55, 199, 0.015)",
+  candleUp: "#1fa67d",
+  candleDown: "#ed7088",
+};
 
 const useParseSpotTokens = (currency?: Currency) => {
   return useMemo((): Token | undefined => {
@@ -535,6 +550,7 @@ const LimitPricePanel = () => {
     invertedDstToken: toToken,
     isTypedValue,
     usd,
+    error,
   } = useSpot().limitPricePanel;
 
   const { swapModule } = useSpotContext();
@@ -556,6 +572,7 @@ const LimitPricePanel = () => {
       </div>
       {isLimitPrice && (
         <SpotPriceInput
+          label={t("limitPrice")}
           symbol={toToken?.symbol}
           value={isTypedValue ? price : formatDecimals(price, 6)}
           onChange={(it) => onChange(it)}
@@ -563,6 +580,7 @@ const LimitPricePanel = () => {
           onPercentageChange={(it) => onPercentageChange(it)}
           isLoading={isLoading}
           usd={usd}
+          error={error ? t(error.type, error.args) : undefined}
         />
       )}
     </div>
@@ -579,7 +597,9 @@ const TriggerPricePanel = () => {
     onReset,
     invertedDstToken: toToken,
     isTypedValue,
-    usd
+    usd,
+    error,
+    isLoading,
   } = useSpot().triggerPricePanel;
 
   const { swapModule } = useSpotContext();
@@ -603,12 +623,15 @@ const TriggerPricePanel = () => {
         <SpotPriceResetButton onClick={onReset} />
       </div>
       <SpotPriceInput
+        label={t("triggerPrice")}
         symbol={toToken?.symbol}
         value={isTypedValue ? price : formatDecimals(price, 6)}
         onChange={(it) => onChange(it)}
         percentage={percentage}
         onPercentageChange={(it) => onPercentageChange(it)}
         usd={usd}
+        isLoading={isLoading}
+        error={error ? t(error.type, error.args) : undefined}
       />
     </div>
   );
@@ -666,7 +689,7 @@ const Listener = () => {
 
 export function SpotForm({ swapType }: { swapType: SwapType }) {
   const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
-  const { envMode } = useSwapParams();
+  const { envMode, targetChainId } = useSwapParams();
   const { setInputAmount } = useActionHandlers();
   const { chainId, address } = useConnection();
   const { priceProtection } = useSettings();
@@ -675,6 +698,17 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const partner = useSpotPartner();
   const supportLegacyOrders = true;
   const walletInteractions = useWalletInteractions();
+  const srcToken = useParseSpotTokens(inputCurrency);
+  const dstToken = useParseSpotTokens(outputCurrency);
+  const marketReferencePrice = useSpotMarketReferencePrice();
+  const parsedTargetChainId = Number(targetChainId);
+  const chartHistory = useSpotChartData({
+    sourceToken: inputCurrency?.address,
+    destinationToken: outputCurrency?.address,
+    chainId: Number.isFinite(parsedTargetChainId)
+      ? parsedTargetChainId
+      : undefined,
+  });
   const inputUsd = useUSDPrice({
     token: inputCurrency?.address,
   });
@@ -687,28 +721,48 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
 
   return (
     <Context.Provider value={{ swapModule, setInputAmount }}>
-      <FormContainer>
-        <Spot
-          chainId={chainId}
-          typedInputAmount={inputAmount}
-          walletInteractions={walletInteractions}
-          account={address}
-          partner={partner}
-          appId="orbs-spot-ui"
-          srcBalance={inputBalance}
-          dstBalance={outputBalance}
-          srcToken={useParseSpotTokens(inputCurrency)}
-          dstToken={useParseSpotTokens(outputCurrency)}
-          priceProtection={priceProtection}
-          module={swapModule}
-          srcUsd1Token={inputUsd.data.toString()}
-          dstUsd1Token={outputUsd.data.toString()}
-          marketReferencePrice={useSpotMarketReferencePrice()}
-          minChunkSizeUsd={1}
-          callbacks={callbacks}
-          isDev={envMode === "dev"}
-          supportLegacyOrders={supportLegacyOrders}
-          fees={0.25}
+      <Spot
+        chainId={chainId}
+        typedInputAmount={inputAmount}
+        walletInteractions={walletInteractions}
+        account={address}
+        partner={partner}
+        appId="orbs-spot-ui"
+        srcBalance={inputBalance}
+        dstBalance={outputBalance}
+        srcToken={srcToken}
+        dstToken={dstToken}
+        priceProtection={priceProtection}
+        module={swapModule}
+        srcUsd1Token={inputUsd.data.toString()}
+        dstUsd1Token={outputUsd.data.toString()}
+        marketReferencePrice={marketReferencePrice}
+        minChunkSizeUsd={1}
+        callbacks={callbacks}
+        isDev={envMode === "dev"}
+        supportLegacyOrders={supportLegacyOrders}
+        fees={0.25}
+      >
+        <FormContainer
+          sideContent={
+            <SpotPriceChart
+              data={chartHistory.data ?? []}
+              livePrice={chartHistory.livePrice}
+              liveTimestamp={chartHistory.liveTimestamp}
+              liveStatus={chartHistory.liveStatus}
+              marketKey={`${parsedTargetChainId}:${
+                inputCurrency?.address?.toLowerCase() ?? ""
+              }:${outputCurrency?.address?.toLowerCase() ?? ""}`}
+              loading={chartHistory.isLoading}
+              timeframeLabel="7D · 1h candles"
+              emptyState={
+                chartHistory.isError
+                  ? "Market history could not be loaded for this pair."
+                  : "Market history is unavailable for this pair."
+              }
+              colors={SPOT_CHART_COLORS}
+            />
+          }
         >
           <div className="flex flex-col gap-1">
             <div className="flex flex-col gap-0">
@@ -722,13 +776,13 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
             <SubmitSwap />
             <DisclaimerPanel />
           </div>
-          <Portal containerId="spot-orders">
-            <SpotsOrders />
-          </Portal>
-          <SpotFooter />
-        </Spot>
-        <Listener />
-      </FormContainer>
+        </FormContainer>
+        <Portal containerId="spot-orders">
+          <SpotsOrders />
+        </Portal>
+        <SpotFooter />
+      </Spot>
+      <Listener />
     </Context.Provider>
   );
 }

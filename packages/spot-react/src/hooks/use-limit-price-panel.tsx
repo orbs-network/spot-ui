@@ -4,6 +4,7 @@ import { useSpotStore } from "../store";
 import { useDefaultLimitPricePercent } from "./use-default-values";
 import { usePricePanel, usePricePanelAmount } from "./use-price-panel";
 import { useLimitPrice, useLimitPriceToggle } from "./use-limit-price";
+import { useHasInputAmount } from "./helper-hooks";
 
 export const useLimitPricePanel = () => {
     const { module, marketPriceLoading, srcToken, dstToken, srcUsd1Token, dstUsd1Token } = useSpotContext();
@@ -12,6 +13,7 @@ export const useLimitPricePanel = () => {
     const defaultLimitPricePercent = useDefaultLimitPricePercent();
     const { isLimitPrice, toggleLimitPrice } = useLimitPriceToggle();
     const { fromToken, toToken, isInverted } = usePricePanel();
+    const hasInputAmount = useHasInputAmount();
     const price = usePricePanelAmount({
       amount,
       typedValue,
@@ -40,7 +42,7 @@ export const useLimitPricePanel = () => {
       invertedSrcToken: fromToken,
       invertedDstToken: toToken,
       percentage: selectedPercentage,
-      isLoading: marketPriceLoading,
+      isLoading: hasInputAmount && Boolean(marketPriceLoading),
       isLimitPrice,
       toggleLimitPrice,
       isTypedValue,

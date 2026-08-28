@@ -15,12 +15,17 @@ const invertTypedPrice = (value?: string) => {
 };
 
 export const usePricePanel = () => {
-  const { srcToken, dstToken } = useSpotContext();
+  const { srcToken, dstToken, marketPrice } = useSpotContext();
   const updateState = useSpotStore((s) => s.updateState);
   const isInverted = useSpotStore((s) => s.state.isInvertedTrade);
   const typedTriggerPrice = useSpotStore((s) => s.state.typedTriggerPrice);
   const typedLimitPrice = useSpotStore((s) => s.state.typedLimitPrice);
   const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
+  const marketPriceUI = useMemo(() => {
+    const value = toAmountUi(marketPrice, dstToken?.decimals);
+    if (!value || !BN(value).gt(0)) return "";
+    return isInverted ? BN(1).div(value).toFixed() : value;
+  }, [dstToken?.decimals, isInverted, marketPrice]);
   const onInvert = useCallback(() => {
     updateState({
       isInvertedTrade: !isInverted,
@@ -36,6 +41,7 @@ export const usePricePanel = () => {
   return {
     onInvert,
     isInverted,
+    marketPrice: marketPriceUI,
     fromToken: isInverted ? dstToken : srcToken,
     toToken: isInverted ? srcToken : dstToken,
     isMarketPrice: isMarketOrder,

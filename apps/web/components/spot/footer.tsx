@@ -67,7 +67,7 @@ export const SpotFooter = () => {
   const prod = getSpotPartnerProdLink(parsedPartner);
 
   return (
-    <div className="flex flex-row gap-2 items-center  fixed z-10 bottom-0 left-12 right-0 p-4 w-fit">
+    <div className="fixed right-0 bottom-0 left-0 z-10 flex w-auto max-w-full flex-row items-center gap-2 overflow-x-auto bg-background/90 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-sm [scrollbar-width:none] sm:right-auto sm:left-12 sm:w-fit sm:bg-transparent sm:p-4 sm:backdrop-blur-none [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
       <p className="text-[16px] font-bold text-foreground/80">
         Spot: v{pkg.version}
       </p>

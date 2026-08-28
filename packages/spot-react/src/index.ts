@@ -12,6 +12,32 @@ export { useAmountUi, useExplorerLink, useNetwork } from "./hooks/helper-hooks";
 export { useSwapExecution } from "./hooks/use-swap-execution";
 export { useRePermitData } from "./hooks/use-repermit-data";
 export { type CancelOrderStatus } from "./hooks/use-cancel-order";
+export {
+  ChartPriceLineKind,
+  type ChartPriceLine,
+} from "./hooks/use-chart-price-panel";
+export {
+  SpotTradingViewPriceLines,
+  createSpotTradingViewPriceLineController,
+  type SpotChartLineColors,
+  type SpotTradingViewPriceLineControllerOptions,
+  type SpotTradingViewPriceLinesProps,
+  type TradingViewChartWithOrderLines,
+  type TradingViewOrderLine,
+} from "./trading-view-price-lines";
+export {
+  SpotPriceChart,
+  type SpotChartPoint,
+  type SpotPriceChartColors,
+  type SpotPriceChartLiveStatus,
+  type SpotPriceChartProps,
+} from "./spot-price-chart";
+export {
+  validateLimitPrice,
+  validateTriggerPrice,
+  type LimitPriceValidationInput,
+  type TriggerPriceValidationInput,
+} from "./price-validation";
 
 // Set the UI version in spot-sdk for analytics
 setUIVersion(pkg.version);

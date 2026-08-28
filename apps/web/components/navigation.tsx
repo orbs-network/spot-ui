@@ -25,13 +25,13 @@ export function Navigation() {
   const { envMode, setEnvMode } = useSwapParams();
 
   return (
-    <nav className="sticky top-0 z-50 flex items-center gap-2 border-b border-border bg-background px-4 py-3">
-      <div className="flex flex-1 items-center gap-2">
+    <nav className="sticky top-0 z-50 flex min-w-0 items-center gap-2 border-b border-border bg-background px-3 py-3 sm:px-4">
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] sm:gap-2 [&::-webkit-scrollbar]:hidden">
       {NAV_ITEMS.map(({ label, path, external }) => {
         const isActive =
           !external &&
           (path === "/" ? pathname === "/" : pathname.startsWith(path));
-        const className = `rounded-lg px-4 py-2 text-sm font-medium no-underline transition-colors ${
+        const className = `shrink-0 rounded-lg px-3 py-2 text-sm font-medium no-underline transition-colors sm:px-4 ${
           isActive
             ? "bg-muted text-foreground"
             : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -62,7 +62,9 @@ export function Navigation() {
           <SelectItem value="dev">Dev</SelectItem>
         </SelectContent>
       </Select>}
-      <ConnectButton showBalance={false} />
+      <div className="shrink-0">
+        <ConnectButton showBalance={false} />
+      </div>
     </nav>
   );
 }

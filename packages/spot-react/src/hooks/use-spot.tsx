@@ -20,6 +20,7 @@ import {
 } from "./use-cancel-order";
 import { useSpotContext } from "../spot-context";
 import { Module } from "@orbs-network/spot-ui";
+import { useChartPricePanel } from "./use-chart-price-panel";
 
 type SpotData = {
   tradesAmountPanel: ReturnType<typeof useTradesPanel>;
@@ -27,6 +28,7 @@ type SpotData = {
   fillDelayPanel: ReturnType<typeof useFillDelayPanel>;
   limitPricePanel: ReturnType<typeof useLimitPricePanel>;
   triggerPricePanel: ReturnType<typeof useTriggerPricePanel>;
+  chartPricePanel: ReturnType<typeof useChartPricePanel>;
   pricePanel: ReturnType<typeof usePricePanel>;
   dstTokenPanel: ReturnType<typeof useDstTokenPanel>;
   disclaimerPanel: ReturnType<typeof useDisclaimer>;
@@ -55,6 +57,13 @@ export const SpotDataProvider = ({
   const limitPricePanel = useLimitPricePanel();
   const triggerPricePanel = useTriggerPricePanel();
   const pricePanel = usePricePanel();
+  const { module } = useSpotContext();
+  const chartPricePanel = useChartPricePanel({
+    module,
+    limitPricePanel,
+    triggerPricePanel,
+    pricePanel,
+  });
   const dstTokenPanel = useDstTokenPanel();
   const disclaimerPanel = useDisclaimer();
   const inputError = useInputErrors();
@@ -64,7 +73,6 @@ export const SpotDataProvider = ({
   const orderExecutionPanel = useSubmitOrderPanel();
   const supportedChains = usePartnerChains();
   const refetchUntilStatusSynced = useCancelOrderRefetchUntilStatusSynced();
-  const { module } = useSpotContext();
 
   const value = useMemo(
     () => ({
@@ -73,6 +81,7 @@ export const SpotDataProvider = ({
       fillDelayPanel,
       limitPricePanel,
       triggerPricePanel,
+      chartPricePanel,
       pricePanel,
       dstTokenPanel,
       disclaimerPanel,
@@ -91,6 +100,7 @@ export const SpotDataProvider = ({
       fillDelayPanel,
       limitPricePanel,
       triggerPricePanel,
+      chartPricePanel,
       pricePanel,
       dstTokenPanel,
       disclaimerPanel,

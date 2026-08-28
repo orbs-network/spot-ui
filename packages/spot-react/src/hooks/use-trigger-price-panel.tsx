@@ -3,12 +3,14 @@ import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { usePricePanel, usePricePanelAmount } from "./use-price-panel";
 import { useTriggerPrice } from "./use-trigger-price";
+import { useHasInputAmount } from "./helper-hooks";
 
 export const useTriggerPricePanel = () => {
     const { marketPrice, marketPriceLoading, srcToken, dstToken, srcUsd1Token, dstUsd1Token } = useSpotContext();
     const { amount, typedValue, onChange, onPercentageChange, selectedPercentage, error, pricePerChunk: amountPerChunkWei, pricePerChunkUI, pricePerChunkUsd: amountPerChunkUsd, isTypedValue } = useTriggerPrice();
     const updateState = useSpotStore((s) => s.updateState);
     const { fromToken, toToken, isInverted } = usePricePanel();
+    const hasInputAmount = useHasInputAmount();
     const price = usePricePanelAmount({
       amount,
       typedValue,
@@ -40,7 +42,8 @@ export const useTriggerPricePanel = () => {
       dstToken,
       invertedSrcToken: fromToken,
       invertedDstToken: toToken,
-      isLoading: marketPriceLoading || !marketPrice,
+      isLoading:
+        hasInputAmount && (Boolean(marketPriceLoading) || !marketPrice),
       isTypedValue,
     };
   };

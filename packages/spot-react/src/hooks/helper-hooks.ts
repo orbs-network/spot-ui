@@ -13,6 +13,11 @@ export const useAmountUi = (decimals?: number, value?: string) => {
   return useMemo(() => toAmountUi(value, decimals), [decimals, value]);
 };
 
+export const useHasInputAmount = () => {
+  const { typedInputAmount } = useSpotContext();
+  return BN(typedInputAmount || "0").gt(0);
+};
+
 export const useNetwork = () => {
   const { chainId } = useSpotContext();
   return useMemo(() => getNetwork(chainId), [chainId]);

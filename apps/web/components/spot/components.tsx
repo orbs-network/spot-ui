@@ -13,7 +13,7 @@ import {
   SelectContent,
   SelectItem,
 } from "../ui/select";
-import { useCallback } from "react";
+import { useCallback, useId } from "react";
 import { Avatar, AvatarImage } from "../ui/avatar";
 
 export const SpotTokenLogo = ({ token }: { token?: Token }) => {
@@ -25,6 +25,7 @@ export const SpotTokenLogo = ({ token }: { token?: Token }) => {
 };
 import { NumericInput } from "../ui/numeric-input";
 import { useFormatNumber } from "@/lib/hooks/common";
+import { cn } from "@/lib/utils";
 
 export const SpotSelectMenu = (props: SelectMenuProps) => {
   const onValueChange = useCallback(
@@ -57,6 +58,7 @@ export const SpotSelectMenu = (props: SelectMenuProps) => {
 };
 
 export const SpotPriceInput = ({
+  label,
   symbol,
   value,
   onChange,
@@ -65,7 +67,9 @@ export const SpotPriceInput = ({
   isLoading,
   bottomContent,
   usd,
+  error,
 }: {
+  label: string;
   symbol?: string;
   value: string;
   onChange: (value: string) => void;
@@ -74,10 +78,18 @@ export const SpotPriceInput = ({
   isLoading?: boolean;
   bottomContent?: React.ReactNode;
   usd?: string;
+  error?: string;
 }) => {
   const usdFormatted = useFormatNumber({ value: usd, decimalScale: 2 });
+  const errorId = useId();
+  const inputName = `${label.toLowerCase().replaceAll(" ", "-")}-price`;
   return (
-    <div className="flex flex-col gap-2 items-stretch bg-background/60 p-2 pb-2 rounded-xl">
+    <div
+      className={cn(
+        "flex flex-col items-stretch gap-2 rounded-xl border bg-background/60 p-2 pb-2 focus-within:ring-2 focus-within:ring-primary/25",
+        error ? "border-destructive/80" : "border-transparent",
+      )}
+    >
       <div className="flex flex-row gap-2 items-stretch">
         <div className="flex-1 flex justify-between bg-accent items-center px-3 py-2 rounded-[12px] gap-3">
           <p className="text-[15px] font-medium text-muted-foreground">
@@ -85,7 +97,11 @@ export const SpotPriceInput = ({
           </p>
          <div className="flex flex-col gap-1 items-end flex-1">
          <NumericInput
+            ariaDescribedBy={error ? errorId : undefined}
+            ariaInvalid={Boolean(error)}
+            ariaLabel={`${label} price`}
             isLoading={isLoading}
+            name={inputName}
             value={value}
             onChange={(it) => onChange(it)}
             className="flex-1 text-right text-[19px]"
@@ -100,7 +116,11 @@ export const SpotPriceInput = ({
 
         <div className="w-[100px] bg-accent items-center px-3 py-2 rounded-[12px]">
           <NumericInput
+            ariaDescribedBy={error ? errorId : undefined}
+            ariaInvalid={Boolean(error)}
+            ariaLabel={`${label} percentage`}
             value={percentage}
+            name={`${inputName}-percentage`}
             onChange={(it) => onPercentageChange(it)}
             className="text-center text-[21px]"
             placeholder="0.0%"
@@ -109,6 +129,15 @@ export const SpotPriceInput = ({
           />
         </div>
       </div>
+      {error ? (
+        <p
+          id={errorId}
+          aria-live="polite"
+          className="px-1 text-xs font-medium text-destructive"
+        >
+          {error}
+        </p>
+      ) : null}
       {bottomContent && (
         <p className="text-[12px] text-muted-foreground pl-1 font-medium">
           {bottomContent}

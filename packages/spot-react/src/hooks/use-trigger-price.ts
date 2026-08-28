@@ -1,44 +1,27 @@
 import { useCallback, useMemo } from "react";
-import BN from "bignumber.js";
 import { useSpotContext } from "../spot-context";
 import { useSpotStore } from "../store";
 import { useInputWithPercentage } from "./use-input-with-percentage";
 import { Module } from "../types";
 import { useDefaultTriggerPricePercent } from "./use-default-values";
-import { getStopLossPriceError, getTakeProfitPriceError, getTriggerPricePerChunk, InputErrors } from "@orbs-network/spot-ui";
+import { getTriggerPricePerChunk } from "@orbs-network/spot-ui";
 import { useAmountUi, useUsdAmount } from "./helper-hooks";
 import { useTrades } from "./use-trades";
+import { validateTriggerPrice } from "../price-validation";
+import BN from "bignumber.js";
 
 const useTriggerPriceError = (triggerPriceWei = "") => {
-  const { module, marketPrice, typedInputAmount } = useSpotContext();
+  const { module, marketPrice } = useSpotContext();
 
-
-  return useMemo(() => {
-    if (BN(typedInputAmount || "0").isZero() || !marketPrice) return;
-    if (module !== Module.STOP_LOSS && module !== Module.TAKE_PROFIT) return;
-    const stopLossError = getStopLossPriceError(marketPrice || "", triggerPriceWei || "", module);
-    if (stopLossError?.isError) {
-      return {
-        type: InputErrors.STOP_LOSS_TRIGGER_PRICE_GREATER_THAN_MARKET_PRICE,
-        value: stopLossError.value,
-      };
-    }
-    const takeProfitError = getTakeProfitPriceError(marketPrice || "", triggerPriceWei || "", module);
-
-    if (takeProfitError?.isError) {
-      return {
-        type: InputErrors.TAKE_PROFIT_TRIGGER_PRICE_LESS_THAN_MARKET_PRICE,
-        value: takeProfitError.value,
-      };
-    }
-
-    if (!triggerPriceWei || BN(triggerPriceWei || 0).isZero()) {
-      return {
-        type: InputErrors.EMPTY_TRIGGER_PRICE,
-        value: triggerPriceWei,
-      };
-    }
-  }, [marketPrice, triggerPriceWei, module, typedInputAmount]);
+  return useMemo(
+    () =>
+      validateTriggerPrice({
+        marketPrice,
+        triggerPrice: triggerPriceWei,
+        module,
+      }),
+    [marketPrice, module, triggerPriceWei],
+  );
 };
 
 export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
