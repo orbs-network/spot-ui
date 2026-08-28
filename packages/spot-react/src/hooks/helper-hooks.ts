@@ -18,6 +18,7 @@ export const useHasInputAmount = () => {
   return BN(typedInputAmount || "0").gt(0);
 };
 
+
 export const useNetwork = () => {
   const { chainId } = useSpotContext();
   return useMemo(() => getNetwork(chainId), [chainId]);
