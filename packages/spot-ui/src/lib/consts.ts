@@ -84,6 +84,9 @@ const getGfURL = (name: string) => {
   return `https://hub.orbs.network/api/private/project_cm7nb67z86nyr01z12gs0fxpf/subgraphs/orbs-twap-${name}/prod/gn`;
 };
 
+const SPARKDEX_LEGACY_ORDERS_API =
+  "https://hub.orbs.network/api/private/project_cm7nb67z86nyr01z12gs0fxpf/subgraphs/orbs-twap-flare/prod/gn";
+
 const THE_GRAPH_API = "https://hub.orbs.network/api/apikey/subgraphs/id";
 export const THE_GRAPH_ORDERS_API = {
   [networks.eth
@@ -110,7 +113,7 @@ export const THE_GRAPH_ORDERS_API = {
     .id]: `${THE_GRAPH_API}/FxZ1vMwE5Xy1qvKvZENUMz4vhW8Sh4vXJf9Vp7o17pTx`,
   [networks.bera
     .id]: getGfURL("berachain"),
-  [networks.flare.id]: getGfURL("flare"),
+  [networks.flare.id]: SPARKDEX_LEGACY_ORDERS_API,
   [networks.cronosZkEvm.id]: getGfURL("cronos-zkevm"),
   
 };
@@ -183,6 +186,9 @@ export const LEGACY_EXCHANGES_MAP: Record<string, string[]> = {
   ],
   [getPartnerIdentifier(Configs.SushiKatana)]: [
     "0x92209481507e6B2d14C9b5b70Ed287024177220E",
+  ],
+  [getPartnerIdentifier(Configs.SparkDEX)]: [
+    "0xe59c53C76bB7EEc01401A18fA8215B94bC65Bf56",
   ],
 };
 export const DEFAULT_FILL_DELAY = {

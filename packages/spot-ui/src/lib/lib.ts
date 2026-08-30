@@ -356,6 +356,9 @@ export const getTwapConfig = (partner: Partners, chainId: number) => {
         return Configs.BlackholeAvax;
     }
   }
+  if (partner === Partners.Spark) {
+    return Configs.SparkDEX;
+  }
   if (partner === Partners.Katana) {
     switch (chainId) {
       case 747474:

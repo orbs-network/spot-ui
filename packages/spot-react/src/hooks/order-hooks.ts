@@ -6,7 +6,6 @@ import {
   getOrderExecutionRate,
   getOrderLimitPriceRate,
   getTriggerPriceRate,
-  getTwapConfig,
 } from "@orbs-network/spot-ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
@@ -180,11 +179,6 @@ export const useOrdersQuery = () => {
     useSpotContext();
   const { data: permitData } = useRePermitData();
   const queryClient = useQueryClient();
-  const twapConfig = useMemo(
-    () =>
-      supportLegacyOrders ? getTwapConfig(partner, chainId) : undefined,
-    [chainId, partner, supportLegacyOrders],
-  );
 
   const queryKey = useOrdersQueryKey();
   const ordersWithoutConfigQueryKey = useOrdersWithoutConfigQueryKey();
@@ -202,21 +196,19 @@ export const useOrdersQuery = () => {
       const cachedOrders =
         queryClient.getQueryData<Order[]>(queryKey) ??
         queryClient.getQueryData<Order[]>(ordersWithoutConfigQueryKey);
-      const includeV1GraphOrders = supportLegacyOrders && !cachedOrders;
+      const legacyOrders = supportLegacyOrders && !cachedOrders;
       const orders = await getAccountOrders({
         signal,
         chainId,
         exchange: permitData?.order.witness.exchange.adapter,
         partner,
-        twapConfig,
         account,
         isDev,
-        includeV1GraphOrders,
-        includeV2Orders: Boolean(permitData),
+        legacyOrders,
       });
 
       orderFilledCallback(orders);
-      if (!supportLegacyOrders || includeV1GraphOrders) {
+      if (!supportLegacyOrders || legacyOrders) {
         return orders;
       }
 
