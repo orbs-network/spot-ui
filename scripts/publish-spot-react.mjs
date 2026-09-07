@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 import { execFileSync, execSync } from 'child_process'
-import { readFileSync, writeFileSync } from 'fs'
+import { createHash } from 'crypto'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { selectVersion, confirmPublish, promptOtp } from './publish-version.mjs'
@@ -25,6 +27,8 @@ function writePackageJson(pkgPath, data) {
 function assertPublishedSpotUiMatchesLocalBuild() {
   const spotUiPackageJson = getPackageJson(spotUiPkg.path)
   const packageVersion = `${spotUiPkg.name}@${spotUiPackageJson.version}`
+  let packDirectory
+  let failureReason
 
   try {
     const publishedVersion = execFileSync(
@@ -41,25 +45,51 @@ function assertPublishedSpotUiMatchesLocalBuild() {
       throw new Error(`npm returned version ${publishedVersion || 'unknown'}`)
     }
 
-    const changedFiles = execFileSync(
-      'npm',
-      ['diff', `--diff=${packageVersion}`, '--diff-name-only'],
+    // Compare the same tarball format that `pnpm publish` uploads. `npm diff`
+    // compares the development package.json against pnpm's normalized manifest
+    // and reports a false mismatch because pnpm omits `prepublishOnly`.
+    packDirectory = mkdtempSync(join(tmpdir(), 'spot-ui-publish-check-'))
+    const packOutput = execFileSync(
+      'pnpm',
+      ['pack', '--json', '--pack-destination', packDirectory],
       {
         cwd: join(rootDir, spotUiPkg.path),
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
         timeout: 30_000,
       },
+    )
+    const packedPackage = JSON.parse(packOutput)
+    const localShasum = createHash('sha1')
+      .update(readFileSync(packedPackage.filename))
+      .digest('hex')
+    const publishedShasum = execFileSync(
+      'npm',
+      ['view', packageVersion, 'dist.shasum'],
+      {
+        cwd: rootDir,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 30_000,
+      },
     ).trim()
-    if (changedFiles) {
+
+    if (!publishedShasum || localShasum !== publishedShasum) {
       throw new Error(
         `${packageVersion} exists, but its published contents differ from the local build`,
       )
     }
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
+    failureReason = error instanceof Error ? error.message : String(error)
+  } finally {
+    if (packDirectory) {
+      rmSync(packDirectory, { recursive: true, force: true })
+    }
+  }
+
+  if (failureReason) {
     console.error(
-      `\n❌ spot-react cannot be published until the exact local ${packageVersion} build is published (${reason}).\n`,
+      `\n❌ spot-react cannot be published until the exact local ${packageVersion} build is published (${failureReason}).\n`,
     )
     process.exit(1)
   }
