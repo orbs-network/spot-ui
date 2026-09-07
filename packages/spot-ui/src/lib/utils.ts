@@ -8,14 +8,16 @@ import {
 import BN from "bignumber.js";
 import {
   Config,
+  type Network,
   Order,
   OrderType,
   Partners,
+  Token,
   TimeDuration,
   TimeUnit,
 } from "./types";
 import { networks } from "./networks";
-import { getEstimatedDelayBetweenChunksMillis, getPartners } from "..";
+import { getEstimatedDelayBetweenTradesMillis, getPartners } from "./lib";
 
 export const getTheGraphUrl = (chainId?: number) => {
   if (!chainId) return;
@@ -159,8 +161,87 @@ export const safeBNNumber = (value?: string | number) => {
   return BN(value).decimalPlaces(0).toNumber();
 };
 
-export const getNetwork = (chainId?: number) => {
+export const getNetwork = (chainId?: number): Network | undefined => {
   return Object.values(networks).find((it) => it.id === chainId);
+};
+
+export const ensureWrappedToken = (token: Token, chainId: number): Token => {
+  const network = getNetwork(chainId);
+  if (!network || !isNativeAddress(token.address)) return token;
+  return network.wToken;
+};
+
+export const shouldWrapOnly = (
+  inputToken?: Token,
+  outputToken?: Token,
+  chainId?: number,
+): boolean => {
+  const wrappedTokenAddress = getNetwork(chainId)?.wToken.address;
+  return Boolean(
+    isNativeAddress(inputToken?.address) &&
+      wrappedTokenAddress &&
+      eqIgnoreCase(outputToken?.address || "", wrappedTokenAddress),
+  );
+};
+
+export const shouldUnwrapOnly = (
+  inputToken?: Token,
+  outputToken?: Token,
+  chainId?: number,
+): boolean => {
+  const wrappedTokenAddress = getNetwork(chainId)?.wToken.address;
+  return Boolean(
+    wrappedTokenAddress &&
+      eqIgnoreCase(inputToken?.address || "", wrappedTokenAddress) &&
+      isNativeAddress(outputToken?.address),
+  );
+};
+
+export const isTxRejected = (error: unknown): boolean => {
+  const candidates: unknown[] = [error];
+  if (typeof error === "object" && error !== null) {
+    candidates.push(Reflect.get(error, "error"), Reflect.get(error, "cause"));
+  }
+
+  return candidates.some((candidate) => {
+    if (typeof candidate !== "object" || candidate === null) {
+      return typeof candidate === "string" &&
+        isUserRejectionMessage(candidate);
+    }
+
+    const code = Reflect.get(candidate, "code");
+    if (
+      code === 4001 ||
+      code === "4001" ||
+      code === "ACTION_REJECTED" ||
+      code === "USER_REJECTED" ||
+      code === "USER_DENIED"
+    ) {
+      return true;
+    }
+
+    const message = Reflect.get(candidate, "message");
+    return (
+      typeof message === "string" &&
+      isUserRejectionMessage(message)
+    );
+  });
+};
+
+const isUserRejectionMessage = (message: string): boolean =>
+  /\buser\b.{0,80}\b(?:rejected|denied|cancelled|canceled)\b/i.test(
+    message,
+  ) ||
+  /\brequest\b\s+(?:was\s+)?\b(?:rejected|denied|cancelled|canceled)\b/i.test(
+    message,
+  ) ||
+  /\b(?:rejected|denied|cancelled|canceled)\b.{0,80}\bby\s+(?:the\s+)?user\b/i.test(
+    message,
+  );
+
+export const getExplorerUrl = (txHash?: string, chainId?: number): string => {
+  const explorer = getNetwork(chainId)?.explorer;
+  return explorer && txHash ? `${explorer}/tx/${txHash}` : "";
 };
 
 export const getExchanges = (config?: Config[]) => {
@@ -204,16 +285,11 @@ export const getOrderFillDelayMillis = (order: Order, config?: Config) => {
   if (order.version === 1) {
     return (
       (order.fillDelay || 0) * 1000 +
-      (config ? getEstimatedDelayBetweenChunksMillis(config) : 0)
+      (config ? getEstimatedDelayBetweenTradesMillis(config) : 0)
     );
   }
-  return (order.fillDelay || 0) * 1000;
-};
-
-export const getQueryParam = (name: string) => {
-  if (typeof window === "undefined") return null;
-  const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get(name);
+  // v2 history normalization already stores epoch/fillDelay in milliseconds.
+  return order.fillDelay || 0;
 };
 
 export const getPartnerChains = (partner: Partners) => {

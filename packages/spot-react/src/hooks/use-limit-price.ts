@@ -1,106 +1,83 @@
+import { Module } from "@orbs-network/spot-ui";
 import { useCallback, useMemo } from "react";
-import { useSpotContext } from "../spot-context";
-import { useSpotStore } from "../store";
-import { useInputWithPercentage } from "./use-input-with-percentage";
-import { Module } from "../types";
-import BN from "bignumber.js";
-import { useTriggerPrice } from "./use-trigger-price";
-import { useDefaultLimitPricePercent } from "./use-default-values";
-import { getStopLossLimitPriceError, getTakeProfitLimitPriceError, InputErrors } from "@orbs-network/spot-ui";
-import { useAmountUi, useUsdAmount } from "./helper-hooks";
-
-
-export const useLimitPriceError = (limitPriceWei?: string) => {
-  const { module, marketPrice, typedInputAmount } = useSpotContext();
-  const { amount: triggerPrice } = useTriggerPrice();
-
-  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
-  return useMemo(() => {
-    if (BN(typedInputAmount || "0").isZero() || !triggerPrice || !marketPrice) return;
-    const _stopLossError = getStopLossLimitPriceError(triggerPrice, limitPriceWei, isMarketOrder, module);
-    const _takeProfitError = getTakeProfitLimitPriceError(triggerPrice, limitPriceWei, isMarketOrder, module);
-
-    if (_stopLossError?.isError) {
-      return {
-        type: InputErrors.TRIGGER_LIMIT_PRICE_GREATER_THAN_TRIGGER_PRICE,
-        value: _stopLossError.value,
-      };
-    }
-
-    if (_takeProfitError?.isError) {
-      return {
-        type: InputErrors.TRIGGER_LIMIT_PRICE_GREATER_THAN_TRIGGER_PRICE,
-        value: _takeProfitError.value,
-      };
-    }
-
-    if (limitPriceWei && BN(limitPriceWei || 0).isZero()) {
-      return {
-        type: InputErrors.MISSING_LIMIT_PRICE,
-        value: limitPriceWei || "",
-      };
-    }
-  }, [limitPriceWei, triggerPrice, module, isMarketOrder, typedInputAmount, marketPrice]);
-};
+import { useOrderForm } from "../context/order-form-context";
+import { useSpotRuntime, useSpotStore } from "../context/spot-store";
+import { observe } from "../execution-state";
 
 export const useLimitPrice = () => {
-  const { dstToken, dstUsd1Token, marketPrice, callbacks } = useSpotContext();
-  const updateState = useSpotStore((s) => s.updateState);
-  const defaultLimitPricePercent = useDefaultLimitPricePercent();
-  const typedPercent = useSpotStore((s) => s.state.limitPricePercent);
-  const percentage = typedPercent === undefined ? defaultLimitPricePercent : typedPercent;
+  const { marketPriceLoading, inputToken, outputToken, callbacks } =
+    useSpotRuntime();
+  const { limitPrice, values, module, isInverted } = useOrderForm();
+  const updateState = useSpotStore((state) => state.updateState);
 
-  const result = useInputWithPercentage({
-    typedValue: useSpotStore((s) => s.state.typedLimitPrice),
-    percentage,
-    tokenDecimals: dstToken?.decimals || 18,
-    initialPrice: marketPrice,
-    setValue: useCallback((typedLimitPrice?: string) => {
-      updateState({ typedLimitPrice });
-      callbacks?.onLimitPriceChange?.(typedLimitPrice || "");
-    }, [updateState, callbacks]),
-    setPercentage: useCallback(
-      (limitPricePercent?: string | null) => {
-        updateState({ limitPricePercent });
-        callbacks?.onLimitPricePercentChange?.(limitPricePercent || "");
-      },
-      [updateState, callbacks],
-    ),
-  });
+  const onInputChange = useCallback(
+    (value?: string) => {
+      updateState({ typedLimitPrice: value, limitPricePercent: null });
+      observe(() => callbacks?.onLimitPriceChange?.(value || ""));
+      observe(() => callbacks?.onLimitPricePercentChange?.(""));
+    },
+    [callbacks, updateState],
+  );
 
-  const error = useLimitPriceError(result.amount);
-  const amountUI = useAmountUi(dstToken?.decimals || 18, result.amount);
-  const usd = useUsdAmount(amountUI, dstUsd1Token);
+  const onPercentageChange = useCallback(
+    (percentage?: string) => {
+      updateState({
+        typedLimitPrice: undefined,
+        limitPricePercent: percentage,
+      });
+      observe(() => callbacks?.onLimitPriceChange?.(""));
+      observe(() => callbacks?.onLimitPricePercentChange?.(percentage || ""));
+    },
+    [callbacks, updateState],
+  );
 
-  return useMemo(() => {
-    return {
-      ...result,
-      amountUI: BN(amountUI).isNaN() ? "" : amountUI,
-      usd: BN(usd).isNaN() ? "" : usd,
-      error,
-    };
-  }, [result, amountUI, usd, error]);
-};
+  const onReset = useCallback(() => {
+    updateState({
+      typedLimitPrice: undefined,
+      limitPricePercent: undefined,
+    });
+  }, [updateState]);
 
-export const useLimitPriceToggle = () => {
-  const { module } = useSpotContext();
-  const updateState = useSpotStore((s) => s.updateState);
-  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
-  const defaultLimitPricePercent = useDefaultLimitPricePercent();
-  const triggerPricePercent = useSpotStore((s) => s.state.triggerPricePercent) || 0;
-  const hide = module === Module.LIMIT;
+  const isEnabled = !values.isMarketOrder;
+  const toggle = useCallback(() => {
+    updateState({
+      isMarketOrder: !values.isMarketOrder,
+      ...(!values.isMarketOrder ? { isInvertedTrade: false } : {}),
+      ...(!values.isMarketOrder && module === Module.STOP_LOSS
+        ? { limitPricePercent: undefined }
+        : {}),
+    });
+  }, [module, updateState, values.isMarketOrder]);
 
-  const toggleLimitPrice = useCallback(() => {
-    if (!isMarketOrder && module === Module.STOP_LOSS) {
-      updateState({ limitPricePercent: defaultLimitPricePercent });
-    }
-
-    updateState({ isMarketOrder: !isMarketOrder });
-  }, [updateState, triggerPricePercent, module, isMarketOrder, defaultLimitPricePercent]);
-
-  return {
-    isLimitPrice: !isMarketOrder,
-    toggleLimitPrice,
-    hide,
-  };
+  return useMemo(
+    () => ({
+      price: limitPrice.display,
+      canonicalPriceRaw: limitPrice.raw,
+      error: limitPrice.error,
+      onInputChange,
+      onPercentageChange,
+      onReset,
+      inputToken,
+      outputToken,
+      displayInputToken: isInverted ? outputToken : inputToken,
+      displayOutputToken: isInverted ? inputToken : outputToken,
+      percentage: limitPrice.percentage,
+      isLoading: Boolean(marketPriceLoading),
+      isEnabled,
+      toggle,
+      isTypedValue: limitPrice.isTypedValue,
+    }),
+    [
+      inputToken,
+      isInverted,
+      isEnabled,
+      limitPrice,
+      marketPriceLoading,
+      onInputChange,
+      onPercentageChange,
+      onReset,
+      outputToken,
+      toggle,
+    ],
+  );
 };

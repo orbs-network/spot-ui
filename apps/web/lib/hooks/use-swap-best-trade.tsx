@@ -2,7 +2,7 @@ import { isFreshQuote, permit2Address, Quote,  } from "@orbs-network/liquidity-h
 import { useMutation } from "@tanstack/react-query";
 import { useSignEip } from "./use-sign-eip";
 import { useApproval } from "./use-approval";
-import { useWrap } from "./use-wrap";
+import { useWrappedNativeTransaction } from "./use-wrap";
 import { getExplorerUrl, isNativeAddress } from "../utils";
 import { useDerivedSwap } from "./use-derived-swap";
 import BN from "bignumber.js";
@@ -162,7 +162,8 @@ export const useSwapBestTrade = () => {
     inputCurrency?.address,
     parsedInputAmount
   );
-  const { mutateAsync: wrap } = useWrap();
+  const { mutateAsync: executeWrappedNativeTransaction } =
+    useWrappedNativeTransaction();
   const toasts = useToasts();
 
   const { mutateAsync: swapBestTrade } = useMutation({
@@ -183,7 +184,10 @@ export const useSwapBestTrade = () => {
       if (isNativeIn) {
         updateStore({ currentStep: SwapStep.WRAP });
 
-        await wrap(parsedInputAmount);
+        await executeWrappedNativeTransaction({
+          action: "wrap",
+          amount: parsedInputAmount,
+        });
         toasts.onWrapSuccess();
         currentStepIndex++;
         updateStore({ currentStepIndex });

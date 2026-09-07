@@ -18,6 +18,7 @@ import { FormContainer } from "./form-container";
 import { getExplorerUrl } from "@/lib/utils";
 import { useConnection } from "wagmi";
 import { Spinner } from "./ui/spinner";
+import { WrappedNativeButton } from "./wrapped-native-button";
 
 const useStep = () => {
   const { currentStep } = useBestTradeSwapStore();
@@ -145,9 +146,11 @@ const SubmitSwap = () => {
     inputAmount,
     outputAmount,
     isLoadingTrade,
+    wrappedNativeAction,
   } = useDerivedSwap();
   const { setInputAmount, } = useActionHandlers();
   const { status, totalSteps, currentStepIndex, reset } = useSwapBestTrade();
+  const currentStep = useStep();
   const inputAmountF = useFormatNumber({ value: inputAmount });
   const outputAmountF = useFormatNumber({ value: outputAmount });
 
@@ -180,6 +183,10 @@ const SubmitSwap = () => {
    }
   }, [reset, status]);
 
+  if (wrappedNativeAction) {
+    return <WrappedNativeButton action={wrappedNativeAction} />;
+  }
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <SubmitSwapButton
@@ -196,7 +203,7 @@ const SubmitSwap = () => {
           outAmount={outputAmountF}
           swapStatus={status}
           totalSteps={totalSteps}
-          currentStep={useStep()}
+          currentStep={currentStep}
           currentStepIndex={currentStepIndex}
           inToken={inToken}
           outToken={outToken}

@@ -7,7 +7,7 @@ A monorepo containing the Spot SDK, UI components, and a demo web application.
 | Package | Description | Published |
 |---------|-------------|-----------|
 | `@orbs-network/spot-ui` | Order building, config, types, submit, analytics (framework-agnostic) | ✅ npm |
-| `@orbs-network/spot-react` | React context, hooks, and UI (SubmitOrderPanel, Orders) consuming spot-ui | ✅ npm |
+| `@orbs-network/spot-react` | Headless React provider and hooks consuming spot-ui | ✅ npm |
 | `web` | Next.js app integrating spot-react (SpotProvider, SpotForm, orders) | ❌ Private |
 
 ## Getting Started
@@ -35,14 +35,14 @@ pnpm build
 Run the web app for local testing:
 
 ```bash
-pnpm dev:web
+pnpm dev
 ```
 
 ### Building Individual Packages
 
 ```bash
-pnpm build:spot     # Build spot SDK
-pnpm build:spot-ui  # Build spot-ui components
+pnpm build:spot-ui     # Build the framework-neutral SDK
+pnpm build:spot-react  # Build the React provider and hooks
 ```
 
 ## Integrating Liquidity Hub in React
@@ -105,8 +105,8 @@ cd packages/spot-ui && pnpm publish --access public
 
 ```
 web
- └── spot-react (SpotProvider, useSubmitOrderPanel, Components.SubmitOrderPanel, Orders)
-      └── spot-ui (fetchRePermitData, buildRePermitOrderData, submitOrder, types)
+ └── spot-react (SpotProvider and focused React hooks)
+      └── spot-ui (client initialization, order preparation, submission, history)
 ```
 
 ## Order Signatures
@@ -115,11 +115,11 @@ web
 
 ## RePermit Configuration
 
-`@orbs-network/spot-react` fetches RePermit configuration from the Orbs `/config` endpoint as soon as the `partner` and `chainId` are available. All consumers share one React Query entry keyed by partner, chain, and environment, so a successful configuration is fetched once and reused across order building, approval, cancellation, analytics, and v2 order history.
+`@orbs-network/spot-react` initializes a `@orbs-network/spot-ui` client as soon as the `partner` and `chainId` are available. Client and history state are scoped to each `SpotProvider`; no host query provider is required. The framework-neutral `createClient(partner, chainId)` factory performs a fresh RePermit request on every call and retains no global state, so Vue, Angular, Svelte, vanilla JavaScript, and server consumers can apply their own cache and refresh policy.
 
-The query retries a failed request twice and exposes `refetch` through `useRePermitData()` and `useSpot().submitOrderButton.retry`. Integrations should render the configuration error as a retry action and keep order submission disabled while the request is loading or has failed. Legacy v1 history is fetched independently and remains available when the RePermit endpoint is unavailable.
+The client owns the configuration-derived spender, exchange, signing payload, approval/cancellation requests, submission, and configured order history. Pure calculations remain package-level functions. The `calculateOrderForm` helper accepts raw DEX form state and produces defaults, prices, trades, schedules, validation, raw/token-formatted/USD values, and the execution values shared by order construction and React displays. Form calculation is time-independent; `prepareOrder` assigns the exact start and deadline immediately before signing. A missing client represents initialization loading; after automatic retries, `SpotProvider` keeps the host form mounted and renders a retryable, host-customizable `clientErrorFallback` alongside it.
 
-Successful JSON responses are trusted and used without client-side schema or contract-identity validation. `domain.verifyingContract` is used as the ERC-20 approval spender and v2 cancellation contract; the returned adapter, reactor, and executor are used for v2 orders. The endpoint is therefore security-critical and must be served by the trusted Orbs service over TLS.
+The client rejects configurations whose domain or order chain differs from the requested chain, and rejects malformed or zero RePermit and exchange-adapter addresses. `domain.verifyingContract` is used as the ERC-20 approval spender and v2 cancellation contract; the returned adapter, reactor, and executor are used for v2 orders. The endpoint remains security-critical because the SDK does not independently verify deployed bytecode or contract identity, so it must be served by the trusted Orbs service over TLS.
 
 ## License
 

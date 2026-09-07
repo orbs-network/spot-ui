@@ -7,30 +7,30 @@
 3. **Use DEX Components As-Is** — Don't modify DEX components. If one doesn't exist (e.g. Select, Switch), create a new one using DEX styles. Never use generic web components.
 4. **Modals Required** — Submit order in a modal. Use `@orbs-network/swap-ui` for the order creation/progress flow content, wrapped in the same modal shell the DEX uses for token select or settings when possible.
 5. **Use Portals for Context** — If rendering elements outside SpotProvider scope, use Portal to maintain context access.
-6. **Hooks in Components, Context for Shared Props** — Each component calls `useSpot()` or the DEX-owned Spot adapter hook directly. Never pass values to a child when that child can get them from a hook. If many props are passed through children, create a focused local context/hook for the shared DEX adapter state, callbacks, formatting helpers, or UI state.
+6. **Hooks in Components, Context for Shared Props** — Each component calls the focused Spot hook it needs or the DEX-owned Spot adapter hook directly. Never pass values to a child when that child can get them from a hook. If many props are passed through children, create a focused local context/hook for the shared DEX adapter state, callbacks, formatting helpers, or UI state.
 7. **Verify Before Using** — Always check: types are correct, components exist in DEX, imports from spot-react are valid.
 8. **Never Import from dist** — Always `@orbs-network/spot-react`, never `@orbs-network/spot-react/dist/*`.
 9. **Layout Placement** — Spot form next to the swap panel. Spot tabs and swap tab in the same container (e.g. Swap | TWAP | Limit | Stop-Loss | Take-Profit).
 10. **Format Display Values** — Convert raw Spot amounts into the DEX's native amount type when possible, then display with the DEX formatter or `.toSignificant()` / `.toExact()`.
-11. **No Extra Packages Beyond Spot UI Needs** — Install only `@orbs-network/spot-react`, `@orbs-network/swap-ui`, and `spot-react` peer dependencies. Use what the DEX already has for everything else.
+11. **No Extra Packages Beyond Spot UI Needs** — Install `@orbs-network/spot-react`, React, and `@orbs-network/swap-ui` when using the documented progress modal. Zustand and BigNumber are SDK internals. Use what the DEX already has for everything else.
 12. **Don't Recreate Error Boundary** — spot-react includes its own ErrorBoundary. Don't add another one around it.
 13. **Form Always Visible** — If no chainId/account, still render the form. Only the submit area shows Connect Wallet or Switch Chain using DEX's existing flow.
 14. **Split Big Files** — A tiny integration can start in one file, but production integrations should split large files into focused `components`, `hooks`, `context`, and `utils` files. Do not leave one giant file that mixes provider setup, wallet adapters, form sections, modals, history rows, formatting, and transaction helpers.
 15. **Balance Refetch via Callbacks** — Wire `refetchBalances` into `onWrapSuccess`, `onOrderCreated`, `onOrderFilled`, `onOrdersProgressUpdate`, and `onCancelOrderSuccess`. Do not pass it as a prop.
-16. **Input Reset in onClose** — Clear the DEX input only when `isSuccess` is true inside the modal's `onClose` callback. On success call `resetState()`; on failed/rejected submissions keep the input and call `resetCurrentSwap()` (see [02-provider.md](02-provider.md)).
+16. **Input Reset in onClose** — Ignore close/reset requests while `isExecuting` is true. Clear the DEX input only when `isSuccess` is true inside the modal's `onClose` callback. On success call `startNewOrder()`; on failed/rejected submissions keep the input and call `returnToOrderForm()` (see [02-provider.md](02-provider.md)).
 17. **Translations** — The SDK returns string keys for disclaimers and errors. Resolve via your own i18n system.
 18. **Direct Provider Props** — Pass values directly to `SpotProvider`. Do not create `useSpotProviderProps()` wrappers that hide simple prop wiring.
 19. **DEX Swap State Context** — Keep selected tokens, typed amount, balances, USD amounts, and quote state in the DEX swap form context/store. If Spot components need shared access or the same props are passed to multiple children, expose a small Spot adapter context rather than prop-drilling.
 20. **Connected Chain Source** — Use the connected account/wallet chain id for Spot config, provider props, token conversion, and history links. Do not mix it with quote/router chain sources.
 21. **Token Selector Lock** — If reusing the DEX token selector, hide chain selection for Spot. Network changes should go through the DEX network control.
-22. **Submit Progress Mode** — Once `orderExecutionPanel.status` is set, hide review details, submit button, and secondary modal footer close/cancel actions. The progress/success/failure content owns the modal.
+22. **Submit Progress Mode** — Once `useExecution().status` is set, hide review details, submit button, and secondary modal footer close/cancel actions. The progress/success/failure content owns the modal.
 23. **Order Created Toast** — Avoid a toast on `onOrderCreated` unless explicitly requested. Refetch balances silently; keep toasts for fills, cancellation, copy, and errors.
-24. **Virtualized History** — Use existing virtualization for order history and fills lists when available. Store selected order id, not the selected order object.
-25. **No Hidden Unsupported Chain** — Because Spot can fall back internally to a supported partner chain for config, the host DEX must visibly block submission until the connected wallet is on a supported chain.
+24. **Virtualized History** — Use existing virtualization for order history and fills lists when available. Store the selected order's stable `historyKey`, not the selected order object or collision-prone v1 numeric id.
+25. **No Hidden Unsupported Chain** — Spot never substitutes another chain. Its client and submission remain disabled until the connected wallet is on a supported chain; show the host DEX's switch-network control.
 26. **Visual References Are Structural** — Use [05-ui-reference.md](05-ui-reference.md) and the bundled screenshots for layout, hierarchy, density, and flow states. Adapt colors, backgrounds, radii, typography, and token-logo rendering to the integrated DEX.
-27. **Shared RePermit Query** — Let `spot-react` fetch configuration. Do not add a DEX-owned `/config` request or pass configuration through local context; all Spot consumers share the SDK query.
-28. **Configuration Recovery** — Keep submission disabled while configuration is loading or unavailable. When `submitOrderButton.error` is present, render a translated retry action that calls `submitOrderButton.retry()`.
-29. **Trusted Configuration Boundary** — The SDK trusts successful `/config` JSON and uses its contract addresses for approvals, cancellation, and order construction. Only use the trusted Orbs endpoint over TLS.
+27. **Shared Spot Client** — Let `spot-react` initialize the keyed `spot-ui` client. Do not add a DEX-owned `/config` request or pass RePermit configuration through local context; the SDK client owns all configuration-derived order and transaction-request values, while `calculateOrderForm` keeps defaults, validation, preview/display amounts, and order construction aligned.
+28. **Configuration Boundary** — Treat a missing client as initialization loading. Keep submission disabled while it is unavailable and give `SpotProvider` a DEX-native `clientErrorFallback`. The fallback receives `error`, `retry`, and `isRetrying`, keeping failures recoverable without recreating configuration state in child contexts.
+29. **Trusted Configuration Boundary** — The SDK rejects chain mismatches and malformed or zero RePermit/adapter addresses, then uses the remaining `/config` contract values for approvals, cancellation, and order construction. It does not verify deployed bytecode or contract identity, so only use the trusted Orbs endpoint over TLS.
 30. **Preserve Wallet Signatures** — Return the wallet's original `0x`-prefixed value from `signOrder`. Spot submits it unchanged; do not split it into `{ v, r, s }`, rewrite `v`, or normalize its bytes.
 
 ## Module Navigation
@@ -67,7 +67,8 @@ If rendering elements outside SpotProvider scope (modals, tooltips), use Portal:
 import { createPortal } from "react-dom";
 
 function OrderHistoryWithPortal() {
-  const { orders } = useSpot().orderHistoryPanel; // Must be inside SpotProvider
+  const { data } = useOrders(); // Must be inside SpotProvider
+  const orders = data?.all ?? [];
   const [container, setContainer] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -113,7 +114,7 @@ components/spot/
   order-fills.tsx
 ```
 
-Keep `useSpot()` calls in the component that renders the data whenever possible. Use context for DEX-owned values/actions that many children need: selected currencies, typed amount setters, DEX balance/quote formatting, modal open state, token selector actions, copied-to-clipboard feedback, and DEX-specific callbacks. Do not create context just to re-export every `useSpot()` panel.
+Keep focused Spot hook calls in the component that renders the data whenever possible. Use context for DEX-owned values/actions that many children need: selected currencies, typed amount setters, DEX balance/quote formatting, modal open state, token selector actions, copied-to-clipboard feedback, and DEX-specific callbacks. Do not create context just to re-export every Spot panel.
 
 ## Final Checklist
 
@@ -128,20 +129,20 @@ Keep `useSpot()` calls in the component that renders the data whenever possible.
 - [ ] Quote freshness handled so stale output is not shown after input amount changes
 - [ ] `chainId` comes from connected account/wallet state everywhere Spot uses it
 - [ ] Submit area blocks unsupported/missing connected chains with the DEX switch-network flow
-- [ ] Input reset handled in modal `onClose`: clear input and call `resetState()` on success; keep input and call `resetCurrentSwap()` after failed/rejected submissions
+- [ ] Modal close/reset is ignored while `isExecuting`; afterward clear input and call `startNewOrder()` on success, or keep input and call `returnToOrderForm()` after failed/rejected submissions
 - [ ] Balance refetch handled via callbacks: wrap success, order created, order filled, order progress update, cancellation success
 - [ ] Token inputs use DEX components unchanged
 - [ ] Token selector chain switching hidden/disabled for Spot
 - [ ] Duration/interval panels use Input + Select with `TimeUnit` options
 - [ ] Raw panel/history amounts converted into DEX amount objects before display when possible
-- [ ] Submit modal built using `useSpot().orderExecutionPanel` and `useSpot().derivedFormData`
+- [ ] Submit modal built using `useExecution()` and `useOrderForm()`
 - [ ] Submit modal progress/success/failure states rendered with `@orbs-network/swap-ui`
-- [ ] Submit modal hides review details and submit/footer buttons while `orderExecutionPanel.status` is set
-- [ ] RePermit configuration errors render a translated retry action using `submitOrderButton.retry`
+- [ ] Submit modal hides review details and submit/footer buttons while `useExecution().status` is set
+- [ ] RePermit configuration failures use a localized, DEX-native `clientErrorFallback` with retry
 - [ ] Submit remains disabled while RePermit configuration is loading or unavailable
 - [ ] Order cancellation uses `useCancelOrder(order)` hook
-- [ ] Order history built using `useSpot().orderHistoryPanel` and `useDerivedHistoryOrder()`
-- [ ] Order history and order fills virtualized for large lists; selected order stored by id
+- [ ] Order history built using `useOrders()` and `useHistoryOrder()`
+- [ ] Order history and order fills virtualized for large lists; selected order stored by `historyKey`
 - [ ] DEX styles applied to orders list, selected order view, submit order content
 - [ ] Price Protection setting persisted
 - [ ] Callbacks wired for balance refetch; no order-created toast unless explicitly requested

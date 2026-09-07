@@ -1,83 +1,43 @@
-import { DEFAULT_FILL_DELAY, getMaxFillDelayError, getMinFillDelayError, TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
-import { useMemo, useCallback } from "react";
-import { useSpotStore } from "../store";
-import BN from "bignumber.js";
-import { InputErrors } from "..";
-import { useSpotContext } from "../spot-context";
-import { useTrades } from "./use-trades";
-import { millisToDays, millisToMinutes } from "../utils";
-
-const formatFillDelayErrorValue = (milliseconds: number) => {
-  const days = millisToDays(milliseconds);
-  if (days >= 1) {
-    return `${days.toFixed(days % 1 ? 1 : 0)} ${days === 1 ? "day" : "days"}`;
-  }
-
-  const hours = millisToMinutes(milliseconds) / 60;
-  if (hours >= 1) {
-    return `${hours.toFixed(hours % 1 ? 1 : 0)} ${hours === 1 ? "hour" : "hours"}`;
-  }
-
-  const minutes = millisToMinutes(milliseconds);
-  return `${minutes.toFixed(minutes % 1 ? 1 : 0)} ${minutes === 1 ? "minute" : "minutes"}`;
-};
-
-const useFillDelayError = (fillDelay: TimeDuration) => {
-  const { totalTrades } = useTrades();
-  const { marketPrice, typedInputAmount } = useSpotContext();
-  const minFillDelayError = useMemo(() => {
-    const { isError, value } = getMinFillDelayError(fillDelay);
-    if (!isError || BN(typedInputAmount || "0").isZero() || !marketPrice) return undefined;
-    return {
-      type: InputErrors.MIN_FILL_DELAY,
-      value: value,
-      args: { fillDelay: formatFillDelayErrorValue(value) },
-    };
-  }, [fillDelay, typedInputAmount, marketPrice]);
-
-
-  const maxFillDelayError = useMemo(() => {
-    const { isError, value } = getMaxFillDelayError(fillDelay, totalTrades);
-    if (!isError || BN(typedInputAmount || "0").isZero() || !marketPrice) return undefined;
-    return {
-      type: InputErrors.MAX_FILL_DELAY,
-      value: value,
-      args: { fillDelay: formatFillDelayErrorValue(value) },
-    };
-  }, [fillDelay, typedInputAmount, marketPrice, totalTrades]);
-
-  return minFillDelayError || maxFillDelayError;
-};
+import { type TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
+import { useCallback, useMemo } from "react";
+import { useOrderForm } from "../context/order-form-context";
+import { useSpotRuntime, useSpotStore } from "../context/spot-store";
+import { observe } from "../execution-state";
 
 export const useFillDelay = () => {
-  const { callbacks } = useSpotContext();
-  const typedFillDelay = useSpotStore((s) => s.state.typedFillDelay);
-  const updateState = useSpotStore((s) => s.updateState);
-  const fillDelay = useMemo(() => typedFillDelay || DEFAULT_FILL_DELAY, [typedFillDelay]);
-  const error = useFillDelayError(fillDelay);
-
-  return {
-    fillDelay,
-    onChange: useCallback((typedFillDelay: TimeDuration) => {
+  const { callbacks } = useSpotRuntime();
+  const updateState = useSpotStore((state) => state.updateState);
+  const { schedule } = useOrderForm();
+  const { fillDelay } = schedule;
+  const onChange = useCallback(
+    (typedFillDelay: TimeDuration) => {
       updateState({ typedFillDelay });
-      callbacks?.onFillDelayChange?.(typedFillDelay);
-    }, [updateState, callbacks]),
-    error,
-    milliseconds: fillDelay.unit * fillDelay.value,
-  };
-};
+      observe(() => callbacks?.onFillDelayChange?.(typedFillDelay));
+    },
+    [callbacks, updateState],
+  );
+  const onInputChange = useCallback(
+    (value: string) => {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) return;
+      onChange({ unit: fillDelay.unit, value: numericValue });
+    },
+    [fillDelay.unit, onChange],
+  );
+  const onUnitSelect = useCallback(
+    (unit: TimeUnit) => onChange({ unit, value: fillDelay.value }),
+    [fillDelay.value, onChange],
+  );
 
-export const useFillDelayPanel = () => {
-  const { onChange, fillDelay, error } = useFillDelay();
-  const onInputChange = useCallback((value: string) => onChange({ unit: fillDelay.unit, value: Number(value) }), [onChange, fillDelay]);
-  const onUnitSelect = useCallback((unit: TimeUnit) => onChange({ unit, value: fillDelay.value }), [onChange, fillDelay]);
-
-  return {
-    onInputChange,
-    onUnitSelect,
-    onChange,
-    milliseconds: fillDelay.unit * fillDelay.value,
-    fillDelay,
-    error,
-  };
+  return useMemo(
+    () => ({
+      onInputChange,
+      onUnitSelect,
+      onChange,
+      milliseconds: schedule.fillDelayMillis,
+      fillDelay,
+      error: schedule.fillDelayError,
+    }),
+    [fillDelay, onChange, onInputChange, onUnitSelect, schedule],
+  );
 };

@@ -28,10 +28,10 @@ const getOrderType = (order: OrderV2) => {
     BN(triggerLower || 0).gt(0);
   const chunkAmount = BN(order.order.witness.input.amount);
   const chunks =
-    order.metadata.chunks?.length ||
+    order.metadata.expectedChunks ||
     (chunkAmount.gt(0)
       ? BN(order.order.witness.input.maxAmount).div(chunkAmount).toNumber()
-      : order.metadata.expectedChunks || 1);
+      : 1);
 
   if (isTakeProfit) {
     return isLimit ? OrderType.TAKE_PROFIT_LIMIT : OrderType.TAKE_PROFIT_MARKET;
@@ -63,18 +63,25 @@ const getProgress = (order: OrderV2) => {
   if (!totalChunks) return 0;
   const progress = BN(successChunks).dividedBy(totalChunks).toNumber();
 
-  if (progress >= 0.99) return 100;
+  if (successChunks >= totalChunks) return 100;
   if (progress <= 0) return 0;
 
   return Number((progress * 100).toFixed(2));
 };
 
 const getStatus = (order: OrderV2, progress: number) => {
-  if (order.metadata.status === "completed" || progress >= 99)
+  const status = (order.metadata.status || "").toLowerCase();
+  const description = order.metadata.description?.toLowerCase();
+
+  if (status === "completed" || progress === 100)
     return OrderStatus.Completed;
-  if (["pending", "eligible"].includes(order.metadata.status))
+  if (["pending", "eligible"].includes(status))
     return OrderStatus.Open;
-  if (order.metadata.description?.toLowerCase() === "cancelled by contract")
+  if (
+    ["cancelled", "canceled"].includes(status) ||
+    description === "cancelled by contract" ||
+    description === "canceled by contract"
+  )
     return OrderStatus.Cancelled;
 
   return OrderStatus.Expired;
@@ -83,12 +90,14 @@ const getStatus = (order: OrderV2, progress: number) => {
 const getFills = (order: OrderV2): OrderFill[] => {
   const chunks =
     order.metadata.chunks?.filter((chunk) => chunk.status === "success") || [];
-  return chunks.map((chunk) => ({
-    inAmount: chunk.inAmount,
-    outAmount: chunk.outAmount,
-    timestamp: new Date(chunk.timestamp).getTime(),
-    txHash: chunk.txHash,
-  }));
+  return chunks
+    .map((chunk) => ({
+      inAmount: chunk.inAmount,
+      outAmount: chunk.outAmount,
+      timestamp: new Date(chunk.timestamp).getTime(),
+      txHash: chunk.txHash,
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp);
 };
 
 const getFilledOrderTimestamp = (
@@ -97,19 +106,21 @@ const getFilledOrderTimestamp = (
 ) => {
   const totalFilled = fills.length;
   if (totalFilled >= totalTradesAmount) {
-    return fills[totalFilled - 1]?.timestamp || 0;
+    return fills.reduce(
+      (latestTimestamp, fill) => Math.max(latestTimestamp, fill.timestamp),
+      0,
+    );
   }
   return 0;
 };
 
 const getOrderDollarValueIn = (order: OrderV2) => {
-  return BN(order.metadata.displayOnlyInputTokenPriceUSD)
-    .dividedBy(1e18)
-    .toFixed();
+  const amount = BN(order.metadata.displayOnlyInputTokenPriceUSD || 0);
+  return amount.isFinite() ? amount.dividedBy(1e18).toFixed() : "0";
 };
 
 const getDstMinAmountPerTrade = (order: OrderV2) => {
-  return Number(order.order.witness.output.limit) === 1
+  return BN(order.order.witness.output.limit || 0).eq(1)
     ? ""
     : order.order.witness.output.limit;
 };
@@ -172,6 +183,7 @@ export const buildV2Order = (order: OrderV2): Order => {
     id: order.hash,
     hash: order.hash,
     version: 2,
+    historyKey: `2:${order.order.witness.chainid}:${order.hash.toLowerCase()}`,
     type,
     maker: order.order.witness.swapper,
     progress,
@@ -208,80 +220,276 @@ export const buildV2Order = (order: OrderV2): Order => {
   };
 };
 
+interface OrdersApiPayload {
+  orders: unknown[];
+  totalPages?: number;
+}
+
+interface ParsedOrdersPage {
+  orders: Order[];
+  totalPages: number;
+}
+
+interface OrdersRequestTarget {
+  exchange?: string;
+  endpoints: string[];
+}
+
+const reportInvalidOrders = (
+  count: number,
+  source: string,
+): void => {
+  if (count === 0) return;
+  console.warn(
+    `Skipped ${count} invalid order history ${count === 1 ? "item" : "items"} from ${source}`,
+  );
+};
+
+const parseOrdersPayload = (
+  payload: unknown,
+  requestedPage: number,
+): OrdersApiPayload => {
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !Array.isArray((payload as { orders?: unknown }).orders)
+  ) {
+    throw new Error("Invalid order history response: missing orders array");
+  }
+
+  const rawTotalPages = Number(
+    (payload as { totalPages?: number | string }).totalPages,
+  );
+  const totalPages =
+    Number.isSafeInteger(rawTotalPages) && rawTotalPages > 0
+      ? Math.max(requestedPage, rawTotalPages)
+      : requestedPage;
+
+  return {
+    orders: (payload as { orders: unknown[] }).orders,
+    totalPages,
+  };
+};
+
+const fetchOrdersPage = async ({
+  endpoint,
+  chainId,
+  signal,
+  account,
+  exchange,
+  page,
+  limit,
+}: {
+  endpoint: string;
+  chainId: number;
+  signal?: AbortSignal;
+  account: string;
+  exchange?: string;
+  page: number;
+  limit?: number;
+}): Promise<ParsedOrdersPage> => {
+  const query = new URLSearchParams({
+    swapper: account,
+    chainId: chainId.toString(),
+    page: page.toString(),
+  });
+  if (exchange) query.set("exchange", exchange);
+  if (limit !== undefined) query.set("limit", limit.toString());
+
+  const response = await fetch(`${endpoint}/orders?${query}`, { signal });
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch order history from ${endpoint}: ${response.status}`,
+    );
+  }
+
+  const payload = parseOrdersPayload(await response.json(), page);
+  let invalidOrders = 0;
+  const orders = payload.orders.flatMap((rawOrder) => {
+    try {
+      return [buildV2Order(rawOrder as OrderV2)];
+    } catch {
+      invalidOrders++;
+      return [];
+    }
+  });
+  reportInvalidOrders(invalidOrders, endpoint);
+
+  return { orders, totalPages: payload.totalPages ?? page };
+};
+
+const fetchOrdersForTarget = async ({
+  endpoint,
+  chainId,
+  signal,
+  account,
+  exchange,
+  page,
+  limit,
+}: {
+  endpoint: string;
+  chainId: number;
+  signal?: AbortSignal;
+  account: string;
+  exchange?: string;
+  page?: number;
+  limit?: number;
+}): Promise<Order[]> => {
+  // The public SDK page is zero-based; the order service page is one-based.
+  const firstPageNumber = page === undefined ? 1 : page + 1;
+  const firstPage = await fetchOrdersPage({
+    endpoint,
+    chainId,
+    signal,
+    account,
+    exchange,
+    page: firstPageNumber,
+    limit,
+  });
+
+  if (page !== undefined || firstPageNumber >= firstPage.totalPages) {
+    return firstPage.orders;
+  }
+
+  const remainingPageNumbers = Array.from(
+    { length: firstPage.totalPages - firstPageNumber },
+    (_, index) => firstPageNumber + index + 1,
+  );
+  const remainingPages = await Promise.all(
+    remainingPageNumbers.map((nextPage) =>
+      fetchOrdersPage({
+        endpoint,
+        chainId,
+        signal,
+        account,
+        exchange,
+        page: nextPage,
+        limit,
+      }),
+    ),
+  );
+
+  return [
+    ...firstPage.orders,
+    ...remainingPages.flatMap((result) => result.orders),
+  ];
+};
+
+const getRequestTargets = (
+  endpoints: string[],
+  exchange?: string,
+  partner?: Partners,
+): OrdersRequestTarget[] => {
+  const targets = new Map<string, OrdersRequestTarget>();
+
+  for (const endpoint of endpoints) {
+    const exchanges = getOrderSinkExchanges({ endpoint, exchange, partner });
+    const targetExchanges: Array<string | undefined> = exchanges.length
+      ? exchanges
+      : [undefined];
+
+    for (const targetExchange of targetExchanges) {
+      const key = targetExchange?.toLowerCase() ?? "all";
+      const target = targets.get(key) ?? {
+        exchange: targetExchange,
+        endpoints: [],
+      };
+      target.endpoints.push(endpoint);
+      targets.set(key, target);
+    }
+  }
+
+  return Array.from(targets.values());
+};
+
+const throwAbortError = (): never => {
+  const error = new Error("Order history request aborted");
+  error.name = "AbortError";
+  throw error;
+};
+
 export const getOrders = async ({
   chainId,
   signal,
   account,
   exchange,
   partner,
-  isDev = false,
+  page,
+  limit,
 }: {
   chainId: number;
   signal?: AbortSignal;
   account?: string;
   exchange?: string;
   partner?: Partners;
-  isDev?: boolean;
+  page?: number;
+  limit?: number;
 }): Promise<Order[]> => {
-  try {
-    if (!account) return [];
-    const endpoints = getOrderApiEndpoints(isDev);
-    const ordersById = new Map<string, Order>();
+  if (!account) return [];
 
-    const ordersByRequest = await Promise.all(
-      endpoints.flatMap((endpoint) => {
-        const exchanges = getOrderSinkExchanges({
-          endpoint,
-          exchange,
-          partner,
-        });
-        const requestExchanges: Array<string | undefined> = exchanges.length
-          ? exchanges
-          : [undefined];
+  const targets = getRequestTargets(
+    getOrderApiEndpoints(),
+    exchange,
+    partner,
+  );
+  const targetResults = await Promise.allSettled(
+    targets.map(async (target) => {
+      const results = await Promise.allSettled(
+        target.endpoints.map((endpoint) =>
+          fetchOrdersForTarget({
+            endpoint,
+            chainId,
+            signal,
+            account,
+            exchange: target.exchange,
+            page,
+            limit,
+          }),
+        ),
+      );
 
-        return requestExchanges.map(async (orderSinkExchange) => {
-          try {
-            const exchangeQuery = orderSinkExchange
-              ? `&exchange=${orderSinkExchange}`
-              : "";
+      if (signal?.aborted) throwAbortError();
 
-            const response = await fetch(
-              `${endpoint}/orders?swapper=${account}&chainId=${chainId}${exchangeQuery}`,
-              {
-                signal,
-              },
-            );
-
-            const payload = await response.json();
-
-            if (!payload || !Array.isArray(payload.orders)) {
-              return [];
-            }
-
-            const orders: Order[] = [];
-            for (const rawOrder of payload.orders as OrderV2[]) {
-              try {
-                orders.push(buildV2Order(rawOrder));
-              } catch (error) {
-                continue;
-              }
-            }
-            return orders;
-          } catch (error) {
-            return [];
-          }
-        });
-      }),
-    );
-
-    ordersByRequest.flat().forEach((order) => {
-      if (!ordersById.has(order.id)) {
-        ordersById.set(order.id, order);
+      const successfulResults = results.filter(
+        (result): result is PromiseFulfilledResult<Order[]> =>
+          result.status === "fulfilled",
+      );
+      if (!successfulResults.length) {
+        const firstFailure = results.find(
+          (result): result is PromiseRejectedResult =>
+            result.status === "rejected",
+        );
+        throw firstFailure?.reason instanceof Error
+          ? firstFailure.reason
+          : new Error("Failed to fetch order history");
       }
-    });
 
-    return Array.from(ordersById.values());
-  } catch (error) {
-    return [];
+      return successfulResults.flatMap((result) => result.value);
+    }),
+  );
+
+  if (signal?.aborted) throwAbortError();
+
+  const successfulTargets = targetResults.filter(
+    (result): result is PromiseFulfilledResult<Order[]> =>
+      result.status === "fulfilled",
+  );
+  if (!successfulTargets.length) {
+    const firstFailure = targetResults.find(
+      (result): result is PromiseRejectedResult =>
+        result.status === "rejected",
+    );
+    throw firstFailure?.reason instanceof Error
+      ? firstFailure.reason
+      : new Error("Failed to fetch order history");
   }
+
+  const ordersByHistoryKey = new Map<string, Order>();
+  for (const order of successfulTargets.flatMap((result) => result.value)) {
+    if (!ordersByHistoryKey.has(order.historyKey)) {
+      ordersByHistoryKey.set(order.historyKey, order);
+    }
+  }
+
+  return Array.from(ordersByHistoryKey.values());
 };

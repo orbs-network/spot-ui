@@ -6,7 +6,6 @@ import { Order, RePermitOrder } from "./types";
 export const submitOrder = async (
   order: RePermitOrder,
   signature: `0x${string}`,
-  isDev = false,
 ): Promise<Order> => {
   try {
     const body = {
@@ -17,7 +16,7 @@ export const submitOrder = async (
 
     analytics.onCreateOrderRequest();
 
-    const response = await fetch(`${getApiEndpoint(isDev)}/orders/new`, {
+    const response = await fetch(`${getApiEndpoint()}/orders/new`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

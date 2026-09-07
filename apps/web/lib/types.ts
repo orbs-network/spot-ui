@@ -34,6 +34,8 @@ export enum SwapStep {
     SWAP = 'SWAP',
 }
 
+export type WrappedNativeAction = "wrap" | "unwrap";
+
 export enum Field {
     INPUT = 'INPUT',
     OUTPUT = 'OUTPUT',
@@ -59,4 +61,3 @@ export enum TABS {
     gas: string;
     originalQuote: any;
   }
-  

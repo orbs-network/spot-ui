@@ -11,6 +11,7 @@
     "build:liquidity-hub": "pnpm --filter @orbs-network/liquidity-hub-sdk build",
     "build:spot-react": "pnpm --filter @orbs-network/spot-react build",
     "build:web": "pnpm --filter web build",
+    "typecheck:dist": "pnpm build:spot-ui && pnpm build:spot-react && pnpm --filter web exec tsc --noEmit -p tsconfig.dist.json",
     "publish:spot-ui": "node scripts/publish-spot-ui.mjs",
     "publish:spot-react": "node scripts/publish-spot-react.mjs",
     "publish:liquidity-hub-sdk": "node scripts/publish-liquidity-hub.mjs",

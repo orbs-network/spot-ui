@@ -22,14 +22,12 @@ The host app must also have these installed:
 
 | Package                | Version    |
 | ---------------------- | ---------- |
-| `@tanstack/react-query`| `^5.90.12` |
-| `bignumber.js`         | `^9.3.1`   |
-| `react-error-boundary` | `^6.0.0`   |
-| `zustand`              | `^5.0.9`   |
 | `react`                | `^18 \|\| ^19` |
-| `react-dom`            | `^18 \|\| ^19` |
 
 Note: `viem` is **not** required. The DEX provides wallet interactions via the `walletInteractions` prop using whatever wallet library it already uses.
+
+`spot-react` keeps client and history state inside each `SpotProvider`. It does
+not require React Query or any host query/cache provider.
 
 ## DEX Configuration
 
@@ -65,18 +63,18 @@ The SDK trusts a successful configuration response and uses its `domain.verifyin
 - [ ] `walletInteractions` implements all 5 methods and waits for receipts on write transactions
 - [ ] Lifecycle callbacks cover balance refetch for wrap, order creation, fills/progress, and cancellation
 - [ ] The submit area renders connect-wallet/switch-network controls when account or connected chain is missing/unsupported
-- [ ] The submit area renders configuration failures as a retry action using `submitOrderButton.retry`
+- [ ] RePermit initialization failures use a localized, DEX-native `clientErrorFallback` with retry
 - [ ] Submission stays disabled while RePermit configuration is loading or unavailable
 - [ ] The order history UI can handle many orders without forcing a huge modal or storing stale selected order objects
 
 ## Minimum Steps
 
-1. Install `@orbs-network/spot-react@latest`, `@orbs-network/swap-ui@latest`, and peer dependencies.
+1. Install `@orbs-network/spot-react@latest`, React, and `@orbs-network/swap-ui@latest` when using the documented progress modal.
 2. Implement the required `walletInteractions` adapter using the DEX's existing wallet library.
 3. Identify the DEX source of truth for selected tokens, typed amount, balances, quote output, and USD prices.
 4. Add a small DEX-owned Spot swap-state adapter/context if multiple Spot components need those values, callbacks, or derived helpers.
 5. Mount `SpotProvider` with all required props passed directly (see [02-provider.md](02-provider.md)).
-6. Build the form using `useSpot()` hook panels (see [03-panels.md](03-panels.md)).
+6. Build the form using the focused Spot hooks (see [03-panels.md](03-panels.md)).
 7. Place Spot tabs alongside the Swap tab in the same container.
 8. Build submit/progress modal content with `@orbs-network/swap-ui`.
 9. Add order history and cancellation inside `SpotProvider` scope or through a context-preserving portal.

@@ -7,30 +7,27 @@ import {
 } from "./types";
 import {
   getNetwork,
-  getQueryParam,
   isNativeAddress,
   safeBNString,
 } from "./utils";
-import {
-  getRePermitConfigEndpoint,
-  QUERY_PARAMS,
-} from "./consts";
+import { getRePermitConfigEndpoint } from "./consts";
 import BN from "bignumber.js";
 
 export type BuildRePermitOrderDataParams = {
   chainId: number;
-  srcTokenAddress: string;
-  dstTokenAddress: string;
-  totalSrcAmount: string;
+  inputTokenAddress: string;
+  outputTokenAddress: string;
+  totalInputAmount: string;
+  nonce: string;
   currentTimeMillis: number;
   deadlineMillis: number;
   fillDelayMillis: number;
   totalTrades: number;
   slippageBps: number;
   swapperAddress: string;
-  srcAmountPerTrade: string;
-  minDstAmountPerTrade?: string;
-  triggerAmountPerTrade?: string;
+  inputAmountPerTrade: string;
+  minOutputAmountPerTrade?: string;
+  triggerOutputAmountPerTrade?: string;
   permitData: RePermitData;
   module: Module;
 };
@@ -38,13 +35,12 @@ export type BuildRePermitOrderDataParams = {
 export const fetchRePermitData = async (
   partner: Partners,
   chainId: number,
-  isDev = false,
 ): Promise<RePermitData> => {
   const query = new URLSearchParams({
     partner,
     chain: chainId.toString(),
   });
-  const response = await fetch(`${getRePermitConfigEndpoint(isDev)}?${query}`);
+  const response = await fetch(`${getRePermitConfigEndpoint()}?${query}`);
 
   if (!response.ok) {
     const message = await response.text();
@@ -58,47 +54,46 @@ export const fetchRePermitData = async (
 
 export const buildRePermitOrderData = ({
   chainId,
-  srcTokenAddress,
-  dstTokenAddress,
-  totalSrcAmount,
+  inputTokenAddress,
+  outputTokenAddress,
+  totalInputAmount,
+  nonce,
   currentTimeMillis,
   deadlineMillis,
   fillDelayMillis,
   totalTrades,
   slippageBps,
   swapperAddress,
-  srcAmountPerTrade,
-  minDstAmountPerTrade = "0",
-  triggerAmountPerTrade = "0",
+  inputAmountPerTrade,
+  minOutputAmountPerTrade = "0",
+  triggerOutputAmountPerTrade = "0",
   permitData,
   module,
 }: BuildRePermitOrderDataParams) => {
-  const nonce = currentTimeMillis.toString();
   const epoch =
     !totalTrades || totalTrades === 1
       ? 0
       : parseInt((fillDelayMillis / 1000).toFixed(0));
   const deadline = safeBNString(deadlineMillis / 1000);
-  const customFreshness = getQueryParam(QUERY_PARAMS.FRESHNESS);
-  const freshness = customFreshness ? parseInt(customFreshness) : 60;
+  const freshness = 60;
   const start = Math.floor(currentTimeMillis / 1000).toString();
-  const normalizedSrcTokenAddress = isNativeAddress(srcTokenAddress)
+  const normalizedInputTokenAddress = isNativeAddress(inputTokenAddress)
     ? getNetwork(chainId)?.wToken.address || ""
-    : srcTokenAddress;
-  const limit = BN(minDstAmountPerTrade || 0).toFixed();
+    : inputTokenAddress;
+  const limit = BN(minOutputAmountPerTrade || 0).toFixed();
   const triggerLower = BN(
-    module === Module.STOP_LOSS ? triggerAmountPerTrade || 0 : 0,
+    module === Module.STOP_LOSS ? triggerOutputAmountPerTrade || 0 : 0,
   ).toFixed();
   const triggerUpper = BN(
-    module === Module.TAKE_PROFIT ? triggerAmountPerTrade || 0 : 0,
+    module === Module.TAKE_PROFIT ? triggerOutputAmountPerTrade || 0 : 0,
   ).toFixed();
 
   const orderData: RePermitOrder = {
     ...permitData.order,
     permitted: {
       ...permitData.order.permitted,
-      token: normalizedSrcTokenAddress as Address,
-      amount: totalSrcAmount,
+      token: normalizedInputTokenAddress as Address,
+      amount: totalInputAmount,
     },
     nonce,
     deadline,
@@ -113,13 +108,13 @@ export const buildRePermitOrderData = ({
       freshness,
       input: {
         ...permitData.order.witness.input,
-        token: normalizedSrcTokenAddress as Address,
-        amount: srcAmountPerTrade,
-        maxAmount: totalSrcAmount,
+        token: normalizedInputTokenAddress as Address,
+        amount: inputAmountPerTrade,
+        maxAmount: totalInputAmount,
       },
       output: {
         ...permitData.order.witness.output,
-        token: dstTokenAddress as Address,
+        token: outputTokenAddress as Address,
         limit,
         triggerLower,
         triggerUpper,

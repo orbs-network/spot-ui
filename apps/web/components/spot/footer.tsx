@@ -10,10 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
-import {
-  SPOT_VERSION,
-} from "@orbs-network/spot-ui";
-import { useRePermitData } from "@orbs-network/spot-react";
+import { useClient } from "@orbs-network/spot-react";
 import dynamic from "next/dynamic";
 import { Skeleton } from "../ui/skeleton";
 
@@ -24,7 +21,7 @@ const ReactJson = dynamic(() => import("react-json-view"), {
 
 const ConfigDialog = () => {
   const { parsedPartner } = useSwapParams();
-  const { data: permitData } = useRePermitData();
+  const { data: client } = useClient();
 
   return (
     <Dialog>
@@ -40,7 +37,7 @@ const ConfigDialog = () => {
           </DialogTitle>
         </DialogHeader>
         <ReactJson
-          src={permitData || {}}
+          src={client?.rePermitData || {}}
           name={false}
           collapsed={1}
           enableClipboard={true}
@@ -57,7 +54,7 @@ const ConfigDialog = () => {
 };
 
 export const SpotFooter = () => {
-  const { parsedPartner, envMode } = useSwapParams();
+  const { parsedPartner } = useSwapParams();
 
   if (!parsedPartner) {
     return null;
@@ -71,10 +68,6 @@ export const SpotFooter = () => {
       <p className="text-[16px] font-bold text-foreground/80">
         Spot: v{pkg.version}
       </p>
-      {Number(SPOT_VERSION) >= 2 &&  <>
-        <div className="w-px h-4 bg-foreground/80" />
-        <p className="text-[16px] font-bold text-foreground/80">Env: {envMode === 'prod' ? 'Prod' : 'Dev'}</p>
-      </>}
       {demo && (
         <Button variant="secondary" onClick={() => window.open(demo, "_blank")}>
           Demo

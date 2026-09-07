@@ -1,55 +1,57 @@
-import { Partners, Module, Order, TimeDuration, TWAP_ABI, REPERMIT_ABI } from "@orbs-network/spot-ui";
-export enum SwapStatus {
+import {
+  Partners,
+  Module,
+  Order,
+  TimeDuration,
+  type Address,
+  type AllowanceRequest,
+  type ApprovalRequest,
+  type CalculatedOrderForm,
+  type CancelOrderRequest,
+  type OrderSigningRequest,
+  type PreparedOrder,
+  type Token,
+} from "@orbs-network/spot-ui";
+import type { ComponentType, ReactNode } from "react";
+export enum ExecutionStatus {
   LOADING = 1,
   SUCCESS = 2,
   FAILED = 3,
 }
-export type { Order } from "@orbs-network/spot-ui";
+
+export enum ExecutionPhase {
+  IDLE = "idle",
+  PREPARING = "preparing",
+  WRAPPING = "wrapping",
+  APPROVING = "approving",
+  SIGNING = "signing",
+  SUBMITTING = "submitting",
+  SUCCESS = "success",
+  FAILED = "failed",
+  REJECTED = "rejected",
+}
+export type { Order, Token } from "@orbs-network/spot-ui";
 export { OrderStatus, type OrderFill, OrderType, Module } from "@orbs-network/spot-ui";
 
 
 
-export type SignOrderProps = {
-  domain: Record<string, unknown>;
-  types: Record<string, unknown[]>;
-  primaryType: string;
-  message: Record<string, unknown>;
-  account: `0x${string}`;
-};
+export type CancelOrderProps = CancelOrderRequest;
 
-
-
-
-
-export type CancelOrderProps = {
-  order: Order
-  contractAddress: string;
-  args: string[] | string[][];
-  abi: (typeof TWAP_ABI) | (typeof REPERMIT_ABI);
-};
-
-export type ApproveTokenProps = {
-  tokenAddress: string;
-  amount: string;
-  spenderAddress: string;
-};
+export type ApproveTokenProps = ApprovalRequest;
 
 export type WalletInteractions = {
   cancelOrder: (props: CancelOrderProps) => Promise<`0x${string}`>;
-  signOrder: (props: SignOrderProps) => Promise<`0x${string}`>;
+  signOrder: (request: OrderSigningRequest) => Promise<`0x${string}`>;
   wrapNativeToken: (amount: string) => Promise<`0x${string}`>;
   approveToken:  (props: ApproveTokenProps) => Promise<`0x${string}`>;
   getAllowance: (props: GetAllowanceProps) => Promise<string>;
 };
 
-export type GetAllowanceProps = {
-  tokenAddress: string;
-  spenderAddress: string;
-};
+export type GetAllowanceProps = AllowanceRequest;
 
 export type InitialState = {
   isMarketOrder?: boolean;
-  chunks?: number;
+  trades?: number;
   triggerPricePercent?: string | null;
   limitPricePercent?: string | null;
   fillDelay?: TimeDuration;
@@ -95,31 +97,33 @@ export type ParsedError = {
   code: number;
 };
 
-export type Callbacks = {
-  onCancelOrderRequest?: (order: Order) => void;
-  onCancelOrderSuccess?: (props: OnCancelOrderSuccess) => void;
-  onCancelOrderFailed?: (error: Error) => void;
-  onOrdersProgressUpdate?: (orders: Order[]) => void;
-  onSignOrderRequest?: () => void;
-  onOrderCreated?: (order: Order) => void;
-  onSignOrderSuccess?: (signature: string) => void;
-  onSignOrderError?: (error: Error) => void;
-  onApproveRequest?: () => void;
-  onApproveSuccess?: (props: OnApproveSuccessCallback) => void;
-  onWrapRequest?: () => void;
-  onWrapSuccess?: (props: OnWrapSuccessCallback) => void;
-  onOrderFilled?: (order: Order) => void;
-  onCopy?: () => void;
-  onSubmitOrderFailed?: (error: ParsedError) => void;
-  onSubmitOrderRejected?: () => void;
+export type ObserverResult = void | PromiseLike<unknown>;
 
-  onLimitPriceChange?: (typedLimitPrice: string) => void;
-  onTriggerPriceChange?: (typedTriggerPrice: string) => void;
-  onTriggerPricePercentChange?: (triggerPricePercent: string) => void;
-  onLimitPricePercentChange?: (limitPricePercent: string) => void;
-  onDurationChange?: (typedDuration?: TimeDuration) => void;
-  onFillDelayChange?: (typedFillDelay?: TimeDuration) => void;
-  onChunksChange?: (typedChunks: number) => void;
+export type Callbacks = {
+  onCancelOrderRequest?: (order: Order) => ObserverResult;
+  onCancelOrderSuccess?: (props: OnCancelOrderSuccess) => ObserverResult;
+  onCancelOrderFailed?: (error: Error) => ObserverResult;
+  onOrdersProgressUpdate?: (orders: Order[]) => ObserverResult;
+  onSignOrderRequest?: () => ObserverResult;
+  onOrderCreated?: (order: Order) => ObserverResult;
+  onSignOrderSuccess?: (signature: string) => ObserverResult;
+  onSignOrderError?: (error: Error) => ObserverResult;
+  onApproveRequest?: () => ObserverResult;
+  onApproveSuccess?: (props: OnApproveSuccessCallback) => ObserverResult;
+  onWrapRequest?: () => ObserverResult;
+  onWrapSuccess?: (props: OnWrapSuccessCallback) => ObserverResult;
+  onOrderFilled?: (order: Order) => ObserverResult;
+  onCopy?: () => ObserverResult;
+  onSubmitOrderFailed?: (error: ParsedError) => ObserverResult;
+  onSubmitOrderRejected?: () => ObserverResult;
+
+  onLimitPriceChange?: (typedLimitPrice: string) => ObserverResult;
+  onTriggerPriceChange?: (typedTriggerPrice: string) => ObserverResult;
+  onTriggerPricePercentChange?: (triggerPricePercent: string) => ObserverResult;
+  onLimitPricePercentChange?: (limitPricePercent: string) => ObserverResult;
+  onDurationChange?: (typedDuration?: TimeDuration) => ObserverResult;
+  onFillDelayChange?: (typedFillDelay?: TimeDuration) => ObserverResult;
+  onTradesChange?: (trades: number) => ObserverResult;
 };
 
 
@@ -129,93 +133,87 @@ export type MarketReferencePrice = {
   noLiquidity?: boolean;
 };
 
+export interface ClientErrorFallbackProps {
+  error: Error;
+  retry: () => Promise<void>;
+  isRetrying: boolean;
+}
+
+export interface SpotErrorFallbackProps {
+  error: Error;
+  resetErrorBoundary: (...args: unknown[]) => void;
+}
 
 export interface SpotProps {
-  children?: React.ReactNode;
+  children?: ReactNode;
   walletInteractions: WalletInteractions;
   chainId?: number;
-  account?: string;
+  account?: Address;
   appId?: string;
-  enableQueryParams?: boolean;
   partner: Partners;
-  srcToken?: Token;
-  dstToken?: Token;
-  srcUsd1Token?: string;
-  dstUsd1Token?: string;
-  srcBalance?: string;
-  dstBalance?: string;
+  inputToken?: Token;
+  outputToken?: Token;
+  inputUsd1Token?: string;
+  outputUsd1Token?: string;
+  inputBalance?: string;
   priceProtection: number;
   module: Module;
   marketReferencePrice: MarketReferencePrice;
   overrides?: Overrides;
-  fees?: number;
+  /** Display-only estimate; protocol fee collection is configured separately. */
+  displayFeePercent?: number;
   callbacks?: Callbacks;
-  minChunkSizeUsd: number;
+  minTradeSizeUsd: number;
   typedInputAmount: string;
-  isDev?: boolean;
   supportLegacyOrders?: boolean;
+  /** Host-rendered, retryable UI for client initialization failures. */
+  clientErrorFallback?: ComponentType<ClientErrorFallbackProps>;
+  /** Host-rendered fallback for unexpected calculation or rendering errors. */
+  errorFallback?: ComponentType<SpotErrorFallbackProps>;
 }
 
-export interface SpotContextType {
-  walletInteractions?: WalletInteractions;
-  marketPrice?: string;
-  marketPriceLoading?: boolean;
-  account?: `0x${string}`;
-  noLiquidity?: boolean;
-  supportedChains: number[];
-  typedInputAmount: string;
-  partner: Partners;
-  minChunkSizeUsd: number;
-  srcToken?: Token;
-  dstToken?: Token;
-  srcUsd1Token?: string;
-  dstUsd1Token?: string;
-  srcBalance?: string;
-  dstBalance?: string;
-  chainId: number;
-  slippage: number;
-  fees: number;
-  module: Module;
-  overrides?: Overrides;
-  callbacks?: Callbacks;
-  isDev?: boolean;
-  supportLegacyOrders: boolean;
-}
-
-
-export type Token = {
-  address: string;
-  symbol: string;
-  decimals: number;
-  logoUrl: string;
-};
 
 export enum Steps {
   WRAP = "wrap",
   APPROVE = "approve",
   CREATE = "create",
 }
+
+export interface CompletedWrap {
+  account: Address;
+  chainId: number;
+  inputTokenAddress: string;
+  inputAmountWei: string;
+  txHash: string;
+}
+
 export type SwapExecution = {
-  status?: SwapStatus;
+  executionId?: number;
+  phase: ExecutionPhase;
   parsedError?: ParsedError;
   error?: Error;
-  step?: Steps;
   stepIndex?: number;
   approveTxHash?: string;
   wrapTxHash?: string;
   totalSteps?: number;
   pendingSteps?: Steps[];
-  srcToken?: Token;
-  dstToken?: Token;
+  inputToken?: Token;
+  outputToken?: Token;
+  chainId?: number;
   orderId?: string;
-  allowanceLoading?: boolean;
   hasApproval?: boolean;
-  acceptedSrcAmount?: string;
-  acceptedMarketPrice?: string;
+  form?: CalculatedOrderForm;
+  preparedOrder?: PreparedOrder;
+  completedWrap?: CompletedWrap;
+};
+
+export type StartedSwapExecution = SwapExecution & {
+  executionId: number;
+  phase: ExecutionPhase.PREPARING;
 };
 
 export interface State {
-  typedChunks?: number;
+  typedTrades?: number;
   typedFillDelay?: TimeDuration;
   typedDuration?: TimeDuration;
   typedLimitPrice?: string;
@@ -225,15 +223,13 @@ export interface State {
   limitPricePercent?: string | null;
   isMarketOrder?: boolean;
 
-  currentTime: number;
   cancelOrders: Record<string, {
-    status: SwapStatus;
+    status: ExecutionStatus;
     txHash?: string;
     error?: string;
   }>;
 
-  swapExecutions: SwapExecution[];
-  swapExecutionIndex: number;
+  currentExecution: SwapExecution;
 }
 
 export { Partners };

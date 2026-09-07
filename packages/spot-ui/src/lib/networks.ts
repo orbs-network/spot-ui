@@ -1,3 +1,5 @@
+import type { Network } from "./types";
+
 export const zeroAddress = "0x0000000000000000000000000000000000000000";
 
 export const networks = {
@@ -569,4 +571,4 @@ export const networks = {
     explorer: "https://mantlescan.xyz",
     eip1559: true,
   },
-};
+} satisfies Record<string, Network>;

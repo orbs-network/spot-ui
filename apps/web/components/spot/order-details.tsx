@@ -25,38 +25,44 @@ const Deadline = ({ deadline, label, tooltip }: { deadline?: number; label: stri
   );
 };
 
-const Price = ({ price, dstToken, label, tooltip, usd, srcToken }: { price?: string; dstToken?: Token; label: string; tooltip?: string; usd?: string; srcToken?: Token }) => {
+const Duration = ({ durationMillis, label, tooltip }: { durationMillis?: number; label: string; tooltip: string }) => (
+  <DetailRow title={label} tooltip={tooltip}>
+    {fillDelayText(durationMillis)}
+  </DetailRow>
+);
+
+const Price = ({ price, outputToken, label, tooltip, usd, inputToken }: { price?: string; outputToken?: Token; label: string; tooltip?: string; usd?: string; inputToken?: Token }) => {
   const priceF = useFormatNumber({ value: price, decimalScale: 3 });
   if (BN(price || 0).isZero()) return null;
 
   return (
     <DetailRow title={label} tooltip={tooltip}>
       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-       1 {srcToken?.symbol} = {`${priceF ? priceF : "-"} ${dstToken?.symbol}`}
+       1 {inputToken?.symbol} = {`${priceF ? priceF : "-"} ${outputToken?.symbol}`}
         <USD value={usd} />
       </div>
     </DetailRow>
   );
 };
 
-const TradeSize = ({ tradeSize, srcToken, trades, label, tooltip }: { tradeSize?: string; srcToken?: Token; trades: number; label: string; tooltip: string }) => {
+const TradeSize = ({ tradeSize, inputToken, trades, label, tooltip }: { tradeSize?: string; inputToken?: Token; trades: number; label: string; tooltip: string }) => {
   if (trades === 1) return null;
 
   return (
     <DetailRow title={label} tooltip={tooltip}>
-      {tradeSize ? <FormatNumber value={tradeSize} decimalScale={3} /> : "-"} {srcToken?.symbol || ""}
+      {tradeSize ? <FormatNumber value={tradeSize} decimalScale={3} /> : "-"} {inputToken?.symbol || ""}
     </DetailRow>
   );
 };
 
-const MinDestAmount = ({ dstToken, dstMinAmountOut, label, tooltip, usd }: { dstToken?: Token; dstMinAmountOut?: string; label: string; tooltip: string; usd?: string }) => {
-  const formattedValue = useFormatNumber({ value: dstMinAmountOut });
+const MinOutputAmount = ({ outputToken, minOutputAmount, label, tooltip, usd }: { outputToken?: Token; minOutputAmount?: string; label: string; tooltip: string; usd?: string }) => {
+  const formattedValue = useFormatNumber({ value: minOutputAmount });
 
-  if (BN(dstMinAmountOut || 0).isZero()) return null;
+  if (BN(minOutputAmount || 0).isZero()) return null;
 
   return (
     <DetailRow title={label} tooltip={tooltip}>
-      {`${dstMinAmountOut ? formattedValue : "-"} ${dstToken?.symbol}`}
+      {`${minOutputAmount ? formattedValue : "-"} ${outputToken?.symbol}`}
       <USD value={usd} />
     </DetailRow>
   );
@@ -153,12 +159,12 @@ const OrderDetailsContainer = ({ children }: { children: ReactNode }) => {
   return children;
 };
 
-const Fees = ({ fees, label, usd, dstTokenSymbol }: { fees?: string; label: string; usd?: string; dstTokenSymbol?: string }) => {
+const Fees = ({ fees, label, usd, outputTokenSymbol }: { fees?: string; label: string; usd?: string; outputTokenSymbol?: string }) => {
   const formattedValue = useFormatNumber({ value: fees });
 
   return (
     <DetailRow title={label}>
-      {`${fees ? formattedValue : "-"} ${dstTokenSymbol}`}
+      {`${fees ? formattedValue : "-"} ${outputTokenSymbol}`}
       <USD value={usd} />
     </DetailRow>
   );
@@ -169,9 +175,10 @@ export function OrderDetails({ children, className = "" }: { children?: ReactNod
 }
 
 OrderDetails.Deadline = Deadline;
+OrderDetails.Duration = Duration;
 OrderDetails.Fees = Fees;
 OrderDetails.TradeSize = TradeSize;
-OrderDetails.MinDestAmount = MinDestAmount;
+OrderDetails.MinOutputAmount = MinOutputAmount;
 OrderDetails.TradesAmount = TradesAmount;
 OrderDetails.Recipient = Recipient;
 OrderDetails.TradeInterval = TradeInterval;

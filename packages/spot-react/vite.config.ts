@@ -1,22 +1,16 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
 import dts from 'vite-plugin-dts'
 import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [
-    react(),
     dts({
       insertTypesEntry: true,
       tsconfigPath: './tsconfig.json',
+      include: ['src'],
+      pathsToAliases: false,
     }),
   ],
-  resolve: {
-    alias: {
-      // Always resolve spot-ui to local source for immediate changes
-      '@orbs-network/spot-ui': resolve(__dirname, '../spot-ui/src/index.ts'),
-    },
-  },
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
@@ -24,12 +18,23 @@ export default defineConfig({
       fileName: 'spot-react',
     },
     rollupOptions: {
-      external: ['react', 'react-dom', 'react/jsx-runtime'],
+      // React stays external so hooks consume the host app's instance.
+      // spot-ui and Zustand are regular runtime dependencies but also stay
+      // external so their implementations are not copied into this bundle.
+      external: [
+        '@orbs-network/spot-ui',
+        'react',
+        'react/jsx-runtime',
+        /^zustand(?:\/.*)?$/,
+      ],
       output: {
+        banner: '"use client";',
         globals: {
           react: 'React',
-          'react-dom': 'ReactDOM',
           'react/jsx-runtime': 'jsxRuntime',
+          '@orbs-network/spot-ui': 'SpotUI',
+          zustand: 'Zustand',
+          'zustand/vanilla': 'ZustandVanilla',
         },
       },
     },

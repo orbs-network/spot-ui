@@ -30,7 +30,8 @@ const stopQuoteLiquidityHub = (_error?: string) => {
 const useQuoteLiquidityHub = (
   inputCurrency?: Currency,
   outputCurrency?: Currency,
-  parsedInputAmount = ""
+  parsedInputAmount = "",
+  disabled = false,
 ) => {
   const liquidityHub = useLiquidityHub();
   const { slippage } = useSettings();
@@ -87,7 +88,8 @@ const useQuoteLiquidityHub = (
       !!outputCurrencyAddress &&
       BN(parsedInputAmount).gt(0) &&
       !!chainId &&
-      !isSpotTab,
+      !isSpotTab &&
+      !disabled,
   });
 };
 
@@ -178,14 +180,16 @@ const useSyntheticTrade = (
 export const useTrade = (
   inputCurrency?: Currency,
   outputCurrency?: Currency,
-  parsedInputAmount = ""
+  parsedInputAmount = "",
+  disabled = false,
 ) => {
   const isSpotTab = useIsSpotTab();
 
   const liquidityHubQuote = useQuoteLiquidityHub(
     inputCurrency,
     outputCurrency,
-    parsedInputAmount
+    parsedInputAmount,
+    disabled,
   );
   const syntheticTrade = useSyntheticTrade(
     inputCurrency,
@@ -199,12 +203,18 @@ export const useTrade = (
 
 
   return {
-    isLoading: showSyntheticTrade
+    isLoading: disabled
+      ? false
+      : showSyntheticTrade
       ? syntheticTrade.isLoading
       : liquidityHubQuote.isLoading,
     refetch: showSyntheticTrade
       ? syntheticTrade.refetch
       : liquidityHubQuote.refetch,
-    data: showSyntheticTrade ? syntheticTrade.trade : liquidityHubQuote.data,
+    data: disabled
+      ? undefined
+      : showSyntheticTrade
+        ? syntheticTrade.trade
+        : liquidityHubQuote.data,
   };
 };

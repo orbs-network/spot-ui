@@ -51,8 +51,18 @@ export const useRefetchSelectedCurrenciesBalances = () => {
   const { inputCurrency, outputCurrency } = useDerivedSwap();
   const queryKey = useQueryKey();
   return useMutation({
-    mutationFn: async () => {
-      const addresses = [inputCurrency?.address, outputCurrency?.address].filter(Boolean);
+    mutationFn: async (additionalAddresses: string[]) => {
+      const addresses = Array.from(
+        new Map(
+          [
+            inputCurrency?.address,
+            outputCurrency?.address,
+            ...additionalAddresses,
+          ]
+            .filter((address): address is string => Boolean(address))
+            .map((address) => [address.toLowerCase(), address]),
+        ).values(),
+      );
       const response = await axios.post("/api/balances", {
         chainId,
         address,

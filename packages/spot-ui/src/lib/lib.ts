@@ -8,18 +8,16 @@ import {
   MAX_ORDER_DURATION_MILLIS,
   MIN_FILL_DELAY_MILLIS,
   MIN_ORDER_DURATION_MILLIS,
-  QUERY_PARAMS,
 } from "./consts";
 import {
   Config,
-  InputError,
   Module,
   PartnerPayloadItem,
   Partners,
   TimeDuration,
   TimeUnit,
 } from "./types";
-import { findTimeUnit, getQueryParam, getTimeDurationMillis } from "./utils";
+import { findTimeUnit, getTimeDurationMillis } from "./utils";
 
 const RING_ALLOWED_CHAIN_IDS = new Set([1, 56, 42161, 8453]);
 
@@ -45,23 +43,28 @@ export const getDestTokenAmount = (
   return result.div(decimalAdjustment).toFixed(0);
 };
 
-export const getDestTokenMinAmountPerChunk = (
-  srcChunkAmount?: string,
+export const getOutputMinAmountPerTrade = (
+  inputAmountPerTrade?: string,
   limitPrice?: string,
   isMarketOrder?: boolean,
   srcTokenDecimals?: number,
 ) => {
-  if (isMarketOrder || srcTokenDecimals == null || !srcChunkAmount || !limitPrice)
+  if (
+    isMarketOrder ||
+    srcTokenDecimals == null ||
+    !inputAmountPerTrade ||
+    !limitPrice
+  )
     return BN(0).toString();
-  const result = BN(srcChunkAmount).times(BN(limitPrice));
+  const result = BN(inputAmountPerTrade).times(BN(limitPrice));
   const decimalAdjustment = BN(10).pow(srcTokenDecimals);
   const adjustedResult = result.div(decimalAdjustment);
   return BN.max(1, adjustedResult).integerValue(BN.ROUND_FLOOR).toFixed(0);
 };
 
-export const getTriggerPricePerChunk = (
+export const getTriggerOutputAmountPerTrade = (
   module: Module,
-  srcChunkAmount?: string,
+  inputAmountPerTrade?: string,
   triggerPrice?: string,
   srcTokenDecimals?: number,
 ) => {
@@ -69,8 +72,8 @@ export const getTriggerPricePerChunk = (
     return "0";
   }
 
-  if (srcTokenDecimals == null || !srcChunkAmount || !triggerPrice) return;
-  const result = BN(srcChunkAmount).times(BN(triggerPrice));
+  if (srcTokenDecimals == null || !inputAmountPerTrade || !triggerPrice) return;
+  const result = BN(inputAmountPerTrade).times(BN(triggerPrice));
   const decimalAdjustment = BN(10).pow(srcTokenDecimals);
   const adjustedResult = result.div(decimalAdjustment);
   return (
@@ -80,18 +83,11 @@ export const getTriggerPricePerChunk = (
 
 export const getDuration = (
   module: Module,
-  chunks: number,
+  totalTrades: number,
   fillDelay: TimeDuration,
   customDuration?: TimeDuration,
 ): TimeDuration => {
-  const minDuration = getTimeDurationMillis(fillDelay) * 2 * chunks;
-  const queryParam = getQueryParam(QUERY_PARAMS.DURATION);
-
-  const unit = findTimeUnit(queryParam ? Number(queryParam) : minDuration);
-
-  if (queryParam) {
-    return { unit, value: Number(BN(Number(queryParam) / unit).toFixed(2)) };
-  }
+  const minDuration = getTimeDurationMillis(fillDelay) * 2 * totalTrades;
 
   if (customDuration) {
     return customDuration;
@@ -105,33 +101,34 @@ export const getDuration = (
     return { unit: TimeUnit.Days, value: 1 } as TimeDuration;
   }
 
+  const unit = findTimeUnit(minDuration);
   return { unit, value: Number(BN(minDuration / unit).toFixed(2)) };
 };
 
-export const getChunks = (
-  maxPossibleChunks: number,
+export const getTrades = (
+  maxPossibleTrades: number,
   module: Module,
-  typedChunks?: number,
+  selectedTrades?: number,
 ) => {
   if (module !== Module.TWAP) return 1;
-  if (typedChunks !== undefined) return typedChunks;
-  return Math.max(1, Math.ceil(maxPossibleChunks / 2));
+  if (selectedTrades !== undefined) return selectedTrades;
+  return Math.max(1, Math.ceil(maxPossibleTrades / 2));
 };
-export const getMaxPossibleChunks = (
-  typedSrcAmount?: string,
-  oneSrcTokenUsd?: string,
-  minChunkSizeUsd?: number,
+export const getMaxPossibleTrades = (
+  inputAmount?: string,
+  inputUsdPrice?: string,
+  minTradeSizeUsd?: number,
 ) => {
-  if (!typedSrcAmount || !oneSrcTokenUsd || !minChunkSizeUsd) return 1;
+  if (!inputAmount || !inputUsdPrice || !minTradeSizeUsd) return 1;
 
-  const totalUsd = BN(oneSrcTokenUsd).times(typedSrcAmount);
+  const totalUsd = BN(inputUsdPrice).times(inputAmount);
 
-  const maxChunksBySize = totalUsd
-    .div(minChunkSizeUsd)
+  const maxTradesBySize = totalUsd
+    .div(minTradeSizeUsd)
     .integerValue(BN.ROUND_FLOOR)
     .toNumber();
 
-  return Math.max(1, maxChunksBySize);
+  return Math.max(1, maxTradesBySize);
 };
 
 export const getDeadline = (
@@ -142,19 +139,22 @@ export const getDeadline = (
   return currentTimeMillis + getTimeDurationMillis(duration) + minute;
 };
 
-export const getEstimatedDelayBetweenChunksMillis = (config: Config) => {
+export const getEstimatedDelayBetweenTradesMillis = (config: Config) => {
   return config.bidDelaySeconds * 1000 * 2;
 };
 
-export const getSrcTokenChunkAmount = (srcAmount = "", chunks = 0) => {
-  if (!srcAmount || !chunks) return "0";
-  return BN(srcAmount).div(chunks).integerValue(BN.ROUND_FLOOR).toFixed(0);
+export const getInputAmountPerTrade = (inputAmount = "", totalTrades = 0) => {
+  if (!inputAmount || !totalTrades) return "0";
+  return BN(inputAmount)
+    .div(totalTrades)
+    .integerValue(BN.ROUND_FLOOR)
+    .toFixed(0);
 };
 
 // errors
 export const getMaxFillDelayError = (
   fillDelay: TimeDuration,
-  chunks: number,
+  totalTrades: number,
 ) => {
   const isDefault =
     fillDelay.unit === DEFAULT_FILL_DELAY.unit &&
@@ -162,8 +162,9 @@ export const getMaxFillDelayError = (
   return {
     isError:
       !isDefault &&
-      getTimeDurationMillis(fillDelay) * chunks > MAX_ORDER_DURATION_MILLIS,
-    value: Math.floor(MAX_ORDER_DURATION_MILLIS / chunks),
+      getTimeDurationMillis(fillDelay) * totalTrades >
+      MAX_ORDER_DURATION_MILLIS,
+    value: Math.floor(MAX_ORDER_DURATION_MILLIS / totalTrades),
   };
 };
 
@@ -252,25 +253,26 @@ export const getMinFillDelayError = (fillDelay: TimeDuration) => {
   };
 };
 export const getMinTradeSizeError = (
-  typedSrcAmount: string,
-  oneSrcTokenUsd: string,
-  minChunkSizeUsd: number,
+  inputAmount: string,
+  inputUsdPrice: string,
+  minTradeSizeUsd: number,
 ) => {
   return {
-    isError: BN(oneSrcTokenUsd || 0)
-      .multipliedBy(typedSrcAmount || 0)
-      .isLessThan(minChunkSizeUsd),
-    value: minChunkSizeUsd,
+    isError: BN(inputUsdPrice || 0)
+      .multipliedBy(inputAmount || 0)
+      .isLessThan(minTradeSizeUsd),
+    value: minTradeSizeUsd,
   };
 };
-export const getMaxChunksError = (
-  chunks: number,
-  maxChunks: number,
+export const getMaxTradesError = (
+  totalTrades: number,
+  maxTrades: number,
   module: Module,
 ) => {
   return {
-    isError: module === Module.TWAP && BN(chunks).isGreaterThan(maxChunks),
-    value: maxChunks,
+    isError:
+      module === Module.TWAP && BN(totalTrades).isGreaterThan(maxTrades),
+    value: maxTrades,
   };
 };
 
@@ -394,65 +396,4 @@ export const getPartners = (): PartnerPayloadItem[] => {
       });
     })
     .sort((a, b) => a.name.localeCompare(b.name));
-};
-
-export const getMinChunkSizeUsd = (minChunkSizeUsd: number) => {
-  const minChunkSizeUsdFromQuery = getQueryParam(
-    QUERY_PARAMS.MIN_CHUNK_SIZE_USD,
-  );
-  if (minChunkSizeUsdFromQuery) {
-    return parseInt(minChunkSizeUsdFromQuery);
-  }
-  return minChunkSizeUsd;
-};
-
-export const getErrors = ({
-  marketPrice,
-  typedInputAmount,
-  srcUsd1Token,
-  marketPriceLoading,
-  triggerPriceError,
-  limitPriceError,
-  tradesError,
-  fillDelayError,
-  durationError,
-  balanceError,
-  minTradeSizeError,
-}: {
-  marketPrice?: string;
-  typedInputAmount?: string;
-  srcUsd1Token?: string;
-  marketPriceLoading?: boolean;
-  triggerPriceError?: InputError;
-  limitPriceError?: InputError;
-  tradesError?: InputError;
-  fillDelayError?: InputError;
-  durationError?: InputError;
-  balanceError?: InputError;
-  minTradeSizeError?: InputError;
-}) => {
-  const ignoreErrors = getQueryParam(QUERY_PARAMS.IGNORE_ERRORS);
-
-  if (ignoreErrors) {
-    return undefined;
-  }
-
-  if (
-    BN(marketPrice || 0).isZero() ||
-    BN(typedInputAmount || 0).isZero() ||
-    BN(srcUsd1Token || "0").isZero() ||
-    marketPriceLoading
-  ) {
-    return undefined;
-  }
-
-  return (
-    minTradeSizeError ||
-    triggerPriceError ||
-    limitPriceError ||
-    tradesError ||
-    fillDelayError ||
-    durationError ||
-    balanceError
-  );
 };

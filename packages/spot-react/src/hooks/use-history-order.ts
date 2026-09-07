@@ -1,74 +1,103 @@
 import {
   getOrderExecutionRate,
   getOrderFillDelayMillis,
+  getOrderLimitPriceRate,
+  getTriggerPriceRate,
+  getExplorerUrl,
   getTwapConfig,
-  Order,
-  OrderFill,
+  toAmountUI,
+  toAmountWei,
+  type Order,
+  type OrderFill,
 } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
-import { useSpotContext } from "../spot-context";
+import { useSpotRuntime } from "../context/spot-store";
 import { useNetwork } from "./helper-hooks";
-import {
-  useOrderLimitPrice,
-  useOrderAvgExecutionPrice,
-  useOrderTriggerPriceRate,
-} from "./order-hooks";
-import { Token } from "../types";
-import { getExplorerUrl, toAmountUi, toAmountWei } from "../utils";
+import type { Token } from "../types";
 
-const useFills = (fills?: OrderFill[], srcToken?: Token, dstToken?: Token) => {
-  const network = useNetwork();
+const getAmount = (raw?: string, decimals?: number) => ({
+  raw: raw || "",
+  ui: toAmountUI(raw, decimals),
+});
+
+const useFills = (
+  fills?: OrderFill[],
+  inputToken?: Token,
+  outputToken?: Token,
+) => {
+  const networkId = useNetwork()?.id;
 
   return useMemo(() => {
-    return fills
-      ?.map((fill) => ({
-        rawFill: fill,
-        srcToken: srcToken!,
-        dstToken: dstToken!,
-        srcAmount: toAmountUi(fill.inAmount, srcToken?.decimals),
-        dstAmount: toAmountUi(fill.outAmount, dstToken?.decimals),
-        timestamp: fill.timestamp,
-        txHash: fill.txHash,
-        explorerUrl: getExplorerUrl(fill.txHash, network?.id),
-        executionRate: getOrderExecutionRate(
-          fill.inAmount,
-          fill.outAmount,
-          srcToken?.decimals,
-          dstToken?.decimals,
-        ),
-      }))
-      .filter(
-        (fill) => fill.srcToken !== undefined && fill.dstToken !== undefined,
-      );
-  }, [fills, srcToken, dstToken, network]);
+    if (!fills || !inputToken || !outputToken) return [];
+    return fills.map((fill) => ({
+      rawFill: fill,
+      inputToken,
+      outputToken,
+      inputAmount: getAmount(fill.inAmount, inputToken.decimals),
+      outputAmount: getAmount(fill.outAmount, outputToken.decimals),
+      timestamp: fill.timestamp,
+      txHash: fill.txHash,
+      explorerUrl: getExplorerUrl(fill.txHash, networkId),
+      executionRate: getOrderExecutionRate(
+        fill.inAmount,
+        fill.outAmount,
+        inputToken.decimals,
+        outputToken.decimals,
+      ),
+    }));
+  }, [fills, inputToken, networkId, outputToken]);
 };
 
-export const useDerivedHistoryOrder = (
-  order: Order,
-  srcToken?: Token,
-  dstToken?: Token,
+export const useHistoryOrder = (
+  order?: Order,
+  inputToken?: Token,
+  outputToken?: Token,
 ) => {
-  const { chainId, partner } = useSpotContext();
+  const { chainId, partner } = useSpotRuntime();
 
-  const limitPriceUI = useOrderLimitPrice(srcToken, dstToken, order);
-  const triggerPriceUI = useOrderTriggerPriceRate(srcToken, dstToken, order);
-  const executionPriceUI = useOrderAvgExecutionPrice(srcToken, dstToken, order);
+  const limitPriceUI = useMemo(() => {
+    if (!inputToken || !outputToken || !order || order.isMarketPrice) return;
+    return getOrderLimitPriceRate(
+      order,
+      inputToken.decimals,
+      outputToken.decimals,
+    );
+  }, [inputToken, order, outputToken]);
+  const triggerPriceUI = useMemo(() => {
+    if (!inputToken || !outputToken || !order) return;
+    return getTriggerPriceRate(
+      order,
+      inputToken.decimals,
+      outputToken.decimals,
+    );
+  }, [inputToken, order, outputToken]);
+  const executionPriceUI = useMemo(() => {
+    if (!inputToken || !outputToken || !order) return;
+    return getOrderExecutionRate(
+      order.srcAmountFilled,
+      order.dstAmountFilled,
+      inputToken.decimals,
+      outputToken.decimals,
+    );
+  }, [inputToken, order, outputToken]);
 
   const tradeInterval = useMemo(() => {
     if (!order) return 0;
-    if (order.version === 2) return order.fillDelay;
-    return getOrderFillDelayMillis(order, getTwapConfig(partner, chainId));
+    return getOrderFillDelayMillis(
+      order,
+      chainId ? getTwapConfig(partner, chainId) : undefined,
+    );
   }, [order, partner, chainId]);
 
-  const fills = useFills(order?.fills, srcToken, dstToken) ?? [];
+  const fills = useFills(order?.fills, inputToken, outputToken);
 
   return useMemo(() => {
     if (!order?.id) return undefined;
     return {
       original: order,
       fills,
-      srcToken,
-      dstToken,
+      inputToken,
+      outputToken,
       orderType: order.type,
       createdAt: order.createdAt,
       deadline: order.deadline || 0,
@@ -76,45 +105,57 @@ export const useDerivedHistoryOrder = (
       tradeInterval,
       recipient: order.maker || "",
 
-      srcAmount: order.srcAmount || "",
-      srcAmountUI: toAmountUi(order.srcAmount, srcToken?.decimals),
+      inputAmount: getAmount(order.srcAmount, inputToken?.decimals),
 
-      limitPrice: toAmountWei(limitPriceUI, dstToken?.decimals),
-      limitPriceUI: limitPriceUI || "",
-
-      sizePerTrade: order.srcAmountPerTrade || "",
-      sizePerTradeUI: toAmountUi(order.srcAmountPerTrade, srcToken?.decimals),
-
-      minDestAmountPerTrade: order.dstMinAmountPerTrade || "",
-      minDestAmountPerTradeUI: toAmountUi(
-        order.dstMinAmountPerTrade,
-        dstToken?.decimals,
+      limitPrice: getAmount(
+        toAmountWei(limitPriceUI, outputToken?.decimals),
+        outputToken?.decimals,
       ),
 
-      dstMinAmount: order.dstMinAmountTotal,
-      dstMinAmountUI: toAmountUi(order.dstMinAmountTotal, dstToken?.decimals),
+      inputAmountPerTrade: getAmount(
+        order.srcAmountPerTrade,
+        inputToken?.decimals,
+      ),
 
-      triggerPrice: toAmountWei(triggerPriceUI, dstToken?.decimals),
-      triggerPriceUI: triggerPriceUI || "",
+      minOutputAmountPerTrade: getAmount(
+        order.dstMinAmountPerTrade,
+        outputToken?.decimals,
+      ),
+
+      minOutputAmount: getAmount(
+        order.dstMinAmountTotal,
+        outputToken?.decimals,
+      ),
+
+      triggerPrice: getAmount(
+        toAmountWei(triggerPriceUI, outputToken?.decimals),
+        outputToken?.decimals,
+      ),
 
       id: order.id,
-      amountInFilled: order.srcAmountFilled,
-      amountInFilledUI: toAmountUi(order.srcAmountFilled, srcToken?.decimals),
+      inputAmountFilled: getAmount(
+        order.srcAmountFilled,
+        inputToken?.decimals,
+      ),
 
-      amountOutFilled: order.dstAmountFilled,
-      amountOutFilledUI: toAmountUi(order.dstAmountFilled, dstToken?.decimals),
+      outputAmountFilled: getAmount(
+        order.dstAmountFilled,
+        outputToken?.decimals,
+      ),
 
       progress: order.progress,
 
-      executionPrice: toAmountWei(executionPriceUI, dstToken?.decimals),
-      executionPriceUI: executionPriceUI,
+      executionPrice: getAmount(
+        toAmountWei(executionPriceUI, outputToken?.decimals),
+        outputToken?.decimals,
+      ),
       version: order.version,
     };
   }, [
     order,
     fills,
-    srcToken,
-    dstToken,
+    inputToken,
+    outputToken,
     tradeInterval,
     limitPriceUI,
     triggerPriceUI,

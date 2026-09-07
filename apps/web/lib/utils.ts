@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { Currency, USDPrices } from "./types";
+import { Currency, type USDPrices, type WrappedNativeAction } from "./types";
 import { Balances } from "./types";
 import BN from "bignumber.js";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
@@ -12,7 +12,7 @@ import {
   POPULAR_TOKENS,
 } from "./consts";
 import * as chains from "viem/chains";
-import { Order, OrderType, Partners } from "@orbs-network/spot-ui";
+import { OrderType, Partners } from "@orbs-network/spot-ui";
 
 export const getBaseCurrencies = (chainId?: number) => {
   return POPULAR_TOKENS[chainId as keyof typeof POPULAR_TOKENS] ?? [];
@@ -33,6 +33,31 @@ export const isNativeAddress = (address?: string) => {
 export const getWrappedNativeCurrency = (chainId?: number): Currency | undefined => {
   if(!chainId) return undefined;
   return wCurrencies[chainId];
+};
+
+export const getWrappedNativeAction = (
+  inputAddress?: string,
+  outputAddress?: string,
+  chainId?: number,
+): WrappedNativeAction | undefined => {
+  const wrappedAddress = getWrappedNativeCurrency(chainId)?.address;
+  if (!inputAddress || !outputAddress || !wrappedAddress) return undefined;
+
+  if (
+    isNativeAddress(inputAddress) &&
+    eqCompare(outputAddress, wrappedAddress)
+  ) {
+    return "wrap";
+  }
+
+  if (
+    eqCompare(inputAddress, wrappedAddress) &&
+    isNativeAddress(outputAddress)
+  ) {
+    return "unwrap";
+  }
+
+  return undefined;
 };
 
 const isBaseToken = (t: Currency, chainId?: number) => {

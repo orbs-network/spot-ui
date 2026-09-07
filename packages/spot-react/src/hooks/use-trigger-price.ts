@@ -1,105 +1,70 @@
 import { useCallback, useMemo } from "react";
-import BN from "bignumber.js";
-import { useSpotContext } from "../spot-context";
-import { useSpotStore } from "../store";
-import { useInputWithPercentage } from "./use-input-with-percentage";
-import { Module } from "../types";
-import { useDefaultTriggerPricePercent } from "./use-default-values";
-import { getStopLossPriceError, getTakeProfitPriceError, getTriggerPricePerChunk, InputErrors } from "@orbs-network/spot-ui";
-import { useAmountUi, useUsdAmount } from "./helper-hooks";
-import { useTrades } from "./use-trades";
-
-const useTriggerPriceError = (triggerPriceWei = "") => {
-  const { module, marketPrice, typedInputAmount } = useSpotContext();
-
-
-  return useMemo(() => {
-    if (BN(typedInputAmount || "0").isZero() || !marketPrice) return;
-    if (module !== Module.STOP_LOSS && module !== Module.TAKE_PROFIT) return;
-    const stopLossError = getStopLossPriceError(marketPrice || "", triggerPriceWei || "", module);
-    if (stopLossError?.isError) {
-      return {
-        type: InputErrors.STOP_LOSS_TRIGGER_PRICE_GREATER_THAN_MARKET_PRICE,
-        value: stopLossError.value,
-      };
-    }
-    const takeProfitError = getTakeProfitPriceError(marketPrice || "", triggerPriceWei || "", module);
-
-    if (takeProfitError?.isError) {
-      return {
-        type: InputErrors.TAKE_PROFIT_TRIGGER_PRICE_LESS_THAN_MARKET_PRICE,
-        value: takeProfitError.value,
-      };
-    }
-
-    if (!triggerPriceWei || BN(triggerPriceWei || 0).isZero()) {
-      return {
-        type: InputErrors.EMPTY_TRIGGER_PRICE,
-        value: triggerPriceWei,
-      };
-    }
-  }, [marketPrice, triggerPriceWei, module, typedInputAmount]);
-};
-
-export const useTriggerAmountPerChunk = (triggerPrice?: string) => {
-  const { srcToken, dstToken, module, dstUsd1Token } = useSpotContext();
-  const amountPerTrade = useTrades().amountPerTrade;
-  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
-
-  const result = useMemo(() => {
-    return getTriggerPricePerChunk(module, amountPerTrade, triggerPrice, srcToken?.decimals || 0);
-  }, [triggerPrice, amountPerTrade, isMarketOrder, srcToken?.decimals, module]);
-
-  
-  const amountUI = useAmountUi(dstToken?.decimals || 0, result);
-
-  return {
-    amount: result,
-    amountUI: amountUI,
-    usd: useUsdAmount(amountUI, dstUsd1Token),
-  };
-};
+import { useOrderForm } from "../context/order-form-context";
+import { useSpotRuntime, useSpotStore } from "../context/spot-store";
+import { observe } from "../execution-state";
 
 export const useTriggerPrice = () => {
-  const { dstToken, dstUsd1Token, marketPrice, module, callbacks } = useSpotContext();
-  const updateState = useSpotStore((s) => s.updateState);
-  const defaultTriggerPricePercent = useDefaultTriggerPricePercent();
-  const typedPercent = useSpotStore((s) => s.state.triggerPricePercent);
+  const { marketPriceLoading, inputToken, outputToken, callbacks } =
+    useSpotRuntime();
+  const { marketPrice, trades, triggerPrice, isInverted } = useOrderForm();
+  const updateState = useSpotStore((state) => state.updateState);
 
-  const percentage = typedPercent === undefined ? defaultTriggerPricePercent : typedPercent;
-  const enabled = module === Module.STOP_LOSS || module === Module.TAKE_PROFIT;
+  const onInputChange = useCallback(
+    (value?: string) => {
+      updateState({ typedTriggerPrice: value, triggerPricePercent: null });
+      observe(() => callbacks?.onTriggerPriceChange?.(value || ""));
+      observe(() => callbacks?.onTriggerPricePercentChange?.(""));
+    },
+    [callbacks, updateState],
+  );
 
-  const result = useInputWithPercentage({
-    typedValue: useSpotStore((s) => s.state.typedTriggerPrice),
-    percentage,
-    tokenDecimals: dstToken?.decimals || 18,
-    initialPrice: enabled ? marketPrice : undefined,
-    setValue: useCallback((typedTriggerPrice?: string) => {
-      updateState({ typedTriggerPrice });
-      callbacks?.onTriggerPriceChange?.(typedTriggerPrice || "");
-    }, [updateState, callbacks]),
-    setPercentage: useCallback(
-      (triggerPricePercent?: string | null) => {
-        updateState({ triggerPricePercent });
-        callbacks?.onTriggerPricePercentChange?.(triggerPricePercent || "");
-      },
-      [updateState, callbacks],
-    ),
-  });
-  const error = useTriggerPriceError(result.amount);
-  const amountUI = useAmountUi(dstToken?.decimals || 18, result.amount);
-  const usd = useUsdAmount(amountUI, dstUsd1Token);
-  const { amount: triggerAmountPerChunk, amountUI: triggerAmountPerChunkUI,usd: triggerAmountPerChunkUsd } = useTriggerAmountPerChunk(result.amount);
+  const onPercentageChange = useCallback(
+    (percentage?: string) => {
+      updateState({
+        typedTriggerPrice: undefined,
+        triggerPricePercent: percentage,
+      });
+      observe(() => callbacks?.onTriggerPriceChange?.(""));
+      observe(() => callbacks?.onTriggerPricePercentChange?.(percentage || ""));
+    },
+    [callbacks, updateState],
+  );
 
-  return useMemo(() => {
-    return {
-      ...result,
-      amountUI: BN(amountUI).isNaN() ? "" : amountUI,
-      usd: BN(usd).isNaN() ? "" : usd,
-      error,
-      pricePerChunk: triggerAmountPerChunk,
-      pricePerChunkUI: triggerAmountPerChunkUI,
-      pricePerChunkUsd: triggerAmountPerChunkUsd,
-    };
-  }, [result, amountUI, usd, error, triggerAmountPerChunk, triggerAmountPerChunkUI, triggerAmountPerChunkUsd]);
+  const onReset = useCallback(() => {
+    updateState({
+      triggerPricePercent: undefined,
+      typedTriggerPrice: undefined,
+    });
+  }, [updateState]);
+
+  return useMemo(
+    () => ({
+      price: triggerPrice.display,
+      canonicalPriceRaw: triggerPrice.raw,
+      outputAmountPerTrade: trades.triggerOutputAmountPerTrade,
+      error: triggerPrice.error,
+      onInputChange,
+      onPercentageChange,
+      percentage: triggerPrice.percentage,
+      onReset,
+      inputToken,
+      outputToken,
+      displayInputToken: isInverted ? outputToken : inputToken,
+      displayOutputToken: isInverted ? inputToken : outputToken,
+      isLoading: Boolean(marketPriceLoading || !marketPrice.raw),
+      isTypedValue: triggerPrice.isTypedValue,
+    }),
+    [
+      inputToken,
+      isInverted,
+      marketPrice.raw,
+      marketPriceLoading,
+      onInputChange,
+      onPercentageChange,
+      onReset,
+      outputToken,
+      trades.triggerOutputAmountPerTrade,
+      triggerPrice,
+    ],
+  );
 };

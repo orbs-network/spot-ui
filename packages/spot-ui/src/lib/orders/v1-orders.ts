@@ -24,6 +24,21 @@ const getTheGraphUrl = (chainId?: number) => {
 
 type GraphQLPageFetcher = (page: number, limit: number) => string;
 
+const extractGraphList = <T>(response: unknown, field: string): T[] => {
+  if (!response || typeof response !== "object") {
+    throw new Error("Invalid subgraph response");
+  }
+  const data = (response as { data?: unknown }).data;
+  if (!data || typeof data !== "object") {
+    throw new Error("Invalid subgraph response: missing data");
+  }
+  const results = (data as Record<string, unknown>)[field];
+  if (!Array.isArray(results)) {
+    throw new Error(`Invalid subgraph response: missing ${field}`);
+  }
+  return results as T[];
+};
+
 const fetchWithRetryPaginated = async <T>({
   chainId,
   buildQuery,
@@ -56,13 +71,30 @@ const fetchWithRetryPaginated = async <T>({
         });
         if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
 
-        const json = await res.json();
-        if (json.errors) {
-          throw new Error(json.errors[0].message);
+        const json: unknown = await res.json();
+        const errors =
+          json && typeof json === "object"
+            ? (json as { errors?: unknown }).errors
+            : undefined;
+        if (Array.isArray(errors) && errors.length) {
+          const firstError = errors[0];
+          const message =
+            firstError && typeof firstError === "object"
+              ? (firstError as { message?: unknown }).message
+              : undefined;
+          throw new Error(
+            typeof message === "string" ? message : "Subgraph request failed",
+          );
         }
 
         return extractResults(json);
       } catch (err) {
+        if (
+          signal?.aborted ||
+          (err instanceof Error && err.name === "AbortError")
+        ) {
+          throw err;
+        }
         if (attempts === retries) throw err;
         await new Promise((r) => setTimeout(r, 500 * 2 ** attempts));
         attempts++;
@@ -76,32 +108,12 @@ const fetchWithRetryPaginated = async <T>({
 
   if (_page !== undefined) {
     const query = buildQuery(_page, limit);
-    try {
-      return await fetchPage(query);
-    } catch (err) {
-      console.warn(`Page ${_page} failed, retrying one final time...`);
-      try {
-        return await fetchPage(query);
-      } catch (finalErr) {
-        return [];
-      }
-    }
+    return fetchPage(query);
   }
 
   while (true) {
     const query = buildQuery(page, limit);
-
-    let pageResults: T[];
-    try {
-      pageResults = await fetchPage(query);
-    } catch (err) {
-      console.warn(`Page ${page} failed, retrying one final time...`);
-      try {
-        pageResults = await fetchPage(query); // Final page-level retry
-      } catch (finalErr) {
-        return results;
-      }
-    }
+    const pageResults = await fetchPage(query);
 
     results.push(...pageResults);
     if (pageResults.length < limit) break;
@@ -149,14 +161,20 @@ const buildV1Order = (
   const parsedFills = parseFills(fills || ([] as FillV1[]));
   const bidAmount = new BN(order.ask_srcBidAmount || 0);
   const chunks = bidAmount.gt(0)
-    ? new BN(order.ask_srcAmount || 0)
-        .div(bidAmount)
-        .integerValue(BN.ROUND_FLOOR)
-        .toNumber()
+    ? Math.max(
+        1,
+        new BN(order.ask_srcAmount || 0)
+          .div(bidAmount)
+          .integerValue(BN.ROUND_CEIL)
+          .toNumber(),
+      )
     : 1;
-  const isFilled = fills?.length === chunks;
+  const isFilled = fills?.length >= chunks;
   const filledOrderTimestamp = isFilled
-    ? fills?.[fills?.length - 1]?.timestamp
+    ? parsedFills.reduce(
+        (latestTimestamp, fill) => Math.max(latestTimestamp, fill.timestamp),
+        0,
+      )
     : undefined;
   const filledSrcAmount = parsedFills
     .reduce((acc, fill) => acc.plus(fill.inAmount), new BN(0))
@@ -169,6 +187,7 @@ const buildV1Order = (
   return {
     repermitDigest: "",
     version: 1,
+    historyKey: `1:${chainId}:${order.twapAddress.toLowerCase()}:${order.Contract_id}`,
     isTriggerPrice: false,
     id: order.Contract_id.toString(),
     hash: "",
@@ -296,7 +315,7 @@ export async function getCreatedOrders({
     buildQuery: (page, limit) => `
       {
         orderCreateds(
-          ${whereClause ? `where: { ${whereClause} }` : ""},
+          ${whereClause ? `where: { ${whereClause} },` : ""}
           first: ${limit},
           skip: ${page * limit},
           orderBy: timestamp,
@@ -329,8 +348,7 @@ export async function getCreatedOrders({
       }
     `,
     extractResults: (json: unknown) =>
-      (json as { data?: { orderCreateds?: OrderV1[] } }).data?.orderCreateds ||
-      [],
+      extractGraphList<OrderV1>(json, "orderCreateds"),
   });
 
   return orders;
@@ -379,8 +397,7 @@ export const getStatuses = async ({
       }
     `,
     extractResults: (json: unknown) =>
-      (json as { data?: { statusNews?: GraphStatus[] } }).data?.statusNews ||
-      [],
+      extractGraphList<GraphStatus>(json, "statusNews"),
   });
 
   return statuses;
@@ -441,8 +458,8 @@ const getFills = async ({
         }
       }
     `,
-    extractResults: (json: any) =>
-      (json.data?.orderFilleds || []).map((it: FillV1) => ({
+    extractResults: (json: unknown) =>
+      extractGraphList<FillV1>(json, "orderFilleds").map((it) => ({
         ...it,
         timestamp: new Date(it.timestamp).getTime(),
       })),
@@ -458,6 +475,13 @@ export class NoGraphEndpointError extends Error {
   }
 }
 
+const isUsableV1Order = (order: OrderV1): boolean =>
+  (typeof order.Contract_id === "string" ||
+    (typeof order.Contract_id === "number" &&
+      Number.isFinite(order.Contract_id))) &&
+  typeof order.twapAddress === "string" &&
+  order.twapAddress.length > 0 &&
+  typeof order.exchange === "string";
 
 export const getOrders = async ({
   chainId,
@@ -472,7 +496,6 @@ export const getOrders = async ({
   limit?: number;
   filters?: GetV1OrdersFilters;
 }): Promise<Order[]> => {
-  
   try {
     const orders = await getCreatedOrders({
       chainId,
@@ -481,35 +504,54 @@ export const getOrders = async ({
       limit,
       filters,
     });
+    let invalidOrders = 0;
+    const usableOrders = orders.filter((order) => {
+      const usable = isUsableV1Order(order);
+      if (!usable) invalidOrders++;
+      return usable;
+    });
     const [fills, statuses] = await Promise.all([
-      getFills({ chainId, orders, signal }),
-      getStatuses({ chainId, orders, signal }),
+      getFills({ chainId, orders: usableOrders, signal }),
+      getStatuses({ chainId, orders: usableOrders, signal }),
     ]);
-  
-    const parsedOrders = orders
-      .map((o) => {
+
+    const parsedOrders = usableOrders
+      .flatMap((o) => {
         const orderFills = fills?.filter(
           (it) =>
             it.TWAP_id === Number(o.Contract_id) &&
             eqIgnoreCase(it.exchange, o.exchange) &&
             eqIgnoreCase(it.twapAddress, o.twapAddress)
         );
-        return buildV1Order(
-          o,
-          chainId,
-          orderFills,
-          getStatus(o, orderFills || [], statuses)
-        );
+        try {
+          return [
+            buildV1Order(
+              o,
+              chainId,
+              orderFills,
+              getStatus(o, orderFills || [], statuses)
+            ),
+          ];
+        } catch {
+          invalidOrders++;
+          return [];
+        }
       })
       .sort((a, b) => b.createdAt - a.createdAt);
+    if (invalidOrders > 0) {
+      console.warn(
+        `Skipped ${invalidOrders} invalid legacy order history ${invalidOrders === 1 ? "item" : "items"} on chain ${chainId}`,
+      );
+    }
     const seenIds = new Set<string>();
     return parsedOrders.filter((o) => {
-      if (seenIds.has(o.id)) return false;
-      seenIds.add(o.id);
+      if (seenIds.has(o.historyKey)) return false;
+      seenIds.add(o.historyKey);
       return true;
     });
   } catch (error) {
-    return [];
+    if (error instanceof NoGraphEndpointError) return [];
+    throw error;
   }
 };
 
@@ -533,10 +575,12 @@ export const getV1OrderProgress = (
   srcAmount: string,
   filledSrcAmount: string
 ) => {
-  if (!filledSrcAmount || !srcAmount) return 0;
-  const progress = BN(filledSrcAmount).dividedBy(srcAmount).toNumber();
+  const total = BN(srcAmount || 0);
+  const filled = BN(filledSrcAmount || 0);
+  if (!total.isFinite() || !filled.isFinite() || total.lte(0)) return 0;
+  const progress = filled.dividedBy(total).toNumber();
 
-  if (progress >= 0.99) return 100;
+  if (progress >= 1) return 100;
   if (progress <= 0) return 0;
 
   return Number((progress * 100).toFixed(2));

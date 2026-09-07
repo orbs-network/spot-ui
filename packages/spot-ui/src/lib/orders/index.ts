@@ -3,6 +3,28 @@ import { getTwapConfig } from "../lib";
 import { getOrders as getV1Orders } from "./v1-orders";
 import { getOrders as getV2Orders } from "./v2-orders";
 
+export interface GetAccountOrdersParams {
+  signal?: AbortSignal;
+  /** Zero-based page. Omit it to fetch every available page. */
+  page?: number;
+  /** Positive number of orders requested per page. */
+  limit?: number;
+  chainId: number;
+  exchange?: string;
+  partner: Partners;
+  account: string;
+  legacyOrders?: boolean;
+}
+
+const assertValidPagination = (page?: number, limit?: number): void => {
+  if (page !== undefined && (!Number.isInteger(page) || page < 0)) {
+    throw new Error("Order history page must be a non-negative integer");
+  }
+  if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
+    throw new Error("Order history limit must be a positive integer");
+  }
+};
+
 export const getAccountOrders = async ({
   signal,
   page,
@@ -11,19 +33,9 @@ export const getAccountOrders = async ({
   exchange,
   partner,
   account,
-  isDev = false,
   legacyOrders = true,
-}: {
-  signal?: AbortSignal;
-  page?: number;
-  limit?: number;
-  chainId: number;
-  exchange?: string;
-  partner: Partners;
-  account: string;
-  isDev?: boolean;
-  legacyOrders?: boolean;
-}): Promise<Order[]> => {
+}: GetAccountOrdersParams): Promise<Order[]> => {
+  assertValidPagination(page, limit);
   const twapConfig = getTwapConfig(partner, chainId);
   const allOrders = await Promise.all([
     !twapConfig || !legacyOrders
@@ -44,7 +56,8 @@ export const getAccountOrders = async ({
       account,
       exchange,
       partner,
-      isDev,
+      page,
+      limit,
     }),
   ]).then(([graphOrders, apiOrders]) => {
     return [...graphOrders, ...apiOrders];

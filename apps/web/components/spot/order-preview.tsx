@@ -3,6 +3,7 @@
 import {
   createContext,
   ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -13,14 +14,12 @@ import { TokensDisplay } from "@orbs-network/swap-ui";
 import {
   OrderStatus,
   useCancelOrder,
-  useDerivedHistoryOrder,
-  useSpot,
+  useHistoryOrder,
   type Order,
 } from "@orbs-network/spot-react";
 import { useDateFormat } from "@/lib/hooks/common";
 import { FormatNumber } from "./format-number";
 import { OrderDetails } from "./order-details";
-import { useSpotToken } from "@/lib/hooks/spot-hooks";
 import { FillsButton, FillsView } from "./order-fills";
 import { useTranslations } from "@/lib/use-translations";
 import { useOrdersPanelContext } from "./orders-context";
@@ -28,7 +27,7 @@ import { SpotTokenLogo } from "./components";
 import { Button } from "../ui/button";
 
 type ContextType = {
-  order: NonNullable<ReturnType<typeof useDerivedHistoryOrder>>;
+  order: NonNullable<ReturnType<typeof useHistoryOrder>>;
 };
 
 const Context = createContext({} as ContextType);
@@ -38,29 +37,41 @@ const useOrderContext = () => {
 };
 
 export const OrderPreview = () => {
-  const { selectedOrderID, isDisplayingOrderFills, onHideOrderFills } =
-    useOrdersPanelContext();
-  const { orders } = useSpot().orderHistoryPanel;
+  const {
+    orders,
+    selectedOrderKey,
+    isDisplayingOrderFills,
+    tokensByAddress,
+  } = useOrdersPanelContext();
   const rawOrder = useMemo(
-    () => orders.all.find((o: Order) => o.id === selectedOrderID),
-    [orders, selectedOrderID],
+    () =>
+      orders.all.find((order: Order) => order.historyKey === selectedOrderKey),
+    [orders.all, selectedOrderKey],
   );
-  const srcToken = useSpotToken(rawOrder?.srcTokenAddress);
-  const dstToken = useSpotToken(rawOrder?.dstTokenAddress);
-  const order = useDerivedHistoryOrder(rawOrder!, srcToken, dstToken);
+  const inputToken = rawOrder?.srcTokenAddress
+    ? tokensByAddress.get(rawOrder.srcTokenAddress.toLowerCase())
+    : undefined;
+  const outputToken = rawOrder?.dstTokenAddress
+    ? tokensByAddress.get(rawOrder.dstTokenAddress.toLowerCase())
+    : undefined;
+  const order = useHistoryOrder(rawOrder, inputToken, outputToken);
 
   const t = useTranslations();
   const [expanded, setExpanded] = useState<string | false>("panel1");
 
   useEffect(() => {
     setExpanded("panel1");
-  }, [order?.id, isDisplayingOrderFills, onHideOrderFills]);
+  }, [order?.id, isDisplayingOrderFills]);
 
-  const handleChange = (panel: string) => {
-    setExpanded(expanded === panel ? false : panel);
-  };
+  const handleChange = useCallback((panel: string) => {
+    setExpanded((current) => (current === panel ? false : panel));
+  }, []);
+  const contextValue = useMemo(
+    () => (order ? { order } : undefined),
+    [order],
+  );
 
-  if (!order) return null;
+  if (!order || !contextValue) return null;
 
   const fills = order.fills ?? [];
 
@@ -69,12 +80,12 @@ export const OrderPreview = () => {
   ) : (
     <>
       <TokensDisplay
-        SrcTokenLogo={<SpotTokenLogo token={order.srcToken} />}
-        DstTokenLogo={<SpotTokenLogo token={order.dstToken} />}
+        SrcTokenLogo={<SpotTokenLogo token={order.inputToken} />}
+        DstTokenLogo={<SpotTokenLogo token={order.outputToken} />}
         fromTitle={t("from")}
-        inToken={order.srcToken}
+        inToken={order.inputToken}
         toTitle={t("to")}
-        outToken={order.dstToken}
+        outToken={order.outputToken}
       />
 
       <OrderDetails.Container>
@@ -103,7 +114,7 @@ export const OrderPreview = () => {
   );
 
   return (
-    <Context.Provider value={{ order }}>
+    <Context.Provider value={contextValue}>
       <div
         className={`twap-orders__selected-order ${`twap-orders__selected-order-${order.original.status.toLowerCase()}`}`}
       >
@@ -153,7 +164,7 @@ const OrderInfo = () => {
       <AmountIn />
       <ChunkSize />
       <ChunksAmount />
-      <MinDestAmount />
+      <MinOutputAmount />
       <TradeInterval />
       <TriggerPrice />
       <LimitPrice />
@@ -167,8 +178,8 @@ const ChunkSize = () => {
   const t = useTranslations();
   return (
     <OrderDetails.TradeSize
-      tradeSize={order.sizePerTradeUI}
-      srcToken={order.srcToken}
+      tradeSize={order.inputAmountPerTrade.ui}
+      inputToken={order.inputToken}
       label={t("individualTradeSize")}
       tooltip={t("tradeSizeTooltip")}
       trades={order.totalTrades}
@@ -188,13 +199,13 @@ const ChunksAmount = () => {
   );
 };
 
-const MinDestAmount = () => {
+const MinOutputAmount = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
   return (
-    <OrderDetails.MinDestAmount
-      dstToken={order.dstToken}
-      dstMinAmountOut={order.minDestAmountPerTradeUI}
+    <OrderDetails.MinOutputAmount
+      outputToken={order.outputToken}
+      minOutputAmount={order.minOutputAmountPerTrade.ui}
       label={t("minReceivedPerTrade")}
       tooltip={t("minDstAmountTooltip")}
     />
@@ -231,9 +242,9 @@ const TriggerPrice = () => {
   const t = useTranslations();
   return (
     <OrderDetails.Price
-      srcToken={order.srcToken}
-      dstToken={order.dstToken}
-      price={order.triggerPriceUI}
+      inputToken={order.inputToken}
+      outputToken={order.outputToken}
+      price={order.triggerPrice.ui}
       label={t("triggerPrice")}
       tooltip={t("triggerPriceTooltip")}
     />
@@ -261,12 +272,12 @@ const ExecutionSummary = () => {
 const AmountOutFilled = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
-  if (!order.amountOutFilled) return null;
+  if (!order.outputAmountFilled.raw) return null;
   return (
     <OrderDetails.DetailRow title={t("amountReceived")}>
       <p>
-        <FormatNumber value={order.amountOutFilledUI} />{" "}
-        {order.dstToken?.symbol}
+        <FormatNumber value={order.outputAmountFilled.ui} />{" "}
+        {order.outputToken?.symbol}
       </p>
     </OrderDetails.DetailRow>
   );
@@ -275,7 +286,8 @@ const AmountOutFilled = () => {
 export const CancelOrderButton = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
-  const { cancelOrder, disabled, isLoading } = useCancelOrder(order.original);
+  const { cancelOrder, disabled, isLoading } =
+    useCancelOrder(order.original);
 
   if (!order || order.original.status !== OrderStatus.Open) return null;
 
@@ -309,8 +321,8 @@ const AmountIn = () => {
   return (
     <OrderDetails.DetailRow title={t("amountOut") || ""}>
       <p>
-        <FormatNumber value={order.srcAmountUI} decimalScale={3} />{" "}
-        {order.srcToken?.symbol}
+        <FormatNumber value={order.inputAmount.ui} decimalScale={3} />{" "}
+        {order.inputToken?.symbol}
       </p>
     </OrderDetails.DetailRow>
   );
@@ -322,8 +334,8 @@ const AmountInFilled = () => {
   return (
     <OrderDetails.DetailRow title={t("amountOut")}>
       <p>
-        <FormatNumber value={order.amountInFilledUI} decimalScale={3} />{" "}
-        {order.srcToken?.symbol}
+        <FormatNumber value={order.inputAmountFilled.ui} decimalScale={3} />{" "}
+        {order.inputToken?.symbol}
       </p>
     </OrderDetails.DetailRow>
   );
@@ -378,14 +390,14 @@ const LimitPrice = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
 
-  if (!order.limitPriceUI) return null;
+  if (!order.limitPrice.ui) return null;
 
   return (
     <OrderDetails.Price
       label={t("limitPrice") || ""}
-      price={order.limitPriceUI}
-      srcToken={order.srcToken}
-      dstToken={order.dstToken}
+      price={order.limitPrice.ui}
+      inputToken={order.inputToken}
+      outputToken={order.outputToken}
       tooltip={t("limitPriceTooltip")}
     />
   );
@@ -394,7 +406,7 @@ const LimitPrice = () => {
 const AvgExecutionPrice = () => {
   const { order } = useOrderContext();
   const t = useTranslations();
-  if (!order.executionPrice) return null;
+  if (!order.executionPrice.raw) return null;
   return (
     <OrderDetails.Price
       label={t(
@@ -402,9 +414,9 @@ const AvgExecutionPrice = () => {
           ? "finalExecutionPrice"
           : "averageExecutionPrice",
       )}
-      price={order.executionPriceUI}
-      srcToken={order.srcToken}
-      dstToken={order.dstToken}
+      price={order.executionPrice.ui}
+      inputToken={order.inputToken}
+      outputToken={order.outputToken}
     />
   );
 };

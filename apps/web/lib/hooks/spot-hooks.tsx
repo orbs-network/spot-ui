@@ -4,14 +4,12 @@ import { getWrappedNativeCurrency } from "@/lib/utils";
 import {
   isNativeAddress,
   OnApproveSuccessCallback,
-  OnCancelOrderSuccess,
   OnWrapSuccessCallback,
   ParsedError,
   Partners,
-  Token,
   Order,
   type WalletInteractions,
-  type SignOrderProps,
+  type OrderSigningRequest,
   type CancelOrderProps,
   type ApproveTokenProps,
   type GetAllowanceProps,
@@ -22,26 +20,17 @@ import { toast } from "sonner";
 import { useConnection, usePublicClient, useWalletClient } from "wagmi";
 
 import TokensPair from "@/components/tokens-pair";
-import { useCurrency } from "@/lib/hooks/use-currencies";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import * as chains from "viem/chains";
-import {
-  getNetwork,
-  getPartners,
-  REPERMIT_ABI,
-  TWAP_ABI,
-} from "@orbs-network/spot-ui";
+import { getNetwork, getPartners } from "@orbs-network/spot-ui";
 import { DEFAULT_PARTNER } from "../consts";
-import { useActionHandlers } from "./use-action-handlers";
 import { useRefetchSelectedCurrenciesBalances } from "./use-balances";
-import { Field } from "../types";
 
-const useCallbacks = () => {
+export const useCallbacks = () => {
   const wrapToastId = useRef<number>(null);
   const approveToastId = useRef<number>(null);
   const createOrderToastId = useRef<number>(null);
   const { inputCurrency, outputCurrency } = useDerivedSwap();
-  const { handleCurrencyChange } = useActionHandlers();
   const { chainId } = useConnection();
   const { mutateAsync: refetchBalances } =
     useRefetchSelectedCurrenciesBalances();
@@ -65,7 +54,6 @@ const useCallbacks = () => {
     async ({ explorerUrl }: OnWrapSuccessCallback) => {
       const network = getNetwork(chainId);
 
-      handleCurrencyChange(network?.wToken.address ?? "", Field.INPUT);
       toast.success(`Wrapped ${inputCurrency?.symbol}`, {
         description: (
           <a
@@ -79,9 +67,15 @@ const useCallbacks = () => {
         ),
         id: wrapToastId.current as number,
       });
-      refetchBalances();
+      // Keep the selected native token unchanged. Switching it here changes
+      // the Spot form scope and clears the terminal execution before the
+      // success UI can render. Include the wrapped token explicitly because it
+      // is not part of the selected native/output pair.
+      await refetchBalances(
+        network?.wToken.address ? [network.wToken.address] : [],
+      );
     },
-    [handleCurrencyChange, inputCurrency?.symbol, chainId, refetchBalances],
+    [inputCurrency?.symbol, chainId, refetchBalances],
   );
 
   const onApproveRequest = useCallback(() => {
@@ -167,10 +161,10 @@ const useCallbacks = () => {
   }, []);
 
   const onOrdersProgressUpdate = useCallback(() => {
-    refetchBalances();
+    void refetchBalances([]).catch(() => undefined);
   }, [refetchBalances]);
 
-  const onOrderCancelled = useCallback((props: OnCancelOrderSuccess) => {
+  const onOrderCancelled = useCallback(() => {
     toast.success("Order cancelled");
   }, []);
 
@@ -193,25 +187,6 @@ const useCallbacks = () => {
     onOrderCancelled,
     onCopy,
   };
-};
-
-export const SpotHooks = {
-  useCallbacks,
-};
-
-export const useSpotToken = (address?: string) => {
-  const currency = useCurrency(address);
-
-  return useMemo((): Token | undefined => {
-    if (!currency) return undefined;
-
-    return {
-      address: currency.address,
-      decimals: currency.decimals,
-      symbol: currency.symbol,
-      logoUrl: currency.logoUrl,
-    };
-  }, [currency]);
 };
 
 export const useSpotMarketReferencePrice = () => {
@@ -342,16 +317,17 @@ export const useWalletInteractions = () => {
         });
         return waitForTx(hash);
       },
-      signOrder: async (props: SignOrderProps) => {
+      signOrder: async (request: OrderSigningRequest) => {
         if (!walletClient) {
           throw new Error("Wallet client not found");
         }
+        const { signerAddress, typedData } = request;
         return walletClient.signTypedData({
-          domain: props.domain as any,
-          types: props.types as any,
-          primaryType: props.primaryType,
-          message: props.message as any,
-          account: props.account,
+          domain: typedData.domain as any,
+          types: typedData.types as any,
+          primaryType: typedData.primaryType,
+          message: typedData.message as any,
+          account: signerAddress,
         });
       },
       getAllowance: async (props: GetAllowanceProps) => {

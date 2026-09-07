@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 import path from "path";
 
-const isDev = process.env.NODE_ENV === 'development';
+const isDevelopmentBuild = process.env.NODE_ENV === 'development';
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@orbs-network/spot-react', '@orbs-network/spot-ui', '@orbs-network/liquidity-hub-sdk'],
   webpack: (config) => {
     // Only alias to source in development for hot reload
-    if (isDev) {
+    if (isDevelopmentBuild) {
       config.resolve.alias['@orbs-network/spot-react'] = path.resolve(__dirname, '../../packages/spot-react/src');
       config.resolve.alias['@orbs-network/spot-ui'] = path.resolve(__dirname, '../../packages/spot-ui/src');
       config.resolve.alias['@orbs-network/liquidity-hub-sdk'] = path.resolve(__dirname, '../../packages/liquidity-hub-ui/src/lib');

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync } from 'child_process'
+import { execFileSync, execSync } from 'child_process'
 import { readFileSync, writeFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -10,6 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const rootDir = join(__dirname, '..')
 
 const pkg = { name: '@orbs-network/spot-react', path: 'packages/spot-react' }
+const spotUiPkg = { name: '@orbs-network/spot-ui', path: 'packages/spot-ui' }
 
 function getPackageJson(pkgPath) {
   const fullPath = join(rootDir, pkgPath, 'package.json')
@@ -19,6 +20,49 @@ function getPackageJson(pkgPath) {
 function writePackageJson(pkgPath, data) {
   const fullPath = join(rootDir, pkgPath, 'package.json')
   writeFileSync(fullPath, JSON.stringify(data, null, 2) + '\n')
+}
+
+function assertPublishedSpotUiMatchesLocalBuild() {
+  const spotUiPackageJson = getPackageJson(spotUiPkg.path)
+  const packageVersion = `${spotUiPkg.name}@${spotUiPackageJson.version}`
+
+  try {
+    const publishedVersion = execFileSync(
+      'npm',
+      ['view', packageVersion, 'version'],
+      {
+        cwd: rootDir,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 30_000,
+      },
+    ).trim()
+    if (publishedVersion !== spotUiPackageJson.version) {
+      throw new Error(`npm returned version ${publishedVersion || 'unknown'}`)
+    }
+
+    const changedFiles = execFileSync(
+      'npm',
+      ['diff', `--diff=${packageVersion}`, '--diff-name-only'],
+      {
+        cwd: join(rootDir, spotUiPkg.path),
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 30_000,
+      },
+    ).trim()
+    if (changedFiles) {
+      throw new Error(
+        `${packageVersion} exists, but its published contents differ from the local build`,
+      )
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    console.error(
+      `\n❌ spot-react cannot be published until the exact local ${packageVersion} build is published (${reason}).\n`,
+    )
+    process.exit(1)
+  }
 }
 
 async function main() {
@@ -50,6 +94,11 @@ async function main() {
     process.exit(1)
   }
 
+  // A workspace dependency is rewritten to the local spot-ui version during
+  // publish. Verify that npm has that exact build, not merely the same version
+  // string, before a spot-react release can reference it.
+  assertPublishedSpotUiMatchesLocalBuild()
+
   // Update version only after a successful build.
   console.log('\n📝 Updating version...')
   const originalPkgJson = getPackageJson(pkg.path)
@@ -79,4 +128,3 @@ main().catch((err) => {
   console.error(err)
   process.exit(1)
 })
-

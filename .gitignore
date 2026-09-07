@@ -29,6 +29,7 @@ pnpm-debug.log*
 
 # Testing
 coverage
+.playwright-cli/
 
 # Misc
 *.tsbuildinfo

@@ -1,15 +1,7 @@
 "use client";
 import { Virtuoso } from "react-virtuoso";
-import {
-  useAmountUi,
-  useExplorerLink,
-  useDerivedHistoryOrder,
-  type Token,
-  type OrderFill,
-} from "@orbs-network/spot-react";
+import { useHistoryOrder, type Token } from "@orbs-network/spot-react";
 import { useDateFormat } from "@/lib/hooks/common";
-
-type SelectedOrder = NonNullable<ReturnType<typeof useDerivedHistoryOrder>>;
 import { makeEllipsisAddress } from "@/lib/utils";
 import { FormatNumber } from "./format-number";
 import { OrderDetails } from "./order-details";
@@ -17,6 +9,13 @@ import { SpotTokenLogo } from "./components";
 import { useTranslations } from "@/lib/use-translations";
 import { useOrdersPanelContext } from "./orders-context";
 import { ArrowRightIcon, ChevronDownIcon } from "lucide-react";
+import { useCallback } from "react";
+
+type SelectedOrder = NonNullable<ReturnType<typeof useHistoryOrder>>;
+type DerivedFill = SelectedOrder["fills"][number];
+const VIRTUAL_LIST_STYLE = { height: "100%" } as const;
+const getFillKey = (index: number, fill: DerivedFill) =>
+  `${fill.txHash}:${index}`;
 
 export const FillsButton = ({ count }: { count: number }) => {
   const t = useTranslations();
@@ -49,19 +48,19 @@ const FillsTokensDisplayToken = ({ token }: { token?: Token }) => {
 };
 
 const FillsTokensDisplay = ({
-  srcToken,
-  dstToken,
+  inputToken,
+  outputToken,
 }: {
-  srcToken?: Token;
-  dstToken?: Token;
+  inputToken?: Token;
+  outputToken?: Token;
 }) => {
   return (
     <div className="twap-orders__selected-order-fills-tokens">
-      <FillsTokensDisplayToken token={srcToken} />
+      <FillsTokensDisplayToken token={inputToken} />
       <span className="twap-orders__selected-order-fills-token-separator">
         <ArrowRightIcon className="size-4" />
       </span>
-      <FillsTokensDisplayToken token={dstToken} />
+      <FillsTokensDisplayToken token={outputToken} />
     </div>
   );
 };
@@ -69,18 +68,11 @@ const FillsTokensDisplay = ({
 const FillItem = ({
   fill,
   index,
-  srcToken,
-  dstToken,
 }: {
-  fill: OrderFill;
+  fill: DerivedFill;
   index: number;
-  srcToken?: Token;
-  dstToken?: Token;
 }) => {
-  const inAmountUi = useAmountUi(srcToken?.decimals, fill.inAmount);
-  const outAmountUi = useAmountUi(dstToken?.decimals, fill.outAmount);
   const dateUi = useDateFormat(fill.timestamp);
-  const txUrl = useExplorerLink(fill.txHash);
   const t = useTranslations();
 
   return (
@@ -101,13 +93,13 @@ const FillItem = ({
         title={t("fillAmountOut")}
         className="twap-fills-view__item-amount-in"
       >
-        <FormatNumber value={inAmountUi} /> {srcToken?.symbol ?? ""}
+        <FormatNumber value={fill.inputAmount.ui} /> {fill.inputToken.symbol}
       </OrderDetails.DetailRow>
       <OrderDetails.DetailRow
         title={t("fillAmountReceived")}
         className="twap-fills-view__item-amount-out"
       >
-        <FormatNumber value={outAmountUi} /> {dstToken?.symbol ?? ""}
+        <FormatNumber value={fill.outputAmount.ui} /> {fill.outputToken.symbol}
       </OrderDetails.DetailRow>
 
       {fill.txHash && (
@@ -116,7 +108,7 @@ const FillItem = ({
           className="twap-fills-view__item-tx"
         >
           <a
-            href={txUrl}
+            href={fill.explorerUrl}
             target="_blank"
             rel="noopener noreferrer"
             title={fill.txHash}
@@ -129,17 +121,22 @@ const FillItem = ({
   );
 };
 
-export const FillsView = ({
-  order,
-}: {
-  order: SelectedOrder;
-}) => {
+export const FillsView = ({ order }: { order: SelectedOrder }) => {
   const t = useTranslations();
-  const fills = order.original?.fills ?? [];
+  const fills = order.fills;
+  const renderFill = useCallback(
+    (index: number, fill: DerivedFill) => (
+      <FillItem fill={fill} index={index + 1} />
+    ),
+    [],
+  );
 
   return (
     <div className="twap-orders__selected-order-fills">
-      <FillsTokensDisplay srcToken={order.srcToken} dstToken={order.dstToken} />
+      <FillsTokensDisplay
+        inputToken={order.inputToken}
+        outputToken={order.outputToken}
+      />
 
       {fills.length === 0 ? (
         <p className="twap-orders__selected-order-fills-empty">
@@ -148,20 +145,10 @@ export const FillsView = ({
       ) : (
         <div className="twap-orders__selected-order-fills-list">
           <Virtuoso
-            style={{ height: "100%" }}
-            totalCount={fills.length}
-            itemContent={(index) => {
-              const fill = fills[index];
-              if (!fill) return null;
-              return (
-                <FillItem
-                  fill={fill}
-                  index={index + 1}
-                  srcToken={order.srcToken}
-                  dstToken={order.dstToken}
-                />
-              );
-            }}
+            style={VIRTUAL_LIST_STYLE}
+            data={fills}
+            computeItemKey={getFillKey}
+            itemContent={renderFill}
           />
         </div>
       )}

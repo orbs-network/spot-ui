@@ -1,30 +1,54 @@
 import {
   OrderFilter,
-  OrderStatus,
   SPOT_VERSION,
-  useSpot,
+  useOrders,
   type Order,
+  type Token,
 } from "@orbs-network/spot-react";
 import { OrdersView } from "./orders-view";
 import { OrdersProvider, useOrdersUIState } from "./orders-context";
 import { useTranslations } from "@/lib/use-translations";
-import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "../ui/dialog";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
-import { ArrowLeftIcon, HistoryIcon, LinkIcon, TrashIcon } from "lucide-react";
+import { ArrowLeftIcon, HistoryIcon, LinkIcon } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "../ui/button";
-import { IconButton } from "../ui/icon-button";
 import { DialogHeader } from "../ui/dialog";
 import { SpotSelectMenu } from "./components";
-import { Spinner } from "../ui/spinner";
 import { getOrderTitle } from "@/lib/utils";
+import { useCurrenciesQuery } from "@/lib/hooks/use-currencies-query";
 
-const filterAndSortOrders = (orders: Order[], filter: OrderFilter): Order[] => {
-  const filtered =
-    filter === OrderFilter.All
-      ? orders
-      : orders.filter((o) => o.status === (filter as unknown as OrderStatus));
-  return [...filtered].sort((a, b) => b.createdAt - a.createdAt);
+const EMPTY_ORDERS: NonNullable<
+  ReturnType<typeof useOrders>["data"]
+> = {
+  all: [],
+  open: [],
+  completed: [],
+  cancelled: [],
+  expired: [],
+};
+
+const getFilteredOrders = (
+  orders: typeof EMPTY_ORDERS,
+  filter: OrderFilter,
+): Order[] => {
+  switch (filter) {
+    case OrderFilter.Open:
+      return orders.open;
+    case OrderFilter.Completed:
+      return orders.completed;
+    case OrderFilter.Cancelled:
+      return orders.cancelled;
+    case OrderFilter.Expired:
+      return orders.expired;
+    default:
+      return orders.all;
+  }
 };
 
 const getOrderFilterText = (filter: OrderFilter): string => {
@@ -44,29 +68,25 @@ const getOrderFilterText = (filter: OrderFilter): string => {
   }
 };
 
+const ORDER_FILTERS = Object.values(OrderFilter).map((filter) => ({
+  text: getOrderFilterText(filter),
+  value: filter,
+}));
+
 const getSinkUrl = (orderId: string) => {
   if (Number(SPOT_VERSION) >= 2) {
     return `https://order-sink-v2.orbs.network/?order=${orderId}`;
   }
-  return `https://order-sink-dev.orbs.network/?order=${orderId}`;
-};
-
-const useOrderFilters = () => {
-  return useMemo(() => {
-    return Object.values(OrderFilter).map((it) => ({
-      text: getOrderFilterText(it),
-      value: it,
-    }));
-  }, []);
+  return `https://order-sink.orbs.network/?order=${orderId}`;
 };
 
 export const SpotsOrders = () => {
-  const spot = useSpot();
-  const panelData = spot.orderHistoryPanel;
-  const { orders } = panelData;
+  const { data, isLoading } = useOrders();
+  const { data: currencies } = useCurrenciesQuery();
+  const orders = data ?? EMPTY_ORDERS;
   const uiState = useOrdersUIState();
   const {
-    selectedOrderID,
+    selectedOrderKey,
     onDisplayOrder,
     isDisplayingOrderFills,
     onHideOrderFills,
@@ -78,30 +98,43 @@ export const SpotsOrders = () => {
     OrderFilter.All,
   );
 
-  const orderFilters = useOrderFilters();
   const filteredOrders = useMemo(
-    () => filterAndSortOrders(orders.all, selectedFilter),
+    () => getFilteredOrders(orders, selectedFilter),
     [orders, selectedFilter],
   );
 
+  // History rows need token metadata only. Building one address map avoids
+  // running the DEX's balance/USD-aware useCurrency hook twice per row.
+  const tokensByAddress = useMemo<ReadonlyMap<string, Token>>(
+    () =>
+      new Map(
+        currencies?.map((currency) => [
+          currency.address.toLowerCase(),
+          currency,
+        ]) ?? [],
+      ),
+    [currencies],
+  );
+
   const selectedRawOrder = useMemo(
-    () => orders.all.find((o: Order) => o.id === selectedOrderID),
-    [orders, selectedOrderID],
+    () =>
+      orders.all.find((order: Order) => order.historyKey === selectedOrderKey),
+    [orders.all, selectedOrderKey],
   );
   const selectedOrderTitle = getOrderTitle(selectedRawOrder?.type);
 
   const selectedOrder = useMemo(() => {
-    return selectedOrderID
+    return selectedOrderKey
       ? { title: selectedOrderTitle, id: selectedRawOrder?.id }
       : undefined;
-  }, [selectedOrderID, selectedOrderTitle, selectedRawOrder?.id]);
+  }, [selectedOrderKey, selectedOrderTitle, selectedRawOrder?.id]);
 
   const selectedFilterItem = useMemo(() => {
     return (
-      orderFilters.find((item) => item.value === selectedFilter) ||
-      orderFilters[0]
+      ORDER_FILTERS.find((item) => item.value === selectedFilter) ||
+      ORDER_FILTERS[0]
     );
-  }, [orderFilters, selectedFilter]);
+  }, [selectedFilter]);
 
   const title = useMemo(() => {
     if (isDisplayingOrderFills) {
@@ -130,6 +163,17 @@ export const SpotsOrders = () => {
     [onDisplayOrder],
   );
 
+  const providerValue = useMemo(
+    () => ({
+      orders,
+      isLoading,
+      filteredOrders,
+      tokensByAddress,
+      ...uiState,
+    }),
+    [filteredOrders, isLoading, orders, tokensByAddress, uiState],
+  );
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -146,17 +190,20 @@ export const SpotsOrders = () => {
               </Button>
             )}
             <DialogTitle>{title}</DialogTitle>
+            <DialogDescription className="sr-only">
+              View and manage your Spot order history.
+            </DialogDescription>
           </DialogHeader>
           {!selectedOrder && (
             <div className="flex flex-row gap-2 items-center justify-between">
               <SpotSelectMenu
                 selected={selectedFilterItem}
-                items={orderFilters}
+                items={ORDER_FILTERS}
                 onSelect={(it) => setSelectedFilter(it.value as OrderFilter)}
               />
             </div>
           )}
-          <OrdersProvider value={{ ...panelData, ...uiState, filteredOrders }}>
+          <OrdersProvider value={providerValue}>
             <OrdersView />
           </OrdersProvider>
 
@@ -184,6 +231,7 @@ export const SpotsOrders = () => {
             onClick={() => onOpenChange(true)}
             variant="outline"
             className="p-2"
+            aria-label="View order history"
           >
             <HistoryIcon className="size-4" />
           </Button>

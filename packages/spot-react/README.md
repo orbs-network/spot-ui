@@ -2,7 +2,7 @@
 
 React SDK for building TWAP, Limit, Stop-Loss, and Take-Profit order interfaces on top of the [Orbs Spot protocol](https://www.orbs.com/).
 
-`spot-react` owns Spot order state and exposes it through `SpotProvider` and `useSpot()`. The host DEX remains responsible for swap-form state, wallet access, components, styling, translations, routing, and modal shells.
+`spot-react` owns Spot order state and exposes it through `SpotProvider` and focused named hooks. The host DEX remains responsible for swap-form state, wallet access, components, styling, translations, routing, and modal shells.
 
 For the complete integration workflow, see the [Spot React integration skill](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-react-integration) and the [reference implementation](https://github.com/orbs-network/spot-ui/blob/master/apps/web/components/spot/spot-form.tsx).
 
@@ -12,9 +12,17 @@ Every DEX needs a member of the exported `Partners` enum and a server-side Orbs 
 
 ### RePermit configuration security
 
-The `/config` endpoint is a security boundary. The SDK trusts successful JSON responses without client-side schema or contract-identity validation. It uses `domain.verifyingContract` as the ERC-20 approval spender and the v2 cancellation contract, and uses the returned adapter, reactor, and executor when constructing orders. Deployments must use the trusted Orbs endpoint over TLS, and contract-address changes require explicit approval from the protocol/security owner.
+The `/config` endpoint is a security boundary. The SDK rejects configurations whose domain or order chain differs from the requested chain, and rejects zero or malformed RePermit and exchange-adapter addresses. It uses `domain.verifyingContract` as the ERC-20 approval spender and the v2 cancellation contract, and uses the returned adapter, reactor, and executor when constructing orders. The SDK does not independently verify deployed bytecode or contract identity, so deployments must use the trusted Orbs endpoint over TLS and contract-address changes require explicit approval from the protocol/security owner.
 
-`SpotProvider` starts a shared configuration query as soon as the partner and chain are known. Concurrent consumers reuse the same query, successful responses remain cached for that partner/chain/environment, and failed requests are retried twice. `useRePermitData()` exposes the query state and `refetch`; the standard submit panel exposes the same recovery action as `useSpot().submitOrderButton.retry`.
+`SpotProvider` initializes the `spot-ui` client only when the connected chain supports the selected partner. It never substitutes another chain. Client state and order history are scoped to that provider, with no global cache or host query provider required. The framework-neutral `createClient` factory also retains no global state. The client owns configuration-dependent order preparation, signing/approval/cancellation request values, submission, and configured history access; calculations remain package-level functions. Form previews and order construction share the framework-agnostic `calculateOrderForm` model, so defaults, prices, trades, schedules, errors, raw/token-formatted/USD values, and signed execution values cannot diverge. Form calculation is time-independent; `prepareOrder` assigns fresh start, deadline, and nonce values after wrapping and approval, immediately before signing. Initialization is retried twice. After those retries, the provider keeps its children mounted and renders the retryable `clientErrorFallback` alongside them. Supply that component to localize and style the error for the host DEX.
+
+The authoritative shared model is available from `useOrderForm()`.
+
+Each mounted `SpotProvider` owns one stable store. Changing the module or token
+pair reapplies form defaults without recreating the partner/chain client,
+history cache, or cancellation state. If that scope changes during execution,
+the reset waits until the frozen execution reaches a terminal phase. Changing
+partner or chain reconfigures only the resources whose keys actually changed.
 
 The completed integration should:
 
@@ -36,24 +44,33 @@ npm install @orbs-network/spot-react@latest @orbs-network/swap-ui@latest
 
 If migrating from `@orbs-network/twap-ui`, remove it before installing the packages above.
 
-### Peer Dependencies
+### Migrating from 1.x
 
-The host application must also provide:
+Version 2 is a deliberately breaking, headless API. Replace the broad `useSpot`
+and `useSwapExecution` interfaces with focused hooks such as `useOrderForm`,
+`useExecution`, `useSubmitButton`, and `useOrders`. Provider values now use
+`input`/`output` terminology (`inputToken`, `outputToken`, `inputBalance`, and
+`minTradeSizeUsd`), and the host supplies wallet operations through
+`walletInteractions`. Debug query parameters and the `isDev` option are no
+longer supported.
 
-```bash
-npm install @tanstack/react-query bignumber.js react-error-boundary zustand react react-dom
-```
+`@orbs-network/swap-ui` is a recommended companion for the documented order
+progress modal, but it is not imported by `spot-react` and is not required for
+a headless or custom-progress integration.
+
+### Peer Dependency
+
+The host application must provide React. Zustand is an internal runtime
+dependency of `spot-react`; integrators do not install or configure it.
 
 | Package | Version |
 | --- | --- |
-| `@tanstack/react-query` | `^5.90.12` |
-| `bignumber.js` | `^9.3.1` |
-| `react-error-boundary` | `^6.0.0` |
-| `zustand` | `^5.0.9` |
 | `react` | `^18 \|\| ^19` |
-| `react-dom` | `^18 \|\| ^19` |
 
 `viem` is not a dependency. Adapt the wallet library already used by the DEX through `walletInteractions`.
+
+The published entry includes a `"use client"` directive, so it can be imported
+directly from a Next.js App Router client component.
 
 ## Integration Model
 
@@ -61,10 +78,10 @@ Keep the DEX swap form as the source of truth. Pass the following adapted values
 
 | Value | Expected shape |
 | --- | --- |
-| Selected tokens | `Token` objects with `address`, `symbol`, `decimals`, and `logoUrl` |
+| Selected tokens | `Token` objects with `address`, `symbol`, `decimals`, and optional `logoUrl` |
 | Typed source amount | User-facing decimal string, for example `"1.25"` |
 | Quote output | Raw destination-token amount for the current typed input |
-| Balances | Raw integer strings |
+| Input balance | Raw integer string |
 | USD prices | USD value of exactly one whole source/destination token |
 | Chain and account | Values from the connected wallet/account state |
 
@@ -77,6 +94,7 @@ Memoize objects with `useMemo` and functions with `useCallback`. In particular, 
 ```tsx
 import { useMemo } from "react";
 import {
+  type ClientErrorFallbackProps,
   Module,
   Partners,
   SpotProvider,
@@ -86,6 +104,21 @@ import {
   type WalletInteractions,
 } from "@orbs-network/spot-react";
 
+function ClientErrorFallback({
+  error,
+  retry,
+  isRetrying,
+}: ClientErrorFallbackProps) {
+  return (
+    <div role="alert">
+      <p>{getLocalizedErrorMessage(error)}</p>
+      <button type="button" disabled={isRetrying} onClick={retry}>
+        {isRetrying ? t("retrying") : t("retry")}
+      </button>
+    </div>
+  );
+}
+
 function SpotOrderForm({ module }: { module: Module }) {
   // Read these from the DEX's existing swap and wallet state.
   const {
@@ -94,7 +127,6 @@ function SpotOrderForm({ module }: { module: Module }) {
     inputCurrency,
     outputCurrency,
     inputBalance,
-    outputBalance,
     typedInputAmount,
     quotedInputAmount,
     quoteOutputRaw,
@@ -105,7 +137,7 @@ function SpotOrderForm({ module }: { module: Module }) {
     dexWallet,
   } = useDexSpotAdapter();
 
-  const srcToken = useMemo<Token | undefined>(() => {
+  const inputToken = useMemo<Token | undefined>(() => {
     if (!inputCurrency) return undefined;
     return {
       address: inputCurrency.address,
@@ -115,7 +147,7 @@ function SpotOrderForm({ module }: { module: Module }) {
     };
   }, [inputCurrency]);
 
-  const dstToken = useMemo<Token | undefined>(() => {
+  const outputToken = useMemo<Token | undefined>(() => {
     if (!outputCurrency) return undefined;
     return {
       address: outputCurrency.address,
@@ -169,20 +201,20 @@ function SpotOrderForm({ module }: { module: Module }) {
       module={module}
       typedInputAmount={typedInputAmount}
       priceProtection={3}
-      minChunkSizeUsd={5}
+      minTradeSizeUsd={5}
       marketReferencePrice={marketReferencePrice}
       walletInteractions={walletInteractions}
       chainId={chainId}
       account={account}
-      srcToken={srcToken}
-      dstToken={dstToken}
-      srcBalance={inputBalance?.toString()}
-      dstBalance={outputBalance?.toString()}
-      srcUsd1Token={inputUsdPrice}
-      dstUsd1Token={outputUsdPrice}
+      inputToken={inputToken}
+      outputToken={outputToken}
+      inputBalance={inputBalance?.toString()}
+      inputUsd1Token={inputUsdPrice}
+      outputUsd1Token={outputUsdPrice}
       callbacks={callbacks}
+      clientErrorFallback={ClientErrorFallback}
       appId="my-dex"
-      fees={0.25}
+      displayFeePercent={0.25}
     >
       <SpotFormContent />
     </SpotProvider>
@@ -192,7 +224,7 @@ function SpotOrderForm({ module }: { module: Module }) {
 
 `marketReferencePrice.value` is the DEX quote's raw destination amount for the current `typedInputAmount`, not a standalone per-token price. If the quote belongs to an older input or token pair, omit `value` and report `isLoading: true` until a current quote arrives.
 
-Use the connected wallet chain as the UI source of truth. The provider falls back internally to a supported partner chain for configuration lookups when `chainId` is absent or unsupported, so the DEX submit area must still show connect-wallet or switch-network controls and block submission.
+Use the connected wallet chain as the source of truth. When it is absent or unsupported, the provider does not initialize a client and submission stays disabled. The DEX submit area should show its connect-wallet or switch-network control.
 
 ### SpotProvider Props
 
@@ -202,25 +234,30 @@ Use the connected wallet chain as the UI source of truth. The provider falls bac
 | `module` | `Module` | Yes | `TWAP`, `LIMIT`, `STOP_LOSS`, or `TAKE_PROFIT` |
 | `typedInputAmount` | `string` | Yes | User-facing source amount from DEX state |
 | `priceProtection` | `number` | Yes | Price Protection percentage; this is not swap slippage |
-| `minChunkSizeUsd` | `number` | Yes | Minimum trade chunk size in USD |
+| `minTradeSizeUsd` | `number` | Yes | Minimum individual trade size in USD |
 | `marketReferencePrice` | `MarketReferencePrice` | Yes | `{ value?, isLoading?, noLiquidity? }` for the current DEX quote |
 | `walletInteractions` | `WalletInteractions` | Yes | Five wallet methods implemented by the DEX |
 | `chainId` | `number` | No | Connected wallet chain ID |
-| `account` | `string` | No | Connected wallet address |
-| `appId` | `string` | No | Analytics app ID |
-| `srcToken` | `Token` | No | Source token metadata |
-| `dstToken` | `Token` | No | Destination token metadata |
-| `srcBalance` | `string` | No | Raw source-token balance |
-| `dstBalance` | `string` | No | Raw destination-token balance |
-| `srcUsd1Token` | `string` | No | USD value of one whole source token |
-| `dstUsd1Token` | `string` | No | USD value of one whole destination token |
-| `enableQueryParams` | `boolean` | No | Sync supported form state to URL query parameters |
+| `account` | `Address` | No | Connected wallet address |
+| `appId` | `string` | No | Stable host-defined analytics identifier (for example the DEX slug) |
+| `inputToken` | `Token` | No | Input token metadata |
+| `outputToken` | `Token` | No | Output token metadata |
+| `inputBalance` | `string` | No | Raw input-token balance |
+| `inputUsd1Token` | `string` | No | USD value of one whole input token |
+| `outputUsd1Token` | `string` | No | USD value of one whole output token |
 | `callbacks` | `Callbacks` | No | Lifecycle and field-change callbacks |
-| `fees` | `number` | No | Fee percentage, for example `0.25` |
-| `isDev` | `boolean` | No | Use development services/configuration |
+| `displayFeePercent` | `number` | No | Display-only fee estimate percentage; does not collect or subtract fees |
 | `supportLegacyOrders` | `boolean` | No | Include supported legacy v1 orders in history |
+| `clientErrorFallback` | `ComponentType<ClientErrorFallbackProps>` | No | Host-rendered client initialization error UI with `error`, `retry`, and `isRetrying` |
+| `errorFallback` | `ComponentType<SpotErrorFallbackProps>` | No | Host-rendered fallback for unexpected calculation or rendering errors |
 
-Although balances and USD prices are optional in the TypeScript type, production integrations should pass them so validation, loading states, minimum trade size, and review details are correct.
+Although the input balance and USD prices are optional in the TypeScript type, production integrations should pass them so validation, loading states, minimum trade size, and review details are correct.
+
+`minTradeSizeUsd` must be a positive USD threshold approved for the partner;
+there is intentionally no SDK default. `priceProtection` is a percentage, so
+`3` means 3% (300 bps). `displayFeePercent` only populates `form.fees` for the
+review UI. Protocol fee collection is configured separately by the partner and
+backend.
 
 ## WalletInteractions
 
@@ -255,8 +292,8 @@ const walletInteractions: WalletInteractions = {
     return txHash;
   },
 
-  signOrder: ({ domain, types, primaryType, message, account }) =>
-    dexWallet.signTypedData({ domain, types, primaryType, message, account }),
+  signOrder: ({ signerAddress, typedData }) =>
+    dexWallet.signTypedData({ ...typedData, account: signerAddress }),
 
   getAllowance: ({ tokenAddress, spenderAddress }) =>
     dexWallet.getAllowance({ tokenAddress, spenderAddress }),
@@ -268,41 +305,66 @@ const walletInteractions: WalletInteractions = {
 | `wrapNativeToken(amountWei)` | Wrap native currency, wait for confirmation, return tx hash |
 | `approveToken({ tokenAddress, amount, spenderAddress })` | Approve the requested spender, wait for confirmation, return tx hash |
 | `cancelOrder({ order, contractAddress, args, abi })` | Call `cancel` with the supplied ABI and args, wait for confirmation, return tx hash |
-| `signOrder({ domain, types, primaryType, message, account })` | Sign the supplied EIP-712 data and return the wallet's original `0x`-prefixed signature |
+| `signOrder({ signerAddress, typedData })` | Adapt the framework-neutral EIP-712 request to the host wallet and return its original `0x`-prefixed signature |
 | `getAllowance({ tokenAddress, spenderAddress })` | Return the connected account's raw allowance as a string |
 
 The signature returned by `signOrder` is submitted unchanged. Do not split it into `{ v, r, s }`, rewrite its recovery byte, or otherwise normalize the wallet's byte representation.
 
-## Building the Form with useSpot()
+## Building with focused hooks
 
-Every component rendered under `SpotProvider` can call `useSpot()`:
+Import only the hooks each component needs. Leaf components should call the
+smallest hook that provides what they render:
 
 ```tsx
-const spot = useSpot();
+import {
+  useExecution,
+  useLimitPrice,
+  useOrderForm,
+  useOrders,
+  useOutputAmount,
+  usePriceDisplay,
+  useTrades,
+} from "@orbs-network/spot-react";
+
+const calculatedForm = useOrderForm();
+const tradesPanel = useTrades();
+const limitPricePanel = useLimitPrice();
+const outputAmount = useOutputAmount();
+
+const execution = useExecution();
+const history = useOrders();
 ```
+
+`useOrderForm()` reads the calculated form shared by `OrderFormProvider`; it does not rerun the calculation. The other hooks expose smaller panel contracts for clearer component code. They currently share the same calculated-form context, so a form update can rerender every mounted form-panel hook.
 
 | Value | Key returns |
 | --- | --- |
-| `dstTokenPanel` | `value`, `valueWei`, `isLoading`, `usd` |
-| `tradesAmountPanel` | `totalTrades`, `maxTrades`, `onChange`, `error`, per-trade amounts, source/destination tokens |
-| `durationPanel` | `duration`, input/unit callbacks, `milliseconds`, `error` |
-| `fillDelayPanel` | `fillDelay`, input/unit callbacks, `milliseconds`, `error` |
-| `limitPricePanel` | Raw/UI price, percentage, toggle, input/reset callbacks, tokens, USD, loading/error state |
-| `triggerPricePanel` | Raw/UI trigger price, percentage, input/reset callbacks, tokens, per-chunk amounts, USD, error state |
-| `pricePanel` | Inversion state/callback, source/destination tokens, market-price state |
-| `disclaimerPanel` | Disclaimer translation key or `undefined` |
-| `inputError` | `{ type, args }` or `undefined` |
-| `submitOrderButton` | `disabled`, `loading`, configuration `error`, and `retry` |
-| `orderExecutionPanel` | Submission, status, steps, errors, resets, resolved tokens, and tx hashes |
-| `orderHistoryPanel` | Filtered order lists, loading state, and `refetchOrders` |
-| `derivedFormData` | Review amounts, prices, timing, fees, order type, spender, and RePermit data |
-| `supportedChains` | Supported chain IDs for the selected partner |
-| `module` | Current `Module` |
-| `refetchUntilStatusSynced` | Mutation used to reconcile cancellation status |
+| `useOutputAmount()` | `amount: { raw, ui, usd }`, `isLoading` |
+| `useTrades()` | `totalTrades`, `maxTrades`, `onChange`, `error`, structured input/min-output/trigger-output amounts, input/output tokens |
+| `useDuration()` | `duration`, input/unit callbacks, `milliseconds`, `error` |
+| `useFillDelay()` | `fillDelay`, input/unit callbacks, `milliseconds`, `error` |
+| `useLimitPrice()` | `price: { raw, ui, usd }`, canonical raw price, percentage, enable/toggle actions, tokens, loading/error state |
+| `useTriggerPrice()` | `price: { raw, ui, usd }`, canonical raw price, percentage, structured output-per-trade amount, tokens, loading/error state |
+| `usePriceDisplay()` | Inversion state/callback, actual and display-direction tokens, market-order state |
+| `useDisclaimer()` | Disclaimer translation key or `undefined` |
+| `useInputErrors()` | `{ type, args }` or `undefined` |
+| `useSubmitButton()` | `disabled` and `loading` |
+| `useExecution()` | Submission, status, steps, errors, resets, resolved tokens, and tx hashes |
+| `useOrders()` | Provider-scoped categorized order lists and polling state |
+| `useHistoryOrder()` | Display-ready values for one history order |
+| `useCancelOrder()` | Per-order cancellation state and action |
+| `useClient()` | Provider-scoped initialized client state |
+| `useAmountUi()` | Raw-token amount formatting |
+| `useExplorerLink()` | Chain explorer transaction URL |
+| `useNetwork()` | Current or specified network metadata |
 
-Child components should call `useSpot()` themselves instead of receiving hook-returned panels through intermediate props.
+Child components should call the relevant focused hook themselves instead of receiving hook-returned panels through intermediate props. `useOrders()` activates order-history fetching while an orders consumer is mounted; form-only integrations do not fetch or poll history.
 
-When `submitOrderButton.error` is set, render a translated retry label and call `submitOrderButton.retry()` instead of opening the review modal. Keep the button disabled while `loading` is true. Legacy v1 order history does not depend on RePermit configuration; v2 history, approvals, v2 cancellation, and submission resume after a successful retry.
+Keep the submit button disabled while `loading` is true. If client initialization fails, `SpotProvider` keeps child components mounted and renders the retryable `clientErrorFallback` alongside them.
+
+### Trade-count validation behavior
+
+An explicitly selected TWAP trade count persists when `typedInputAmount` changes. If lowering the amount makes that count greater than the newly calculated `maxTrades`, Spot does not clamp or reset it: `useTrades().error` and `useInputErrors()` report `InputErrors.MAX_TRADES`, and submission remains disabled until the user selects a valid count. This is an intentional behavior change from integrations that silently reset the trade count on every amount edit. Hosts should render the returned validation error so the user can correct the value.
 
 ### Panel Visibility
 
@@ -318,87 +380,106 @@ Use `TimeUnit.Minutes`, `TimeUnit.Hours`, and `TimeUnit.Days` for duration and f
 
 ### Display Amounts
 
-Raw fields such as `dstTokenPanel.valueWei`, `tradesAmountPanel.amountPerTrade`, `derivedFormData.feesAmount`, and history fill amounts are integer strings. Convert them into the DEX's native amount type before display when possible:
+Every calculated amount uses the same `{ raw, ui, usd }` shape. Convert `raw`
+into the DEX's native amount type before display when possible:
 
 ```tsx
 const amount = CurrencyAmount.fromRawAmount(
   inputCurrency,
-  spot.tradesAmountPanel.amountPerTrade,
+  tradesPanel.inputAmountPerTrade.raw,
 );
 
 return `${amount.toSignificant()} ${inputCurrency.symbol}`;
 ```
 
-Use `*UI` fields for editable text inputs or when the DEX has no amount object. Do not format raw integer strings directly for user display.
+Use `.ui` for editable text inputs or when the DEX has no amount object. Do not
+format `.raw` integer strings directly for user display.
 
 ## Submit and Progress Modal
 
-Use `useSpot().orderExecutionPanel` for execution state, `derivedFormData` for review details, and `@orbs-network/swap-ui`'s `SwapFlow` for the creation/progress UI.
+Use `useExecution()` for execution state, `useOrderForm()` for review details, and `@orbs-network/swap-ui`'s `SwapFlow` for the creation/progress UI.
 
 ```tsx
-import { SwapFlow } from "@orbs-network/swap-ui";
-import { useSpot } from "@orbs-network/spot-react";
+import { SwapFlow, SwapStatus as SwapUiStatus } from "@orbs-network/swap-ui";
+import {
+  ExecutionStatus,
+  useExecution,
+  useOrderForm,
+} from "@orbs-network/spot-react";
 
 function SpotOrderFlow() {
   const {
     status,
-    parsedError,
-    srcToken,
-    dstToken,
-    stepIndex,
+    error,
+    inputToken,
+    outputToken,
+    currentStepIndex,
     totalSteps,
-  } = useSpot().orderExecutionPanel;
-  const form = useSpot().derivedFormData;
+  } = useExecution();
+  const form = useOrderForm();
+  const swapStatus =
+    status === ExecutionStatus.SUCCESS
+      ? SwapUiStatus.SUCCESS
+      : status === ExecutionStatus.FAILED
+        ? SwapUiStatus.FAILED
+        : status === ExecutionStatus.LOADING
+          ? SwapUiStatus.LOADING
+          : undefined;
 
   return (
     <SwapFlow
-      inAmount={form.srcAmountUI}
-      outAmount={form.dstAmountUI}
-      inToken={{ symbol: srcToken?.symbol, logoUrl: srcToken?.logoUrl }}
-      outToken={{ symbol: dstToken?.symbol, logoUrl: dstToken?.logoUrl }}
-      swapStatus={status}
-      currentStepIndex={stepIndex}
+      inAmount={form.inputAmount.ui}
+      outAmount={form.outputAmount.ui}
+      inToken={{ symbol: inputToken?.symbol, logoUrl: inputToken?.logoUrl }}
+      outToken={{ symbol: outputToken?.symbol, logoUrl: outputToken?.logoUrl }}
+      swapStatus={swapStatus}
+      currentStepIndex={currentStepIndex}
       totalSteps={totalSteps}
       components={{
-        Main: <SwapFlow.Main inUsd={form.srcAmountUsd} outUsd={form.dstAmountUsd} />,
+        Main: <SwapFlow.Main inUsd={form.inputAmount.usd} outUsd={form.outputAmount.usd} />,
         Success: <SwapFlow.Success title="Order created" />,
-        Failed: <SwapFlow.Failed error={parsedError?.message} />,
+        Failed: <SwapFlow.Failed error={error?.message} />,
       }}
     />
   );
 }
 ```
 
-Wrap `SwapFlow` in the DEX's modal shell and skin it with DEX colors, surfaces, typography, token logos, and loaders. Once `orderExecutionPanel.status` is set, hide the review details, confirm button, duplicate title, and secondary footer actions so the progress/success/failure content owns the modal.
+Wrap `SwapFlow` in the DEX's modal shell and skin it with DEX colors, surfaces, typography, token logos, and loaders. Once `useExecution().status` is set, hide the review details, confirm button, duplicate title, and secondary footer actions so the progress/success/failure content owns the modal.
 
 ### Execution State and Reset
 
-`orderExecutionPanel` includes:
+`useExecution()` returns:
 
-- `onSubmit`, `status`, `isLoading`, `isSuccess`, `isFailed`, and `confirmButtonLoading`;
-- `step`, `stepIndex`, `totalSteps`, and `pendingSteps`;
-- `parsedError`, `error`, `srcToken`, `dstToken`, `wrapTxHash`, and `approveTxHash`;
-- `resetCurrentSwap()` and `resetState()`.
+- `submitOrder`, `phase`, `status`, `isExecuting`, `isSuccess`, `isFailed`, `isRejected`, `isPreparingOrder`, and `canDismiss`;
+- `currentStep`, `currentStepIndex`, `totalSteps`, and `executionSteps`;
+- `error`, `inputToken`, `outputToken`, `chainId`, `wrapTxHash`, and `approvalTxHash`;
+- `returnToOrderForm()` and `startNewOrder()`.
 
 `spot-react` does not clear the DEX input. Do that only when a successful modal closes:
 
 ```tsx
-const { status, isSuccess, resetCurrentSwap, resetState } =
-  useSpot().orderExecutionPanel;
+const { status, isSuccess, isExecuting, returnToOrderForm, startNewOrder } =
+  useExecution();
 
 const onClose = useCallback(() => {
+  if (isExecuting) return;
   setIsModalOpen(false);
 
   if (isSuccess) {
     setInputAmount("");
-    setTimeout(resetState, 500);
+    setTimeout(startNewOrder, 500);
   } else if (status) {
-    setTimeout(resetCurrentSwap, 500);
+    setTimeout(returnToOrderForm, 500);
   }
-}, [isSuccess, resetCurrentSwap, resetState, setInputAmount, status]);
+}, [isExecuting, isSuccess, returnToOrderForm, setInputAmount, startNewOrder, status]);
 ```
 
-Failed or rejected submissions should keep the user's input. The short delay lets the close animation finish before state resets.
+Neither reset action can clear an active execution: both return `false` while `isExecuting` is true. Keep the modal open during execution. `returnToOrderForm()` dismisses a failed or rejected execution while preserving the form and a completed native-token wrap for a safe retry. `startNewOrder()` resets Spot's internal form state and all retry metadata after a terminal execution; the host must still clear its own input amount. The short delay lets the close animation finish before state resets.
+
+`phase` is the precise execution state: `idle → preparing → wrapping → approving → signing → submitting → success`, with `failed` and `rejected` terminal branches. `status` is the coarser `ExecutionStatus` value. Map it explicitly to the separately versioned `@orbs-network/swap-ui` `SwapStatus` enum as shown above. Each attempt has an internal identity, duplicate starts are rejected atomically, and stale async writes cannot replace a newer attempt. Host callbacks are observational: synchronous throws and rejected callback promises never change a wallet or API result.
+
+Once submission begins, `useOrderForm()` exposes the frozen form and `useExecution()` exposes the frozen tokens and chain associated with that execution. The prepared order is frozen internally and reused through approval, wrapping, signing, and submission. Host quote, token, chain, or time updates cannot change the active order.
 
 ## Callbacks
 
@@ -428,7 +509,7 @@ const callbacks: Callbacks = {
   onTriggerPricePercentChange: (percent) => {},
   onDurationChange: (duration) => {},
   onFillDelayChange: (fillDelay) => {},
-  onChunksChange: (chunks) => {},
+  onTradesChange: (trades) => {},
 };
 ```
 
@@ -455,18 +536,31 @@ function CancelButton({ order }) {
 }
 ```
 
-For v2 orders, `disabled` remains true while RePermit configuration is loading or unavailable. Legacy v1 history and cancellation do not require that configuration. V2 history is added after configuration succeeds because its request needs the returned exchange adapter.
+Cancellation uses the initialized client for both v1 and v2 orders, keeping request construction on one path; `disabled` remains true while that client is loading or unavailable. History starts after client initialization because v2 requests need the configured exchange adapter. When `supportLegacyOrders` is enabled, v1 history is loaded once and retained while v2 history continues polling.
 
-Order history is available from `useSpot().orderHistoryPanel`:
+Order history is available directly from `useOrders()`. The query is enabled only while a component using this hook is mounted:
 
 ```tsx
-const { orders, isLoading, isRefetching, refetchOrders } =
-  useSpot().orderHistoryPanel;
+const { data: orders, isLoading, isRefetching, refetch } = useOrders();
 
-// orders.all, orders.open, orders.completed, orders.cancelled, orders.expired
+// orders?.all, orders?.open, orders?.completed, orders?.cancelled, orders?.expired
 ```
 
-Use `useDerivedHistoryOrder(order, srcToken?, dstToken?)` for display fields. For large histories, use the virtualization library already present in the DEX for both the orders and fills lists. Store the selected order ID, then look up the current order from `orders.all`; do not store a stale copy of the order object.
+Like `useClient()`, `data` is undefined before the first result. `refetch()`
+resolves to the latest categorized orders or `undefined` when no request can be
+made. Default the category you render to an empty array, for example
+`const allOrders = orders?.all ?? []`.
+
+Use `useHistoryOrder(order, inputToken?, outputToken?)` for display fields. For large histories, use the virtualization library already present in the DEX for both the orders and fills lists. Store the selected `order.historyKey`, then look up the current order from `orders?.all ?? []` by that key; do not store a stale copy of the order object. The key avoids collisions between numeric v1 IDs from different TWAP contracts; `order.id` remains the protocol ID used for display and cancellation.
+
+Amounts returned by `useHistoryOrder` and its `fills` use `{ raw, ui }`, matching
+the form model without fabricating unavailable historical USD values.
+
+`OrderFilter` contains `ALL`, `OPEN`, `COMPLETED`, `CANCELLED`, and `EXPIRED`.
+`OrderType` identifies the calculated module/mode combination: limit, TWAP
+market/limit, stop-loss market/limit, or take-profit market/limit. Normalized
+`Order` and `OrderFill` retain `src`/`dst` and `in`/`out` names because those are
+protocol/history response models; form-facing APIs use `input`/`output`.
 
 Keep history, details, and modal portals under `SpotProvider` context. Details should include execution summary, order info, fills, explorer/copy actions, and cancellation for open orders.
 
@@ -480,35 +574,46 @@ Disclaimer keys are:
 - `marketOrderDisclaimer`
 - `triggerMarketPriceDisclaimer`
 
-Input errors have the shape `{ type, args }`. Resolve `type` through the DEX's i18n system and interpolate `args`, including values such as `maxChunks`, `minChunks`, `minTradeSize`, `duration`, and `fillDelay`. Current duration and fill-delay arguments are human-readable; custom or older integrations should convert raw milliseconds before display.
+Input errors have the shape `{ type, args }`. Resolve `type` through the DEX's i18n system and interpolate `args`, including values such as `maxTrades`, `minTrades`, `minTradeSize`, `duration`, and `fillDelay`. Current duration and fill-delay arguments are human-readable; custom or older integrations should convert raw milliseconds before display.
 
-## Helper and Advanced APIs
+## React helper APIs
 
 ```tsx
 import {
-  useAmountUi,      // (decimals?, rawAmount?) => formatted amount
-  useExplorerLink,  // (txHash?) => explorer URL
-  useNetwork,       // () => current network metadata
-  useRePermitData,  // () => { data, error, isLoading, refetch }
-  useSignOrder,     // low-level signing hook
-  useSubmitOrder,   // low-level submission mutation
-  useSwapExecution, // low-level execution state
+  useAmountUi,
+  useClient,
+  useExplorerLink,
+  useNetwork,
 } from "@orbs-network/spot-react";
+
+useAmountUi(decimals, rawAmount);
+useClient();
+useExplorerLink(txHash, chainId);
+useNetwork(chainId);
 ```
 
-Normal integrations should submit through `useSpot().orderExecutionPanel`. Use the low-level hooks only when deliberately replacing the built-in execution flow. `useRePermitData()` must be called under `SpotProvider`; most integrations should use the configuration state already exposed by `useSpot().submitOrderButton`.
+Submit through `useExecution()`. Internal mutations and execution-store hooks
+are deliberately not exported, keeping one supported workflow and one error
+contract. `useClient()` must be called under `SpotProvider`; every caller shares
+the same partner/chain query, and RePermit configuration is available as
+`client?.rePermitData`. Initialization recovery belongs to
+`clientErrorFallback`, which receives the query error and retry action.
 
 Public utilities and constants include:
 
 ```tsx
 import {
-  getMinChunkSizeUsd,
   getNetwork,
   getOrderExecutionRate,
   getOrderFillDelayMillis,
   getOrderLimitPriceRate,
   getPartnerChains,
   getPartners,
+  getTwapConfig,
+  calculateOrderForm,
+  toAmountWei,
+  toAmountUI,
+  invertPriceInput,
   getTriggerPriceRate,
   eqIgnoreCase,
   isNativeAddress,
@@ -522,7 +627,11 @@ import {
 } from "@orbs-network/spot-react";
 ```
 
-Always import from `@orbs-network/spot-react`. Do not import from `dist/*` or package-internal source paths, and verify public exports when upgrading.
+React integrations can import the single `calculateOrderForm` entry point and
+its public calculated types directly from `@orbs-network/spot-react`. Non-React
+integrations should import them from `@orbs-network/spot-ui`. Lower-level
+calculators remain internal entry points; do not import from `dist/*` or
+package-internal source paths.
 
 ## Integration Checklist
 

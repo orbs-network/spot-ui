@@ -12,6 +12,25 @@ export type Config = {
   exchangeType: string;
   pathfinderKey?: string;
 };
+
+export type Token = {
+  address: string;
+  symbol: string;
+  decimals: number;
+  logoUrl?: string;
+};
+
+export interface Network {
+  id: number;
+  name: string;
+  shortname: string;
+  native: Token;
+  wToken: Token;
+  publicRpcUrl: string;
+  logoUrl: string;
+  explorer: string;
+  eip1559: boolean;
+}
 export enum Module {
   TWAP = "TWAP",
   LIMIT = "LIMIT",
@@ -80,6 +99,8 @@ export type OrderFill = {
 export type Order = {
   repermitDigest: string;
   version: number;
+  /** Stable history identity across versions and legacy contract deployments. */
+  historyKey: string;
   id: string;
   hash: string;
   type: OrderType;
@@ -301,9 +322,8 @@ export enum Partners {
 }
 
 export enum InputErrors {
-  EMPTY_LIMIT_PRICE = "emptyLimitPrice",
-  MAX_CHUNKS = "maxChunksError",
-  MIN_CHUNKS = "minChunksError",
+  MAX_TRADES = "maxTradesError",
+  MIN_TRADES = "minTradesError",
   MIN_TRADE_SIZE = "minTradeSizeError",
   MAX_FILL_DELAY = "maxFillDelayError",
   MIN_FILL_DELAY = "minFillDelayError",
@@ -316,7 +336,6 @@ export enum InputErrors {
   EMPTY_TRIGGER_PRICE = "emptyTriggerPrice",
   INSUFFICIENT_BALANCE = "insufficientFunds",
   MAX_ORDER_SIZE = "maxOrderSize",
-  MIN_TRADE_SIZE_ERROR = "minTradeSizeError",
 }
 
 export type PartnerPayloadItem = {

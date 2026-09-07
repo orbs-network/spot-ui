@@ -3,34 +3,23 @@ import { networks } from "./networks";
 import { Config, Partners, TimeDuration, TimeUnit } from "./types";
 import spotPkg from "@orbs-network/spot/package.json";
 
-
-const DEV_API_URL = "https://order-sink-dev.orbs.network";
 const PROD_API_URL = "https://order-sink.orbs.network";
 const PROD_API_URL_V2 = "https://order-sink-v2.orbs.network";
 
-
 export const SPOT_VERSION = spotPkg.version.split(".")[0];
 
-
-export const getApiEndpoint = (isDev: boolean) => {
+export const getApiEndpoint = () => {
   const isSpotV2 = Number(SPOT_VERSION) >= 2;
-  if (isDev) {
-    return DEV_API_URL;
-  }
   if (isSpotV2) {
     return PROD_API_URL_V2;
   }
   return PROD_API_URL;
 };
 
-export const getRePermitConfigEndpoint = (isDev = false) =>
-  `${isDev ? DEV_API_URL : PROD_API_URL_V2}/config`;
+export const getRePermitConfigEndpoint = () => `${PROD_API_URL_V2}/config`;
 
-export const getOrderApiEndpoints = (isDev: boolean) => {
+export const getOrderApiEndpoints = () => {
   const isSpotV2 = Number(SPOT_VERSION) >= 2;
-  if (isDev) {
-    return [DEV_API_URL];
-  }
   if (isSpotV2) {
     return [PROD_API_URL_V2, PROD_API_URL];
   }
@@ -71,7 +60,7 @@ export const getOrderSinkExchanges = ({
 };
 export const SUGGEST_CHUNK_VALUE = 100;
 
-export const MIN_CHUNKS = 1;
+export const MIN_TRADES = 1;
 export const MIN_FILL_DELAY_MILLIS = 5 * 60 * 1000;
 
 export const MAX_ORDER_DURATION_MILLIS =  60 * 24 * 60 * 60 * 1000; // 60 days
@@ -343,14 +332,6 @@ export const ORBS_LOGO_FALLBACK =
   "https://www.orbs.com/assets/img/common/logo.svg";
 export const ORBS_WEBSITE_URL = "https://www.orbs.com/";
 export const DISCLAIMER_URL = "https://www.orbs.com/dtwap-dlimit-disclaimer";
-
-export enum QUERY_PARAMS {
-  FRESHNESS = "freshness",
-  MIN_CHUNK_SIZE_USD = "minChunkSizeUsd",
-  ENV = "env",
-  DURATION = "duration",
-  IGNORE_ERRORS = "ignore-errors",
-}
 
 export const DEFAULT_STOP_LOSS_PERCENTAGE = "-5";
 export const DEFAULT_TAKE_PROFIT_PERCENTAGE = "10";

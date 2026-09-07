@@ -373,7 +373,6 @@ class Analytics {
     partner: Partners,
     twapConfig?: Config,
     minChunkSizeUsd?: number,
-    isDev = false,
   ) {
     const details = getFetchedConfigDetails(
       permitData,
@@ -381,7 +380,7 @@ class Analytics {
       twapConfig,
       minChunkSizeUsd,
     );
-    const configUpdateKey = `${partner}:${details.chainId}:${isDev}:${details.repermit}:${details.adapter}:${details.executor}:${details.reactor}`;
+    const configUpdateKey = `${partner}:${details.chainId}:${details.repermit}:${details.adapter}:${details.executor}:${details.reactor}`;
     if (configUpdateKey === this.configUpdateKey) return;
     this.configUpdateKey = configUpdateKey;
     this.configDetails = details;

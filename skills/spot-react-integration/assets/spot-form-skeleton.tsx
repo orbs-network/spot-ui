@@ -11,7 +11,19 @@ import {
   Module,
   Partners,
   TimeUnit,
-  useSpot,
+  useDisclaimer,
+  useDuration,
+  useExecution,
+  useFillDelay,
+  useInputErrors,
+  useLimitPrice,
+  useOrderForm,
+  useOutputAmount,
+  usePriceDisplay,
+  useSubmitButton,
+  useTrades,
+  useTriggerPrice,
+  type ClientErrorFallbackProps,
   type Token,
   type WalletInteractions,
   DISCLAIMER_URL,
@@ -34,12 +46,28 @@ const DURATION_OPTIONS = [
   { text: "Days", value: TimeUnit.Days },
 ];
 
+function ClientErrorFallback({
+  error,
+  retry,
+  isRetrying,
+}: ClientErrorFallbackProps) {
+  return (
+    <div role="alert">
+      {/* DEX: Translate and style this with the host error component. */}
+      <p>{error.message}</p>
+      <button type="button" disabled={isRetrying} onClick={retry}>
+        {isRetrying ? "Retrying..." : "Retry"}
+      </button>
+    </div>
+  );
+}
+
 // ============ Section Components ============
 
 function OutputAmount() {
-  const { value, isLoading } = useSpot().dstTokenPanel;
+  const { amount, isLoading } = useOutputAmount();
   if (isLoading) return <p>Loading quote...</p>;
-  return <p>Estimated output: {value || "—"}</p>;
+  return <p>Estimated output: {amount.ui || "—"}</p>;
 }
 
 function PriceConfigSection({ module }: { module: Module }) {
@@ -55,16 +83,16 @@ function PriceConfigSection({ module }: { module: Module }) {
 }
 
 function PriceHeader() {
-  const { onInvert, isInverted, fromToken, isMarketPrice } =
-    useSpot().pricePanel;
+  const { onInvert, isInverted, displayInputToken, isMarketOrder } =
+    usePriceDisplay();
 
   return (
     <div>
       <span>
-        {isInverted ? "Buy" : "Sell"} {fromToken?.symbol}{" "}
-        {isMarketPrice ? "at best rate" : "at rate"}
+        {isInverted ? "Buy" : "Sell"} {displayInputToken?.symbol}{" "}
+        {isMarketOrder ? "at best rate" : "at rate"}
       </span>
-      {!isMarketPrice && (
+      {!isMarketOrder && (
         <button type="button" onClick={onInvert}>
           Invert
         </button>
@@ -75,18 +103,16 @@ function PriceHeader() {
 
 function LimitPriceSection({ module }: { module: Module }) {
   const {
-    priceUI,
+    price,
     onInputChange,
     percentage,
     onPercentageChange,
-    isLimitPrice,
-    toggleLimitPrice,
+    isEnabled,
+    toggle,
     onReset,
-    invertedDstToken,
-    isTypedValue,
-    usd,
-  } = useSpot().limitPricePanel;
-  const showInput = module === Module.LIMIT || isLimitPrice;
+    displayOutputToken,
+  } = useLimitPrice();
+  const showInput = module === Module.LIMIT || isEnabled;
 
   return (
     <div>
@@ -94,8 +120,8 @@ function LimitPriceSection({ module }: { module: Module }) {
         <label>
           <input
             type="checkbox"
-            checked={isLimitPrice}
-            onChange={() => toggleLimitPrice()}
+            checked={isEnabled}
+            onChange={() => toggle()}
           />
           Limit price
         </label>
@@ -105,16 +131,16 @@ function LimitPriceSection({ module }: { module: Module }) {
           {/* DEX: Replace with your price input and percentage controls */}
           <input
             type="number"
-            value={isTypedValue ? priceUI : priceUI || ""}
+            value={price.ui}
             onChange={(e) => onInputChange(e.target.value)}
           />
-          <span>{invertedDstToken?.symbol}</span>
+          <span>{displayOutputToken?.symbol}</span>
           <input
             type="number"
             value={percentage || "0"}
             onChange={(e) => onPercentageChange(e.target.value)}
           />
-          {usd && <span>${usd}</span>}
+          {price.usd && <span>${price.usd}</span>}
           <button type="button" onClick={onReset}>
             Reset
           </button>
@@ -126,15 +152,13 @@ function LimitPriceSection({ module }: { module: Module }) {
 
 function TriggerPriceSection({ module }: { module: Module }) {
   const {
-    priceUI,
+    price,
     onInputChange,
     percentage,
     onPercentageChange,
     onReset,
-    invertedDstToken,
-    isTypedValue,
-    usd,
-  } = useSpot().triggerPricePanel;
+    displayOutputToken,
+  } = useTriggerPrice();
 
   return (
     <div>
@@ -146,16 +170,16 @@ function TriggerPriceSection({ module }: { module: Module }) {
       </label>
       <input
         type="number"
-        value={isTypedValue ? priceUI : priceUI || ""}
+        value={price.ui}
         onChange={(e) => onInputChange(e.target.value)}
       />
-      <span>{invertedDstToken?.symbol}</span>
+      <span>{displayOutputToken?.symbol}</span>
       <input
         type="number"
         value={percentage || "0"}
         onChange={(e) => onPercentageChange(e.target.value)}
       />
-      {usd && <span>${usd}</span>}
+      {price.usd && <span>${price.usd}</span>}
       <button type="button" onClick={onReset}>
         Reset
       </button>
@@ -164,7 +188,8 @@ function TriggerPriceSection({ module }: { module: Module }) {
 }
 
 function DurationSection() {
-  const { duration, onInputChange, onUnitSelect } = useSpot().durationPanel;
+  const { duration, onInputChange, onUnitSelect } =
+    useDuration();
   return (
     <div>
       {/* DEX: Add your own label, e.g. "Expiry" */}
@@ -192,10 +217,9 @@ function TradeSizeSection() {
     totalTrades,
     onChange,
     error,
-    amountPerTradeUI,
-    amountPerTradeUsd,
-    fromToken,
-  } = useSpot().tradesAmountPanel;
+    inputAmountPerTrade,
+    inputToken,
+  } = useTrades();
 
   return (
     <div>
@@ -205,10 +229,10 @@ function TradeSizeSection() {
         value={totalTrades || ""}
         onChange={(e) => onChange(Number(e.target.value))}
       />
-      {totalTrades > 1 && fromToken && (
+      {totalTrades > 1 && inputToken && (
         <span>
-          {/* DEX: Prefer converting spot.tradesAmountPanel.amountPerTrade raw amount to the DEX amount type before display. */}
-          {amountPerTradeUI} {fromToken.symbol} per trade (${amountPerTradeUsd})
+          {/* DEX: Prefer converting amountPerTrade to the DEX amount type before display. */}
+          {inputAmountPerTrade.ui} {inputToken.symbol} per trade (${inputAmountPerTrade.usd})
         </span>
       )}
       {error && <p style={{ color: "red" }}>{error.type}</p>}
@@ -217,7 +241,8 @@ function TradeSizeSection() {
 }
 
 function TradeIntervalSection() {
-  const { fillDelay, onInputChange, onUnitSelect } = useSpot().fillDelayPanel;
+  const { fillDelay, onInputChange, onUnitSelect } =
+    useFillDelay();
   return (
     <div>
       {/* DEX: Add your own label, e.g. "Trade Interval" */}
@@ -241,7 +266,7 @@ function TradeIntervalSection() {
 }
 
 function InputErrorPanel() {
-  const error = useSpot().inputError;
+  const error = useInputErrors();
   if (!error) return null;
   // DEX: Use your i18n system: t(error.type, formatErrorArgs(error.args))
   // error.args is an optional Record<string, string>. Current duration/fill-delay
@@ -250,7 +275,7 @@ function InputErrorPanel() {
 }
 
 function DisclaimerPanel() {
-  const disclaimer = useSpot().disclaimerPanel;
+  const disclaimer = useDisclaimer();
   if (!disclaimer) return null;
   // DEX: Use your i18n system: t(disclaimer)
   return (
@@ -269,70 +294,81 @@ function SubmitOrderSection({
   setInputAmount: (v: string) => void;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { disabled, loading, error, retry } = useSpot().submitOrderButton;
+  const { disabled, loading } = useSubmitButton();
   const {
-    onSubmit,
+    submitOrder,
     status,
     isSuccess,
-    resetCurrentSwap,
-    resetState,
-    parsedError,
-    confirmButtonLoading,
-  } = useSpot().orderExecutionPanel;
-  const form = useSpot().derivedFormData;
+    returnToOrderForm,
+    startNewOrder,
+    error,
+    isPreparingOrder,
+    isExecuting,
+  } = useExecution();
+  const form = useOrderForm();
   const [accepted, setAccepted] = useState(false);
 
   // DEX: Replace with your ConnectWallet / SwitchNetwork checks
 
   const onClose = useCallback(() => {
+    if (isExecuting) return;
     setIsModalOpen(false);
     if (isSuccess) {
       setInputAmount("");
       setTimeout(() => {
-        resetState();
+        startNewOrder();
       }, 500);
     } else if (Boolean(status)) {
       setTimeout(() => {
-        resetCurrentSwap();
+        returnToOrderForm();
       }, 500);
     }
-  }, [isSuccess, resetCurrentSwap, resetState, setInputAmount, status]);
+  }, [
+    isExecuting,
+    isSuccess,
+    returnToOrderForm,
+    setInputAmount,
+    startNewOrder,
+    status,
+  ]);
 
   return (
     <>
       <button
-        onClick={error ? () => void retry() : () => setIsModalOpen(true)}
-        disabled={error ? loading : disabled}
+        onClick={() => setIsModalOpen(true)}
+        disabled={disabled}
       >
-        {error
-          ? "Retry order configuration"
-          : loading
-            ? "Loading..."
-            : "Place Order"}
+        {loading ? "Loading..." : "Place Order"}
       </button>
 
       {isModalOpen && (
         <div className="modal">
           {/* DEX: Replace with your Dialog/Modal component */}
 
-          {parsedError ? (
+          {error ? (
             <div>
-              <p>Error: {parsedError.message}</p>
+              <p>Error: {error.message}</p>
               <button onClick={onClose}>Close</button>
             </div>
           ) : (
             <>
-              {/* Order review details from derivedFormData */}
+              {/* Order review details from the authoritative calculated form */}
               {!status && (
                 <>
                   <p>
-                    {form.srcAmountUI} → {form.dstAmountUI}
+                    {form.inputAmount.ui} → {form.outputAmount.ui}
                   </p>
-                  {form.limitPriceUI && <p>Limit: {form.limitPriceUI}</p>}
-                  {form.triggerPriceUI && <p>Trigger: {form.triggerPriceUI}</p>}
-                  <p>Trades: {form.totalTrades}</p>
-                  <p>Deadline: {form.deadline}</p>
-                  {form.feesPercentage && <p>Fees: {form.feesPercentage}%</p>}
+                  {form.limitPrice.display.ui && (
+                    <p>Limit: {form.limitPrice.display.ui}</p>
+                  )}
+                  {form.triggerPrice.display.ui && (
+                    <p>Trigger: {form.triggerPrice.display.ui}</p>
+                  )}
+                  <p>Trades: {form.trades.totalTrades}</p>
+                  <p>Duration: {form.schedule.durationMillis} ms</p>
+                  {form.fees.percentage && (
+                    <p>Fees: {form.fees.percentage}%</p>
+                  )}
 
                   <label>
                     <input
@@ -351,10 +387,10 @@ function SubmitOrderSection({
                   </label>
                   <button onClick={onClose}>Cancel</button>
                   <button
-                    onClick={onSubmit}
-                    disabled={!accepted || Boolean(confirmButtonLoading)}
+                    onClick={submitOrder}
+                    disabled={!accepted || Boolean(isPreparingOrder)}
                   >
-                    {confirmButtonLoading ? "Creating..." : "Create Order"}
+                    {isPreparingOrder ? "Creating..." : "Create Order"}
                   </button>
                 </>
               )}
@@ -385,8 +421,8 @@ export function SpotForm({
     [],
   );
 
-  const srcToken = useMemo<Token | undefined>(() => undefined, []);
-  const dstToken = useMemo<Token | undefined>(() => undefined, []);
+  const inputToken = useMemo<Token | undefined>(() => undefined, []);
+  const outputToken = useMemo<Token | undefined>(() => undefined, []);
   const walletInteractions = useMemo<WalletInteractions>(
     () => ({
       // DEX: call the wrapped native token deposit method, wait for receipt, return tx hash.
@@ -446,10 +482,9 @@ export function SpotForm({
   // DEX: Replace these with wallet, chain, balance, and USD price state.
   const chainId = undefined;
   const account = undefined;
-  const srcBalance = undefined;
-  const dstBalance = undefined;
-  const srcUsd1Token = undefined;
-  const dstUsd1Token = undefined;
+  const inputBalance = undefined;
+  const inputUsd1Token = undefined;
+  const outputUsd1Token = undefined;
 
   return (
     <SpotProvider
@@ -459,17 +494,17 @@ export function SpotForm({
       partner={Partners.Quick} // DEX: Replace with your partner
       module={module}
       priceProtection={3}
-      minChunkSizeUsd={5}
+      minTradeSizeUsd={5}
       typedInputAmount={inputAmount}
       marketReferencePrice={marketReferencePrice}
-      srcToken={srcToken}
-      dstToken={dstToken}
-      srcBalance={srcBalance}
-      dstBalance={dstBalance}
-      srcUsd1Token={srcUsd1Token}
-      dstUsd1Token={dstUsd1Token}
+      inputToken={inputToken}
+      outputToken={outputToken}
+      inputBalance={inputBalance}
+      inputUsd1Token={inputUsd1Token}
+      outputUsd1Token={outputUsd1Token}
       callbacks={callbacks}
-      fees={0.25}
+      clientErrorFallback={ClientErrorFallback}
+      displayFeePercent={0.25}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* DEX: Token inputs section using your CurrencyInputPanel */}

@@ -1,292 +1,160 @@
+import { OrderStatus, type Order } from "@orbs-network/spot-ui";
+import { useMemo, useCallback, useEffect } from "react";
 import {
-  getAccountOrders,
-  Order,
-  OrderStatus,
-  OrderType,
-  getOrderExecutionRate,
-  getOrderLimitPriceRate,
-  getTriggerPriceRate,
-} from "@orbs-network/spot-ui";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useCallback } from "react";
-import { REFETCH_ORDER_HISTORY } from "../consts";
-import { useSpotContext } from "../spot-context";
-import { Token } from "../types";
-import { useSpotStore } from "../store";
-import { Module } from "@orbs-network/spot-ui";
-import { useRePermitData } from "./use-repermit-data";
+  useSpotRuntime,
+  useSpotStore,
+  useSpotStoreApi,
+  type OrdersLoader,
+  type OrdersResourceState,
+} from "../context/spot-store";
+import { useClient } from "../context/use-client";
+import {
+  categorizeOrders,
+  mergeCachedLegacyOrders,
+  notifyOrderUpdates,
+  type CategorizedOrders,
+} from "../order-history-data";
 
-export const useOrderType = () => {
-  const { module } = useSpotContext();
-  const isMarketOrder = useSpotStore((s) => s.state.isMarketOrder);
-  return useMemo(() => {
-    if (module === Module.TWAP) {
-      return isMarketOrder ? OrderType.TWAP_MARKET : OrderType.TWAP_LIMIT;
-    }
-    if (module === Module.LIMIT) {
-      return OrderType.LIMIT;
-    }
-    if (module === Module.STOP_LOSS) {
-      return isMarketOrder
-        ? OrderType.STOP_LOSS_MARKET
-        : OrderType.STOP_LOSS_LIMIT;
-    }
-    if (module === Module.TAKE_PROFIT) {
-      return isMarketOrder ? OrderType.TAKE_PROFIT_MARKET : OrderType.TAKE_PROFIT_LIMIT;
-    }
-    return OrderType.TWAP_MARKET;
-  }, [module, isMarketOrder]);
-};
+export type { CategorizedOrders } from "../order-history-data";
 
-const buildOrdersQueryKey = (
-  account: string | undefined,
-  exchange: string | undefined,
-  partner: string,
-  chainId: number,
-  isDev: boolean | undefined,
-  supportLegacyOrders: boolean,
-) => [
-  "useTwapOrderHistoryManager",
-  account,
-  exchange,
-  partner,
-  chainId,
-  isDev,
-  supportLegacyOrders,
-];
+const EMPTY_ORDERS_RESULT: OrdersResourceState = { isFetching: false };
 
-const useOrdersQueryKey = () => {
-  const { account, partner, chainId, isDev, supportLegacyOrders } =
-    useSpotContext();
-  const { data: permitData } = useRePermitData();
-  const exchange = permitData?.order.witness.exchange.adapter;
-  return useMemo(
-    () =>
-      buildOrdersQueryKey(
+/**
+ * Connects the provider store to the account/client-specific history source.
+ * This configures fetching but does not start polling; useOrders owns the
+ * mounted-consumer subscription that activates it.
+ */
+export const useOrdersResource = () => {
+  const { account, partner, chainId, supportLegacyOrders, callbacks } =
+    useSpotRuntime();
+  const { data: client } = useClient();
+  const store = useSpotStoreApi();
+  const enabled = Boolean(account && client);
+  const key = enabled
+    ? JSON.stringify([
         account,
-        exchange,
+        client?.exchangeAddress,
         partner,
         chainId,
-        isDev,
         supportLegacyOrders,
-      ),
-    [account, exchange, partner, chainId, isDev, supportLegacyOrders],
-  );
-};
-
-const useOrdersWithoutConfigQueryKey = () => {
-  const { account, partner, chainId, isDev, supportLegacyOrders } =
-    useSpotContext();
-  return useMemo(
-    () =>
-      buildOrdersQueryKey(
+      ])
+    : undefined;
+  const loader = useCallback<OrdersLoader>(
+    async (previousOrders, legacyLoaded, signal) => {
+      if (!account || !client) {
+        return { orders: [], legacyLoaded: false };
+      }
+      const loadLegacyOrders = supportLegacyOrders && !legacyLoaded;
+      const orders = await client.getAccountOrders({
+        signal,
         account,
-        undefined,
-        partner,
-        chainId,
-        isDev,
-        supportLegacyOrders,
-      ),
-    [account, partner, chainId, isDev, supportLegacyOrders],
-  );
-};
-
-export const useAddNewOrder = () => {
-  const queryClient = useQueryClient();
-  const { account } = useSpotContext();
-  const queryKey = useOrdersQueryKey();
-  return useCallback(
-    (order: Order) => {
-      queryClient.setQueryData(queryKey, (orders?: Order[]) => {
-        if (!orders) return [order];
-        if (orders?.some((o) => o.id === order.id)) return orders;
-        return [order, ...orders];
+        legacyOrders: loadLegacyOrders,
       });
+      notifyOrderUpdates(previousOrders, orders, callbacks);
+      return {
+        orders:
+          supportLegacyOrders && !loadLegacyOrders
+            ? mergeCachedLegacyOrders(orders, previousOrders)
+            : orders,
+        legacyLoaded: legacyLoaded || loadLegacyOrders,
+      };
     },
-    [queryClient, queryKey, account],
+    [account, callbacks, client, supportLegacyOrders],
+  );
+
+  useEffect(() => {
+    store.getState().configureOrders(key, enabled ? loader : undefined);
+  }, [enabled, key, loader, store]);
+
+  const refetch = useCallback(() => {
+    if (!enabled || !key) return Promise.resolve(undefined);
+    const state = store.getState();
+    state.configureOrders(key, loader);
+    return state.refetchOrders(true);
+  }, [enabled, key, loader, store]);
+
+  return { enabled, key, refetch };
+};
+
+/** Cache commands used by order creation and cancellation flows. */
+export const useAddNewOrder = () => {
+  // Configure the correct account history key even when no history UI is
+  // mounted, so the optimistic order cannot enter another account's cache.
+  useOrdersResource();
+  const store = useSpotStoreApi();
+  return useCallback(
+    (order: Order) => store.getState().addOrder(order),
+    [store],
   );
 };
 
 export const useUpdateCachedOrderStatus = () => {
-  const queryClient = useQueryClient();
-  const queryKey = useOrdersQueryKey();
-
+  const store = useSpotStoreApi();
   return useCallback(
-    (orderId: string, status: OrderStatus) => {
-      queryClient.setQueryData<Order[]>(queryKey, (orders) =>
-        orders?.map((order) =>
-          order.id === orderId ? { ...order, status } : order,
-        ),
-      );
-    },
-    [queryClient, queryKey],
+    (historyKey: string, status: OrderStatus) =>
+      store.getState().updateOrderStatus(historyKey, status),
+    [store],
   );
 };
 
-const useOrderFilledCallback = () => {
-  const { callbacks } = useSpotContext();
-  const queryClient = useQueryClient();
-  const queryKey = useOrdersQueryKey();
+export const useRefetchActiveOrders = () => {
+  const store = useSpotStoreApi();
   return useCallback(
-    (orders: Order[]) => {
-      const prevOrders = queryClient.getQueryData(queryKey) as Order[];
-      let isProgressUpdated = false;
-      const updatedOrders: Order[] = [];
-
-      if (prevOrders) {
-        prevOrders
-          .filter((o) => o.version === 2)
-          .forEach((prevOrder) => {
-            const currentOrder = orders.find((o) => o.id === prevOrder.id);
-
-            if (!currentOrder) return;
-
-            if (currentOrder.progress !== prevOrder.progress) {
-              isProgressUpdated = true;
-              updatedOrders.push(currentOrder);
-              if (currentOrder.status === OrderStatus.Completed) {
-                callbacks?.onOrderFilled?.(currentOrder);
-              }
-            }
-          });
-      }
-      // refetch balances when orders progress is updated
-      if (isProgressUpdated) {
-        callbacks?.onOrdersProgressUpdate?.(updatedOrders);
-      }
-    },
-    [queryClient, queryKey, callbacks],
+    () => store.getState().refetchOrders(),
+    [store],
   );
 };
 
-const mergeCachedV1Orders = (
-  orders: Order[],
-  cachedOrders?: Order[],
-): Order[] => {
-  const orderIds = new Set(orders.map((order) => order.id));
-  const cachedV1Orders =
-    cachedOrders?.filter(
-      (order) => order.version === 1 && !orderIds.has(order.id),
-    ) ?? [];
+export interface OrdersResult {
+  data?: CategorizedOrders;
+  error?: Error;
+  isLoading: boolean;
+  isFetching: boolean;
+  isRefetching: boolean;
+  refetch: () => Promise<CategorizedOrders | undefined>;
+}
 
-  return [...orders, ...cachedV1Orders].sort(
-    (a, b) => b.createdAt - a.createdAt,
+/**
+ * Public order-history hook. Multiple callers share one provider-owned cache,
+ * in-flight request, and polling timer. Polling exists only while at least one
+ * caller is mounted.
+ */
+export const useOrders = (): OrdersResult => {
+  const ordersState = useSpotStore((state) => state.orders);
+  const registerConsumer = useSpotStore(
+    (state) => state.registerOrdersConsumer,
   );
-};
+  const { enabled, key, refetch: refetchRaw } = useOrdersResource();
+  const currentState =
+    ordersState.key === key ? ordersState : EMPTY_ORDERS_RESULT;
 
-export const useOrdersQuery = () => {
-  const { account, partner, chainId, isDev, supportLegacyOrders } =
-    useSpotContext();
-  const { data: permitData } = useRePermitData();
-  const queryClient = useQueryClient();
+  useEffect(() => {
+    const unregisterConsumer = registerConsumer();
+    return unregisterConsumer;
+  }, [registerConsumer]);
 
-  const queryKey = useOrdersQueryKey();
-  const ordersWithoutConfigQueryKey = useOrdersWithoutConfigQueryKey();
-  const orderFilledCallback = useOrderFilledCallback();
-  const query = useQuery<Order[]>({
-    refetchInterval: REFETCH_ORDER_HISTORY,
-    refetchOnWindowFocus: true,
-    retry: false,
-    gcTime: Infinity,
-    staleTime: Infinity,
-    queryKey,
-    enabled: Boolean(account && chainId),
-    queryFn: async ({ signal }) => {
-      if (!account || !chainId) return [];
-      const cachedOrders =
-        queryClient.getQueryData<Order[]>(queryKey) ??
-        queryClient.getQueryData<Order[]>(ordersWithoutConfigQueryKey);
-      const legacyOrders = supportLegacyOrders && !cachedOrders;
-      const orders = await getAccountOrders({
-        signal,
-        chainId,
-        exchange: permitData?.order.witness.exchange.adapter,
-        partner,
-        account,
-        isDev,
-        legacyOrders,
-      });
-
-      orderFilledCallback(orders);
-      if (!supportLegacyOrders || legacyOrders) {
-        return orders;
-      }
-
-      return mergeCachedV1Orders(orders, cachedOrders);
-    },
-  });
-
-  return query;
-};
-
-export const useOrderLimitPrice = (
-  srcToken?: Token,
-  dstToken?: Token,
-  order?: Order,
-) => {
-  return useMemo(() => {
-    if (!srcToken || !dstToken || !order || order?.isMarketPrice) return;
-    return getOrderLimitPriceRate(
-      order,
-      srcToken?.decimals,
-      dstToken?.decimals,
-    );
-  }, [order, srcToken, dstToken]);
-};
-
-export const useOrderTriggerPriceRate = (
-  srcToken?: Token,
-  dstToken?: Token,
-  order?: Order,
-) => {
-  return useMemo(() => {
-    if (!srcToken || !dstToken || !order) return;
-    return getTriggerPriceRate(order, srcToken.decimals, dstToken.decimals);
-  }, [order, srcToken, dstToken]);
-};
-
-export const useOrderAvgExecutionPrice = (
-  srcToken?: Token,
-  dstToken?: Token,
-  order?: Order,
-) => {
-  return useMemo(() => {
-    if (!srcToken || !dstToken || !order) return;
-    return getOrderExecutionRate(
-      order.srcAmountFilled,
-      order.dstAmountFilled,
-      srcToken.decimals,
-      dstToken.decimals,
-    );
-  }, [order, srcToken, dstToken]);
-};
-
-const filterAndSortOrders = (orders: Order[], filter: OrderStatus): Order[] => {
-  const filtered = orders.filter((o) => o.status === filter);
-  return [...filtered].sort((a, b) => b.createdAt - a.createdAt);
-};
-export const useOrderHistoryPanel = () => {
-  const { data: orders, isLoading, refetch, isRefetching } = useOrdersQuery();
-
-  const refetchOrders = useCallback(
-    () => refetch().then((it) => it.data),
-    [refetch],
+  const data = useMemo(
+    () =>
+      currentState.data === undefined
+        ? undefined
+        : categorizeOrders(currentState.data),
+    [currentState.data],
   );
+  const refetch = useCallback(async () => {
+    const orders = await refetchRaw();
+    return orders === undefined ? undefined : categorizeOrders(orders);
+  }, [refetchRaw]);
 
-  return useMemo(() => {
-    return {
-      orders: {
-        all: orders ?? [],
-        open: filterAndSortOrders(orders ?? [], OrderStatus.Open),
-        completed:
-          filterAndSortOrders(orders ?? [], OrderStatus.Completed),
-        cancelled:
-          filterAndSortOrders(orders ?? [], OrderStatus.Cancelled),
-        expired: filterAndSortOrders(orders ?? [], OrderStatus.Expired),
-      },
-      isLoading,
-      isRefetching,
-      refetchOrders,
-    };
-  }, [orders, isLoading, isRefetching, refetchOrders]);
+  return useMemo(
+    () => ({
+      data,
+      error: currentState.error,
+      isLoading:
+        enabled && data === undefined && currentState.error === undefined,
+      isFetching: currentState.isFetching,
+      isRefetching: currentState.isFetching && data !== undefined,
+      refetch,
+    }),
+    [currentState, data, enabled, refetch],
+  );
 };

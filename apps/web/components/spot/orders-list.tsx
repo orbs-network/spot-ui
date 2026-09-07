@@ -1,22 +1,43 @@
-/* eslint-disable react-hooks/preserve-manual-memoization */
 "use client";
 import { ArrowRightIcon } from "lucide-react";
-import { Order } from "@orbs-network/spot-react";
+import type { Order, Token } from "@orbs-network/spot-react";
 import { useDateFormat } from "@/lib/hooks/common";
 import * as React from "react";
 import { Virtuoso } from "react-virtuoso";
 import { useTranslations } from "@/lib/use-translations";
-import { useSpotToken } from "@/lib/hooks/spot-hooks";
 import { SpotTokenLogo } from "./components";
 import { useOrdersPanelContext } from "./orders-context";
 import { getOrderTitle } from "@/lib/utils";
 
+const VIRTUAL_LIST_STYLE = { height: "100%" } as const;
+const getOrderKey = (_index: number, order: Order) => order.historyKey;
+
 const ListLoader = () => {
-  return <div className="twap-orders__loader">{<p>Loading...</p>}</div>;
+  return (
+    <div className="twap-orders__loader">
+      <p>Loading...</p>
+    </div>
+  );
 };
 
 export const OrdersList = () => {
-  const { isLoading, filteredOrders: ordersToDisplay } = useOrdersPanelContext();
+  const {
+    isLoading,
+    filteredOrders: ordersToDisplay,
+    onDisplayOrder,
+    tokensByAddress,
+  } = useOrdersPanelContext();
+  const renderOrder = React.useCallback(
+    (_index: number, order: Order) => (
+      <ListOrder
+        order={order}
+        inputToken={tokensByAddress.get(order.srcTokenAddress.toLowerCase())}
+        outputToken={tokensByAddress.get(order.dstTokenAddress.toLowerCase())}
+        onDisplayOrder={onDisplayOrder}
+      />
+    ),
+    [onDisplayOrder, tokensByAddress],
+  );
 
   return (
     <>
@@ -27,14 +48,10 @@ export const OrdersList = () => {
       ) : (
         <div className="twap-orders__list">
           <Virtuoso
-            style={{ height: "100%" }}
+            style={VIRTUAL_LIST_STYLE}
             data={ordersToDisplay}
-            itemContent={(index, order) => (
-              <ListOrder
-                key={index}
-                order={order}
-              />
-            )}
+            computeItemKey={getOrderKey}
+            itemContent={renderOrder}
           />
         </div>
       )}
@@ -42,13 +59,20 @@ export const OrdersList = () => {
   );
 };
 
-const ListOrder = ({ order }: { order: Order }) => {
-  const { onDisplayOrder } = useOrdersPanelContext();
-
+const ListOrder = React.memo(function ListOrder({
+  order,
+  inputToken,
+  outputToken,
+  onDisplayOrder,
+}: {
+  order: Order;
+  inputToken?: Token;
+  outputToken?: Token;
+  onDisplayOrder: (historyKey?: string) => void;
+}) {
   const onShowOrder = React.useCallback(() => {
-    onDisplayOrder(order?.id);
-  }, [onDisplayOrder, order?.id]);
-
+    onDisplayOrder(order.historyKey);
+  }, [onDisplayOrder, order.historyKey]);
 
   return (
     <div
@@ -59,14 +83,14 @@ const ListOrder = ({ order }: { order: Order }) => {
         <ListItemHeader order={order} />
         <LinearProgressWithLabel value={order.progress || 0} />
         <div className="twap-orders__list-item-tokens">
-          <TokenDisplay address={order.srcTokenAddress} />
+          <TokenDisplay token={inputToken} />
           <ArrowRightIcon className="twap-orders__list-item-tokens-arrow size-4" />
-          <TokenDisplay address={order.dstTokenAddress} />
+          <TokenDisplay token={outputToken} />
         </div>
       </div>
     </div>
   );
-};
+});
 
 const EmptyList = () => {
   const t = useTranslations();
@@ -77,7 +101,6 @@ const EmptyList = () => {
     </div>
   );
 };
-
 
 const ListItemHeader = ({ order }: { order: Order }) => {
   const status = order && order.status;
@@ -94,9 +117,7 @@ const ListItemHeader = ({ order }: { order: Order }) => {
   );
 };
 
-const TokenDisplay = (props: { address?: string }) => {
-  const token = useSpotToken(props.address);
-
+const TokenDisplay = ({ token }: { token?: Token }) => {
   return (
     <div className="twap-orders__list-item-token">
       {!token ? (
@@ -106,7 +127,7 @@ const TokenDisplay = (props: { address?: string }) => {
           <div className="twap-orders__list-item-token-logo">
             <SpotTokenLogo token={token} />
           </div>
-          <p className="twap-orders__list-item-token-symbol">{token?.symbol}</p>
+          <p className="twap-orders__list-item-token-symbol">{token.symbol}</p>
         </>
       )}
     </div>
@@ -117,7 +138,10 @@ function LinearProgressWithLabel(props: { value: number }) {
   return (
     <div className="twap-orders__list-item-progress">
       <div className="twap-orders__list-item-progress-bar">
-        <div className="twap-orders__list-item-progress-bar-filled" style={{ width: `${props.value}%` }} />
+        <div
+          className="twap-orders__list-item-progress-bar-filled"
+          style={{ width: `${props.value}%` }}
+        />
       </div>
       <div className="twap-orders__list-item-token-progress-label">
         <p>{`${Math.round(props.value)}%`}</p>

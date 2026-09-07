@@ -14,10 +14,22 @@ import {
   SpotProvider as Spot,
   TimeUnit,
   DISCLAIMER_URL,
-  useSpot,
   SPOT_VERSION,
   ORBS_TWAP_FAQ_URL,
-  SwapStatus,
+  ExecutionStatus,
+  useDisclaimer,
+  useDuration,
+  useExecution,
+  useFillDelay,
+  useInputErrors,
+  useLimitPrice,
+  useOrderForm,
+  useOutputAmount,
+  usePriceDisplay,
+  useSubmitButton,
+  useTrades,
+  useTriggerPrice,
+  type ClientErrorFallbackProps,
 } from "@orbs-network/spot-react";
 import { useFormatNumber } from "@/lib/hooks/common";
 import { Currency, Field, SwapType } from "@/lib/types";
@@ -39,7 +51,7 @@ import { useBalance } from "@/lib/hooks/use-balances";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { Portal } from "../ui/portal";
 import {
-  SpotHooks,
+  useCallbacks,
   useSpotMarketReferencePrice,
   useSpotPartner,
   useWalletInteractions,
@@ -54,8 +66,8 @@ import { SubmitOrderPanel } from "./submit-order-panel";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { SpotFooter } from "./footer";
 import { useTranslations } from "@/lib/use-translations";
+import { WrappedNativeButton } from "../wrapped-native-button";
 
-const { useCallbacks } = SpotHooks;
 const Context = createContext<{
   swapModule: Module;
   setInputAmount: (value: string) => void;
@@ -87,30 +99,32 @@ const useParseSpotTokens = (currency?: Currency) => {
   }, [currency]);
 };
 
-const TokenPanel = ({ isSrcToken }: { isSrcToken: boolean }) => {
+const TokenPanel = ({ isInputToken }: { isInputToken: boolean }) => {
   const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
-  const { value: dstAmount, isLoading } = useSpot().dstTokenPanel;
+  const { amount: outputAmount, isLoading } = useOutputAmount();
   const { handleCurrencyChange, setInputAmount } = useActionHandlers();
   const onTokenChange = useCallback(
     (currency: string) => {
-      if (isSrcToken) {
+      if (isInputToken) {
         handleCurrencyChange(currency, Field.INPUT);
       } else {
         handleCurrencyChange(currency, Field.OUTPUT);
       }
     },
-    [handleCurrencyChange, isSrcToken],
+    [handleCurrencyChange, isInputToken],
   );
 
   return (
     <CurrencyCard
-      currency={isSrcToken ? inputCurrency : outputCurrency}
+      currency={isInputToken ? inputCurrency : outputCurrency}
       onCurrencyChange={onTokenChange}
-      onAmountChange={isSrcToken ? setInputAmount : undefined}
-      amount={isSrcToken ? inputAmount : formatDecimals(dstAmount, 6)}
-      title={isSrcToken ? "From" : "To"}
-      disabled={!isSrcToken}
-      isLoading={!isSrcToken ? isLoading : false}
+      onAmountChange={isInputToken ? setInputAmount : undefined}
+      amount={
+        isInputToken ? inputAmount : formatDecimals(outputAmount.ui, 6)
+      }
+      title={isInputToken ? "From" : "To"}
+      disabled={!isInputToken}
+      isLoading={!isInputToken ? isLoading : false}
     />
   );
 };
@@ -184,7 +198,7 @@ const Card = ({
 
 const DisclaimerPanel = () => {
   const t = useTranslations();
-  const disclaimer = useSpot().disclaimerPanel;
+  const disclaimer = useDisclaimer();
 
   if (!disclaimer) {
     return null;
@@ -210,37 +224,38 @@ const DisclaimerPanel = () => {
 
 const TradesPanel = () => {
   const t = useTranslations();
-  const { totalTrades, onChange, error } = useSpot().tradesAmountPanel;
-  const { srcToken } = useSpot().derivedFormData;
-
   const {
-    totalTrades: tradesAmount,
-    amountPerTradeUI,
-    amountPerTradeUsd,
-  } = useSpot().tradesAmountPanel;
+    totalTrades,
+    onChange,
+    error,
+    inputAmountPerTrade,
+    inputToken,
+  } = useTrades();
 
-  const amountPerChunkFormatted = useFormatNumber({ value: amountPerTradeUI });
-  const amountPerChunkUsdFormatted = useFormatNumber({
-    value: amountPerTradeUsd,
+  const amountPerTradeFormatted = useFormatNumber({
+    value: inputAmountPerTrade.ui,
+  });
+  const amountPerTradeUsdFormatted = useFormatNumber({
+    value: inputAmountPerTrade.usd,
     decimalScale: 3,
   });
   const perTradeText = useMemo(() => {
-    if (!srcToken || tradesAmount === 1) return "";
+    if (!inputToken || totalTrades === 1) return "";
     return (
       <p className="text-[13px] text-foreground/80">
-        {amountPerChunkFormatted} {srcToken?.symbol} per trade{" "}
-        {amountPerChunkUsdFormatted && (
+        {amountPerTradeFormatted} {inputToken.symbol} per trade{" "}
+        {amountPerTradeUsdFormatted && (
           <small className="text-foreground/50">
-            (${amountPerChunkUsdFormatted})
+            (${amountPerTradeUsdFormatted})
           </small>
         )}
       </p>
     );
   }, [
-    srcToken,
-    tradesAmount,
-    amountPerChunkFormatted,
-    amountPerChunkUsdFormatted,
+    inputToken,
+    totalTrades,
+    amountPerTradeFormatted,
+    amountPerTradeUsdFormatted,
   ]);
 
   return (
@@ -272,7 +287,8 @@ const TradesPanel = () => {
 
 const DurationPanel = () => {
   const t = useTranslations();
-  const { duration, onInputChange, onUnitSelect } = useSpot().durationPanel;
+  const { duration, onInputChange, onUnitSelect } =
+    useDuration();
   return (
     <Card
       title={t("expiry")}
@@ -296,7 +312,8 @@ const DurationPanel = () => {
 
 const FillDelayPanel = () => {
   const t = useTranslations();
-  const { fillDelay, onInputChange, onUnitSelect } = useSpot().fillDelayPanel;
+  const { fillDelay, onInputChange, onUnitSelect } =
+    useFillDelay();
   return (
     <Card
       title={t("tradeIntervalTitle")}
@@ -336,13 +353,10 @@ const ModuleInputs = () => {
 const SubmitSwapError = ({
   code,
   onClose,
-  message,
 }: {
-  message: string;
   code: number;
   onClose: () => void;
 }) => {
-  const { envMode } = useSwapParams();
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 bg-destructive/50 p-2 rounded-md">
@@ -352,11 +366,6 @@ const SubmitSwapError = ({
             Error code: {code}
           </p>
         </div>
-        {envMode === "dev" && (
-          <p className="text-sm text-foreground flex-1 font-medium max-h-[200px] overflow-y-auto">
-            {message}
-          </p>
-        )}
       </div>
       <div className="w-full flex justify-center">
         <Button onClick={onClose}>Close</Button>
@@ -402,8 +411,9 @@ const SubmitSwapMain = ({
             disabled={!disclaimerAccept || swapLoading}
             onClick={onSubmitOrder}
             isLoading={swapLoading}
+            aria-label={swapLoading ? "Checking allowance" : undefined}
           >
-            Create Order
+            {!swapLoading && "Create Order"}
           </Button>
         </>
       }
@@ -412,30 +422,44 @@ const SubmitSwapMain = ({
 };
 
 const SubmitSwap = () => {
-  const { onSubmit, status, resetState,resetCurrentSwap, parsedError, confirmButtonLoading } =
-    useSpot().orderExecutionPanel;
+  const {
+    submitOrder,
+    status,
+    startNewOrder,
+    returnToOrderForm,
+    error,
+    isPreparingOrder,
+    isExecuting,
+  } = useExecution();
   const { setInputAmount } = useSpotContext();
 
-  const orderType = useSpot().derivedFormData.orderType;
+  const orderType = useOrderForm().values.orderType;
   const orderTitle = getOrderTitle(orderType);
   const [isOpen, setIsOpen] = useState(false);
 
   const onOpen = useCallback(() => setIsOpen(true), []);
 
   const onClose = useCallback(() => {
+    if (isExecuting) return;
     setIsOpen(false);
-    if(status === SwapStatus.SUCCESS) {
+    if(status === ExecutionStatus.SUCCESS) {
       setInputAmount("");
       setTimeout(() => {
-        resetState();
+        startNewOrder();
       }, 500);
     }
     else if (Boolean(status)) {
       setTimeout(() => {
-        resetCurrentSwap();
+        returnToOrderForm();
       }, 500);
     }
-  }, [resetState, resetCurrentSwap, setInputAmount, status]);
+  }, [
+    isExecuting,
+    returnToOrderForm,
+    setInputAmount,
+    startNewOrder,
+    status,
+  ]);
 
   return (
     <>
@@ -444,23 +468,22 @@ const SubmitSwap = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {parsedError
+              {error
                 ? "Error Creating Order"
-                : !status
+                : !status || isPreparingOrder
                   ? `${orderTitle} order`
                   : " "}
             </DialogTitle>
           </DialogHeader>
-          {parsedError ? (
+          {error ? (
             <SubmitSwapError
-              message={parsedError.message}
-              code={parsedError.code}
+              code={error.code}
               onClose={onClose}
             />
           ) : (
             <SubmitSwapMain
-              onSubmitOrder={onSubmit}
-              swapLoading={Boolean(confirmButtonLoading)}
+              onSubmitOrder={submitOrder}
+              swapLoading={Boolean(isPreparingOrder)}
               orderTitle={orderTitle}
             />
           )}
@@ -474,7 +497,7 @@ const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
   const t = useTranslations();
   const { partner } = useSwapParams();
 
-  const { disabled, error, loading, retry } = useSpot().submitOrderButton;
+  const { disabled, loading } = useSubmitButton();
 
   const partnerChainId = useMemo(() => {
     const partnerChain = partner?.split("_")[1];
@@ -482,30 +505,26 @@ const ShowSubmitSwapButton = ({ onClick }: { onClick: () => void }) => {
   }, [partner]);
 
   const text = useMemo(() => {
-    if (error) {
-      return t("retryOrderConfiguration");
-    }
     if (loading) {
       return t("fetchingQuote");
     }
     return t("placeOrder");
-  }, [error, loading, t]);
+  }, [loading, t]);
 
   return (
     <SubmitSwapButton
-      onClick={error ? () => void retry() : onClick}
-      disabled={error ? loading : disabled}
+      onClick={onClick}
+      disabled={disabled}
       isLoading={loading}
       text={text}
       chainId={partnerChainId}
-      forceAction={Boolean(error)}
     />
   );
 };
 
 const InputsErrorPanel = () => {
   const t = useTranslations();
-  const error = useSpot().inputError;
+  const error = useInputErrors();
 
   if (!error) {
     return null;
@@ -525,17 +544,16 @@ const LimitPricePanel = () => {
   const t = useTranslations();
   const {
     onInputChange: onChange,
-    priceUI: price,
+    price,
     percentage,
     onPercentageChange,
-    isLimitPrice,
-    toggleLimitPrice,
+    isEnabled,
+    toggle,
     onReset,
     isLoading,
-    invertedDstToken: toToken,
+    displayOutputToken,
     isTypedValue,
-    usd,
-  } = useSpot().limitPricePanel;
+  } = useLimitPrice();
 
   const { swapModule } = useSpotContext();
 
@@ -547,22 +565,22 @@ const LimitPricePanel = () => {
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         {swapModule !== Module.LIMIT && (
-          <Switch checked={isLimitPrice} onCheckedChange={toggleLimitPrice} />
+          <Switch checked={isEnabled} onCheckedChange={toggle} />
         )}
         <div className="flex justify-between w-full items-center">
           <Label title={t("limitPrice")} tooltip={t("limitPriceTooltip")} />
-          {isLimitPrice && <SpotPriceResetButton onClick={onReset} />}
+          {isEnabled && <SpotPriceResetButton onClick={onReset} />}
         </div>
       </div>
-      {isLimitPrice && (
+      {isEnabled && (
         <SpotPriceInput
-          symbol={toToken?.symbol}
-          value={isTypedValue ? price : formatDecimals(price, 6)}
+          symbol={displayOutputToken?.symbol}
+          value={isTypedValue ? price.ui : formatDecimals(price.ui, 6)}
           onChange={(it) => onChange(it)}
           percentage={percentage}
           onPercentageChange={(it) => onPercentageChange(it)}
           isLoading={isLoading}
-          usd={usd}
+          usd={price.usd}
         />
       )}
     </div>
@@ -572,15 +590,14 @@ const LimitPricePanel = () => {
 const TriggerPricePanel = () => {
   const t = useTranslations();
   const {
-    priceUI: price,
+    price,
     onInputChange: onChange,
     percentage,
     onPercentageChange,
     onReset,
-    invertedDstToken: toToken,
+    displayOutputToken,
     isTypedValue,
-    usd
-  } = useSpot().triggerPricePanel;
+  } = useTriggerPrice();
 
   const { swapModule } = useSpotContext();
 
@@ -603,28 +620,29 @@ const TriggerPricePanel = () => {
         <SpotPriceResetButton onClick={onReset} />
       </div>
       <SpotPriceInput
-        symbol={toToken?.symbol}
-        value={isTypedValue ? price : formatDecimals(price, 6)}
+        symbol={displayOutputToken?.symbol}
+        value={isTypedValue ? price.ui : formatDecimals(price.ui, 6)}
         onChange={(it) => onChange(it)}
         percentage={percentage}
         onPercentageChange={(it) => onPercentageChange(it)}
-        usd={usd}
+        usd={price.usd}
       />
     </div>
   );
 };
 
 const PricesHeader = () => {
-  const { onInvert, isInverted, fromToken, isMarketPrice } =
-    useSpot().pricePanel;
+  const { onInvert, isInverted, displayInputToken, isMarketOrder } =
+    usePriceDisplay();
   return (
     <div className="flex flex-row gap-2 items-center justify-between">
       <p className="text-[15px] font-medium text-muted-foreground">
         {isInverted ? "Buy " : "Sell "}
-        {fromToken?.symbol} {isMarketPrice ? "at best rate" : "at rate"}
+        {displayInputToken?.symbol}{" "}
+        {isMarketOrder ? "at best rate" : "at rate"}
       </p>
 
-      {!isMarketPrice && (
+      {!isMarketOrder && (
         <Button
           variant="secondary"
           size="icon"
@@ -664,9 +682,36 @@ const Listener = () => {
   return null;
 };
 
+const ClientErrorFallback = ({
+  retry,
+  isRetrying,
+}: ClientErrorFallbackProps) => {
+  const t = useTranslations();
+
+  return (
+    <div
+      role="alert"
+      className="flex flex-col items-center gap-3 rounded-lg bg-card p-4"
+    >
+      <p className="text-sm font-medium">{t("orderConfigurationError")}</p>
+      <Button
+        type="button"
+        onClick={() => void retry()}
+        isLoading={isRetrying}
+      >
+        {t("retryOrderConfiguration")}
+      </Button>
+    </div>
+  );
+};
+
 export function SpotForm({ swapType }: { swapType: SwapType }) {
-  const { inputCurrency, outputCurrency, inputAmount } = useDerivedSwap();
-  const { envMode } = useSwapParams();
+  const {
+    inputCurrency,
+    outputCurrency,
+    inputAmount,
+    wrappedNativeAction,
+  } = useDerivedSwap();
   const { setInputAmount } = useActionHandlers();
   const { chainId, address } = useConnection();
   const { priceProtection } = useSettings();
@@ -683,7 +728,6 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   });
 
   const { wei: inputBalance } = useBalance(inputCurrency);
-  const { wei: outputBalance } = useBalance(outputCurrency);
 
   return (
     <Context.Provider value={{ swapModule, setInputAmount }}>
@@ -695,32 +739,37 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           account={address}
           partner={partner}
           appId="orbs-spot-ui"
-          srcBalance={inputBalance}
-          dstBalance={outputBalance}
-          srcToken={useParseSpotTokens(inputCurrency)}
-          dstToken={useParseSpotTokens(outputCurrency)}
+          inputBalance={inputBalance}
+          inputToken={useParseSpotTokens(inputCurrency)}
+          outputToken={useParseSpotTokens(outputCurrency)}
           priceProtection={priceProtection}
           module={swapModule}
-          srcUsd1Token={inputUsd.data.toString()}
-          dstUsd1Token={outputUsd.data.toString()}
+          inputUsd1Token={inputUsd.data.toString()}
+          outputUsd1Token={outputUsd.data.toString()}
           marketReferencePrice={useSpotMarketReferencePrice()}
-          minChunkSizeUsd={1}
+          minTradeSizeUsd={1}
           callbacks={callbacks}
-          isDev={envMode === "dev"}
           supportLegacyOrders={supportLegacyOrders}
-          fees={0.25}
+          clientErrorFallback={ClientErrorFallback}
+          displayFeePercent={0.25}
         >
           <div className="flex flex-col gap-1">
             <div className="flex flex-col gap-0">
-              <TokenPanel isSrcToken={true} />
+              <TokenPanel isInputToken={true} />
               <ToggleCurrencies />
-              <TokenPanel isSrcToken={false} />
+              <TokenPanel isInputToken={false} />
             </div>
-            <Prices />
-            <ModuleInputs />
-            <InputsErrorPanel />
-            <SubmitSwap />
-            <DisclaimerPanel />
+            {wrappedNativeAction ? (
+              <WrappedNativeButton action={wrappedNativeAction} />
+            ) : (
+              <>
+                <Prices />
+                <ModuleInputs />
+                <InputsErrorPanel />
+                <SubmitSwap />
+                <DisclaimerPanel />
+              </>
+            )}
           </div>
           <Portal containerId="spot-orders">
             <SpotsOrders />
