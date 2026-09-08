@@ -34,12 +34,12 @@ export interface Eip712Field {
 export interface Eip712Domain {
   name?: string;
   version?: string;
-  chainId?: number | string;
-  verifyingContract?: string;
-  salt?: string;
+  chainId?: number;
+  verifyingContract?: `0x${string}`;
+  salt?: `0x${string}`;
 }
 
-/** Framework-neutral EIP-712 payload returned with a quote. */
+/** Legacy Permit2 representation retained in the quote response. */
 export interface QuotePermitData {
   domain: Eip712Domain;
   types: Record<string, Eip712Field[]>;
@@ -47,12 +47,20 @@ export interface QuotePermitData {
   primaryType?: string;
 }
 
+/** Wallet-ready EIP-712 payload returned with a quote. */
+export interface QuoteEip712 {
+  domain: Eip712Domain;
+  types: Record<string, Eip712Field[]>;
+  primaryType: string;
+  message: Record<string, unknown>;
+}
+
 export interface Quote {
   inToken: string;
   outToken: string;
   inAmount: string;
   outAmount: string;
-  user: string;
+  user: `0x${string}`;
   slippage: number;
   qs: string;
   partner: string;
@@ -60,8 +68,8 @@ export interface Quote {
   sessionId: string;
   serializedOrder: string;
   permitData: QuotePermitData;
-  /** @deprecated Legacy backend metadata. Use `permitData` for signing. */
-  eip712?: unknown;
+  /** Wallet-ready typed data to pass to `signTypedData`. */
+  eip712: QuoteEip712;
   minAmountOut: string;
   error?: string;
   gasAmountOut?: string;
@@ -73,7 +81,7 @@ export interface Quote {
   timestamp: number;
 }
 
-export interface LiquidityHubSDKOptions {
+export interface LiquidityHubClientOptions {
   /** Active EVM chain ID. */
   chainId: number;
   /** Stable DEX identifier. It is normalized to lowercase. */

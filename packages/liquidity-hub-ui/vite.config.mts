@@ -7,7 +7,7 @@ export default defineConfig({
     lib: {
       entry: path.resolve(__dirname, "src/lib/index.ts"),
       fileName: (format) => (format === "es" ? "main.es.js" : "main.umd.cjs"),
-      name: "LiquidityHubSDK",
+      name: "LiquidityHubClient",
     },
   },
   plugins: [

@@ -71,7 +71,7 @@ The adapter must provide:
 
 - `getAllowance` and `approve` for Permit2;
 - `wrapNative` when native input is supported;
-- `signQuote` for the quote's EIP-712 `permitData`;
+- `signQuote` for the quote's wallet-ready `eip712` payload;
 - `waitForTransactionReceipt` using the DEX's wallet or RPC client.
 
 Use the SDK's `isNativeAddress(address)` helper when deciding whether the host
@@ -109,7 +109,7 @@ requests through a same-origin development proxy and pass its base path when
 creating the SDK:
 
 ```ts
-const liquidityHub = constructSDK({
+const liquidityHub = createClient({
   chainId,
   partner: "mydex",
   apiUrl:

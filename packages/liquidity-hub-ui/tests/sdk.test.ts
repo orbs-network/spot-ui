@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { constructSDK } from "../src/lib";
+import { createClient, type Quote } from "../src/lib";
 import { createQuote, jsonResponse } from "./fixtures";
 
 const quoteArgs = {
@@ -17,7 +17,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("LiquidityHubSDK", () => {
+describe("LiquidityHubClient", () => {
   it("uses and normalizes a custom API base URL", async () => {
     let requestUrl = "";
     vi.stubGlobal(
@@ -27,7 +27,7 @@ describe("LiquidityHubSDK", () => {
         return jsonResponse(createQuote());
       }),
     );
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 42161,
       partner: "test-partner",
       apiUrl: "/api/liquidity-hub/",
@@ -41,8 +41,43 @@ describe("LiquidityHubSDK", () => {
 
   it("rejects an empty custom API URL", () => {
     expect(() =>
-      constructSDK({ chainId: 42161, partner: "test", apiUrl: "  " }),
+      createClient({ chainId: 42161, partner: "test", apiUrl: "  " }),
     ).toThrow("apiUrl must not be empty");
+  });
+
+  it("emits analytics initialization once per chain and partner", () => {
+    const payloads: Array<Record<string, unknown>> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        payloads.push(
+          JSON.parse(String(init?.body)) as Record<string, unknown>,
+        );
+        return jsonResponse({});
+      }),
+    );
+
+    createClient({
+      chainId: 42161,
+      partner: "analytics-init-once",
+      blockAnalytics: true,
+    });
+    createClient({ chainId: 42161, partner: "Analytics-Init-Once" });
+    createClient({ chainId: 42161, partner: " analytics-init-once " });
+    createClient({ chainId: 137, partner: "analytics-init-once" });
+
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        chainId: 42161,
+        partner: "analytics-init-once",
+        stage: "init",
+      }),
+      expect.objectContaining({
+        chainId: 137,
+        partner: "analytics-init-once",
+        stage: "init",
+      }),
+    ]);
   });
 
   it("keeps quote sessions isolated between SDK instances", async () => {
@@ -62,19 +97,19 @@ describe("LiquidityHubSDK", () => {
             inToken: String(body.inToken),
             outToken: String(body.outToken),
             inAmount: String(body.inAmount),
-            user: String(body.user),
+            user: String(body.user) as Quote["user"],
             partner,
             sessionId: `${partner}-${count}`,
           }),
         );
       }),
     );
-    const alpha = constructSDK({
+    const alpha = createClient({
       chainId: 137,
       partner: "Alpha",
       blockAnalytics: true,
     });
-    const beta = constructSDK({
+    const beta = createClient({
       chainId: 137,
       partner: "Beta",
       blockAnalytics: true,
@@ -102,7 +137,7 @@ describe("LiquidityHubSDK", () => {
         });
       }),
     );
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       blockAnalytics: true,
@@ -145,7 +180,7 @@ describe("LiquidityHubSDK", () => {
           }),
       ),
     );
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       blockAnalytics: true,
@@ -174,7 +209,7 @@ describe("LiquidityHubSDK", () => {
         return jsonResponse({});
       }),
     );
-    const sdk = constructSDK({ chainId: 137, partner: "test" });
+    const sdk = createClient({ chainId: 137, partner: "test" });
 
     sdk.analytics.signature.onRequest();
     sdk.analytics.signature.onSuccess("sensitive-wallet-signature");
@@ -198,7 +233,7 @@ describe("LiquidityHubSDK", () => {
         });
       }),
     );
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       blockAnalytics: true,
@@ -215,7 +250,7 @@ describe("LiquidityHubSDK", () => {
       "fetch",
       vi.fn(async () => jsonResponse({ outAmount: "1" })),
     );
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       blockAnalytics: true,
@@ -226,12 +261,28 @@ describe("LiquidityHubSDK", () => {
     );
   });
 
+  it("rejects a quote without wallet-ready eip712 data", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse(createQuote({ eip712: undefined }))),
+    );
+    const sdk = createClient({
+      chainId: 137,
+      partner: "test",
+      blockAnalytics: true,
+    });
+
+    await expect(sdk.getQuote(quoteArgs)).rejects.toThrow(
+      "quote has invalid eip712",
+    );
+  });
+
   it("rejects a quote that does not match its request", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => jsonResponse(createQuote({ inAmount: "101" }))),
     );
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       blockAnalytics: true,
@@ -247,7 +298,7 @@ describe("LiquidityHubSDK", () => {
       "fetch",
       vi.fn(async () => jsonResponse(createQuote({ partner: "other" }))),
     );
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       blockAnalytics: true,
@@ -270,7 +321,7 @@ describe("LiquidityHubSDK", () => {
           }),
       ),
     );
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       blockAnalytics: true,
@@ -307,7 +358,7 @@ describe("LiquidityHubSDK", () => {
         });
       }),
     );
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       apiUrl: "/api/liquidity-hub/",
@@ -337,7 +388,7 @@ describe("LiquidityHubSDK", () => {
         });
       }),
     );
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       blockAnalytics: true,
@@ -372,7 +423,7 @@ describe("LiquidityHubSDK", () => {
         });
       }),
     );
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       blockAnalytics: true,
@@ -399,7 +450,7 @@ describe("LiquidityHubSDK", () => {
       },
     );
     vi.stubGlobal("fetch", fetchMock);
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       blockAnalytics: true,
@@ -420,7 +471,7 @@ describe("LiquidityHubSDK", () => {
   it("rejects stale quotes before starting a network request", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    const sdk = constructSDK({
+    const sdk = createClient({
       chainId: 137,
       partner: "test",
       blockAnalytics: true,

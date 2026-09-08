@@ -111,16 +111,13 @@ if (BigInt(allowance) < BigInt(amount)) {
 
 ### 5. Sign the Quote
 
-The quote contains EIP-712 typed data (`permitData`). The user must sign it:
+The quote contains a wallet-ready EIP-712 payload (`eip712`). The user must sign it:
 
 ```ts
 lh.analytics.signature.onRequest();
 try {
   const signature = await walletClient.signTypedData({
-    domain: quote.permitData.domain,
-    types: quote.permitData.types,
-    primaryType: quote.permitData.primaryType,
-    message: quote.permitData.values,
+    ...quote.eip712,
     account: userAddress,
   });
   lh.analytics.signature.onSuccess(signature);

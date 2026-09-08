@@ -43,6 +43,18 @@ interface GlobalData extends AnalyticsPayload {
 
 const ANALYTICS_VERSION = 0.92;
 const BI_ENDPOINT = `https://bi.orbs.network/putes/liquidity-hub-ui-${ANALYTICS_VERSION}`;
+const initializedAnalyticsContexts = new Set<string>();
+
+const claimAnalyticsInitialization = (
+  chainId: number,
+  partner: string,
+): boolean => {
+  const contextKey = JSON.stringify([chainId, partner]);
+  if (initializedAnalyticsContexts.has(contextKey)) return false;
+
+  initializedAnalyticsContexts.add(contextKey);
+  return true;
+};
 
 const sendBI = async (data: AnalyticsPayload): Promise<void> => {
   try {
@@ -109,7 +121,7 @@ const getQuoteValues = (quote: Quote): AnalyticsPayload => ({
   "quote-qs": quote.qs,
 });
 
-/** Internal, best-effort analytics reporter owned by one SDK instance. */
+/** Internal, best-effort analytics reporter owned by one client instance. */
 export class Analytics {
   private wrapStage?: StageData;
   private approvalStage?: StageData;
@@ -126,25 +138,27 @@ export class Analytics {
 
   public init(chainId: number, partner: string, blockAnalytics: boolean): void {
     this.blockAnalytics = blockAnalytics;
-    if (
+    const contextIsUnchanged =
       this.globalData.chainId === chainId &&
-      this.globalData.partner === partner
+      this.globalData.partner === partner;
+
+    if (!contextIsUnchanged) {
+      this.updateGlobalData({
+        chainId,
+        partner,
+        sessionId: generateId(),
+        version: ANALYTICS_VERSION,
+      });
+    }
+
+    if (
+      blockAnalytics ||
+      !claimAnalyticsInitialization(chainId, partner)
     ) {
       return;
     }
 
-    const sessionId = generateId();
-    this.updateGlobalData({
-      chainId,
-      partner,
-      sessionId,
-      version: ANALYTICS_VERSION,
-    });
     this.sendData({
-      sessionId,
-      version: ANALYTICS_VERSION,
-      chainId,
-      partner,
       stage: "init",
     });
   }

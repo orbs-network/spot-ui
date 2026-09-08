@@ -26,9 +26,6 @@ importers:
       '@coinbase/wallet-sdk':
         specifier: ~4.3.6
         version: 4.3.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@ethersproject/hash':
-        specifier: ^5.8.0
-        version: 5.8.0
       '@gemini-wallet/core':
         specifier: ~0.3.1
         version: 0.3.2(viem@2.43.3(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))

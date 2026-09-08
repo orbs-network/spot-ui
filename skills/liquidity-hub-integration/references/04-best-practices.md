@@ -56,7 +56,7 @@ const isNative = isNativeAddress(fromToken);
   chain changes:
   ```ts
   const liquidityHub = useMemo(
-    () => constructSDK({ chainId, partner: "mydex" }),
+    () => createClient({ chainId, partner: "mydex" }),
     [chainId],
   );
   ```
@@ -74,7 +74,7 @@ When browser CORS blocks local development, configure a same-origin proxy
 explicitly on the SDK client:
 
 ```ts
-const liquidityHub = constructSDK({
+const liquidityHub = createClient({
   chainId,
   partner: "mydex",
   apiUrl:

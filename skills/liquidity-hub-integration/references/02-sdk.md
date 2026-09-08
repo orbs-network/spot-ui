@@ -5,9 +5,9 @@
 Create one SDK instance per chain. Re-create when the chain changes.
 
 ```ts
-import { constructSDK } from "@orbs-network/liquidity-hub-sdk";
+import { createClient } from "@orbs-network/liquidity-hub-sdk";
 
-const lh = constructSDK({
+const lh = createClient({
   chainId: 137, // Required: chain ID
   partner: "mydex", // Required: your stable DEX identifier
   apiUrl: "/api/liquidity-hub", // Optional: custom API or same-origin proxy
@@ -45,8 +45,8 @@ interface Quote {
   slippage: number;
   sessionId: string;
   serializedOrder: string;
-  permitData: QuotePermitData; // Typed framework-neutral EIP-712 data
-  eip712?: unknown; // Legacy backend metadata
+  permitData: QuotePermitData; // Legacy Permit2 representation
+  eip712: QuoteEip712; // Wallet-ready EIP-712 signing payload
   minAmountOut: string;
   gasAmountOut?: string;
   referencePrice?: string;

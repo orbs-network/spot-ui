@@ -6,7 +6,7 @@ export {
   permit2Address,
   zeroAddress,
 } from "./consts";
-export { constructSDK, LiquidityHubSDK } from "./constructSDK";
+export { createClient, LiquidityHubClient } from "./client";
 export type {
   AnalyticsStageCallbacks,
   DexRouterData,
@@ -14,9 +14,10 @@ export type {
   Eip712Domain,
   Eip712Field,
   LiquidityHubAnalytics,
-  LiquidityHubSDKOptions,
+  LiquidityHubClientOptions,
   Quote,
   QuoteArgs,
+  QuoteEip712,
   QuotePermitData,
 } from "./types";
 export { isFreshQuote, isLiquidityHubBetter, isNativeAddress } from "./util";

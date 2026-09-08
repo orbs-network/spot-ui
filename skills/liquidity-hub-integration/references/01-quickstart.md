@@ -29,7 +29,7 @@ Set the `partner` field to the DEX's stable lowercase identifier, for example
 ## Minimum Steps
 
 1. Install `@orbs-network/liquidity-hub-sdk`.
-2. Initialize the SDK with `constructSDK({ chainId, partner })` (see [02-sdk.md](02-sdk.md)).
+2. Initialize the SDK with `createClient({ chainId, partner })` (see [02-sdk.md](02-sdk.md)).
 3. On every swap, fetch a Liquidity Hub quote alongside your DEX quote.
 4. Compare prices — use whichever gives a better output amount.
 5. If Liquidity Hub wins: approve Permit2, sign the quote, execute the swap, and confirm its hash with the DEX's existing receipt client (see [03-swap-flow.md](03-swap-flow.md)).

@@ -4,16 +4,16 @@ import { swap as submitSwap } from "./swap";
 import type {
   DexRouterData,
   LiquidityHubAnalytics,
-  LiquidityHubSDKOptions,
+  LiquidityHubClientOptions,
   Quote,
   QuoteArgs,
 } from "./types";
 import { getApiUrl, isFreshQuote } from "./util";
 
-const assertSDKOptions = ({
+const assertClientOptions = ({
   chainId,
   partner,
-}: LiquidityHubSDKOptions): void => {
+}: LiquidityHubClientOptions): void => {
   if (!Number.isSafeInteger(chainId) || chainId <= 0) {
     throw new Error("Liquidity Hub chainId must be a positive integer");
   }
@@ -50,7 +50,7 @@ const createAnalyticsCallbacks = (
   },
 });
 
-export class LiquidityHubSDK {
+export class LiquidityHubClient {
   public readonly chainId: number;
   public readonly partner: string;
   public readonly analytics: LiquidityHubAnalytics;
@@ -59,8 +59,8 @@ export class LiquidityHubSDK {
   private readonly analyticsReporter: Analytics;
   private activeSwap?: Promise<string>;
 
-  constructor(options: LiquidityHubSDKOptions) {
-    assertSDKOptions(options);
+  constructor(options: LiquidityHubClientOptions) {
+    assertClientOptions(options);
 
     this.chainId = options.chainId;
     this.partner = options.partner.trim().toLowerCase();
@@ -122,6 +122,6 @@ export class LiquidityHubSDK {
   }
 }
 
-export const constructSDK = (
-  options: LiquidityHubSDKOptions,
-): LiquidityHubSDK => new LiquidityHubSDK(options);
+export const createClient = (
+  options: LiquidityHubClientOptions,
+): LiquidityHubClient => new LiquidityHubClient(options);

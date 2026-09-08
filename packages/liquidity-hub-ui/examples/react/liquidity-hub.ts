@@ -1,9 +1,9 @@
 import {
-  constructSDK,
+  createClient,
   isFreshQuote,
   isLiquidityHubBetter,
   permit2Address,
-  type LiquidityHubSDK,
+  type LiquidityHubClient,
   type Quote,
 } from "@orbs-network/liquidity-hub-sdk";
 
@@ -51,8 +51,8 @@ export function shouldRetryLiquidityHubQuote(
   return !isTerminal && failureCount < 2;
 }
 
-export function createLiquidityHubSDK(chainId: number): LiquidityHubSDK {
-  return constructSDK({
+export function createLiquidityHubClient(chainId: number): LiquidityHubClient {
+  return createClient({
     chainId,
     partner: LIQUIDITY_HUB_PARTNER,
   });
@@ -70,7 +70,7 @@ export interface WalletAdapter {
     amount: bigint;
   }): Promise<string>;
   wrapNative?(args: { wrappedToken: string; amount: bigint }): Promise<string>;
-  signQuote(permitData: Quote["permitData"]): Promise<string>;
+  signQuote(eip712: Quote["eip712"]): Promise<string>;
   waitForTransactionReceipt(txHash: string): Promise<void>;
 }
 
@@ -88,7 +88,7 @@ export interface LiquidityHubSwapResult {
 }
 
 interface ExecuteLiquidityHubSwapParams extends LiquidityHubSwapVariables {
-  sdk: LiquidityHubSDK;
+  sdk: LiquidityHubClient;
   wallet: WalletAdapter;
   getLatestQuote: () => Promise<Quote>;
 }
@@ -171,7 +171,7 @@ export async function executeLiquidityHubSwap({
   sdk.analytics.signature.onRequest();
   let signature: string;
   try {
-    signature = await wallet.signQuote(latestQuote.permitData);
+    signature = await wallet.signQuote(latestQuote.eip712);
     sdk.analytics.signature.onSuccess(signature);
   } catch (error) {
     sdk.analytics.signature.onFailed(getErrorMessage(error));

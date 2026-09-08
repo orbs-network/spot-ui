@@ -1,5 +1,12 @@
 import type { Analytics } from "./analytics";
-import type { Quote, QuoteArgs, QuotePermitData } from "./types";
+import type {
+  Eip712Domain,
+  Eip712Field,
+  Quote,
+  QuoteArgs,
+  QuoteEip712,
+  QuotePermitData,
+} from "./types";
 import {
   devLog,
   eqIgnoreCase,
@@ -40,22 +47,19 @@ type JsonRecord = Record<string, unknown>;
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const isAddress = (value: unknown): value is `0x${string}` =>
+  typeof value === "string" && /^0x[0-9a-f]{40}$/i.test(value);
+
 const getResponseError = (payload: unknown): string | undefined =>
   isRecord(payload) && typeof payload.error === "string"
     ? payload.error
     : undefined;
 
-const isPermitData = (value: unknown): value is QuotePermitData => {
-  if (
-    !isRecord(value) ||
-    !isRecord(value.domain) ||
-    !isRecord(value.types) ||
-    !isRecord(value.values)
-  ) {
-    return false;
-  }
-
-  return Object.values(value.types).every(
+const isEip712Types = (
+  value: unknown,
+): value is Record<string, Eip712Field[]> =>
+  isRecord(value) &&
+  Object.values(value).every(
     (fields) =>
       Array.isArray(fields) &&
       fields.every(
@@ -64,6 +68,44 @@ const isPermitData = (value: unknown): value is QuotePermitData => {
           typeof field.name === "string" &&
           typeof field.type === "string",
       ),
+  );
+
+const isEip712Domain = (value: unknown): value is Eip712Domain => {
+  if (!isRecord(value)) return false;
+
+  return (
+    (value.name === undefined || typeof value.name === "string") &&
+    (value.version === undefined || typeof value.version === "string") &&
+    (value.chainId === undefined ||
+      (Number.isSafeInteger(value.chainId) && Number(value.chainId) > 0)) &&
+    (value.verifyingContract === undefined ||
+      isAddress(value.verifyingContract)) &&
+    (value.salt === undefined ||
+      (typeof value.salt === "string" && /^0x[0-9a-f]+$/i.test(value.salt)))
+  );
+};
+
+const isPermitData = (value: unknown): value is QuotePermitData => {
+  if (!isRecord(value)) return false;
+
+  return (
+    isEip712Domain(value.domain) &&
+    isEip712Types(value.types) &&
+    isRecord(value.values) &&
+    (value.primaryType === undefined || typeof value.primaryType === "string")
+  );
+};
+
+const isEip712 = (value: unknown): value is QuoteEip712 => {
+  if (!isRecord(value)) return false;
+
+  return (
+    isEip712Domain(value.domain) &&
+    isEip712Types(value.types) &&
+    typeof value.primaryType === "string" &&
+    value.primaryType.length > 0 &&
+    value.primaryType in value.types &&
+    isRecord(value.message)
   );
 };
 
@@ -99,6 +141,12 @@ function assertQuoteResponse(
   }
   if (!isPermitData(payload.permitData)) {
     throw new Error("Liquidity Hub quote has invalid permitData");
+  }
+  if (!isEip712(payload.eip712)) {
+    throw new Error("Liquidity Hub quote has invalid eip712");
+  }
+  if (!isAddress(payload.user)) {
+    throw new Error("Liquidity Hub quote has invalid user");
   }
 }
 

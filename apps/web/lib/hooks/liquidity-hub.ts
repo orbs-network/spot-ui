@@ -1,4 +1,4 @@
-import { constructSDK } from "@orbs-network/liquidity-hub-sdk";
+import { createClient } from "@orbs-network/liquidity-hub-sdk";
 import { useMemo } from "react";
 import { useConnection } from "wagmi";
 
@@ -9,7 +9,7 @@ export const useLiquidityHub = () => {
   const { chainId } = useConnection();
   return useMemo(
     () =>
-      constructSDK({
+      createClient({
         chainId: chainId || 1,
         partner: "playground",
         apiUrl: localApiUrl,

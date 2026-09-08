@@ -15,11 +15,11 @@ import {
 } from "@tanstack/react-query";
 import {
   DEFAULT_QUOTE_INTERVAL,
-  type LiquidityHubSDK,
+  type LiquidityHubClient,
   type Quote,
 } from "@orbs-network/liquidity-hub-sdk";
 import {
-  createLiquidityHubSDK,
+  createLiquidityHubClient,
   executeLiquidityHubSwap,
   liquidityHubKeys,
   shouldRetryLiquidityHubQuote,
@@ -41,15 +41,15 @@ export function LiquidityHubQueryProvider({
   );
 }
 
-export function useLiquidityHub(chainId?: number): LiquidityHubSDK | null {
+export function useLiquidityHub(chainId?: number): LiquidityHubClient | null {
   return useMemo(
-    () => (chainId ? createLiquidityHubSDK(chainId) : null),
+    () => (chainId ? createLiquidityHubClient(chainId) : null),
     [chainId],
   );
 }
 
 export interface LiquidityHubQuoteResult {
-  sdk: LiquidityHubSDK | null;
+  sdk: LiquidityHubClient | null;
   quote: Quote | null;
   error: Error | null;
   isLoading: boolean;
@@ -141,7 +141,7 @@ export function useLiquidityHubQuote(
 }
 
 interface UseLiquidityHubSwapParams {
-  sdk: LiquidityHubSDK | null;
+  sdk: LiquidityHubClient | null;
   wallet: WalletAdapter;
   getLatestQuote: () => Promise<Quote>;
 }

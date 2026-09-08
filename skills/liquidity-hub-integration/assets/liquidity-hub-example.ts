@@ -6,20 +6,20 @@
  */
 
 import {
-  constructSDK,
+  createClient,
   isFreshQuote,
   isLiquidityHubBetter,
   isNativeAddress,
   maxUint256,
   permit2Address,
   type Quote,
-  type LiquidityHubSDK,
+  type LiquidityHubClient,
 } from "@orbs-network/liquidity-hub-sdk";
 
 // ============ Initialize SDK ============
 
 // Create one instance per chain — re-create when chain changes
-const lh: LiquidityHubSDK = constructSDK({
+const lh: LiquidityHubClient = createClient({
   chainId: 137, // DEX: Replace with active chain ID
   partner: "mydex", // DEX: Replace with your registered partner name
 });
@@ -164,10 +164,7 @@ async function executeLiquidityHubSwap({
   let signature: string;
   try {
     signature = await walletClient.signTypedData({
-      domain: quote.permitData.domain,
-      types: quote.permitData.types,
-      primaryType: quote.permitData.primaryType,
-      message: quote.permitData.values,
+      ...quote.eip712,
       account,
     });
     lh.analytics.signature.onSuccess(signature);

@@ -23,7 +23,17 @@ export const createQuote = (overrides: Partial<Quote> = {}): Quote => ({
     values: { token: "0x1", amount: "100" },
     primaryType: "Permit",
   },
-  eip712: {},
+  eip712: {
+    domain: { name: "Permit2", chainId: 137 },
+    types: {
+      Permit: [
+        { name: "token", type: "address" },
+        { name: "amount", type: "uint256" },
+      ],
+    },
+    primaryType: "Permit",
+    message: { token: "0x1", amount: "100" },
+  },
   minAmountOut: "200",
   gasAmountOut: "1",
   referencePrice: "2.2",
