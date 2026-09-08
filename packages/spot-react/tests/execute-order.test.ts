@@ -7,7 +7,7 @@ import {
   type SpotClient,
 } from "@orbs-network/spot-ui";
 import { executeOrder, type ExecuteOrderParams } from "../src/execute-order";
-import { createSpotStore } from "../src/context/spot-store";
+import { createSpotStore } from "../src/context/create-spot-store";
 import {
   ExecutionPhase,
   type Callbacks,
@@ -32,6 +32,11 @@ const nativeInputToken: Token = {
   ...inputToken,
   address: "0x0000000000000000000000000000000000000000",
   symbol: "ETH",
+};
+const wrappedNativeToken: Token = {
+  ...nativeInputToken,
+  address: "0x0000000000000000000000000000000000000011",
+  symbol: "WETH",
 };
 const outputToken: Token = {
   address: "0x0000000000000000000000000000000000000020",
@@ -107,6 +112,7 @@ const createParams = (
     isSupportedChain: true,
     inputToken,
     outputToken,
+    wrappedNativeToken,
     form,
     client,
     walletInteractions,
@@ -123,12 +129,12 @@ const createParams = (
 
 describe("execution store", () => {
   it("rejects resets and duplicate starts while an execution is active", () => {
-    const store = createSpotStore({ typedTrades: 5 });
+    const store = createSpotStore({ tradeCount: 5 });
     const first = store.getState().beginExecution({});
 
     expect(first?.phase).toBe(ExecutionPhase.PREPARING);
     expect(store.getState().returnToOrderForm()).toBe(false);
-    expect(store.getState().startNewOrder({ typedTrades: 1 })).toBe(false);
+    expect(store.getState().startNewOrder({ tradeCount: 1 })).toBe(false);
     expect(store.getState().beginExecution({})).toBeUndefined();
     expect(store.getState().state.currentExecution).toBe(first);
   });
@@ -230,6 +236,11 @@ describe("executeOrder", () => {
     expect(wallet.wrapNativeToken).toHaveBeenCalledTimes(1);
     expect(wallet.approveToken).toHaveBeenCalledTimes(1);
     expect(client.prepareOrder).toHaveBeenCalledTimes(1);
+    expect(client.prepareOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inputTokenAddress: wrappedNativeToken.address,
+      }),
+    );
     expect(wallet.signOrder).toHaveBeenCalledWith(
       params.getCurrentExecution().preparedOrder?.signingRequest,
     );
@@ -243,6 +254,21 @@ describe("executeOrder", () => {
     ).toBeLessThan(
       vi.mocked(client.signOrder).mock.invocationCallOrder[0],
     );
+  });
+
+  it("rejects native input when the host does not provide its wrapped token", async () => {
+    const wallet = createWallet();
+    const params = createParams({
+      inputToken: nativeInputToken,
+      wrappedNativeToken: undefined,
+      walletInteractions: wallet,
+    });
+
+    await expect(executeOrder(params)).rejects.toThrow(
+      "missing wrappedNativeToken for native input",
+    );
+    expect(wallet.wrapNativeToken).not.toHaveBeenCalled();
+    expect(wallet.getAllowance).not.toHaveBeenCalled();
   });
 
   it.each([

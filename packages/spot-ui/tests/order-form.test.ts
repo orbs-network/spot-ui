@@ -11,17 +11,19 @@ import {
 
 const baseParams = {
   module: Module.TWAP,
-  isMarketOrder: true,
-  inputAmountWei: "1000000",
   inputTokenDecimals: 6,
   outputTokenDecimals: 18,
-  quotedOutputAmount: "2000000000000000000",
-  inputUsdPrice: "10",
-  outputUsdPrice: "5",
+  quotedOutputAmountRaw: "2000000000000000000",
+  inputTokenUsdPrice: "10",
+  outputTokenUsdPrice: "5",
   minTradeSizeUsd: 1,
-  trades: 2,
-  priceProtection: 3,
+  priceProtectionPercent: 3,
   displayFeePercent: 0.25,
+  userInput: {
+    inputAmountUi: "1",
+    isMarketOrder: true,
+    tradeCount: 2,
+  },
 };
 
 describe("calculateOrderForm", () => {
@@ -55,8 +57,11 @@ describe("calculateOrderForm", () => {
     const form = calculateOrderForm({
       ...baseParams,
       module: Module.LIMIT,
-      isMarketOrder: false,
-      limitPrice: "",
+      userInput: {
+        ...baseParams.userInput,
+        isMarketOrder: false,
+        limitPriceUi: "",
+      },
     });
 
     expect(form.canSubmit).toBe(false);
@@ -67,12 +72,14 @@ describe("calculateOrderForm", () => {
   it("supports genuine zero-decimal tokens", () => {
     const form = calculateOrderForm({
       ...baseParams,
-      inputAmountWei: "2",
       inputTokenDecimals: 0,
       outputTokenDecimals: 0,
-      marketPrice: "3",
-      quotedOutputAmount: undefined,
-      trades: 1,
+      quotedOutputAmountRaw: "6",
+      userInput: {
+        ...baseParams.userInput,
+        inputAmountUi: "2",
+        tradeCount: 1,
+      },
     });
 
     expect(form.inputAmount.ui).toBe("2");
@@ -84,10 +91,11 @@ describe("calculateOrderForm", () => {
     const form = calculateOrderForm({
       ...baseParams,
       module: Module.LIMIT,
-      isMarketOrder: false,
-      marketPrice: "2000000000000000000",
-      quotedOutputAmount: undefined,
-      limitPricePercent: "10",
+      userInput: {
+        ...baseParams.userInput,
+        isMarketOrder: false,
+        limitPricePercent: "10",
+      },
     });
 
     expect(form.limitPrice.raw).toBe("2200000000000000000");
@@ -99,11 +107,12 @@ describe("calculateOrderForm", () => {
     const form = calculateOrderForm({
       ...baseParams,
       module: Module.LIMIT,
-      isMarketOrder: false,
-      marketPrice: "2000000000000000000",
-      quotedOutputAmount: undefined,
-      limitPrice: "0.5",
-      isInverted: true,
+      userInput: {
+        ...baseParams.userInput,
+        isMarketOrder: false,
+        limitPriceUi: "0.5",
+        isPriceInverted: true,
+      },
     });
 
     expect(form.limitPrice.raw).toBe("2000000000000000000");
@@ -118,7 +127,10 @@ describe("calculateOrderForm", () => {
     const form = calculateOrderForm({
       ...baseParams,
       minTradeSizeUsd: 20,
-      trades: 1,
+      userInput: {
+        ...baseParams.userInput,
+        tradeCount: 1,
+      },
     });
 
     expect(
@@ -131,10 +143,11 @@ describe("calculateOrderForm", () => {
   it("does not populate duration errors before an amount is entered", () => {
     const form = calculateOrderForm({
       ...baseParams,
-      inputAmountWei: "",
-      marketPrice: "2000000000000000000",
-      quotedOutputAmount: undefined,
-      duration: { unit: TimeUnit.Minutes, value: 1 },
+      userInput: {
+        ...baseParams.userInput,
+        inputAmountUi: "",
+        orderDuration: { unit: TimeUnit.Minutes, value: 1 },
+      },
     });
 
     expect(form.errors.duration).toBeUndefined();

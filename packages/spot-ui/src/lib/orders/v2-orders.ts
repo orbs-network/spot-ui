@@ -3,9 +3,9 @@
 import {
   getOrderApiEndpoints,
   getOrderSinkExchanges,
-  maxUint256,
   SPOT_VERSION,
-} from "../consts";
+} from "../api-config";
+import { MAX_UINT_256 } from "../evm-constants";
 import {
   OrderStatus,
   OrderType,
@@ -20,7 +20,7 @@ const getOrderType = (order: OrderV2) => {
   const isLimit = BN(order.order.witness.output.limit || 0).gt(1);
   const { stop, triggerLower, triggerUpper } = order.order.witness.output;
 
-  const isLegacyTakeProfit = BN(stop || 0).eq(maxUint256);
+  const isLegacyTakeProfit = BN(stop || 0).eq(MAX_UINT_256);
   const isTakeProfit =
     isLegacyTakeProfit || BN(triggerUpper || 0).gt(0);
   const isStopLoss =
@@ -150,7 +150,7 @@ const getAmountsSpotV2 = (order: OrderV2): Amounts => {
 const getAmountsProd = (order: OrderV2): Amounts => {
   const dstMinAmountPerTrade = getDstMinAmountPerTrade(order);
 
-  const isTakeProfit = BN(order.order.witness.output.stop || 0).eq(maxUint256);
+  const isTakeProfit = BN(order.order.witness.output.stop || 0).eq(MAX_UINT_256);
 
   const totalTradesAmount = order.metadata.expectedChunks || 1;
 

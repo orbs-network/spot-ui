@@ -5,14 +5,13 @@ import {
   type Steps,
   type Token,
 } from "../types";
+import { isNativeAddress } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import { useSubmitOrder } from "./use-submit-order";
 import { useSwapExecution } from "./use-swap-execution";
-import {
-  createSpotFormDefaults,
-  useSpotRuntime,
-  useSpotStore,
-} from "../context/spot-store";
+import { createSpotFormDefaults } from "../context/create-spot-store";
+import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotStore } from "../context/spot-store-context";
 import { useOrderForm } from "../context/order-form-context";
 import { useClient } from "../context/use-client";
 import {
@@ -113,9 +112,10 @@ export const useSubmitButton = () => {
   const {
     inputToken,
     outputToken,
-    inputBalance,
+    wrappedNativeToken,
+    inputBalanceRaw,
     noLiquidity,
-    typedInputAmount,
+    inputAmountUi,
     marketPriceLoading,
     isSupportedChain,
   } = useSpotRuntime();
@@ -125,14 +125,19 @@ export const useSubmitButton = () => {
     (store) => store.state.currentExecution.phase,
   );
   const isExecuting = isExecutionActive(executionPhase);
+  const isWrappedNativeTokenMissing = Boolean(
+    inputToken &&
+      isNativeAddress(inputToken.address) &&
+      (!wrappedNativeToken || isNativeAddress(wrappedNativeToken.address)),
+  );
 
   const isPropsLoading =
-    marketPriceLoading || !form.isReady || inputBalance === undefined;
+    marketPriceLoading || !form.isReady || inputBalanceRaw === undefined;
 
   const buttonLoading =
     isExecuting ||
     (isSupportedChain && isClientLoading && !client) ||
-    Boolean(inputToken && outputToken && typedInputAmount && isPropsLoading);
+    Boolean(inputToken && outputToken && inputAmountUi && isPropsLoading);
   const disabled = Boolean(
     !form.canSubmit ||
       isExecuting ||
@@ -141,7 +146,8 @@ export const useSubmitButton = () => {
       noLiquidity ||
       buttonLoading ||
       !inputToken ||
-      !outputToken,
+      !outputToken ||
+      isWrappedNativeTokenMissing,
   );
 
   return useMemo(() => {

@@ -147,13 +147,13 @@ export const getReusableCompletedWrap = ({
   account,
   chainId,
   inputTokenAddress,
-  inputAmountWei,
+  inputAmountRaw,
 }: {
   execution: SwapExecution;
   account: string;
   chainId: number;
   inputTokenAddress: string;
-  inputAmountWei: string;
+  inputAmountRaw: string;
 }): CompletedWrap | undefined => {
   const completedWrap = execution.completedWrap;
   if (
@@ -161,7 +161,7 @@ export const getReusableCompletedWrap = ({
     completedWrap.chainId === chainId &&
     completedWrap.inputTokenAddress.toLowerCase() ===
       inputTokenAddress.toLowerCase() &&
-    hasEnoughWrappedAmount(completedWrap.inputAmountWei, inputAmountWei)
+    hasEnoughWrappedAmount(completedWrap.inputAmountRaw, inputAmountRaw)
   ) {
     return completedWrap;
   }

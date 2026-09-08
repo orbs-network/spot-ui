@@ -1,7 +1,8 @@
 import { Module } from "@orbs-network/spot-ui";
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime, useSpotStore } from "../context/spot-store";
+import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotStore } from "../context/spot-store-context";
 import { observe } from "../execution-state";
 
 export const useLimitPrice = () => {
@@ -12,7 +13,7 @@ export const useLimitPrice = () => {
 
   const onInputChange = useCallback(
     (value?: string) => {
-      updateState({ typedLimitPrice: value, limitPricePercent: null });
+      updateState({ limitPriceUi: value, limitPricePercent: null });
       observe(() => callbacks?.onLimitPriceChange?.(value || ""));
       observe(() => callbacks?.onLimitPricePercentChange?.(""));
     },
@@ -22,7 +23,7 @@ export const useLimitPrice = () => {
   const onPercentageChange = useCallback(
     (percentage?: string) => {
       updateState({
-        typedLimitPrice: undefined,
+        limitPriceUi: undefined,
         limitPricePercent: percentage,
       });
       observe(() => callbacks?.onLimitPriceChange?.(""));
@@ -33,7 +34,7 @@ export const useLimitPrice = () => {
 
   const onReset = useCallback(() => {
     updateState({
-      typedLimitPrice: undefined,
+      limitPriceUi: undefined,
       limitPricePercent: undefined,
     });
   }, [updateState]);
@@ -42,7 +43,7 @@ export const useLimitPrice = () => {
   const toggle = useCallback(() => {
     updateState({
       isMarketOrder: !values.isMarketOrder,
-      ...(!values.isMarketOrder ? { isInvertedTrade: false } : {}),
+      ...(!values.isMarketOrder ? { isPriceInverted: false } : {}),
       ...(!values.isMarketOrder && module === Module.STOP_LOSS
         ? { limitPricePercent: undefined }
         : {}),

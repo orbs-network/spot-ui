@@ -51,13 +51,13 @@ export type GetAllowanceProps = AllowanceRequest;
 
 export type InitialState = {
   isMarketOrder?: boolean;
-  trades?: number;
+  tradeCount?: number;
   triggerPricePercent?: string | null;
   limitPricePercent?: string | null;
-  fillDelay?: TimeDuration;
-  duration?: TimeDuration;
-  limitPrice?: string;
-  triggerPrice?: string;
+  tradeInterval?: TimeDuration;
+  orderDuration?: TimeDuration;
+  limitPriceUi?: string;
+  triggerPriceUi?: string;
 };
 
 
@@ -75,21 +75,18 @@ export type Overrides = {
 
 export type OnApproveSuccessCallback = {
   txHash: string;
-  explorerUrl: string;
   token: Token;
   amount: string;
 };
 
 export type OnWrapSuccessCallback = {
   txHash: string;
-  explorerUrl: string;
   amount: string;
 };
 
 export type OnCancelOrderSuccess = {
   order: Order;
   txHash: `0x${string}`;
-  explorerUrl: string;
 };
 
 export type ParsedError = {
@@ -117,18 +114,18 @@ export type Callbacks = {
   onSubmitOrderFailed?: (error: ParsedError) => ObserverResult;
   onSubmitOrderRejected?: () => ObserverResult;
 
-  onLimitPriceChange?: (typedLimitPrice: string) => ObserverResult;
-  onTriggerPriceChange?: (typedTriggerPrice: string) => ObserverResult;
+  onLimitPriceChange?: (limitPriceUi: string) => ObserverResult;
+  onTriggerPriceChange?: (triggerPriceUi: string) => ObserverResult;
   onTriggerPricePercentChange?: (triggerPricePercent: string) => ObserverResult;
   onLimitPricePercentChange?: (limitPricePercent: string) => ObserverResult;
-  onDurationChange?: (typedDuration?: TimeDuration) => ObserverResult;
-  onFillDelayChange?: (typedFillDelay?: TimeDuration) => ObserverResult;
-  onTradesChange?: (trades: number) => ObserverResult;
+  onOrderDurationChange?: (orderDuration?: TimeDuration) => ObserverResult;
+  onTradeIntervalChange?: (tradeInterval?: TimeDuration) => ObserverResult;
+  onTradeCountChange?: (tradeCount: number) => ObserverResult;
 };
 
 
-export type MarketReferencePrice = {
-  value?: string;
+export type MarketQuote = {
+  quotedOutputAmountRaw?: string;
   isLoading?: boolean;
   noLiquidity?: boolean;
 };
@@ -153,18 +150,20 @@ export interface SpotProps {
   partner: Partners;
   inputToken?: Token;
   outputToken?: Token;
-  inputUsd1Token?: string;
-  outputUsd1Token?: string;
-  inputBalance?: string;
-  priceProtection: number;
+  /** Host-owned chain metadata; may be undefined only before a chain is known. */
+  wrappedNativeToken: Token | undefined;
+  inputTokenUsdPrice?: string;
+  outputTokenUsdPrice?: string;
+  inputBalanceRaw?: string;
+  priceProtectionPercent: number;
   module: Module;
-  marketReferencePrice: MarketReferencePrice;
+  marketQuote: MarketQuote;
   overrides?: Overrides;
   /** Display-only estimate; protocol fee collection is configured separately. */
   displayFeePercent?: number;
   callbacks?: Callbacks;
   minTradeSizeUsd: number;
-  typedInputAmount: string;
+  inputAmountUi: string;
   supportLegacyOrders?: boolean;
   /** Host-rendered, retryable UI for client initialization failures. */
   clientErrorFallback?: ComponentType<ClientErrorFallbackProps>;
@@ -183,7 +182,7 @@ export interface CompletedWrap {
   account: Address;
   chainId: number;
   inputTokenAddress: string;
-  inputAmountWei: string;
+  inputAmountRaw: string;
   txHash: string;
 }
 
@@ -213,13 +212,13 @@ export type StartedSwapExecution = SwapExecution & {
 };
 
 export interface State {
-  typedTrades?: number;
-  typedFillDelay?: TimeDuration;
-  typedDuration?: TimeDuration;
-  typedLimitPrice?: string;
-  typedTriggerPrice?: string;
+  tradeCount?: number;
+  tradeInterval?: TimeDuration;
+  orderDuration?: TimeDuration;
+  limitPriceUi?: string;
+  triggerPriceUi?: string;
   triggerPricePercent?: string | null;
-  isInvertedTrade?: boolean;
+  isPriceInverted?: boolean;
   limitPricePercent?: string | null;
   isMarketOrder?: boolean;
 

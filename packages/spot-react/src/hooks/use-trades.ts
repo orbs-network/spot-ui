@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime, useSpotStore } from "../context/spot-store";
+import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotStore } from "../context/spot-store-context";
 import { observe } from "../execution-state";
 
 export const useTrades = () => {
@@ -10,8 +11,8 @@ export const useTrades = () => {
 
   const onChange = useCallback(
     (trades: number) => {
-      updateState({ typedTrades: trades });
-      observe(() => callbacks?.onTradesChange?.(trades));
+      updateState({ tradeCount: trades });
+      observe(() => callbacks?.onTradeCountChange?.(trades));
     },
     [callbacks, updateState],
   );

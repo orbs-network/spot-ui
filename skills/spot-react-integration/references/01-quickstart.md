@@ -43,6 +43,7 @@ The SDK trusts a successful configuration response and uses its `domain.verifyin
 - [ ] DEX components you plan to use actually exist (search codebase)
 - [ ] DEX swap form state source is identified (selected tokens, typed amount, balances, USD values, quote output, quote input amount)
 - [ ] Connected account/wallet hook for `chainId` and address is identified and can drive connect/switch-network UI
+- [ ] The DEX can supply the connected chain's wrapped native token and explorer metadata
 - [ ] Balance hooks can provide raw integer balance strings for both selected tokens
 - [ ] USD price hooks can provide the USD value of exactly one source token and one destination token, or enough data to derive those values
 - [ ] Quote hook exposes the output raw amount and, ideally, the input amount used to produce that quote so stale quotes can be detected

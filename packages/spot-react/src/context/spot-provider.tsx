@@ -3,7 +3,8 @@ import { ClientErrorNotice } from "./client-error-notice";
 import { SpotErrorBoundary } from "./error-boundary";
 import { SpotFormSynchronizer } from "./spot-form-synchronizer";
 import { OrderFormProvider } from "./order-form-context";
-import { SpotStoreProvider } from "./spot-store";
+import { SpotRuntimeProvider } from "./spot-runtime-context";
+import { SpotStoreProvider } from "./spot-store-context";
 import { useSpotAnalytics } from "./use-spot-analytics";
 import { useSpotProviderState } from "./use-spot-provider-state";
 
@@ -12,17 +13,19 @@ export const SpotProvider = (props: SpotProps) => {
   useSpotAnalytics(props, runtime.isSupportedChain);
 
   return (
-    <SpotStoreProvider runtime={runtime} initialState={initialState}>
-      <SpotErrorBoundary fallback={props.errorFallback}>
-        <SpotFormSynchronizer
-          defaults={initialState}
-          scopeKey={formScopeKey}
-        >
-          <ClientErrorNotice fallback={props.clientErrorFallback}>
-            <OrderFormProvider>{props.children}</OrderFormProvider>
-          </ClientErrorNotice>
-        </SpotFormSynchronizer>
-      </SpotErrorBoundary>
-    </SpotStoreProvider>
+    <SpotRuntimeProvider value={runtime}>
+      <SpotStoreProvider initialState={initialState}>
+        <SpotErrorBoundary fallback={props.errorFallback}>
+          <SpotFormSynchronizer
+            defaults={initialState}
+            scopeKey={formScopeKey}
+          >
+            <ClientErrorNotice fallback={props.clientErrorFallback}>
+              <OrderFormProvider>{props.children}</OrderFormProvider>
+            </ClientErrorNotice>
+          </SpotFormSynchronizer>
+        </SpotErrorBoundary>
+      </SpotStoreProvider>
+    </SpotRuntimeProvider>
   );
 };

@@ -1,7 +1,8 @@
 import { type TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime, useSpotStore } from "../context/spot-store";
+import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotStore } from "../context/spot-store-context";
 import { observe } from "../execution-state";
 
 export const useDuration = () => {
@@ -10,9 +11,9 @@ export const useDuration = () => {
   const { schedule } = useOrderForm();
   const { duration } = schedule;
   const onChange = useCallback(
-    (typedDuration: TimeDuration) => {
-      updateState({ typedDuration });
-      observe(() => callbacks?.onDurationChange?.(typedDuration));
+    (orderDuration: TimeDuration) => {
+      updateState({ orderDuration });
+      observe(() => callbacks?.onOrderDurationChange?.(orderDuration));
     },
     [callbacks, updateState],
   );

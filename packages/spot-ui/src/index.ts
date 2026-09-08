@@ -18,27 +18,28 @@ export {
   type PartnerPayloadItem,
   type InputError,
   type Token,
-  type Network,
 } from "./lib/types";
 
 export {
-  toAmountWei,
+  toAmountRaw,
   toAmountUI,
-  invertPriceInput,
-} from "./lib/calculations";
+} from "./lib/order-form/amounts";
 
-export {
-  calculateOrderForm,
-  type CalculateOrderFormParams,
-  type CalculatedAmount,
-  type CalculatedOrderInputAmount,
-  type CalculatedMarketPriceValues,
-  type CalculatedOrderTrades,
-  type CalculatedOrderFees,
-  type CalculatedOrderFormSchedule,
-  type CalculatedOrderFormErrors,
-  type CalculatedOrderForm,
-} from "./lib/order-form";
+export { invertPriceInput } from "./lib/order-form/prices";
+
+export type {
+  CalculateOrderFormParams,
+  CalculatedAmount,
+  CalculatedOrderInputAmount,
+  CalculatedMarketPriceValues,
+  CalculatedOrderTrades,
+  CalculatedOrderFees,
+  CalculatedOrderFormSchedule,
+  CalculatedOrderFormErrors,
+  CalculatedOrderForm,
+} from "./lib/order-form/types";
+
+export { calculateOrderForm } from "./lib/order-form/calculate-order-form";
 
 export type {
   CalculatedOrderSchedule,
@@ -47,7 +48,7 @@ export type {
   CalculatedTriggerPriceValues,
   CalculatedLimitPriceValues,
   CalculatedOrderValues,
-} from "./lib/calculations";
+} from "./lib/order-form/types";
 
 export {
   createClient,
@@ -64,33 +65,30 @@ export {
   type ClientGetAccountOrdersParams,
 } from "./lib/client";
 
-export { getPartners, getTwapConfig } from "./lib/lib";
+export { getPartners } from "./lib/partners";
+export { getTwapConfig } from "./lib/orders/legacy-twap-config";
 
 export {
   SPOT_VERSION,
+} from "./lib/api-config";
+
+export {
   DISCLAIMER_URL,
   ORBS_TWAP_FAQ_URL,
   ORBS_SLTP_FAQ_URL,
   ORBS_LOGO,
   ORBS_WEBSITE_URL,
-} from "./lib/consts";
+} from "./lib/public-links";
 
 export { analytics, setUIVersion } from "./lib/analytics";
 
 export {
   isNativeAddress,
-  getNetwork,
   eqIgnoreCase,
   getOrderFillDelayMillis,
   getPartnerChains,
   getOrderExecutionRate,
   getOrderLimitPriceRate,
   getTriggerPriceRate,
-  ensureWrappedToken,
-  getExplorerUrl,
   isTxRejected,
-  shouldUnwrapOnly,
-  shouldWrapOnly,
 } from "./lib/utils";
-
-export { networks } from "./lib/networks";

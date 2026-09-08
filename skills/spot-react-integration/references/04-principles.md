@@ -121,11 +121,12 @@ Keep focused Spot hook calls in the component that renders the data whenever pos
 - [ ] `@orbs-network/spot-react@latest` installed with all peer dependencies (no viem required)
 - [ ] `@orbs-network/swap-ui@latest` installed and used for order creation/progress modal content
 - [ ] `walletInteractions` provided with all 5 methods (`wrapNativeToken`, `approveToken`, `cancelOrder`, `signOrder`, `getAllowance`); write methods wait for receipts and `signOrder` returns the wallet signature unchanged
-- [ ] `typedInputAmount` from DEX state
+- [ ] `inputAmountUi` from DEX state
 - [ ] DEX swap state exposed through local context/hook where needed; no prop drilling of hook-returned values
 - [ ] Long child prop lists replaced with a focused local context/hook
 - [ ] Large integration files split into focused components, hooks, context, and utils files
-- [ ] `marketReferencePrice.value` uses the DEX quote output for the current input amount, and balances/USD prices are passed as raw wei / one-token USD values
+- [ ] `marketQuote.quotedOutputAmountRaw` uses the DEX quote output for the current input amount, and balances/USD prices are passed as raw units / one-token USD values
+- [ ] `wrappedNativeToken` comes from the DEX's chain configuration
 - [ ] Quote freshness handled so stale output is not shown after input amount changes
 - [ ] `chainId` comes from connected account/wallet state everywhere Spot uses it
 - [ ] Submit area blocks unsupported/missing connected chains with the DEX switch-network flow

@@ -1,8 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import {
-  getNetwork,
   getPartners,
-  PartnerPayloadItem,
+  type PartnerPayloadItem,
 } from "@orbs-network/spot-react";
 import {
   Popover,
@@ -19,24 +18,39 @@ import {
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { Avatar, AvatarImage } from "../ui/avatar";
 import { useIsSpotTab } from "@/lib/hooks/use-tabs";
-import { getSpotPartnerProdLink } from "@/lib/utils";
+import {
+  getChainName,
+  getNativeTokenLogoUrl,
+  getNativeTokenSymbol,
+  getSpotPartnerProdLink,
+} from "@/lib/utils";
 import { ChevronDownIcon } from "lucide-react";
 import { Button } from "../ui/button";
 
 const partners = getPartners();
-
+const getPartnerValue = ({ name, chainId }: PartnerPayloadItem) =>
+  `${name}_${chainId}`;
+const partnerSearchText = new Map(
+  partners.map((partner) => [
+    getPartnerValue(partner),
+    [
+      partner.name,
+      getChainName(partner.chainId),
+      getNativeTokenSymbol(partner.chainId),
+    ]
+      .join(" ")
+      .toLowerCase(),
+  ]),
+);
 
 export function PartnerSelector() {
   const { partner, setPartner } = useSwapParams();
   const isSpotTab = useIsSpotTab();
   const [open, setOpen] = useState(false);
 
-  const selectedPartner = useMemo(() => {
-    return partners.find((p) => `${p.name}_${p.chainId}` === partner);
-  }, [partner]);
-
-
-
+  const selectedPartner = partners.find(
+    (item) => getPartnerValue(item) === partner,
+  );
   if (!isSpotTab) {
     return null;
   }
@@ -61,15 +75,18 @@ export function PartnerSelector() {
       <PopoverContent className="w-fit p-0" align="start">
         <Command
           filter={(value, search) => {
-            const name = value.split("_")[0];
-            return name.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+            const terms = search.trim().toLowerCase().split(/\s+/);
+            const searchableText = partnerSearchText.get(value) ?? "";
+            return terms.every((term) => searchableText.includes(term))
+              ? 1
+              : 0;
           }}
         >
-          <CommandInput placeholder="Search by name..." />
+          <CommandInput placeholder="Search partner, chain, or symbol..." />
           <CommandList>
             <CommandEmpty>No partners match.</CommandEmpty>
             {partners.map((p) => {
-              const value = `${p.name}_${p.chainId}`;
+              const value = getPartnerValue(p);
               return (
                 <CommandItem
                   key={value}
@@ -97,16 +114,17 @@ const PartnerDisplay = ({
   partner: PartnerPayloadItem;
   isSelector?: boolean;
 }) => {
-  const chain = getNetwork(partner.chainId);
+  const chainName = getChainName(partner.chainId);
+  const chainLogoUrl = getNativeTokenLogoUrl(partner.chainId);
   const prodLink = getSpotPartnerProdLink(partner.name);
 
   return (
     <div className="flex flex-row gap-2 items-center">
       <p className="capitalize">{partner.name}</p>
       <span>-</span>
-      <p>{chain?.shortname}</p>
+      <p>{chainName}</p>
       <Avatar className="size-4">
-        <AvatarImage src={chain?.logoUrl} />
+        <AvatarImage src={chainLogoUrl} />
       </Avatar>
       {prodLink && !isSelector ? (
         <small className="text-xs text-gray-500">Prod</small>

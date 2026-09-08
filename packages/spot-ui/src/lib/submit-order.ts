@@ -1,5 +1,5 @@
 import { analytics } from "./analytics";
-import { getApiEndpoint } from "./consts";
+import { getApiEndpoint } from "./api-config";
 import { buildV2Order } from "./orders/v2-orders";
 import { Order, RePermitOrder } from "./types";
 

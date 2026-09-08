@@ -1,8 +1,8 @@
 "use client";
 import React, { CSSProperties, ReactNode, useMemo } from "react";
-import { useNetwork, type Token } from "@orbs-network/spot-react";
+import type { Token } from "@orbs-network/spot-react";
 import { useFormatNumber, useDateFormat, useCopyToClipboard } from "@/lib/hooks/common";
-import { fillDelayText, makeEllipsisAddress } from "@/lib/utils";
+import { fillDelayText, getExplorerAddressUrl, makeEllipsisAddress } from "@/lib/utils";
 import BN from "bignumber.js";
 import { FormatNumber } from "./format-number";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -80,13 +80,12 @@ const TradesAmount = ({ trades, label, tooltip }: { trades?: number; label: stri
 
 const Recipient = () => {
   const t = useTranslations();
-  const network = useNetwork();
-  const {address: account} = useConnection();
-  const explorerUrl = network?.explorer;
+  const {address: account, chainId} = useConnection();
+  const explorerUrl = getExplorerAddressUrl(chainId, account);
 
   return (
     <DetailRow title={t("recipient") || ""}>
-      <a href={`${explorerUrl}/address/${account}`} target="_blank" rel="noopener noreferrer">{makeEllipsisAddress(account || "")}</a>
+      <a href={explorerUrl} target="_blank" rel="noopener noreferrer">{makeEllipsisAddress(account || "")}</a>
     </DetailRow>
   );
 };

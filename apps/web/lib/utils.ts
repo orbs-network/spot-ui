@@ -13,6 +13,13 @@ import {
 } from "./consts";
 import * as chains from "viem/chains";
 import { OrderType, Partners } from "@orbs-network/spot-ui";
+import { hyperEvmChain, katanaChain, megaethChain } from "./chains";
+
+const customChains = [katanaChain, hyperEvmChain, megaethChain];
+
+const getChain = (chainId?: number) =>
+  customChains.find((chain) => chain.id === chainId) ??
+  Object.values(chains).find((chain) => chain.id === chainId);
 
 export const getBaseCurrencies = (chainId?: number) => {
   return POPULAR_TOKENS[chainId as keyof typeof POPULAR_TOKENS] ?? [];
@@ -182,9 +189,11 @@ export const getDefaultTokensForChain = (chainId = 56) => {
 };
 
 export const getChainName = (chainId: number) => {
-  return (
-    Object.values(chains).find((chain) => chain.id === chainId)?.name ?? ""
-  );
+  return getChain(chainId)?.name ?? "";
+};
+
+export const getNativeTokenSymbol = (chainId: number) => {
+  return getChain(chainId)?.nativeCurrency.symbol ?? "";
 };
 
 export const getPopularTokenForChain = (chainId?: number) => {
@@ -223,12 +232,17 @@ export const getExplorerUrl = (chainId?: number, txHash?: string) => {
   if (!chainId || !txHash) {
     return "";
   }
-  const explorer = Object.values(chains).find((chain) => chain.id === chainId)
-    ?.blockExplorers?.default;
+  const explorer = getChain(chainId)?.blockExplorers?.default;
   if (!explorer) {
     return "";
   }
   return `${explorer.url}/tx/${txHash}`;
+};
+
+export const getExplorerAddressUrl = (chainId?: number, address?: string) => {
+  if (!chainId || !address) return "";
+  const explorer = getChain(chainId)?.blockExplorers?.default;
+  return explorer ? `${explorer.url}/address/${address}` : "";
 };
 
 export const filterCurrencies = (
@@ -260,7 +274,7 @@ export function getFirstAndLastLetter(symbol?: string): string {
 }
 
 
-export const toAmountWei = (value?: string, decimals?: number) => {
+export const toAmountRaw = (value?: string, decimals?: number) => {
   if (!decimals || !value) return "0";
   return parseUnits(value, decimals).toString();
 };

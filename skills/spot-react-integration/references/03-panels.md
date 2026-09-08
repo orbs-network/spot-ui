@@ -437,7 +437,6 @@ versioned independently.
 import {
   ExecutionStatus,
   useExecution,
-  useExplorerLink,
   useOrderForm,
 } from "@orbs-network/spot-react";
 import { SwapFlow, SwapStatus as SwapUiStatus } from "@orbs-network/swap-ui";
@@ -448,6 +447,7 @@ function SpotOrderFlow() {
     error,
     inputToken,
     outputToken,
+    chainId,
     currentStep,
     currentStepIndex,
     totalSteps,
@@ -456,7 +456,7 @@ function SpotOrderFlow() {
   } = useExecution();
   const form = useOrderForm();
   const progressTxHash = approvalTxHash || wrapTxHash;
-  const explorerUrl = useExplorerLink(progressTxHash);
+  const explorerUrl = getDexExplorerUrl(chainId, progressTxHash);
 
   const swapStatus =
     status === ExecutionStatus.SUCCESS
@@ -691,20 +691,12 @@ Order details should use DEX-native accordion/panel rows and fit content height 
 
 Do not render sink URLs in the user-facing modal unless the host product explicitly requests them.
 
-## Helper Hooks
+## Helper Hook
 
 ```tsx
 import {
   useAmountUi,
-  useExplorerLink,
-  useNetwork,
 } from "@orbs-network/spot-react";
-
-// Explorer URL for a transaction hash
-const explorerUrl = useExplorerLink(txHash);
-
-// Current network info (name, native token, wrapped token, explorer)
-const network = useNetwork();
 
 // Format wei amount to UI display
 const formattedAmount = useAmountUi(decimals, amountWei);
@@ -731,7 +723,6 @@ import {
   getPartners,        // () => all registered partners
   getTwapConfig,      // (partner, chainId) => legacy v1 timing config
   getPartnerChains,   // (partner) => supported chain IDs
-  getNetwork,         // (chainId) => network config
   isNativeAddress,    // (address) => boolean
   eqIgnoreCase,       // (a, b) => case-insensitive address comparison
   getOrderExecutionRate,   // (srcFilled, dstFilled, srcDecimals, dstDecimals) => rate
@@ -751,6 +742,8 @@ import {
   ORBS_LOGO,
   ORBS_WEBSITE_URL,
   SPOT_VERSION,
-  networks,
 } from "@orbs-network/spot-react";
 ```
+
+Network names, wrapped-native tokens, and explorer URLs belong to the DEX's
+chain configuration. Spot exposes transaction hashes for the host to format.

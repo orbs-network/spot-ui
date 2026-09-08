@@ -1,12 +1,12 @@
 import {
   calculateOrderForm,
-  toAmountWei,
   type CalculateOrderFormParams,
   type CalculatedOrderForm,
 } from "@orbs-network/spot-ui";
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { ExecutionPhase } from "../types";
-import { useSpotRuntime, useSpotStore } from "./spot-store";
+import { useSpotRuntime } from "./spot-runtime-context";
+import { useSpotStore } from "./spot-store-context";
 
 const OrderFormContext = createContext<CalculatedOrderForm | null>(null);
 
@@ -14,25 +14,24 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
   const {
     inputToken,
     outputToken,
-    typedInputAmount,
-    marketPrice,
-    quotedOutputAmount,
-    inputUsd1Token,
-    outputUsd1Token,
+    inputAmountUi,
+    quotedOutputAmountRaw,
+    inputTokenUsdPrice,
+    outputTokenUsdPrice,
     minTradeSizeUsd,
-    inputBalance,
+    inputBalanceRaw,
     displayFeePercent,
-    priceProtection,
+    priceProtectionPercent,
     module,
   } = useSpotRuntime();
-  const typedTrades = useSpotStore((store) => store.state.typedTrades);
-  const typedFillDelay = useSpotStore((store) => store.state.typedFillDelay);
-  const typedDuration = useSpotStore((store) => store.state.typedDuration);
-  const typedLimitPrice = useSpotStore(
-    (store) => store.state.typedLimitPrice,
+  const tradeCount = useSpotStore((store) => store.state.tradeCount);
+  const tradeInterval = useSpotStore((store) => store.state.tradeInterval);
+  const orderDuration = useSpotStore((store) => store.state.orderDuration);
+  const limitPriceUi = useSpotStore(
+    (store) => store.state.limitPriceUi,
   );
-  const typedTriggerPrice = useSpotStore(
-    (store) => store.state.typedTriggerPrice,
+  const triggerPriceUi = useSpotStore(
+    (store) => store.state.triggerPriceUi,
   );
   const limitPricePercent = useSpotStore(
     (store) => store.state.limitPricePercent,
@@ -40,8 +39,8 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
   const triggerPricePercent = useSpotStore(
     (store) => store.state.triggerPricePercent,
   );
-  const isInvertedTrade = useSpotStore(
-    (store) => store.state.isInvertedTrade,
+  const isPriceInverted = useSpotStore(
+    (store) => store.state.isPriceInverted,
   );
   const isMarketOrder = useSpotStore((store) => store.state.isMarketOrder);
   const frozenForm = useSpotStore((store) => {
@@ -50,57 +49,52 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
       ? execution.form
       : undefined;
   });
-  const inputAmountWei = useMemo(
-    () => toAmountWei(typedInputAmount, inputToken?.decimals),
-    [inputToken?.decimals, typedInputAmount],
-  );
-
   const params = useMemo<CalculateOrderFormParams>(
     () => ({
       module,
-      isMarketOrder: Boolean(isMarketOrder),
-      inputAmountWei,
       inputTokenDecimals: inputToken?.decimals ?? 0,
       outputTokenDecimals: outputToken?.decimals ?? 0,
-      marketPrice,
-      quotedOutputAmount,
-      inputUsdPrice: inputUsd1Token,
-      outputUsdPrice: outputUsd1Token,
+      quotedOutputAmountRaw,
+      inputTokenUsdPrice,
+      outputTokenUsdPrice,
       minTradeSizeUsd,
-      trades: typedTrades,
-      fillDelay: typedFillDelay,
-      duration: typedDuration,
-      limitPrice: typedLimitPrice,
-      limitPricePercent,
-      triggerPrice: typedTriggerPrice,
-      triggerPricePercent,
-      isInverted: isInvertedTrade,
-      priceProtection,
+      priceProtectionPercent,
       displayFeePercent,
-      inputBalance,
+      inputBalanceRaw,
+      userInput: {
+        inputAmountUi,
+        isMarketOrder: Boolean(isMarketOrder),
+        tradeCount,
+        tradeInterval,
+        orderDuration,
+        limitPriceUi,
+        limitPricePercent,
+        triggerPriceUi,
+        triggerPricePercent,
+        isPriceInverted,
+      },
     }),
     [
       outputToken?.decimals,
-      outputUsd1Token,
+      outputTokenUsdPrice,
       displayFeePercent,
-      inputAmountWei,
-      marketPrice,
-      quotedOutputAmount,
+      quotedOutputAmountRaw,
       minTradeSizeUsd,
       module,
-      priceProtection,
-      inputBalance,
+      priceProtectionPercent,
+      inputBalanceRaw,
       inputToken?.decimals,
-      inputUsd1Token,
-      isInvertedTrade,
+      inputTokenUsdPrice,
+      isPriceInverted,
       isMarketOrder,
       limitPricePercent,
       triggerPricePercent,
-      typedTrades,
-      typedDuration,
-      typedFillDelay,
-      typedLimitPrice,
-      typedTriggerPrice,
+      tradeCount,
+      orderDuration,
+      tradeInterval,
+      limitPriceUi,
+      inputAmountUi,
+      triggerPriceUi,
     ],
   );
   const form = useMemo(() => {

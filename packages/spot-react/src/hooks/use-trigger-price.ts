@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime, useSpotStore } from "../context/spot-store";
+import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotStore } from "../context/spot-store-context";
 import { observe } from "../execution-state";
 
 export const useTriggerPrice = () => {
@@ -11,7 +12,7 @@ export const useTriggerPrice = () => {
 
   const onInputChange = useCallback(
     (value?: string) => {
-      updateState({ typedTriggerPrice: value, triggerPricePercent: null });
+      updateState({ triggerPriceUi: value, triggerPricePercent: null });
       observe(() => callbacks?.onTriggerPriceChange?.(value || ""));
       observe(() => callbacks?.onTriggerPricePercentChange?.(""));
     },
@@ -21,7 +22,7 @@ export const useTriggerPrice = () => {
   const onPercentageChange = useCallback(
     (percentage?: string) => {
       updateState({
-        typedTriggerPrice: undefined,
+        triggerPriceUi: undefined,
         triggerPricePercent: percentage,
       });
       observe(() => callbacks?.onTriggerPriceChange?.(""));
@@ -33,7 +34,7 @@ export const useTriggerPrice = () => {
   const onReset = useCallback(() => {
     updateState({
       triggerPricePercent: undefined,
-      typedTriggerPrice: undefined,
+      triggerPriceUi: undefined,
     });
   }, [updateState]);
 

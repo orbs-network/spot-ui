@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
-import { getWrappedNativeCurrency } from "@/lib/utils";
+import { getExplorerUrl, getWrappedNativeCurrency } from "@/lib/utils";
 import {
   isNativeAddress,
   OnApproveSuccessCallback,
@@ -22,7 +22,7 @@ import { useConnection, usePublicClient, useWalletClient } from "wagmi";
 import TokensPair from "@/components/tokens-pair";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import * as chains from "viem/chains";
-import { getNetwork, getPartners } from "@orbs-network/spot-ui";
+import { getPartners } from "@orbs-network/spot-ui";
 import { DEFAULT_PARTNER } from "../consts";
 import { useRefetchSelectedCurrenciesBalances } from "./use-balances";
 
@@ -51,8 +51,9 @@ export const useCallbacks = () => {
   }, [inputCurrency?.symbol]);
 
   const onWrapSuccess = useCallback(
-    async ({ explorerUrl }: OnWrapSuccessCallback) => {
-      const network = getNetwork(chainId);
+    async ({ txHash }: OnWrapSuccessCallback) => {
+      const wrappedNativeCurrency = getWrappedNativeCurrency(chainId);
+      const explorerUrl = getExplorerUrl(chainId, txHash);
 
       toast.success(`Wrapped ${inputCurrency?.symbol}`, {
         description: (
@@ -72,7 +73,7 @@ export const useCallbacks = () => {
       // success UI can render. Include the wrapped token explicitly because it
       // is not part of the selected native/output pair.
       await refetchBalances(
-        network?.wToken.address ? [network.wToken.address] : [],
+        wrappedNativeCurrency?.address ? [wrappedNativeCurrency.address] : [],
       );
     },
     [inputCurrency?.symbol, chainId, refetchBalances],
@@ -85,7 +86,8 @@ export const useCallbacks = () => {
   }, [symbol]);
 
   const onApproveSuccess = useCallback(
-    ({ explorerUrl }: OnApproveSuccessCallback) => {
+    ({ txHash }: OnApproveSuccessCallback) => {
+      const explorerUrl = getExplorerUrl(chainId, txHash);
       toast.success(`Approved ${symbol}`, {
         id: approveToastId.current as number,
         description: (
@@ -100,7 +102,7 @@ export const useCallbacks = () => {
         ),
       });
     },
-    [symbol],
+    [chainId, symbol],
   );
 
   const onSignOrderRequest = useCallback(() => {
@@ -189,12 +191,12 @@ export const useCallbacks = () => {
   };
 };
 
-export const useSpotMarketReferencePrice = () => {
+export const useSpotMarketQuote = () => {
   const { trade, isLoadingTrade } = useDerivedSwap();
 
   return useMemo(() => {
     return {
-      value: trade?.outAmount,
+      quotedOutputAmountRaw: trade?.outAmount,
       isLoading: isLoadingTrade,
     };
   }, [trade, isLoadingTrade]);
@@ -257,15 +259,15 @@ export const useWalletInteractions = () => {
   );
 
   return useMemo((): WalletInteractions => {
-    const network = getNetwork(chainId);
+    const wrappedNativeCurrency = getWrappedNativeCurrency(chainId);
 
     return {
       wrapNativeToken: async (amount: string) => {
         if (!walletClient) {
           throw new Error("Wallet client not found");
         }
-        if (!network?.wToken?.address) {
-          throw new Error("wToken not found for chain");
+        if (!wrappedNativeCurrency?.address) {
+          throw new Error("Wrapped native token not found for chain");
         }
         const hash = await walletClient.writeContract({
           abi: [
@@ -278,7 +280,7 @@ export const useWalletInteractions = () => {
             },
           ],
           functionName: "deposit",
-          address: network.wToken.address as `0x${string}`,
+          address: wrappedNativeCurrency.address as `0x${string}`,
           args: [],
           value: BigInt(amount),
           chain: walletClient.chain,

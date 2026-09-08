@@ -6,13 +6,10 @@ import {
 } from "@orbs-network/swap-ui";
 import { createContext, ReactNode, useContext, useMemo } from "react";
 import {
-  isNativeAddress,
   ORBS_TWAP_FAQ_URL,
   Steps,
   ExecutionStatus,
   useExecution,
-  useExplorerLink,
-  useNetwork,
   useOrderForm,
   type ParsedError,
   type Token,
@@ -23,6 +20,7 @@ import { OrderDetails } from "./order-details";
 import { useTranslations } from "@/lib/use-translations";
 import { Spinner } from "../ui/spinner";
 import { SpotTokenLogo } from "./components";
+import { getExplorerUrl, getWrappedNativeCurrency } from "@/lib/utils";
 
 type SubmitOrderPanelProps = {
   orderTitle?: string;
@@ -44,8 +42,8 @@ const useSubmitPanelContext = () => useContext(SubmitPanelContext);
 const WrapMsg = () => {
   const t = useTranslations();
   const { inputToken } = useSubmitPanelContext();
-  const { wrapTxHash } = useExecution();
-  const wSymbol = useNetwork()?.wToken?.symbol;
+  const { wrapTxHash, chainId } = useExecution();
+  const wSymbol = getWrappedNativeCurrency(chainId)?.symbol;
 
   if (!wrapTxHash) {
     return null;
@@ -78,16 +76,9 @@ const useStep = () => {
   const { currentStep, wrapTxHash, approvalTxHash, status, chainId } =
     useExecution();
   const t = useTranslations();
-  const network = useNetwork(chainId);
-  const wrapExplorerUrl = useExplorerLink(wrapTxHash, chainId);
-  const approveExplorerUrl = useExplorerLink(
-    approvalTxHash,
-    chainId,
-  );
-  const isNativeIn = isNativeAddress(inputToken?.address || "");
-  const symbol = isNativeIn
-    ? network?.native.symbol || ""
-    : inputToken?.symbol || "";
+  const wrapExplorerUrl = getExplorerUrl(chainId, wrapTxHash);
+  const approveExplorerUrl = getExplorerUrl(chainId, approvalTxHash);
+  const symbol = inputToken?.symbol || "";
   const swapTitle = useTitle();
   
 

@@ -1,10 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { isExecutionActive } from "../execution-state";
-import {
-  useSpotStore,
-  useSpotStoreApi,
-  type SpotFormDefaults,
-} from "./spot-store";
+import type { SpotFormDefaults } from "./create-spot-store";
+import { useSpotStore, useSpotStoreApi } from "./spot-store-context";
 
 /**
  * Applies defaults when the partner, chain, module, or token pair changes.

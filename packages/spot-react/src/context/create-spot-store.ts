@@ -1,29 +1,12 @@
-import {
-  createContext,
-  useContext,
-  useState,
-  type ReactNode,
-} from "react";
-import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type {
-  Callbacks,
-  Overrides,
   SpotProps,
   State,
   StartedSwapExecution,
   SwapExecution,
-  Token,
-  WalletInteractions,
 } from "../types";
 import { ExecutionPhase } from "../types";
-import {
-  Module,
-  type Address,
-  type Order,
-  type Partners,
-  type SpotClient,
-} from "@orbs-network/spot-ui";
+import { Module, type Order, type SpotClient } from "@orbs-network/spot-ui";
 import {
   canBeginExecution,
   canTransitionExecution,
@@ -33,37 +16,12 @@ import {
 import { REFETCH_ORDER_HISTORY } from "../consts";
 import { structurallyShareOrders } from "../order-history-data";
 
-export interface SpotRuntimeState {
-  walletInteractions: WalletInteractions;
-  marketPrice?: string;
-  quotedOutputAmount?: string;
-  marketPriceLoading?: boolean;
-  account?: Address;
-  noLiquidity?: boolean;
-  typedInputAmount: string;
-  partner: Partners;
-  minTradeSizeUsd: number;
-  inputToken?: Token;
-  outputToken?: Token;
-  inputUsd1Token?: string;
-  outputUsd1Token?: string;
-  inputBalance?: string;
-  chainId?: number;
-  isSupportedChain: boolean;
-  priceProtection: number;
-  displayFeePercent: number;
-  module: Module;
-  callbacks?: Callbacks;
-  supportLegacyOrders: boolean;
-  overrides?: Overrides;
-}
-
 export interface SpotFormDefaults {
-  typedTrades?: number;
-  typedFillDelay?: State["typedFillDelay"];
-  typedDuration?: State["typedDuration"];
-  typedLimitPrice?: string;
-  typedTriggerPrice?: string;
+  tradeCount?: number;
+  tradeInterval?: State["tradeInterval"];
+  orderDuration?: State["orderDuration"];
+  limitPriceUi?: string;
+  triggerPriceUi?: string;
   triggerPricePercent?: string | null;
   limitPricePercent?: string | null;
   isMarketOrder?: boolean;
@@ -122,25 +80,25 @@ export interface SpotStore {
 
 const createFormState = (defaults: SpotFormDefaults): Pick<
   State,
-  | "typedTrades"
-  | "typedFillDelay"
-  | "typedDuration"
-  | "typedLimitPrice"
-  | "typedTriggerPrice"
+  | "tradeCount"
+  | "tradeInterval"
+  | "orderDuration"
+  | "limitPriceUi"
+  | "triggerPriceUi"
   | "triggerPricePercent"
   | "limitPricePercent"
   | "isMarketOrder"
-  | "isInvertedTrade"
+  | "isPriceInverted"
 > => ({
-  typedTrades: defaults.typedTrades,
-  typedFillDelay: defaults.typedFillDelay,
-  typedDuration: defaults.typedDuration,
-  typedLimitPrice: defaults.typedLimitPrice,
-  typedTriggerPrice: defaults.typedTriggerPrice,
+  tradeCount: defaults.tradeCount,
+  tradeInterval: defaults.tradeInterval,
+  orderDuration: defaults.orderDuration,
+  limitPriceUi: defaults.limitPriceUi,
+  triggerPriceUi: defaults.triggerPriceUi,
   triggerPricePercent: defaults.triggerPricePercent,
   limitPricePercent: defaults.limitPricePercent,
   isMarketOrder: defaults.isMarketOrder,
-  isInvertedTrade: undefined,
+  isPriceInverted: undefined,
 });
 
 const createInitialState = (defaults: SpotFormDefaults): State => ({
@@ -484,61 +442,17 @@ export const createSpotStore = (
   });
 };
 
-const SpotStoreContext = createContext<StoreApi<SpotStore> | null>(null);
-const SpotRuntimeContext = createContext<SpotRuntimeState | null>(null);
-
-export const SpotStoreProvider = ({
-  children,
-  runtime,
-  initialState,
-}: {
-  children: ReactNode;
-  runtime: SpotRuntimeState;
-  initialState: SpotFormDefaults;
-}) => {
-  const [store] = useState(() => createSpotStore(initialState));
-
-  return (
-    <SpotRuntimeContext.Provider value={runtime}>
-      <SpotStoreContext.Provider value={store}>
-        {children}
-      </SpotStoreContext.Provider>
-    </SpotRuntimeContext.Provider>
-  );
-};
-
-export const useSpotRuntime = (): SpotRuntimeState => {
-  const runtime = useContext(SpotRuntimeContext);
-  if (runtime === null) {
-    throw new Error("useSpotRuntime must be used within SpotProvider");
-  }
-  return runtime;
-};
-
-export const useSpotStoreApi = (): StoreApi<SpotStore> => {
-  const store = useContext(SpotStoreContext);
-  if (store === null) {
-    throw new Error("useSpotStore must be used within SpotProvider");
-  }
-  return store;
-};
-
-export const useSpotStore = <T,>(selector: (store: SpotStore) => T): T => {
-  const store = useSpotStoreApi();
-  return useStore(store, selector);
-};
-
 export const createSpotFormDefaults = (
   props: Pick<SpotProps, "module" | "overrides">,
 ): SpotFormDefaults => {
   const state = props.overrides?.state;
   return {
     isMarketOrder: props.module === Module.LIMIT ? false : state?.isMarketOrder,
-    typedTrades: state?.trades,
-    typedFillDelay: state?.fillDelay,
-    typedDuration: state?.duration,
-    typedLimitPrice: state?.limitPrice,
-    typedTriggerPrice: state?.triggerPrice,
+    tradeCount: state?.tradeCount,
+    tradeInterval: state?.tradeInterval,
+    orderDuration: state?.orderDuration,
+    limitPriceUi: state?.limitPriceUi,
+    triggerPriceUi: state?.triggerPriceUi,
     triggerPricePercent: state?.triggerPricePercent,
     limitPricePercent: state?.limitPricePercent,
   };

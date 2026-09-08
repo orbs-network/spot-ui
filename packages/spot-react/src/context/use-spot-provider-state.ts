@@ -1,16 +1,16 @@
 import {
+  eqIgnoreCase,
   getPartnerChains,
-  shouldUnwrapOnly,
-  shouldWrapOnly,
-  toAmountWei,
+  isNativeAddress,
+  toAmountRaw,
 } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
 import type { SpotProps } from "../types";
 import {
   createSpotFormDefaults,
   type SpotFormDefaults,
-  type SpotRuntimeState,
-} from "./spot-store";
+} from "./create-spot-store";
+import type { SpotRuntimeState } from "./spot-runtime-context";
 
 interface SpotProviderState {
   initialState: SpotFormDefaults;
@@ -26,21 +26,25 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
   const isSupportedChain = Boolean(
     props.chainId && supportedChains.includes(props.chainId),
   );
-  const isNativePair =
-    shouldWrapOnly(props.inputToken, props.outputToken, props.chainId) ||
-    shouldUnwrapOnly(props.inputToken, props.outputToken, props.chainId);
-  const marketPrice = isNativePair
-    ? toAmountWei("1", props.outputToken?.decimals)
-    : undefined;
-  const quotedOutputAmount = isNativePair
-    ? undefined
-    : props.marketReferencePrice.value;
+  const wrappedNativeAddress = props.wrappedNativeToken?.address;
+  const isNativePair = Boolean(
+    wrappedNativeAddress &&
+      ((isNativeAddress(props.inputToken?.address) &&
+        eqIgnoreCase(props.outputToken?.address || "", wrappedNativeAddress)) ||
+        (eqIgnoreCase(props.inputToken?.address || "", wrappedNativeAddress) &&
+          isNativeAddress(props.outputToken?.address))),
+  );
+  const quotedOutputAmountRaw = isNativePair
+    ? toAmountRaw(props.inputAmountUi, props.outputToken?.decimals)
+    : props.marketQuote.isLoading
+      ? undefined
+      : props.marketQuote.quotedOutputAmountRaw;
   const marketPriceLoading = isNativePair
     ? false
-    : props.marketReferencePrice.isLoading;
+    : props.marketQuote.isLoading;
   const noLiquidity = isNativePair
     ? false
-    : props.marketReferencePrice.noLiquidity;
+    : props.marketQuote.noLiquidity;
   const initialState = useMemo(
     () =>
       createSpotFormDefaults({
@@ -57,30 +61,32 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
     props.inputToken?.decimals,
     props.outputToken?.address,
     props.outputToken?.decimals,
+    props.wrappedNativeToken?.address,
+    props.wrappedNativeToken?.decimals,
     initialState,
   ]);
   const runtime = useMemo<SpotRuntimeState>(
     () => ({
-      typedInputAmount: props.typedInputAmount,
+      inputAmountUi: props.inputAmountUi,
       minTradeSizeUsd: props.minTradeSizeUsd,
       account: props.account,
       walletInteractions: props.walletInteractions,
-      marketPrice,
-      quotedOutputAmount,
+      quotedOutputAmountRaw,
       marketPriceLoading,
       noLiquidity,
-      priceProtection: props.priceProtection,
+      priceProtectionPercent: props.priceProtectionPercent,
       chainId: props.chainId,
       isSupportedChain,
       partner: props.partner,
       module: props.module,
       displayFeePercent: props.displayFeePercent ?? 0,
       callbacks: props.callbacks,
-      inputUsd1Token: props.inputUsd1Token,
-      outputUsd1Token: props.outputUsd1Token,
-      inputBalance: props.inputBalance,
+      inputTokenUsdPrice: props.inputTokenUsdPrice,
+      outputTokenUsdPrice: props.outputTokenUsdPrice,
+      inputBalanceRaw: props.inputBalanceRaw,
       inputToken: props.inputToken,
       outputToken: props.outputToken,
+      wrappedNativeToken: props.wrappedNativeToken,
       supportLegacyOrders: props.supportLegacyOrders ?? false,
       overrides: props.overrides,
     }),
@@ -89,24 +95,24 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
       props.callbacks,
       props.chainId,
       props.displayFeePercent,
-      props.inputBalance,
+      props.inputBalanceRaw,
       props.inputToken,
-      props.inputUsd1Token,
+      props.inputTokenUsdPrice,
       props.minTradeSizeUsd,
       props.module,
       props.outputToken,
-      props.outputUsd1Token,
+      props.outputTokenUsdPrice,
+      props.wrappedNativeToken,
       props.overrides,
       props.partner,
-      props.priceProtection,
+      props.priceProtectionPercent,
       props.supportLegacyOrders,
-      props.typedInputAmount,
+      props.inputAmountUi,
       props.walletInteractions,
       isSupportedChain,
-      marketPrice,
       marketPriceLoading,
       noLiquidity,
-      quotedOutputAmount,
+      quotedOutputAmountRaw,
     ],
   );
 

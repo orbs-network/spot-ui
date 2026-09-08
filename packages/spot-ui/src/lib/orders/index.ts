@@ -1,5 +1,5 @@
 import { Order, Partners } from "../types";
-import { getTwapConfig } from "../lib";
+import { getTwapConfig } from "./legacy-twap-config";
 import { getOrders as getV1Orders } from "./v1-orders";
 import { getOrders as getV2Orders } from "./v2-orders";
 

@@ -14,37 +14,36 @@ display and order execution.
 import {
   calculateOrderForm,
   Module,
-  toAmountWei,
 } from "@orbs-network/spot-ui";
 
 const form = calculateOrderForm({
   module: Module.TWAP,
-  isMarketOrder: true,
-
-  // Raw input-token amount.
-  inputAmountWei: toAmountWei(typedInputAmount, inputToken.decimals),
   inputTokenDecimals: inputToken.decimals,
   outputTokenDecimals: outputToken.decimals,
 
   // Raw output-token amount quoted for the complete input amount.
-  quotedOutputAmount,
-  inputUsdPrice,
-  outputUsdPrice,
+  quotedOutputAmountRaw,
+  inputTokenUsdPrice,
+  outputTokenUsdPrice,
   minTradeSizeUsd,
-
-  // Optional user overrides. Omit them to use SDK defaults.
-  trades,
-  fillDelay,
-  duration,
-  limitPrice,
-  limitPricePercent,
-  triggerPrice,
-  triggerPricePercent,
-  isInverted,
-
-  priceProtection: 3, // 3%
+  priceProtectionPercent: 3,
   displayFeePercent,
-  inputBalance, // raw input-token units
+  inputBalanceRaw,
+
+  userInput: {
+    inputAmountUi,
+    isMarketOrder: true,
+
+    // Optional user overrides. Omit them to use SDK defaults.
+    tradeCount,
+    tradeInterval,
+    orderDuration,
+    limitPriceUi,
+    limitPricePercent,
+    triggerPriceUi,
+    triggerPricePercent,
+    isPriceInverted,
+  },
 });
 ```
 
@@ -78,20 +77,13 @@ protocol response models such as `Order`.
 
 This calculation is synchronous and does not fetch configuration. Optional
 fields can be passed while the user edits the form; the result always contains
-the currently derivable values. `inputAmountWei` is the single input amount
-input; the SDK derives its UI and USD representations from the token decimals
-and USD price. Integrations that already have a per-input-token raw rate can
-pass `marketPrice` instead of `quotedOutputAmount`.
-
-`marketPrice` and `quotedOutputAmount` use different units:
-
-- `marketPrice` is the raw output-token amount for exactly one whole input
-  token (for example, a 2 USDC rate with 6 output decimals is `"2000000"`);
-- `quotedOutputAmount` is the raw output-token amount quoted for the complete
-  `inputAmountWei`.
-
-Pass one or the other. When `quotedOutputAmount` is supplied, the SDK derives
-the per-token rate using `inputAmountWei` and `inputTokenDecimals`.
+the currently derivable values. Editable fields live under `userInput`, while
+token, quote, balance, and configuration data stay at the top level.
+`userInput.inputAmountUi` is the single input amount. The SDK derives its raw
+and USD representations from the token decimals and USD price.
+`quotedOutputAmountRaw` is the raw output-token amount quoted for that complete
+input amount; the SDK derives the per-token market rate from the two values.
+Omit a stale quote while a replacement quote is loading.
 
 `calculateOrderForm` is time-independent. Recalculate only when its form or
 market inputs change. `prepareOrder` stamps the current start and deadline from
@@ -104,10 +96,10 @@ uses the same defaults, validation, and derived-value rules.
 
 `minTradeSizeUsd` is a positive USD threshold owned by the integrating DEX.
 Use the minimum approved for that partner/product; the SDK deliberately does
-not guess protocol policy. `priceProtection` is a percentage, so `3` means 3%
-(300 basis points), not 3 bps. `displayFeePercent` is also a percentage, but it
-only calculates `form.fees` for display. It does not collect or subtract a fee;
-collection must be configured by the partner/backend.
+not guess protocol policy. `priceProtectionPercent` uses percentage units, so
+`3` means 3% (300 basis points), not 3 bps. `displayFeePercent` is also a
+percentage, but it only calculates `form.fees` for display. It does not collect
+or subtract a fee; collection must be configured by the partner/backend.
 
 ## Client and order submission
 
@@ -129,44 +121,48 @@ validated form and client configuration.
 import {
   calculateOrderForm,
   createClient,
-  ensureWrappedToken,
-  getExplorerUrl,
   isNativeAddress,
   isTxRejected,
   Module,
   Partners,
-  toAmountWei,
 } from "@orbs-network/spot-ui";
 
 const client = await createClient(Partners.Quick, 137);
 
 const form = calculateOrderForm({
   module: Module.TWAP,
-  isMarketOrder: true,
-  inputAmountWei: toAmountWei(typedInputAmount, inputToken.decimals),
   inputTokenDecimals: inputToken.decimals,
   outputTokenDecimals: outputToken.decimals,
-  quotedOutputAmount,
-  inputUsdPrice,
-  outputUsdPrice,
+  quotedOutputAmountRaw,
+  inputTokenUsdPrice,
+  outputTokenUsdPrice,
   minTradeSizeUsd,
-  trades,
-  fillDelay,
-  duration,
-  limitPrice,
-  limitPricePercent,
-  triggerPrice,
-  triggerPricePercent,
-  isInverted,
-  priceProtection: 3,
+  priceProtectionPercent: 3,
   displayFeePercent,
-  inputBalance,
+  inputBalanceRaw,
+  userInput: {
+    inputAmountUi,
+    isMarketOrder: true,
+    tradeCount,
+    tradeInterval,
+    orderDuration,
+    limitPriceUi,
+    limitPricePercent,
+    triggerPriceUi,
+    triggerPricePercent,
+    isPriceInverted,
+  },
 });
 
 const amount = form.inputAmount.raw;
-const approvalToken = ensureWrappedToken(inputToken, client.chainId);
+const orderInputToken = isNativeAddress(inputToken.address)
+  ? wrappedNativeToken
+  : inputToken;
+if (!orderInputToken) {
+  throw new Error("The host must provide the chain's wrapped native token");
+}
 const approvalRequest = {
-  tokenAddress: approvalToken.address,
+  tokenAddress: orderInputToken.address,
   amount,
   spenderAddress: client.spenderAddress,
 };
@@ -195,7 +191,7 @@ try {
 
   const preparedOrder = client.prepareOrder({
     form,
-    inputTokenAddress: inputToken.address,
+    inputTokenAddress: orderInputToken.address,
     outputTokenAddress: outputToken.address,
     swapperAddress: account,
   });
@@ -205,7 +201,7 @@ try {
       wallet.signTypedData(typedData, signerAddress),
   );
   const order = await client.submitOrder(preparedOrder, signature);
-  console.info("Order submitted", order, getExplorerUrl(order.txHash, 137));
+  console.info("Order submitted", order);
 } catch (error) {
   if (isTxRejected(error)) console.info("The wallet request was rejected");
   else throw error;
@@ -276,21 +272,21 @@ the host's polling schedule and find it by `historyKey`. Supplying a page and
 limit avoids fetching every history page when only a recent status window is
 needed.
 
-Use `client.spenderAddress` for allowance reads and approvals. Normalize a
-native input with `ensureWrappedToken`, and approve `form.inputAmount.raw`.
+Use `client.spenderAddress` for allowance reads and approvals. When the input
+is native, the host must pass its chain's wrapped native token address to
+`prepareOrder`; approve `form.inputAmount.raw` against that same token.
 The `approvalRequest` returned by `prepareOrder` records the same normalized
 token, spender, and exact amount used by the signed order.
 
-Native token addresses are normalized to the chain's wrapped token for order
-input and approval requests. Protocol configuration fetching, RePermit order
+`spot-ui` deliberately has no network registry and does not infer wrapped-token
+or explorer metadata. The host DEX owns that chain data. Protocol configuration
+fetching, RePermit order
 construction, submission, cancellation request construction, and configured
 history access are intentionally exposed only through `SpotClient`. This keeps
 partner- and chain-derived values on one authoritative path.
 
-Framework-neutral helpers `ensureWrappedToken`, `shouldWrapOnly`,
-`shouldUnwrapOnly`, `isTxRejected`, and `getExplorerUrl` are also exported from
-`spot-ui`; Vue, Angular, Svelte, and server integrations do not need to copy
-React-specific utility code.
+Framework-neutral helpers such as `isNativeAddress` and `isTxRejected` remain
+available to Vue, Angular, Svelte, vanilla JavaScript, and server integrations.
 
 Every `createClient` call performs a new configuration request. Cache the
 returned promise or client in the host application's normal data layer when it

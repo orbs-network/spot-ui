@@ -7,7 +7,7 @@ import {
 } from "react";
 import type { ClientErrorFallbackProps } from "../types";
 import { useClient } from "./use-client";
-import { useSpotRuntime } from "./spot-store";
+import { useSpotRuntime } from "./spot-runtime-context";
 
 const DefaultClientErrorFallback = ({
   error,

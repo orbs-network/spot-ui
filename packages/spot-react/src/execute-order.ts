@@ -1,7 +1,5 @@
 import {
   analytics,
-  ensureWrappedToken,
-  getExplorerUrl,
   isNativeAddress,
   isTxRejected,
   toAmountUI,
@@ -47,6 +45,7 @@ export interface ExecuteOrderParams extends ExecutionStoreActions {
   isSupportedChain: boolean;
   inputToken?: Token;
   outputToken?: Token;
+  wrappedNativeToken?: Token;
   form: CalculatedOrderForm;
   client?: SpotClient;
   walletInteractions: WalletInteractions;
@@ -72,12 +71,12 @@ const hasAllowance = async ({
   client,
   walletInteractions,
   tokenAddress,
-  inputAmountWei,
+  inputAmountRaw,
 }: {
   client: SpotClient;
   walletInteractions: WalletInteractions;
   tokenAddress: string;
-  inputAmountWei: string;
+  inputAmountRaw: string;
 }): Promise<boolean> => {
   const allowance = await walletInteractions.getAllowance({
     tokenAddress,
@@ -87,7 +86,7 @@ const hasAllowance = async ({
   // exact here and avoids exposing a decimal-math dependency from spot-react.
   return (
     parseBaseUnitAmount(allowance || "0", "Allowance") >=
-    parseBaseUnitAmount(inputAmountWei, "Input amount")
+    parseBaseUnitAmount(inputAmountRaw, "Input amount")
   );
 };
 
@@ -95,9 +94,10 @@ interface ValidatedExecutionInputs {
   account: Address;
   chainId: number;
   inputToken: Token;
+  orderInputToken: Token;
   outputToken: Token;
   client: SpotClient;
-  inputAmountWei: string;
+  inputAmountRaw: string;
 }
 
 const validateExecutionInputs = (
@@ -110,19 +110,26 @@ const validateExecutionInputs = (
   if (!params.account) throw new Error("missing account");
   if (!params.inputToken) throw new Error("missing inputToken");
   if (!params.outputToken) throw new Error("missing outputToken");
+  const orderInputToken = isNativeAddress(params.inputToken.address)
+    ? params.wrappedNativeToken
+    : params.inputToken;
+  if (!orderInputToken || isNativeAddress(orderInputToken.address)) {
+    throw new Error("missing wrappedNativeToken for native input");
+  }
   if (!params.form.canSubmit) {
     throw new Error("Order form is not submittable");
   }
 
-  const inputAmountWei = params.form.inputAmount.raw;
-  parseBaseUnitAmount(inputAmountWei, "Input amount");
+  const inputAmountRaw = params.form.inputAmount.raw;
+  parseBaseUnitAmount(inputAmountRaw, "Input amount");
   return {
     account: params.account,
     chainId: params.chainId,
     inputToken: params.inputToken,
+    orderInputToken,
     outputToken: params.outputToken,
     client: params.client,
-    inputAmountWei,
+    inputAmountRaw,
   };
 };
 
@@ -203,9 +210,10 @@ export const executeOrder = async (
     account,
     chainId,
     inputToken,
+    orderInputToken,
     outputToken,
     client,
-    inputAmountWei,
+    inputAmountRaw,
   } = inputs;
   const previousExecution = getCurrentExecution();
   const completedWrap = getReusableCompletedWrap({
@@ -213,7 +221,7 @@ export const executeOrder = async (
     account,
     chainId,
     inputTokenAddress: inputToken.address,
-    inputAmountWei,
+    inputAmountRaw,
   });
   const startedExecution = beginExecution({
     form,
@@ -258,16 +266,12 @@ export const executeOrder = async (
   };
 
   try {
-    const wrappedInputToken = ensureWrappedToken(inputToken, chainId);
     const wrapRequired = isNativeAddress(inputToken.address) && !completedWrap;
-    if (wrapRequired && isNativeAddress(wrappedInputToken.address)) {
-      throw new Error("Wrapped input token is unavailable");
-    }
     const approvalRequired = !(await hasAllowance({
       client,
       walletInteractions,
-      tokenAddress: wrappedInputToken.address,
-      inputAmountWei,
+      tokenAddress: orderInputToken.address,
+      inputAmountRaw,
     }));
     const executionSteps: Steps[] = [];
     if (wrapRequired) executionSteps.push(Steps.WRAP);
@@ -286,14 +290,14 @@ export const executeOrder = async (
       observe(() => analytics.onWrapRequest());
       observe(callbacks?.onWrapRequest);
       const wrapTxHash = await walletInteractions.wrapNativeToken(
-        inputAmountWei,
+        inputAmountRaw,
       );
       if (!wrapTxHash) throw new Error("failed to wrap input token");
       const nextCompletedWrap = {
         account,
         chainId,
         inputTokenAddress: inputToken.address,
-        inputAmountWei,
+        inputAmountRaw,
         txHash: wrapTxHash,
       };
       currentStepIndex++;
@@ -306,8 +310,7 @@ export const executeOrder = async (
       observe(() =>
         callbacks?.onWrapSuccess?.({
           txHash: wrapTxHash,
-          explorerUrl: getExplorerUrl(wrapTxHash, chainId),
-          amount: toAmountUI(inputAmountWei, wrappedInputToken.decimals),
+          amount: toAmountUI(inputAmountRaw, orderInputToken.decimals),
         }),
       );
     }
@@ -317,8 +320,8 @@ export const executeOrder = async (
       observe(() => analytics.onApproveRequest());
       observe(callbacks?.onApproveRequest);
       const approveTxHash = await walletInteractions.approveToken({
-        tokenAddress: wrappedInputToken.address,
-        amount: inputAmountWei,
+        tokenAddress: orderInputToken.address,
+        amount: inputAmountRaw,
         spenderAddress: client.spenderAddress,
       });
       if (!approveTxHash) throw new Error("failed to approve token");
@@ -329,8 +332,8 @@ export const executeOrder = async (
         approved = await hasAllowance({
           client,
           walletInteractions,
-          tokenAddress: wrappedInputToken.address,
-          inputAmountWei,
+          tokenAddress: orderInputToken.address,
+          inputAmountRaw,
         });
         if (approved) break;
         if (attempt < APPROVAL_CHECK_ATTEMPTS - 1) {
@@ -339,7 +342,7 @@ export const executeOrder = async (
       }
       if (!approved) {
         throw new Error(
-          `Insufficient ${wrappedInputToken.symbol} allowance to perform the swap. Please approve the token first.`,
+          `Insufficient ${orderInputToken.symbol} allowance to perform the swap. Please approve the token first.`,
         );
       }
 
@@ -352,9 +355,8 @@ export const executeOrder = async (
       observe(() =>
         callbacks?.onApproveSuccess?.({
           txHash: approveTxHash,
-          explorerUrl: getExplorerUrl(approveTxHash, chainId),
-          token: wrappedInputToken,
-          amount: toAmountUI(inputAmountWei, wrappedInputToken.decimals),
+          token: orderInputToken,
+          amount: toAmountUI(inputAmountRaw, orderInputToken.decimals),
         }),
       );
     }
@@ -362,7 +364,7 @@ export const executeOrder = async (
     transition(ExecutionPhase.SIGNING);
     const preparedOrder = client.prepareOrder({
       form,
-      inputTokenAddress: inputToken.address,
+      inputTokenAddress: orderInputToken.address,
       outputTokenAddress: outputToken.address,
       swapperAddress: account,
     });

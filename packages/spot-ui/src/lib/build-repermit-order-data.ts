@@ -5,16 +5,11 @@ import {
   RePermitData,
   RePermitOrder,
 } from "./types";
-import {
-  getNetwork,
-  isNativeAddress,
-  safeBNString,
-} from "./utils";
-import { getRePermitConfigEndpoint } from "./consts";
+import { safeBNString } from "./utils";
+import { getRePermitConfigEndpoint } from "./api-config";
 import BN from "bignumber.js";
 
 export type BuildRePermitOrderDataParams = {
-  chainId: number;
   inputTokenAddress: string;
   outputTokenAddress: string;
   totalInputAmount: string;
@@ -53,7 +48,6 @@ export const fetchRePermitData = async (
 };
 
 export const buildRePermitOrderData = ({
-  chainId,
   inputTokenAddress,
   outputTokenAddress,
   totalInputAmount,
@@ -77,9 +71,6 @@ export const buildRePermitOrderData = ({
   const deadline = safeBNString(deadlineMillis / 1000);
   const freshness = 60;
   const start = Math.floor(currentTimeMillis / 1000).toString();
-  const normalizedInputTokenAddress = isNativeAddress(inputTokenAddress)
-    ? getNetwork(chainId)?.wToken.address || ""
-    : inputTokenAddress;
   const limit = BN(minOutputAmountPerTrade || 0).toFixed();
   const triggerLower = BN(
     module === Module.STOP_LOSS ? triggerOutputAmountPerTrade || 0 : 0,
@@ -92,7 +83,7 @@ export const buildRePermitOrderData = ({
     ...permitData.order,
     permitted: {
       ...permitData.order.permitted,
-      token: normalizedInputTokenAddress as Address,
+      token: inputTokenAddress as Address,
       amount: totalInputAmount,
     },
     nonce,
@@ -108,7 +99,7 @@ export const buildRePermitOrderData = ({
       freshness,
       input: {
         ...permitData.order.witness.input,
-        token: normalizedInputTokenAddress as Address,
+        token: inputTokenAddress as Address,
         amount: inputAmountPerTrade,
         maxAmount: totalInputAmount,
       },

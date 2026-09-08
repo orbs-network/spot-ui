@@ -1,11 +1,8 @@
 import { createClient, type SpotClient } from "@orbs-network/spot-ui";
 import { useCallback, useEffect, useMemo } from "react";
-import {
-  useSpotRuntime,
-  useSpotStore,
-  useSpotStoreApi,
-  type ClientResourceState,
-} from "./spot-store";
+import type { ClientResourceState } from "./create-spot-store";
+import { useSpotRuntime } from "./spot-runtime-context";
+import { useSpotStore, useSpotStoreApi } from "./spot-store-context";
 
 export interface ClientResult {
   data?: SpotClient;

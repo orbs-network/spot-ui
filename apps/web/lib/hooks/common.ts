@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { formatDecimals, parseNativeCurrencyAddress, toAmountUI, toAmountWei } from "../utils";
+import { formatDecimals, parseNativeCurrencyAddress, toAmountRaw, toAmountUI } from "../utils";
 import {useNumericFormat} from "react-number-format";
 import { useConnection } from "wagmi";
 
@@ -17,7 +17,7 @@ export const useFormatDecimals = (value?: string,decimals = 6) => {
 
 export const useToAmountWei = (decimals?: number, value?: string) => {
     return useMemo(() => {
-        return toAmountWei(value, decimals);
+        return toAmountRaw(value, decimals);
     }, [decimals, value]);
 };
 

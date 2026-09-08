@@ -2,7 +2,7 @@
 import { Virtuoso } from "react-virtuoso";
 import { useHistoryOrder, type Token } from "@orbs-network/spot-react";
 import { useDateFormat } from "@/lib/hooks/common";
-import { makeEllipsisAddress } from "@/lib/utils";
+import { getExplorerUrl, makeEllipsisAddress } from "@/lib/utils";
 import { FormatNumber } from "./format-number";
 import { OrderDetails } from "./order-details";
 import { SpotTokenLogo } from "./components";
@@ -10,6 +10,7 @@ import { useTranslations } from "@/lib/use-translations";
 import { useOrdersPanelContext } from "./orders-context";
 import { ArrowRightIcon, ChevronDownIcon } from "lucide-react";
 import { useCallback } from "react";
+import { useConnection } from "wagmi";
 
 type SelectedOrder = NonNullable<ReturnType<typeof useHistoryOrder>>;
 type DerivedFill = SelectedOrder["fills"][number];
@@ -74,6 +75,8 @@ const FillItem = ({
 }) => {
   const dateUi = useDateFormat(fill.timestamp);
   const t = useTranslations();
+  const { chainId } = useConnection();
+  const explorerUrl = getExplorerUrl(chainId, fill.txHash);
 
   return (
     <OrderDetails className="twap-fills-view__item">
@@ -108,7 +111,7 @@ const FillItem = ({
           className="twap-fills-view__item-tx"
         >
           <a
-            href={fill.explorerUrl}
+            href={explorerUrl}
             target="_blank"
             rel="noopener noreferrer"
             title={fill.txHash}

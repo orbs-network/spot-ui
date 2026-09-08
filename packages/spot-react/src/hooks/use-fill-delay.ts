@@ -1,7 +1,8 @@
 import { type TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime, useSpotStore } from "../context/spot-store";
+import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotStore } from "../context/spot-store-context";
 import { observe } from "../execution-state";
 
 export const useFillDelay = () => {
@@ -10,9 +11,9 @@ export const useFillDelay = () => {
   const { schedule } = useOrderForm();
   const { fillDelay } = schedule;
   const onChange = useCallback(
-    (typedFillDelay: TimeDuration) => {
-      updateState({ typedFillDelay });
-      observe(() => callbacks?.onFillDelayChange?.(typedFillDelay));
+    (tradeInterval: TimeDuration) => {
+      updateState({ tradeInterval });
+      observe(() => callbacks?.onTradeIntervalChange?.(tradeInterval));
     },
     [callbacks, updateState],
   );

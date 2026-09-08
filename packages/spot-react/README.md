@@ -49,8 +49,8 @@ If migrating from `@orbs-network/twap-ui`, remove it before installing the packa
 Version 2 is a deliberately breaking, headless API. Replace the broad `useSpot`
 and `useSwapExecution` interfaces with focused hooks such as `useOrderForm`,
 `useExecution`, `useSubmitButton`, and `useOrders`. Provider values now use
-`input`/`output` terminology (`inputToken`, `outputToken`, `inputBalance`, and
-`minTradeSizeUsd`), and the host supplies wallet operations through
+`input`/`output` terminology (`inputToken`, `outputToken`, `inputBalanceRaw`,
+and `minTradeSizeUsd`), and the host supplies wallet operations through
 `walletInteractions`. Debug query parameters and the `isDev` option are no
 longer supported.
 
@@ -79,6 +79,7 @@ Keep the DEX swap form as the source of truth. Pass the following adapted values
 | Value | Expected shape |
 | --- | --- |
 | Selected tokens | `Token` objects with `address`, `symbol`, `decimals`, and optional `logoUrl` |
+| Wrapped native token | The connected chain's wrapped-native `Token`, supplied by the DEX |
 | Typed source amount | User-facing decimal string, for example `"1.25"` |
 | Quote output | Raw destination-token amount for the current typed input |
 | Input balance | Raw integer string |
@@ -87,7 +88,7 @@ Keep the DEX swap form as the source of truth. Pass the following adapted values
 
 If several Spot components need the same DEX-owned values, expose a small DEX adapter context. Do not copy the swap state into a parallel Spot store, prop-drill long value lists, or create a hook whose only purpose is forwarding props to `SpotProvider`.
 
-Memoize objects with `useMemo` and functions with `useCallback`. In particular, keep stable identities for tokens, `marketReferencePrice`, `walletInteractions`, and `callbacks`.
+Memoize objects with `useMemo` and functions with `useCallback`. In particular, keep stable identities for selected tokens, `wrappedNativeToken`, `marketQuote`, `walletInteractions`, and `callbacks`.
 
 ## Provider Setup
 
@@ -99,7 +100,7 @@ import {
   Partners,
   SpotProvider,
   type Callbacks,
-  type MarketReferencePrice,
+  type MarketQuote,
   type Token,
   type WalletInteractions,
 } from "@orbs-network/spot-react";
@@ -126,13 +127,14 @@ function SpotOrderForm({ module }: { module: Module }) {
     chainId,
     inputCurrency,
     outputCurrency,
-    inputBalance,
-    typedInputAmount,
-    quotedInputAmount,
-    quoteOutputRaw,
+    wrappedNativeCurrency,
+    inputBalanceRaw,
+    inputAmountUi,
+    quotedInputAmountUi,
+    quotedOutputAmountRaw,
     isQuoteLoading,
-    inputUsdPrice,
-    outputUsdPrice,
+    inputTokenUsdPrice,
+    outputTokenUsdPrice,
     refetchBalances,
     dexWallet,
   } = useDexSpotAdapter();
@@ -157,26 +159,38 @@ function SpotOrderForm({ module }: { module: Module }) {
     };
   }, [outputCurrency]);
 
-  const marketReferencePrice = useMemo<MarketReferencePrice>(() => {
+  const wrappedNativeToken = useMemo<Token | undefined>(() => {
+    if (!wrappedNativeCurrency) return undefined;
+    return {
+      address: wrappedNativeCurrency.address,
+      symbol: wrappedNativeCurrency.symbol,
+      decimals: wrappedNativeCurrency.decimals,
+      logoUrl: wrappedNativeCurrency.logoUrl,
+    };
+  }, [wrappedNativeCurrency]);
+
+  const marketQuote = useMemo<MarketQuote>(() => {
     const shouldQuote = Boolean(
-      typedInputAmount && inputCurrency && outputCurrency,
+      inputAmountUi && inputCurrency && outputCurrency,
     );
-    const isStale = shouldQuote && typedInputAmount !== quotedInputAmount;
-    const value = !shouldQuote || isStale ? undefined : quoteOutputRaw;
+    const isStale = shouldQuote && inputAmountUi !== quotedInputAmountUi;
+    const currentQuotedOutputAmountRaw =
+      !shouldQuote || isStale ? undefined : quotedOutputAmountRaw;
     const isLoading = shouldQuote && (isStale || isQuoteLoading);
 
     return {
-      value,
+      quotedOutputAmountRaw: currentQuotedOutputAmountRaw,
       isLoading,
-      noLiquidity: shouldQuote && !isLoading && !value,
+      noLiquidity:
+        shouldQuote && !isLoading && !currentQuotedOutputAmountRaw,
     };
   }, [
     inputCurrency,
     isQuoteLoading,
     outputCurrency,
-    quoteOutputRaw,
-    quotedInputAmount,
-    typedInputAmount,
+    quotedOutputAmountRaw,
+    quotedInputAmountUi,
+    inputAmountUi,
   ]);
 
   const walletInteractions = useMemo<WalletInteractions>(
@@ -199,18 +213,19 @@ function SpotOrderForm({ module }: { module: Module }) {
     <SpotProvider
       partner={Partners.Quick}
       module={module}
-      typedInputAmount={typedInputAmount}
-      priceProtection={3}
+      inputAmountUi={inputAmountUi}
+      priceProtectionPercent={3}
       minTradeSizeUsd={5}
-      marketReferencePrice={marketReferencePrice}
+      marketQuote={marketQuote}
       walletInteractions={walletInteractions}
       chainId={chainId}
       account={account}
       inputToken={inputToken}
       outputToken={outputToken}
-      inputBalance={inputBalance?.toString()}
-      inputUsd1Token={inputUsdPrice}
-      outputUsd1Token={outputUsdPrice}
+      wrappedNativeToken={wrappedNativeToken}
+      inputBalanceRaw={inputBalanceRaw}
+      inputTokenUsdPrice={inputTokenUsdPrice}
+      outputTokenUsdPrice={outputTokenUsdPrice}
       callbacks={callbacks}
       clientErrorFallback={ClientErrorFallback}
       appId="my-dex"
@@ -222,7 +237,14 @@ function SpotOrderForm({ module }: { module: Module }) {
 }
 ```
 
-`marketReferencePrice.value` is the DEX quote's raw destination amount for the current `typedInputAmount`, not a standalone per-token price. If the quote belongs to an older input or token pair, omit `value` and report `isLoading: true` until a current quote arrives.
+`marketQuote.quotedOutputAmountRaw` is the DEX quote's raw output amount for the current `inputAmountUi`, not a standalone per-token price. If the quote belongs to an older input or token pair, omit `quotedOutputAmountRaw` and report `isLoading: true` until a current quote arrives.
+
+`spot-react` has no network registry. Always pass the `wrappedNativeToken` prop
+from the DEX's own chain configuration; its value may be `undefined` only until
+a chain is known. It is used for native/wrapped pair detection, allowance checks,
+approval, and order preparation. Explorer links are also host-owned; callbacks
+and history values expose transaction hashes so the DEX can format links with
+its existing chain metadata.
 
 Use the connected wallet chain as the source of truth. When it is absent or unsupported, the provider does not initialize a client and submission stays disabled. The DEX submit area should show its connect-wallet or switch-network control.
 
@@ -232,19 +254,20 @@ Use the connected wallet chain as the source of truth. When it is absent or unsu
 | --- | --- | --- | --- |
 | `partner` | `Partners` | Yes | DEX partner enum |
 | `module` | `Module` | Yes | `TWAP`, `LIMIT`, `STOP_LOSS`, or `TAKE_PROFIT` |
-| `typedInputAmount` | `string` | Yes | User-facing source amount from DEX state |
-| `priceProtection` | `number` | Yes | Price Protection percentage; this is not swap slippage |
+| `inputAmountUi` | `string` | Yes | User-entered input-token amount |
+| `priceProtectionPercent` | `number` | Yes | Price Protection percentage; this is not swap slippage |
 | `minTradeSizeUsd` | `number` | Yes | Minimum individual trade size in USD |
-| `marketReferencePrice` | `MarketReferencePrice` | Yes | `{ value?, isLoading?, noLiquidity? }` for the current DEX quote |
+| `marketQuote` | `MarketQuote` | Yes | `{ quotedOutputAmountRaw?, isLoading?, noLiquidity? }` for the current DEX quote |
 | `walletInteractions` | `WalletInteractions` | Yes | Five wallet methods implemented by the DEX |
 | `chainId` | `number` | No | Connected wallet chain ID |
 | `account` | `Address` | No | Connected wallet address |
 | `appId` | `string` | No | Stable host-defined analytics identifier (for example the DEX slug) |
 | `inputToken` | `Token` | No | Input token metadata |
 | `outputToken` | `Token` | No | Output token metadata |
-| `inputBalance` | `string` | No | Raw input-token balance |
-| `inputUsd1Token` | `string` | No | USD value of one whole input token |
-| `outputUsd1Token` | `string` | No | USD value of one whole output token |
+| `wrappedNativeToken` | `Token \| undefined` | Yes | Host-provided wrapped-native token; pass `undefined` only before a chain is known |
+| `inputBalanceRaw` | `string` | No | Raw input-token balance |
+| `inputTokenUsdPrice` | `string` | No | USD value of one whole input token |
+| `outputTokenUsdPrice` | `string` | No | USD value of one whole output token |
 | `callbacks` | `Callbacks` | No | Lifecycle and field-change callbacks |
 | `displayFeePercent` | `number` | No | Display-only fee estimate percentage; does not collect or subtract fees |
 | `supportLegacyOrders` | `boolean` | No | Include supported legacy v1 orders in history |
@@ -254,10 +277,10 @@ Use the connected wallet chain as the source of truth. When it is absent or unsu
 Although the input balance and USD prices are optional in the TypeScript type, production integrations should pass them so validation, loading states, minimum trade size, and review details are correct.
 
 `minTradeSizeUsd` must be a positive USD threshold approved for the partner;
-there is intentionally no SDK default. `priceProtection` is a percentage, so
-`3` means 3% (300 bps). `displayFeePercent` only populates `form.fees` for the
-review UI. Protocol fee collection is configured separately by the partner and
-backend.
+there is intentionally no SDK default. `priceProtectionPercent` uses percentage
+units, so `3` means 3% (300 bps). `displayFeePercent` only populates `form.fees`
+for the review UI. Protocol fee collection is configured separately by the
+partner and backend.
 
 ## WalletInteractions
 
@@ -355,8 +378,6 @@ const history = useOrders();
 | `useCancelOrder()` | Per-order cancellation state and action |
 | `useClient()` | Provider-scoped initialized client state |
 | `useAmountUi()` | Raw-token amount formatting |
-| `useExplorerLink()` | Chain explorer transaction URL |
-| `useNetwork()` | Current or specified network metadata |
 
 Child components should call the relevant focused hook themselves instead of receiving hook-returned panels through intermediate props. `useOrders()` activates order-history fetching while an orders consumer is mounted; form-only integrations do not fetch or poll history.
 
@@ -364,7 +385,7 @@ Keep the submit button disabled while `loading` is true. If client initializatio
 
 ### Trade-count validation behavior
 
-An explicitly selected TWAP trade count persists when `typedInputAmount` changes. If lowering the amount makes that count greater than the newly calculated `maxTrades`, Spot does not clamp or reset it: `useTrades().error` and `useInputErrors()` report `InputErrors.MAX_TRADES`, and submission remains disabled until the user selects a valid count. This is an intentional behavior change from integrations that silently reset the trade count on every amount edit. Hosts should render the returned validation error so the user can correct the value.
+An explicitly selected TWAP trade count persists when `inputAmountUi` changes. If lowering the amount makes that count greater than the newly calculated `maxTrades`, Spot does not clamp or reset it: `useTrades().error` and `useInputErrors()` report `InputErrors.MAX_TRADES`, and submission remains disabled until the user selects a valid count. This is an intentional behavior change from integrations that silently reset the trade count on every amount edit. Hosts should render the returned validation error so the user can correct the value.
 
 ### Panel Visibility
 
@@ -488,9 +509,9 @@ Callbacks cover wallet notifications, analytics, field synchronization, and bala
 ```tsx
 const callbacks: Callbacks = {
   onWrapRequest: () => {},
-  onWrapSuccess: ({ txHash, explorerUrl, amount }) => {},
+  onWrapSuccess: ({ txHash, amount }) => {},
   onApproveRequest: () => {},
-  onApproveSuccess: ({ txHash, explorerUrl, token, amount }) => {},
+  onApproveSuccess: ({ txHash, token, amount }) => {},
   onSignOrderRequest: () => {},
   onSignOrderSuccess: (signature) => {},
   onSignOrderError: (error) => {},
@@ -500,16 +521,16 @@ const callbacks: Callbacks = {
   onSubmitOrderFailed: ({ code, message }) => {},
   onSubmitOrderRejected: () => {},
   onCancelOrderRequest: (order) => {},
-  onCancelOrderSuccess: ({ order, txHash, explorerUrl }) => {},
+  onCancelOrderSuccess: ({ order, txHash }) => {},
   onCancelOrderFailed: (error) => {},
   onCopy: () => {},
   onLimitPriceChange: (price) => {},
   onLimitPricePercentChange: (percent) => {},
   onTriggerPriceChange: (price) => {},
   onTriggerPricePercentChange: (percent) => {},
-  onDurationChange: (duration) => {},
-  onFillDelayChange: (fillDelay) => {},
-  onTradesChange: (trades) => {},
+  onOrderDurationChange: (orderDuration) => {},
+  onTradeIntervalChange: (tradeInterval) => {},
+  onTradeCountChange: (tradeCount) => {},
 };
 ```
 
@@ -582,14 +603,10 @@ Input errors have the shape `{ type, args }`. Resolve `type` through the DEX's i
 import {
   useAmountUi,
   useClient,
-  useExplorerLink,
-  useNetwork,
 } from "@orbs-network/spot-react";
 
 useAmountUi(decimals, rawAmount);
 useClient();
-useExplorerLink(txHash, chainId);
-useNetwork(chainId);
 ```
 
 Submit through `useExecution()`. Internal mutations and execution-store hooks
@@ -603,7 +620,6 @@ Public utilities and constants include:
 
 ```tsx
 import {
-  getNetwork,
   getOrderExecutionRate,
   getOrderFillDelayMillis,
   getOrderLimitPriceRate,
@@ -611,7 +627,7 @@ import {
   getPartners,
   getTwapConfig,
   calculateOrderForm,
-  toAmountWei,
+  toAmountRaw,
   toAmountUI,
   invertPriceInput,
   getTriggerPriceRate,
@@ -623,7 +639,6 @@ import {
   ORBS_LOGO,
   ORBS_WEBSITE_URL,
   SPOT_VERSION,
-  networks,
 } from "@orbs-network/spot-react";
 ```
 

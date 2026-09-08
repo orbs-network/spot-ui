@@ -4,7 +4,7 @@ import { SpotProvider } from "./context/spot-provider";
 export * from "./types";
 export { useOrderForm } from "./context/order-form-context";
 export { useClient } from "./context/use-client";
-export { useAmountUi, useExplorerLink, useNetwork } from "./hooks/helper-hooks";
+export { useAmountUi } from "./hooks/helper-hooks";
 export { useOrders } from "./hooks/order-hooks";
 export { useCancelOrder } from "./hooks/use-cancel-order";
 export { useDisclaimer } from "./hooks/use-disclaimer";
@@ -47,7 +47,6 @@ export {
   type Address,
   type Hex,
   type InputError,
-  type Network,
   type CalculateOrderFormParams,
   type CalculatedAmount,
   type CalculatedOrderInputAmount,
@@ -77,11 +76,10 @@ export {
   getPartners,
   getTwapConfig,
   calculateOrderForm,
-  toAmountWei,
+  toAmountRaw,
   toAmountUI,
   invertPriceInput,
   createClient,
-  getNetwork,
   getPartnerChains,
   isNativeAddress,
   eqIgnoreCase,
@@ -89,11 +87,7 @@ export {
   getOrderLimitPriceRate,
   getOrderFillDelayMillis,
   getTriggerPriceRate,
-  ensureWrappedToken,
-  getExplorerUrl,
   isTxRejected,
-  shouldUnwrapOnly,
-  shouldWrapOnly,
 
   // Constants
   SPOT_VERSION,
@@ -102,8 +96,6 @@ export {
   ORBS_SLTP_FAQ_URL,
   ORBS_LOGO,
   ORBS_WEBSITE_URL,
-  networks,
-
   // Analytics
 } from "@orbs-network/spot-ui";
 

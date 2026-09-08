@@ -3,16 +3,14 @@ import {
   getOrderFillDelayMillis,
   getOrderLimitPriceRate,
   getTriggerPriceRate,
-  getExplorerUrl,
   getTwapConfig,
   toAmountUI,
-  toAmountWei,
+  toAmountRaw,
   type Order,
   type OrderFill,
 } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
-import { useSpotRuntime } from "../context/spot-store";
-import { useNetwork } from "./helper-hooks";
+import { useSpotRuntime } from "../context/spot-runtime-context";
 import type { Token } from "../types";
 
 const getAmount = (raw?: string, decimals?: number) => ({
@@ -25,8 +23,6 @@ const useFills = (
   inputToken?: Token,
   outputToken?: Token,
 ) => {
-  const networkId = useNetwork()?.id;
-
   return useMemo(() => {
     if (!fills || !inputToken || !outputToken) return [];
     return fills.map((fill) => ({
@@ -37,7 +33,6 @@ const useFills = (
       outputAmount: getAmount(fill.outAmount, outputToken.decimals),
       timestamp: fill.timestamp,
       txHash: fill.txHash,
-      explorerUrl: getExplorerUrl(fill.txHash, networkId),
       executionRate: getOrderExecutionRate(
         fill.inAmount,
         fill.outAmount,
@@ -45,7 +40,7 @@ const useFills = (
         outputToken.decimals,
       ),
     }));
-  }, [fills, inputToken, networkId, outputToken]);
+  }, [fills, inputToken, outputToken]);
 };
 
 export const useHistoryOrder = (
@@ -108,7 +103,7 @@ export const useHistoryOrder = (
       inputAmount: getAmount(order.srcAmount, inputToken?.decimals),
 
       limitPrice: getAmount(
-        toAmountWei(limitPriceUI, outputToken?.decimals),
+        toAmountRaw(limitPriceUI, outputToken?.decimals),
         outputToken?.decimals,
       ),
 
@@ -128,7 +123,7 @@ export const useHistoryOrder = (
       ),
 
       triggerPrice: getAmount(
-        toAmountWei(triggerPriceUI, outputToken?.decimals),
+        toAmountRaw(triggerPriceUI, outputToken?.decimals),
         outputToken?.decimals,
       ),
 
@@ -146,7 +141,7 @@ export const useHistoryOrder = (
       progress: order.progress,
 
       executionPrice: getAmount(
-        toAmountWei(executionPriceUI, outputToken?.decimals),
+        toAmountRaw(executionPriceUI, outputToken?.decimals),
         outputToken?.decimals,
       ),
       version: order.version,

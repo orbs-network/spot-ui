@@ -4,7 +4,7 @@ import {
   type Order,
   type SpotClient,
 } from "@orbs-network/spot-ui";
-import { createSpotStore } from "../src/context/spot-store";
+import { createSpotStore } from "../src/context/create-spot-store";
 import { ExecutionPhase, ExecutionStatus } from "../src/types";
 
 const order = {
@@ -89,10 +89,10 @@ describe("provider-scoped resources", () => {
   });
 
   it("resets only form state when the form scope changes", () => {
-    const store = createSpotStore({ typedTrades: 5, isMarketOrder: true });
+    const store = createSpotStore({ tradeCount: 5, isMarketOrder: true });
     store.getState().updateState({
-      typedLimitPrice: "1.2",
-      isInvertedTrade: true,
+      limitPriceUi: "1.2",
+      isPriceInverted: true,
       cancelOrders: {
         "2:order-1": { status: ExecutionStatus.LOADING },
       },
@@ -100,13 +100,13 @@ describe("provider-scoped resources", () => {
 
     expect(
       store.getState().syncFormDefaults({
-        typedTrades: 2,
+        tradeCount: 2,
         isMarketOrder: false,
       }),
     ).toBe(true);
-    expect(store.getState().state.typedTrades).toBe(2);
-    expect(store.getState().state.typedLimitPrice).toBeUndefined();
-    expect(store.getState().state.isInvertedTrade).toBeUndefined();
+    expect(store.getState().state.tradeCount).toBe(2);
+    expect(store.getState().state.limitPriceUi).toBeUndefined();
+    expect(store.getState().state.isPriceInverted).toBeUndefined();
     expect(store.getState().state.isMarketOrder).toBe(false);
     expect(store.getState().state.cancelOrders["2:order-1"]?.status).toBe(
       ExecutionStatus.LOADING,
@@ -114,11 +114,11 @@ describe("provider-scoped resources", () => {
   });
 
   it("defers form-scope resets while execution is active", () => {
-    const store = createSpotStore({ typedTrades: 5 });
+    const store = createSpotStore({ tradeCount: 5 });
     store.getState().beginExecution({});
 
-    expect(store.getState().syncFormDefaults({ typedTrades: 1 })).toBe(false);
-    expect(store.getState().state.typedTrades).toBe(5);
+    expect(store.getState().syncFormDefaults({ tradeCount: 1 })).toBe(false);
+    expect(store.getState().state.tradeCount).toBe(5);
     expect(store.getState().state.currentExecution.phase).toBe(
       ExecutionPhase.PREPARING,
     );

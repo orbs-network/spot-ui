@@ -11,7 +11,7 @@ Use this skill to integrate `@orbs-network/spot-react` into any DEX frontend. Th
 
 The completed integration should include:
 
-1. A `SpotProvider` wired to the DEX's tokens, typed input amount, balances, USD prices, market quote, partner enum, account, chain, callbacks, `walletInteractions`, and a DEX-native `clientErrorFallback`; RePermit configuration is fetched by the SDK.
+1. A `SpotProvider` wired to the DEX's tokens, wrapped native token, typed input amount, balances, USD prices, market quote, partner enum, account, chain, callbacks, `walletInteractions`, and a DEX-native `clientErrorFallback`; RePermit configuration is fetched by the SDK.
 2. A DEX-native order form with token inputs, price controls, TWAP duration/trade controls, validation errors, disclaimers, and a submit/order-flow modal using `@orbs-network/swap-ui`.
 3. Four module entry points or tabs: TWAP, Limit, Stop-Loss, and Take-Profit, using the DEX's existing navigation pattern.
 4. Order history and cancellation UI built inside `SpotProvider` scope or rendered through a context-preserving portal.
@@ -55,3 +55,4 @@ Working example: [`apps/web/components/spot/spot-form.tsx`](https://github.com/o
 16. Do not fetch, validate, or thread RePermit configuration through the host DEX. `spot-react` owns provider-scoped client initialization and order history without requiring React Query or another host cache. The framework-neutral `spot-ui` `createClient` factory intentionally has no global cache. The client creates the order, signing, approval, cancellation, submission, configured-history, and display-calculation values. A missing client on a supported chain represents initialization loading. Pass a DEX-native `clientErrorFallback` to `SpotProvider`; it receives `error`, `retry`, and `isRetrying`. Advanced integrations can read configuration directly from `useClient().data?.rePermitData`.
 17. An explicitly selected TWAP trade count persists across input-amount edits. If the new amount reduces `maxTrades` below the selection, render the returned `InputErrors.MAX_TRADES` validation and leave submission disabled until the user corrects it; do not silently reset or clamp the selection.
 18. Calculated amounts use `{ raw, ui, usd }` consistently; history amounts use `{ raw, ui }`. Use `.raw` for transactions/DEX amount constructors and `.ui` for editable or direct display values.
+19. Pass `wrappedNativeToken` from the DEX's own chain configuration. Spot has no network registry and does not own explorer links; build them from transaction hashes with the DEX's existing chain metadata.

@@ -7,7 +7,7 @@ import {
   getWrappedNativeCurrency,
   isNativeAddress,
   toAmountUI,
-  toAmountWei,
+  toAmountRaw,
 } from "../utils";
 import { useConnection } from "wagmi";
 import { useSwapStore } from "./store";
@@ -137,7 +137,7 @@ const useSyntheticTrade = (
         inputCurrency?.decimals ?? 18
       );
 
-      const marketPrice = toAmountWei(
+      const marketPrice = toAmountRaw(
         BN(srcUSDPrice.data)
           .div(dstUSDPrice.data)
           .multipliedBy(typedSrcAmount)

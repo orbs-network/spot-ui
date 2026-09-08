@@ -1,12 +1,14 @@
 import { OrderStatus, type Order } from "@orbs-network/spot-ui";
 import { useMemo, useCallback, useEffect } from "react";
+import type {
+  OrdersLoader,
+  OrdersResourceState,
+} from "../context/create-spot-store";
+import { useSpotRuntime } from "../context/spot-runtime-context";
 import {
-  useSpotRuntime,
   useSpotStore,
   useSpotStoreApi,
-  type OrdersLoader,
-  type OrdersResourceState,
-} from "../context/spot-store";
+} from "../context/spot-store-context";
 import { useClient } from "../context/use-client";
 import {
   categorizeOrders,

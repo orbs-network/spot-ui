@@ -20,17 +20,6 @@ export type Token = {
   logoUrl?: string;
 };
 
-export interface Network {
-  id: number;
-  name: string;
-  shortname: string;
-  native: Token;
-  wToken: Token;
-  publicRpcUrl: string;
-  logoUrl: string;
-  explorer: string;
-  eip1559: boolean;
-}
 export enum Module {
   TWAP = "TWAP",
   LIMIT = "LIMIT",
@@ -340,7 +329,7 @@ export enum InputErrors {
 
 export type PartnerPayloadItem = {
   chainId: number;
-  name: string;
+  name: Partners;
 };
 
 export type InputError = {

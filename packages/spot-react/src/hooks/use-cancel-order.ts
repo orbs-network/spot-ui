@@ -1,17 +1,16 @@
 import { ExecutionStatus } from "../types";
 import {
   analytics,
-  getExplorerUrl,
   isTxRejected,
   OrderStatus,
   type Order,
 } from "@orbs-network/spot-ui";
 import { useClient } from "../context/use-client";
+import { useSpotRuntime } from "../context/spot-runtime-context";
 import {
-  useSpotRuntime,
   useSpotStore,
   useSpotStoreApi,
-} from "../context/spot-store";
+} from "../context/spot-store-context";
 import { useOrdersResource, useUpdateCachedOrderStatus } from "./order-hooks";
 import { useCallback, useMemo } from "react";
 import {
@@ -84,7 +83,7 @@ export type CancelOrderStatus = {
 };
 
 export const useCancelOrder = (order?: Order) => {
-  const { account, walletInteractions, callbacks, chainId } = useSpotRuntime();
+  const { account, walletInteractions, callbacks } = useSpotRuntime();
   const { data: client } = useClient();
   const refetchUntilStatusSynced = useCancelOrderRefetchUntilStatusSynced();
   const updateCachedOrderStatus = useUpdateCachedOrderStatus();
@@ -133,7 +132,6 @@ export const useCancelOrder = (order?: Order) => {
               ? { ...order, status: OrderStatus.Cancelled }
               : order,
           txHash,
-          explorerUrl: getExplorerUrl(txHash, chainId),
         }),
       );
 
@@ -164,7 +162,6 @@ export const useCancelOrder = (order?: Order) => {
   }, [
     account,
     callbacks,
-    chainId,
     clearCancelOrder,
     client,
     order,

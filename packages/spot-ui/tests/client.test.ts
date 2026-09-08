@@ -4,7 +4,6 @@ import {
   calculateOrderForm,
   createClient,
   getPartners,
-  type Partners,
   type RePermitData,
 } from "../src";
 import {
@@ -16,22 +15,24 @@ import {
 
 const configuredPartner = getPartners()[0];
 if (!configuredPartner) throw new Error("Expected at least one Spot partner");
-const partner = configuredPartner.name as Partners;
+const partner = configuredPartner.name;
 const chainId = configuredPartner.chainId;
 
 const createForm = () =>
   calculateOrderForm({
     module: Module.TWAP,
-    isMarketOrder: true,
-    inputAmountWei: "1000000",
     inputTokenDecimals: 6,
     outputTokenDecimals: 18,
-    quotedOutputAmount: "2000000000000000000",
-    inputUsdPrice: "10",
-    outputUsdPrice: "5",
+    quotedOutputAmountRaw: "2000000000000000000",
+    inputTokenUsdPrice: "10",
+    outputTokenUsdPrice: "5",
     minTradeSizeUsd: 1,
-    trades: 2,
-    priceProtection: 3,
+    priceProtectionPercent: 3,
+    userInput: {
+      inputAmountUi: "1",
+      isMarketOrder: true,
+      tradeCount: 2,
+    },
   });
 
 describe("createClient", () => {
@@ -109,5 +110,18 @@ describe("createClient", () => {
     expect(BigInt(second.order.nonce)).toBeGreaterThan(
       BigInt(first.order.nonce),
     );
+  });
+
+  it("requires callers to normalize native input to its wrapped token", async () => {
+    const client = await createClient(partner, chainId);
+
+    expect(() =>
+      client.prepareOrder({
+        form: createForm(),
+        inputTokenAddress: "0x0000000000000000000000000000000000000000",
+        outputTokenAddress: ADDRESS_3,
+        swapperAddress: ADDRESS_1,
+      }),
+    ).toThrow("pass the host-provided wrapped native token");
   });
 });

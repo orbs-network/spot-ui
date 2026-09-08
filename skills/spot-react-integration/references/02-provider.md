@@ -18,6 +18,7 @@ The adapter should answer these questions explicitly:
 | Value | Source | Shape passed to Spot |
 | --- | --- | --- |
 | Input/output tokens | DEX token selection state | `Token` objects with `address`, `symbol`, `decimals`, and optional `logoUrl` |
+| Wrapped native token | DEX chain configuration | The connected chain's wrapped-native `Token` |
 | Typed input amount | DEX input state | User-facing decimal string, e.g. `"1.25"` |
 | Quote output | DEX quote/router state | Raw output token amount for the current typed amount |
 | Quote freshness | DEX quote request metadata | Whether the quote was produced for the current typed amount/token pair |
@@ -43,19 +44,21 @@ function SpotOrderFormContent({ module }: { module: Module }) {
   const {
     inputCurrency,
     outputCurrency,
-    inputBalance,
-    typedInputAmount,
-    marketReferencePrice,
+    wrappedNativeCurrency,
+    inputBalanceRaw,
+    inputAmountUi,
+    marketQuote,
   } = useSpotSwapFormState();
 
   return (
     <SpotProvider
       module={module}
-      typedInputAmount={typedInputAmount}
-      marketReferencePrice={marketReferencePrice}
-      inputBalance={inputBalance?.quotient.toString()}
+      inputAmountUi={inputAmountUi}
+      marketQuote={marketQuote}
+      inputBalanceRaw={inputBalanceRaw}
       inputToken={currencyToSpotToken(inputCurrency)}
       outputToken={currencyToSpotToken(outputCurrency)}
+      wrappedNativeToken={currencyToSpotToken(wrappedNativeCurrency)}
       // other props...
     />
   );
@@ -93,7 +96,7 @@ import {
   type Token,
   type WalletInteractions,
   type Callbacks,
-  type MarketReferencePrice,
+  type MarketQuote,
 } from "@orbs-network/spot-react";
 import { useMemo } from "react";
 
@@ -103,16 +106,16 @@ const {
   isQuoteLoading,
 } = dexSwapState;
 
-const marketReferencePrice = useMemo<MarketReferencePrice>(() => {
+const marketQuote = useMemo<MarketQuote>(() => {
   const shouldQuote = Boolean(
-    typedInputAmount && inputCurrency && outputCurrency,
+    inputAmountUi && inputCurrency && outputCurrency,
   );
-  const isQuoteStale = shouldQuote && typedInputAmount !== quotedInputAmount;
+  const isQuoteStale = shouldQuote && inputAmountUi !== quotedInputAmount;
   const outputAmount = !shouldQuote || isQuoteStale ? undefined : quoteOutputRaw;
   const isLoading = shouldQuote && (isQuoteStale || isQuoteLoading);
 
   return {
-    value: outputAmount,
+    quotedOutputAmountRaw: outputAmount,
     isLoading,
     noLiquidity: shouldQuote && !isLoading && !outputAmount,
   };
@@ -122,7 +125,7 @@ const marketReferencePrice = useMemo<MarketReferencePrice>(() => {
   outputCurrency,
   quoteOutputRaw,
   quotedInputAmount,
-  typedInputAmount,
+  inputAmountUi,
 ]);
 
 const inputToken = useMemo((): Token | undefined => {
@@ -199,7 +202,6 @@ const callbacks = useMemo<Callbacks>(() => ({
   onWrapRequest: () => {},
   onWrapSuccess: ({
     txHash: _txHash,
-    explorerUrl: _explorerUrl,
     amount: _amount,
   }) => {
     toast.success("Wrapped");
@@ -208,7 +210,6 @@ const callbacks = useMemo<Callbacks>(() => ({
   onApproveRequest: () => {},
   onApproveSuccess: ({
     txHash: _txHash,
-    explorerUrl: _explorerUrl,
     token: _token,
     amount: _amount,
   }) => toast.success("Approved"),
@@ -223,7 +224,6 @@ const callbacks = useMemo<Callbacks>(() => ({
   onCancelOrderSuccess: ({
     order: _order,
     txHash: _txHash,
-    explorerUrl: _explorerUrl,
   }) => {
     toast.success("Cancelled");
     refetchBalances();
@@ -231,11 +231,11 @@ const callbacks = useMemo<Callbacks>(() => ({
   onCancelOrderFailed: (error) => toast.error(error.message),
 
   // Field change callbacks (useful for analytics or syncing external state)
-  onLimitPriceChange: (_typedLimitPrice) => {},
-  onTriggerPriceChange: (_typedTriggerPrice) => {},
-  onDurationChange: (_typedDuration) => {},
-  onFillDelayChange: (_typedFillDelay) => {},
-  onTradesChange: (_trades) => {},
+  onLimitPriceChange: (_limitPriceUi) => {},
+  onTriggerPriceChange: (_triggerPriceUi) => {},
+  onOrderDurationChange: (_orderDuration) => {},
+  onTradeIntervalChange: (_tradeInterval) => {},
+  onTradeCountChange: (_tradeCount) => {},
   onLimitPricePercentChange: (_percent) => {},
   onTriggerPricePercentChange: (_percent) => {},
 
@@ -245,15 +245,16 @@ const callbacks = useMemo<Callbacks>(() => ({
 <SpotProvider
   partner={Partners.Quick}
   module={module}
-  priceProtection={3}
+  priceProtectionPercent={3}
   minTradeSizeUsd={5}
-  typedInputAmount={inputAmount}
-  marketReferencePrice={marketReferencePrice}
+  inputAmountUi={inputAmountUi}
+  marketQuote={marketQuote}
   inputToken={inputToken}
   outputToken={outputToken}
-  inputBalance={inputBalance}
-  inputUsd1Token={inputUsd}
-  outputUsd1Token={outputUsd}
+  wrappedNativeToken={wrappedNativeToken}
+  inputBalanceRaw={inputBalanceRaw}
+  inputTokenUsdPrice={inputTokenUsdPrice}
+  outputTokenUsdPrice={outputTokenUsdPrice}
   chainId={chainId}
   account={address}
   appId="my-dex"
@@ -265,7 +266,7 @@ const callbacks = useMemo<Callbacks>(() => ({
 
 The code above assumes a fictional `dexWallet` adapter. Replace it with the DEX's existing wallet/client helpers. The important part is the contract: write methods return a transaction hash only after the receipt is confirmed, allowance reads return a raw integer string, and `signOrder` returns the wallet's original `0x`-prefixed signature.
 
-Pass a resolved `priceProtection` number. If the DEX setting has a default, resolve it before rendering `SpotProvider` (for example destructure with a default) instead of passing `priceProtection ?? DEFAULT_PRICE_PROTECTION` inline.
+Pass a resolved `priceProtectionPercent` number. If the DEX setting has a default, resolve it before rendering `SpotProvider` instead of resolving it inline.
 
 If the DEX quote stores the quoted input amount in raw units instead of the user-facing typed amount, compare against the DEX's current raw source amount instead. Quote freshness checks must compare the same representation.
 
@@ -275,19 +276,20 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 | --- | --- | --- | --- |
 | `partner` | `Partners` | Yes | DEX partner enum |
 | `module` | `Module` | Yes | `TWAP`, `LIMIT`, `STOP_LOSS`, or `TAKE_PROFIT` |
-| `typedInputAmount` | `string` | Yes | User-typed source amount |
-| `priceProtection` | `number` | Yes | Price Protection percentage |
+| `inputAmountUi` | `string` | Yes | User-entered input-token amount |
+| `priceProtectionPercent` | `number` | Yes | Price Protection percentage |
 | `minTradeSizeUsd` | `number` | Yes | Minimum individual trade size in USD |
-| `marketReferencePrice` | `MarketReferencePrice` | Yes | `{ value?: string, isLoading?: boolean, noLiquidity?: boolean }` |
+| `marketQuote` | `MarketQuote` | Yes | `{ quotedOutputAmountRaw?: string, isLoading?: boolean, noLiquidity?: boolean }` |
 | `walletInteractions` | `WalletInteractions` | Yes | Wallet interaction handlers implemented by the DEX |
 | `chainId` | `number` | No | Connected chain ID |
 | `account` | `Address` | No | Connected wallet address |
 | `appId` | `string` | No | Stable host-defined analytics identifier, such as the DEX slug |
 | `inputToken` | `Token` | No | `{ address, symbol, decimals, logoUrl? }` |
 | `outputToken` | `Token` | No | `{ address, symbol, decimals, logoUrl? }` |
-| `inputBalance` | `string` | No | Input balance in wei |
-| `inputUsd1Token` | `string` | No | USD price of 1 input token |
-| `outputUsd1Token` | `string` | No | USD price of 1 output token |
+| `wrappedNativeToken` | `Token \| undefined` | Yes | Host-provided wrapped-native token; pass `undefined` only before a chain is known |
+| `inputBalanceRaw` | `string` | No | Raw input-token balance |
+| `inputTokenUsdPrice` | `string` | No | USD price of 1 input token |
+| `outputTokenUsdPrice` | `string` | No | USD price of 1 output token |
 | `callbacks` | `Callbacks` | No | Lifecycle event handlers |
 | `displayFeePercent` | `number` | No | Display-only fee estimate percentage; does not collect or subtract fees |
 | `overrides` | `Overrides` | No | Initial Spot form state such as default trades, duration, fill delay, trigger price, limit price, and market/limit mode |
@@ -317,17 +319,18 @@ standard representations.
 
 ## Quote, Balance, and Price Inputs
 
-- `marketReferencePrice.value` should be the DEX quote output amount for the current `typedInputAmount`, not a standalone token price. The provider converts it into a per-unit market price internally.
-- `inputBalance` is a raw wei string. Pass it from the DEX balance hook so `submitOrderButton.disabled` and validation match the swap form.
-- `inputUsd1Token` and `outputUsd1Token` are the USD value of one token. They are optional in the type, but real integrations should pass them because loading states, minimum trade size, and review details depend on them.
+- `marketQuote.quotedOutputAmountRaw` should be the DEX quote output amount for the current `inputAmountUi`, not a standalone token price. The provider converts it into a per-unit market price internally.
+- `inputBalanceRaw` is a raw integer string. Pass it from the DEX balance hook so submission state and validation match the swap form.
+- `inputTokenUsdPrice` and `outputTokenUsdPrice` are the USD value of one token. They are optional in the type, but real integrations should pass them because loading states, minimum trade size, and review details depend on them.
 - Get `chainId` from the connected account/wallet hook wherever Spot needs chain identity. Avoid mixing router, quote, and account chain sources.
+- Always pass the `wrappedNativeToken` prop from the DEX's chain configuration. Its value may be `undefined` only before a chain is known; Spot does not maintain a network registry or infer this token.
 - `chainId` and `account` may be missing while disconnected. Keep the form rendered; only swap the submit area to the DEX's connect-wallet or switch-network control.
 - When `chainId` is missing or unsupported, `SpotProvider` does not initialize a client and submission remains disabled. The DEX UI should show its connect/switch-network control.
 - `spot-ui` initializes a client internally using `partner` and the connected supported `chainId`. Do not add a separate configuration fetch or pass the response through DEX context.
 - The client owns RePermit-derived order, signing, approval, cancellation, submission, and history values. `SpotProvider` scopes and deduplicates client initialization internally; neither the React package nor the underlying `createClient` factory uses a global cache. A missing client on a supported chain represents initialization loading; pass a localized, DEX-native `clientErrorFallback` so failures remain retryable without passing configuration state through child contexts.
 - The SDK rejects configuration chain mismatches and malformed or zero RePermit/adapter addresses. The response still supplies the approval spender, v2 cancellation contract, adapter, reactor, and executor without deployed-bytecode verification, so only use the trusted Orbs endpoint over TLS.
-- If the DEX quote result exposes the input amount used for the quote, treat a mismatch with the current typed amount as a stale quote. While stale, set `marketReferencePrice.value` to `undefined` and `isLoading` to `true` so typing a new input amount triggers a fresh quote state instead of showing an old output.
-- Compute `inputUsd1Token` and `outputUsd1Token` as the USD value of one token. Prefer the DEX's direct one-token USD hook. If unavailable, derive it as `usdAmount / tokenAmount` from the current swap form amounts. Pass strings; omit only when no valid positive value is available.
+- If the DEX quote result exposes the input amount used for the quote, treat a mismatch with the current typed amount as stale. While stale, omit `marketQuote.quotedOutputAmountRaw` and set `isLoading` to `true`.
+- Compute `inputTokenUsdPrice` and `outputTokenUsdPrice` as the USD value of one token. Prefer the DEX's direct one-token USD hook. If unavailable, derive it as `usdAmount / tokenAmount` from the current swap form amounts. Pass strings; omit only when no valid positive value is available.
 
 ```tsx
 function getUsdValuePerToken(tokenAmount?: CurrencyAmount<Currency>, usdAmount?: CurrencyAmount<Currency>) {
@@ -405,11 +408,11 @@ For initial form state, pass `overrides`:
   overrides={{
     state: {
       isMarketOrder: false,
-      trades: 10,
-      limitPrice: "1.5",
-      triggerPrice: "1.2",
-      fillDelay: { value: 5, unit: TimeUnit.Minutes },
-      duration: { value: 1, unit: TimeUnit.Days },
+      tradeCount: 10,
+      limitPriceUi: "1.5",
+      triggerPriceUi: "1.2",
+      tradeInterval: { value: 5, unit: TimeUnit.Minutes },
+      orderDuration: { value: 1, unit: TimeUnit.Days },
     },
   }}
 />

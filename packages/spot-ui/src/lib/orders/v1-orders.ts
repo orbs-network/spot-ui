@@ -11,7 +11,7 @@ import {
 } from "../types";
 import BN from "bignumber.js";
 import { eqIgnoreCase, getExchanges } from "../utils";
-import { THE_GRAPH_ORDERS_API } from "../consts";
+import { THE_GRAPH_ORDERS_API } from "./legacy-twap-config";
 type RawStatus = "CANCELLED" | "COMPLETED" | null;
 
 const normalizeSubgraphList = <T>(list?: T[], transform?: (val: T) => string) =>

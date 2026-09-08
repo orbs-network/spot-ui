@@ -4,9 +4,12 @@ import {
   buildRePermitOrderData,
   fetchRePermitData,
 } from "./build-repermit-order-data";
-import type { CalculatedOrderValues } from "./calculations";
-import { type CalculatedOrderForm } from "./order-form";
-import { getDeadline, getPartners } from "./lib";
+import type {
+  CalculatedOrderForm,
+  CalculatedOrderValues,
+} from "./order-form/types";
+import { getPartners } from "./partners";
+import { isNativeAddress } from "./utils";
 import {
   getAccountOrders,
   type GetAccountOrdersParams,
@@ -18,10 +21,17 @@ import type {
   Partners,
   RePermitData,
   RePermitOrder,
+  TimeDuration,
 } from "./types";
+
+const getDeadline = (
+  currentTimeMillis: number,
+  duration: TimeDuration,
+): number => currentTimeMillis + duration.unit * duration.value + 60_000;
 
 export interface PrepareOrderParams {
   form: CalculatedOrderForm;
+  /** ERC-20 token spent by the order; pass the wrapped token for native input. */
   inputTokenAddress: string;
   outputTokenAddress: string;
   swapperAddress: string;
@@ -200,6 +210,11 @@ export const createClient = async (
     if (!form.canSubmit) {
       throw new Error("Order form is not submittable");
     }
+    if (isNativeAddress(params.inputTokenAddress)) {
+      throw new Error(
+        "prepareOrder inputTokenAddress must be an ERC-20 address; pass the host-provided wrapped native token for native input",
+      );
+    }
     const values = form.values;
     const currentTimeMillis = Date.now();
     const preparedValues: PreparedOrderValues = {
@@ -208,7 +223,6 @@ export const createClient = async (
       deadlineMillis: getDeadline(currentTimeMillis, values.duration),
     };
     const permitData = buildRePermitOrderData({
-      chainId,
       inputTokenAddress: params.inputTokenAddress,
       outputTokenAddress: params.outputTokenAddress,
       totalInputAmount: values.inputAmount,

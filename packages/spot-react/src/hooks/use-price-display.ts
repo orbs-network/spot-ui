@@ -1,25 +1,26 @@
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime, useSpotStore } from "../context/spot-store";
+import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotStore } from "../context/spot-store-context";
 import { invertPriceInput } from "@orbs-network/spot-ui";
 
 export const usePriceDisplay = () => {
   const { inputToken, outputToken } = useSpotRuntime();
   const updateState = useSpotStore((s) => s.updateState);
   const { isInverted, values } = useOrderForm();
-  const typedTriggerPrice = useSpotStore((s) => s.state.typedTriggerPrice);
-  const typedLimitPrice = useSpotStore((s) => s.state.typedLimitPrice);
+  const triggerPriceUi = useSpotStore((s) => s.state.triggerPriceUi);
+  const limitPriceUi = useSpotStore((s) => s.state.limitPriceUi);
   const onInvert = useCallback(() => {
     updateState({
-      isInvertedTrade: !isInverted,
-      ...(typedTriggerPrice !== undefined
-        ? { typedTriggerPrice: invertPriceInput(typedTriggerPrice) }
+      isPriceInverted: !isInverted,
+      ...(triggerPriceUi !== undefined
+        ? { triggerPriceUi: invertPriceInput(triggerPriceUi) }
         : {}),
-      ...(typedLimitPrice !== undefined
-        ? { typedLimitPrice: invertPriceInput(typedLimitPrice) }
+      ...(limitPriceUi !== undefined
+        ? { limitPriceUi: invertPriceInput(limitPriceUi) }
         : {}),
     });
-  }, [updateState, isInverted, typedTriggerPrice, typedLimitPrice]);
+  }, [updateState, isInverted, triggerPriceUi, limitPriceUi]);
 
   return useMemo(
     () => ({
