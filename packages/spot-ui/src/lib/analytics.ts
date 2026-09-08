@@ -123,8 +123,6 @@ interface Data {
   fromTokenAddress?: string;
   fromTokenSymbol?: string;
   toTokenAddress?: string;
-  order?: RePermitOrder;
-  signature?: string;
   toTokenSymbol?: string;
   fromTokenAmount?: string;
   chunksAmount?: number;
@@ -176,8 +174,29 @@ const sendBI = async (data: Partial<Data>) => {
   }
 };
 
+const getAnalyticsErrorMessage = (error: unknown): string => {
+  try {
+    if (typeof error === "string" && error.trim()) {
+      return error.toLowerCase();
+    }
+    if (typeof error === "object" && error !== null) {
+      const message = Reflect.get(error, "message");
+      if (typeof message === "string" && message.trim()) {
+        return message.toLowerCase();
+      }
+      const code = Reflect.get(error, "code");
+      if (typeof code === "string" || typeof code === "number") {
+        return String(code).toLowerCase();
+      }
+    }
+  } catch {
+    // Analytics is observational and must never alter the caller's error path.
+  }
+  return "unknown error";
+};
+
 class Analytics {
-  timeout: any = undefined;
+  timeout: ReturnType<typeof setTimeout> | undefined;
   configDetails: Partial<Data> = {};
   configUpdateKey = "";
   moduleImportKey = "";
@@ -224,7 +243,7 @@ class Analytics {
     });
   }
 
-  onCancelOrderError(error: any) {
+  onCancelOrderError(error: unknown) {
     this.onTxError(error);
   }
 
@@ -240,7 +259,7 @@ class Analytics {
     });
   }
 
-  onWrapError(error: any) {
+  onWrapError(error: unknown) {
     this.onTxError(error);
   }
 
@@ -256,18 +275,20 @@ class Analytics {
     });
   }
 
-  onApproveError(error: any) {
+  onApproveError(error: unknown) {
     this.onTxError(error);
   }
 
 
-  onCrash(error: any) {
-    this.updateAndSend({ action: "crash", actionError: error?.message?.toLowerCase() || error?.toLowerCase() });
+  onCrash(error: unknown) {
+    this.updateAndSend({
+      action: "crash",
+      actionError: getAnalyticsErrorMessage(error),
+    });
   }
 
-  onTxError(error: any) {
-    const actionError = error?.message?.toLowerCase() || error?.toLowerCase();
-    this.updateAndSend({ actionError });
+  onTxError(error: unknown) {
+    this.updateAndSend({ actionError: getAnalyticsErrorMessage(error) });
   }
 
   onRequestOrder({
@@ -322,21 +343,19 @@ class Analytics {
     });
   }
 
-  onSignOrderRequest(order: RePermitOrder) {
+  onSignOrderRequest(_order: RePermitOrder) {
     this.updateAndSend({
       action: "sign order",
-      order: order,
     });
   }
 
-  onSignOrderError(error: any) {
+  onSignOrderError(error: unknown) {
     this.onTxError(error);
   }
 
-  onSignOrderSuccess(signature: string) {
+  onSignOrderSuccess(_signature: string) {
     this.updateAndSend({
       action: "sign order",
-      signature: signature,
     });
   }
 
@@ -396,7 +415,7 @@ class Analytics {
     });
   }
 
-  onCreateOrderError(error: any) {
+  onCreateOrderError(error: unknown) {
     this.onTxError(error);
   }
 

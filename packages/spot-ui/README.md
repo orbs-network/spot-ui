@@ -4,6 +4,9 @@
 Angular, Svelte, React, vanilla JavaScript, or a server-side TypeScript
 application. It has no React dependency.
 
+For the complete framework-neutral TypeScript workflow, see the
+[`spot-integration` skill](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-integration).
+
 ## Complete form calculation
 
 Use `calculateOrderForm` as the primary calculation API. Pass the DEX-owned

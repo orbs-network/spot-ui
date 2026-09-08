@@ -519,7 +519,7 @@ export const getOrders = async ({
       .flatMap((o) => {
         const orderFills = fills?.filter(
           (it) =>
-            it.TWAP_id === Number(o.Contract_id) &&
+            String(it.TWAP_id) === String(o.Contract_id) &&
             eqIgnoreCase(it.exchange, o.exchange) &&
             eqIgnoreCase(it.twapAddress, o.twapAddress)
         );

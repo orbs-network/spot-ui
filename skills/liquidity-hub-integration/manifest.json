@@ -8,9 +8,7 @@
     "references/03-swap-flow.md",
     "references/04-best-practices.md"
   ],
-  "assets": [
-    "assets/liquidity-hub-example.ts"
-  ],
+  "assets": ["assets/liquidity-hub-example.ts"],
   "package": "@orbs-network/liquidity-hub-sdk",
   "supportedChains": {
     "1": "Ethereum",

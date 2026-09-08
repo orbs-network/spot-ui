@@ -64,7 +64,8 @@ export enum OrderType {
 }
 
 export type FillV1 = {
-  TWAP_id: number;
+  /** The Graph serializes BigInt scalar values as strings. */
+  TWAP_id: string;
   dollarValueIn: string;
   dollarValueOut: string;
   dstAmountOut: string;

@@ -1,57 +1,20 @@
 import { zeroAddress } from "./consts";
-import { DexRouterData, Quote } from "./types";
-import { isNativeAddress } from "./util";
+import type { DexRouterData, DexSwapAnalyticsParams, Quote } from "./types";
+import { eqIgnoreCase, isNativeAddress } from "./util";
 
 type Status = "waiting" | "success" | "failed" | "disabled";
-type Stage = "init" | "quote" | "approval" | "wrap" | "signature" | "swap";
+type Stage =
+  "init" | "quote" | "approval" | "wrap" | "signature" | "swap" | "dex-swap";
+type AnalyticsPayload = Record<string, unknown>;
 
-const getDexOutAmountWS = (dexMinAmountOut: string | number = "0", slippage = 0) => {
-  let base: bigint;
-  try {
-    // Keep the wei value as a string; routing it through Number loses integer
-    // precision above 2^53 and throws on non-integer floats.
-    base = BigInt(dexMinAmountOut || 0);
-  } catch {
-    base = 0n;
-  }
-  const slip = BigInt(Math.round(slippage * 100)) || 0n;
-  return (base + (base * slip) / 10000n).toString();
-};
-
-const getMillis = (start?: number) => {
-  if (!start) {
-    return 0;
-  }
-  return Date.now() - start;
-};
-
-const ANALYTICS_VERSION = 0.92;
-const BI_ENDPOINT = `https://bi.orbs.network/putes/liquidity-hub-ui-${ANALYTICS_VERSION}`;
-
-
-
-const sendBI = async (data: any) => {
-  try {
-    await fetch(BI_ENDPOINT, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-      // Allow the request to complete even if the page is unloading (e.g. a BI
-      // event fired right after a successful swap navigates away).
-      keepalive: true,
-    });
-  } catch (error) {
-    console.error(error);
-  }
-};
-function generateId() {
-  const part1 = Math.random().toString(36).substring(2, 16); // ~14 random chars
-  const part2 = Math.random().toString(36).substring(2, 16); // ~14 more random chars
-  const timestamp = Date.now().toString(36); // Generate a timestamp
-  return `id_${part1 + part2 + timestamp}`; // Concatenate all parts
+interface StageData extends AnalyticsPayload {
+  _id: string;
+  status: Status;
+  stage: Stage;
+  start: number;
+  stageMillis?: number;
+  txHash?: string;
+  error?: string;
 }
 
 interface QuoteRequest {
@@ -65,444 +28,281 @@ interface QuoteRequest {
   disabled?: boolean;
 }
 
-interface StageData {
-  _id: string;
-  status: Status;
-  stage: Stage;
-  stageMillis?: number;
-  txHash: string;
-  error: string;
-  start: number;
-}
-
-interface SignatureStage extends StageData {
-  signature: string;
-}
-
-interface QuoteStage extends StageData {
-  quote: Quote;
-  slippage: number;
-  walletAddress: string;
-  srcTokenAddress: string;
-  dstTokenAddress: string;
-  dexMinAmountOut: string;
-  dexOutAmountWS: string;
-  srcAmount: string;
-  inAmountUsd?: number;
-  liquidityHubId: string;
-  "quote-referencePrice": string;
-  "quote-userMinOutAmountWithGas": string;
-  "quote-outAmountWsMinusGas": string;
-  "quote-outAmountWS": string;
-  "quote-minAmountOut": string;
-  "quote-gasAmountOut": string;
-  "quote-permitData": string;
-  "quote-eip712": string;
-  "quote-serializedOrder": string;
-  "quote-exchange": string;
-  "quote-sessionId": string;
-  "quote-outAmount": string;
-  "quote-user": string;
-  "quote-slippage": number;
-  "quote-qs": string;
-  minAmountOutLH: string;
-}
-
-interface SwapStage extends StageData {
-  receipt?: string;
-  txHash: string;
-  error: string;
-  panel: string;
-  router: string;
-  dexRouterData?: string;
-  dexRouterTo?: string;
-  waitForTxHashMillis?: number;
-}
-
-interface DexSwapStage {
-  panel: string;
-  router: string;
+interface GlobalData extends AnalyticsPayload {
   srcTokenAddress?: string;
   dstTokenAddress?: string;
-  inAmount?: string;
-  inAmountUsd?: number;
-  txHash: string;
-  stage: Stage;
-  _id: string;
-}
-
-const getDexKey = (panel: string, router = "") => {
-  return `dex-${panel}-${router}` as any;
-};
-
-const getQuoteValues = (quote: Quote) => {
-  return {
-    "quote-referencePrice": quote.referencePrice,
-    "quote-userMinOutAmountWithGas": quote.userMinOutAmountWithGas,
-    "quote-outAmountWsMinusGas": quote.outAmountWsMinusGas,
-    "quote-outAmountWS": quote.outAmountWS,
-    "quote-minAmountOut": quote.minAmountOut,
-    "quote-gasAmountOut": quote.gasAmountOut,
-    "quote-permitData": quote.permitData,
-    "quote-eip712": quote.eip712,
-    "quote-serializedOrder": quote.serializedOrder,
-    "quote-exchange": quote.exchange,
-    "quote-sessionId": quote.sessionId,
-    "quote-outAmount": quote.outAmount,
-    "quote-user": quote.user,
-    "quote-slippage": quote.slippage,
-    "quote-qs": quote.qs,
-  };
-};
-
-type GlobalData = {
-  srcTokenAddress: string;
-  dstTokenAddress: string;
-  walletAddress: string;
-  srcAmount: string;
+  walletAddress?: string;
+  srcAmount?: string;
   inAmountUsd?: number;
   chainId?: number;
-  sessionId: string;
-  liquidityHubId: string;
-  partner: string;
-  version: number;
+  sessionId?: string;
+  liquidityHubId?: string;
+  partner?: string;
+  version?: number;
+}
+
+const ANALYTICS_VERSION = 0.92;
+const BI_ENDPOINT = `https://bi.orbs.network/putes/liquidity-hub-ui-${ANALYTICS_VERSION}`;
+
+const sendBI = async (data: AnalyticsPayload): Promise<void> => {
+  try {
+    await fetch(BI_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+      keepalive: true,
+    });
+  } catch {
+    // Telemetry must never affect a quote or transaction flow.
+  }
 };
 
-export class Analytics {
-  private wrapStageData = {} as Partial<StageData>;
-  private approvalStageData = {} as Partial<StageData>;
-  private signatureStageData = {} as Partial<SignatureStage>;
-  private swapStageData = {} as Partial<SwapStage>;
-  private dexSwapStageData = {} as { [key: string]: DexSwapStage };
-  private quoteStageData = {} as Partial<QuoteStage>;
+const generateId = (): string => {
+  try {
+    if (typeof globalThis.crypto?.randomUUID === "function") {
+      return `id_${globalThis.crypto.randomUUID()}`;
+    }
+  } catch {
+    // Fall back for runtimes that expose crypto but not a usable randomUUID.
+  }
 
-  public blockAnalytics: boolean = false;
-  public globalData: GlobalData = {} as GlobalData;
-  public sendData(values = {} as Partial<StageData>) {
-    if (this.blockAnalytics) {
+  const random = `${Math.random().toString(36).slice(2)}${Math.random()
+    .toString(36)
+    .slice(2)}`;
+  return `id_${random}${Date.now().toString(36)}`;
+};
+
+const getElapsedMillis = (start: number): number =>
+  Math.max(0, Date.now() - start);
+
+const getDexOutAmountWithSlippage = (
+  dexMinAmountOut: string | number = "0",
+  slippage = 0,
+): string => {
+  try {
+    const amount = BigInt(dexMinAmountOut || 0);
+    const slippageBasisPoints = BigInt(Math.round(slippage * 100));
+    return (amount + (amount * slippageBasisPoints) / 10_000n).toString();
+  } catch {
+    return "0";
+  }
+};
+
+const getQuoteValues = (quote: Quote): AnalyticsPayload => ({
+  "quote-referencePrice": quote.referencePrice,
+  "quote-userMinOutAmountWithGas": quote.userMinOutAmountWithGas,
+  "quote-outAmountWsMinusGas": quote.outAmountWsMinusGas,
+  "quote-outAmountWS": quote.outAmountWS,
+  "quote-minAmountOut": quote.minAmountOut,
+  "quote-gasAmountOut": quote.gasAmountOut,
+  "quote-permitData": quote.permitData,
+  "quote-eip712": quote.eip712,
+  "quote-serializedOrder": quote.serializedOrder,
+  "quote-exchange": quote.exchange,
+  "quote-sessionId": quote.sessionId,
+  "quote-outAmount": quote.outAmount,
+  "quote-user": quote.user,
+  "quote-slippage": quote.slippage,
+  "quote-qs": quote.qs,
+});
+
+/** Internal, best-effort analytics reporter owned by one SDK instance. */
+export class Analytics {
+  private wrapStage?: StageData;
+  private approvalStage?: StageData;
+  private signatureStage?: StageData;
+  private swapStage?: StageData;
+  private quoteStage?: StageData;
+
+  private blockAnalytics = false;
+  private globalData: GlobalData = {};
+
+  public get liquidityHubId(): string {
+    return this.globalData.liquidityHubId ?? "";
+  }
+
+  public init(chainId: number, partner: string, blockAnalytics: boolean): void {
+    this.blockAnalytics = blockAnalytics;
+    if (
+      this.globalData.chainId === chainId &&
+      this.globalData.partner === partner
+    ) {
       return;
     }
 
-    const { start, ...rest } = values;
-
-    sendBI({
-      ...this.globalData,
-      ...rest,
+    const sessionId = generateId();
+    this.updateGlobalData({
+      chainId,
+      partner,
+      sessionId,
+      version: ANALYTICS_VERSION,
+    });
+    this.sendData({
+      sessionId,
+      version: ANALYTICS_VERSION,
+      chainId,
+      partner,
+      stage: "init",
     });
   }
 
-  /// ----init---- ///
-  public init(chainId: number, partner: string, blockAnalytics: boolean) {
-    try {
-      if (
-        this.globalData.chainId === chainId &&
-        this.globalData.partner === partner
-      ) {
-        return;
-      }
-      this.globalData.chainId = chainId;
-      const data = {
-        sessionId: generateId(),
-        version: ANALYTICS_VERSION,
-        chainId,
-        partner,
-        stage: "init" as const,
-      };
-      this.blockAnalytics = blockAnalytics;
-      this.updateGlobalData({
-        partner,
-        sessionId: data.sessionId,
-        version: ANALYTICS_VERSION,
-        chainId,
-      });
-      this.sendData(data);
-    } catch (error) {
-      console.error(error);
-    }
-  }
-  private updateGlobalData(data: Partial<GlobalData>) {
-    this.globalData = {
-      ...this.globalData,
-      ...data,
-    };
-  }
-
-  resetSessionIfNeeded(args: QuoteRequest) {
-    try {
-      if (
-        (this.globalData.srcTokenAddress &&
-          args.srcTokenAddress !== this.globalData.srcTokenAddress) ||
-        (this.globalData.dstTokenAddress &&
-          args.dstTokenAddress !== this.globalData.dstTokenAddress) ||
-        (this.globalData.srcAmount &&
-          args.inAmount !== this.globalData.srcAmount) ||
-        (this.globalData.walletAddress &&
-          args.account !== this.globalData.walletAddress)
-      ) {
-        this.updateGlobalData({
-          sessionId: generateId(),
-          liquidityHubId: "",
-        });
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  /// ----quote---- ///
-
-  onQuoteRequest(args: QuoteRequest) {
+  public onQuoteRequest(args: QuoteRequest): StageData {
     this.resetSessionIfNeeded(args);
-    try {
-      this.quoteStageData = {
-        _id: generateId(),
-        start: Date.now(),
-        stage: "quote",
-        status: args.disabled ? ("disabled" as const) : ("waiting" as const),
+    const stage = this.startStage(
+      "quote",
+      {
         srcTokenAddress: args.srcTokenAddress,
         dstTokenAddress: args.dstTokenAddress,
         slippage: args.slippage,
         walletAddress: args.account,
-        dexOutAmountWS: getDexOutAmountWS(
-          args.dexMinAmountOut || "0",
-          args.slippage
+        dexMinAmountOut: args.dexMinAmountOut,
+        dexOutAmountWS: getDexOutAmountWithSlippage(
+          args.dexMinAmountOut,
+          args.slippage,
         ),
         srcAmount: args.inAmount,
         inAmountUsd: args.inAmountUsd,
-      };
-      this.sendData(this.quoteStageData);
-      this.updateGlobalData({
-        srcTokenAddress: args.srcTokenAddress,
-        dstTokenAddress: args.dstTokenAddress,
-        walletAddress: args.account,
-        srcAmount: args.inAmount,
-        inAmountUsd: args.inAmountUsd,
-      });
-    } catch (error) {
-      console.error(error);
+      },
+      args.disabled ? "disabled" : "waiting",
+    );
+
+    this.quoteStage = stage;
+    this.updateGlobalData({
+      srcTokenAddress: args.srcTokenAddress,
+      dstTokenAddress: args.dstTokenAddress,
+      walletAddress: args.account,
+      srcAmount: args.inAmount,
+      inAmountUsd: args.inAmountUsd,
+    });
+    return stage;
+  }
+
+  public onQuoteSuccess(
+    quote: Quote,
+    requestStage: StageData = this.requireStage(this.quoteStage, "quote"),
+  ): void {
+    const completed = this.finishStage(requestStage, {
+      status: "success",
+      minAmountOutLH: quote.userMinOutAmountWithGas,
+      liquidityHubId: quote.sessionId,
+      ...getQuoteValues(quote),
+    });
+
+    const isLatestRequest = requestStage._id === this.quoteStage?._id;
+    if (isLatestRequest) {
+      this.quoteStage = completed;
+    }
+    if (isLatestRequest && this.isCurrentQuote(quote)) {
+      this.updateGlobalData({ liquidityHubId: quote.sessionId });
     }
   }
 
-  onQuoteSuccess(quote: Quote) {
-    try {
-      this.quoteStageData = {
-        ...(this.quoteStageData || {}),
-        status: "success",
-        stageMillis: getMillis(this.quoteStageData.start),
-        minAmountOutLH: quote.userMinOutAmountWithGas,
-        liquidityHubId: quote.sessionId,
-        ...getQuoteValues(quote),
-      };
-      this.updateGlobalData({
-        liquidityHubId: quote.sessionId,
-      });
-
-      this.sendData(this.quoteStageData);
-    } catch (error) {
-      console.error(error);
+  public onQuoteFailed(
+    error: string,
+    requestStage: StageData = this.requireStage(this.quoteStage, "quote"),
+  ): void {
+    const completed = this.finishStage(requestStage, {
+      status: "failed",
+      error,
+    });
+    if (requestStage._id === this.quoteStage?._id) {
+      this.quoteStage = completed;
     }
   }
 
-  onQuoteFailed(error: string) {
-    try {
-      this.quoteStageData = {
-        ...(this.quoteStageData || {}),
-        status: "failed",
-        error,
-      };
-      this.sendData(this.quoteStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onWrapRequest(): void {
+    this.wrapStage = this.startStage("wrap");
   }
 
-  /// ----wrap---- ///
-  onWrapRequest() {
-    try {
-      this.wrapStageData = {
-        stage: "wrap",
-        status: "waiting",
-        _id: generateId(),
-        start: Date.now(),
-      };
-      this.sendData(this.wrapStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onWrapSuccess(txHash?: string): void {
+    this.wrapStage = this.finishTrackedStage(this.wrapStage, "wrap", {
+      status: "success",
+      txHash,
+    });
   }
 
-  onWrapSuccess(txHash?: string) {
-    try {
-      this.wrapStageData = {
-        ...(this.wrapStageData || {}),
-        status: "success",
-        txHash,
-        stageMillis: getMillis(this.wrapStageData.start),
-      };
-      this.sendData(this.wrapStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onWrapFailed(error: string): void {
+    this.wrapStage = this.finishTrackedStage(this.wrapStage, "wrap", {
+      status: "failed",
+      error,
+    });
   }
 
-  onWrapFailed(error: string) {
-    try {
-      this.wrapStageData = {
-        ...(this.wrapStageData || {}),
-        status: "failed",
-        error,
-      };
-      this.sendData(this.wrapStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onApprovalRequest(): void {
+    this.approvalStage = this.startStage("approval");
   }
 
-  /// ----approval---- ///
-  onApprovalRequest() {
-    try {
-      this.approvalStageData = {
-        stage: "approval",
-        status: "waiting",
-        _id: generateId(),
-        start: Date.now(),
-      };
-      this.sendData(this.approvalStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onApprovalSuccess(txHash?: string): void {
+    this.approvalStage = this.finishTrackedStage(
+      this.approvalStage,
+      "approval",
+      { status: "success", txHash },
+    );
   }
 
-  onApprovalSuccess(txHash?: string) {
-    try {
-      this.approvalStageData = {
-        ...(this.approvalStageData || {}),
-        status: "success",
-        txHash,
-        stageMillis: getMillis(this.approvalStageData.start),
-      };
-      this.sendData(this.approvalStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onApprovalFailed(error: string): void {
+    this.approvalStage = this.finishTrackedStage(
+      this.approvalStage,
+      "approval",
+      { status: "failed", error },
+    );
   }
 
-  onApprovalFailed(error: string) {
-    try {
-      this.approvalStageData = {
-        ...(this.approvalStageData || {}),
-        status: "failed",
-        error,
-      };
-      this.sendData(this.approvalStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onSignatureRequest(): void {
+    this.signatureStage = this.startStage("signature");
   }
 
-  /// ----signature---- ///
-  onSignatureRequest() {
-    try {
-      this.signatureStageData = {
-        stage: "signature",
-        status: "waiting",
-        _id: generateId(),
-        start: Date.now(),
-      };
-      this.sendData(this.signatureStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onSignatureSuccess(_signature: string): void {
+    this.signatureStage = this.finishTrackedStage(
+      this.signatureStage,
+      "signature",
+      { status: "success" },
+    );
   }
 
-  onSignatureSuccess(signature: string) {
-    try {
-      this.signatureStageData = {
-        ...(this.signatureStageData || {}),
-        signature,
-        status: "success",
-        stageMillis: getMillis(this.signatureStageData.start),
-      };
-      this.sendData(this.signatureStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onSignatureFailed(error: string): void {
+    this.signatureStage = this.finishTrackedStage(
+      this.signatureStage,
+      "signature",
+      { status: "failed", error },
+    );
   }
 
-  onSignatureFailed(error: string) {
-    try {
-      this.signatureStageData = {
-        ...(this.signatureStageData || {}),
-        status: "failed",
-        error,
-      };
-      this.sendData(this.signatureStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onSwapRequest(quote: Quote, dexRouterData?: DexRouterData): void {
+    this.swapStage = this.startStage("swap", {
+      dexRouterData: dexRouterData?.data,
+      dexRouterTo: dexRouterData?.to,
+      ...getQuoteValues(quote),
+    });
   }
 
-  /// ----swap---- ///
-  onSwapRequest(quote: Quote, dexRouterData?: DexRouterData) {
-    try {
-      this.swapStageData = {
-        stage: "swap",
-        status: "waiting",
-        _id: generateId(),
-        start: Date.now(),
-        dexRouterData: dexRouterData?.data,
-        dexRouterTo: dexRouterData?.to,
-        ...getQuoteValues(quote),
-      };
-      this.sendData(this.swapStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onSwapTxHash(txHash: string): void {
+    const stage = this.swapStage ?? this.createStage("swap");
+    this.swapStage = {
+      ...stage,
+      txHash,
+      waitForTxHashMillis: getElapsedMillis(stage.start),
+    };
+    this.sendData(this.swapStage);
   }
 
-  onSwapTxHash(txHash: string) {
-    try {
-      this.swapStageData = {
-        ...(this.swapStageData || {}),
-        txHash,
-        waitForTxHashMillis: getMillis(this.swapStageData.start),
-      };
-      this.sendData(this.swapStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onSwapSuccess(): void {
+    this.swapStage = this.finishTrackedStage(this.swapStage, "swap", {
+      status: "success",
+    });
   }
 
-  onSwapSuccess() {
-    try {
-      this.swapStageData = {
-        ...(this.swapStageData || {}),
-        status: "success",
-        stageMillis: getMillis(this.swapStageData.start),
-      };
-      this.sendData(this.swapStageData);
-    } catch (error) {
-      console.error(error);
-    }
+  public onSwapFailed(error: string): void {
+    this.swapStage = this.finishTrackedStage(this.swapStage, "swap", {
+      status: "failed",
+      error,
+    });
   }
 
-  onSwapFailed(error: string) {
-    try {
-      this.swapStageData = {
-        ...(this.swapStageData || {}),
-        stageMillis: getMillis(this.swapStageData.start),
-        error,
-        status: "failed",
-      };
-      this.sendData(this.swapStageData);
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  /// ----dex-swap---- ///
-
-  onDexSwap({
+  public onDexSwap({
     panel,
     router,
     srcTokenAddress,
@@ -510,33 +310,115 @@ export class Analytics {
     inAmount,
     inAmountUsd,
     txHash,
-  }: {
-    panel: string;
-    router: string;
-    srcTokenAddress: string;
-    dstTokenAddress: string;
-    inAmount: string;
-    inAmountUsd?: number;
-    txHash: string;
-  }) {
-    try {
-      const key = getDexKey(panel, router);
-      this.dexSwapStageData[key] = {
-        stage: "dex-swap" as any,
-        _id: generateId(),
-        panel,
-        router,
-        srcTokenAddress: isNativeAddress(srcTokenAddress) ? zeroAddress : srcTokenAddress,
-        dstTokenAddress: isNativeAddress(dstTokenAddress) ? zeroAddress : dstTokenAddress,
-        inAmount,
-        inAmountUsd,
-        txHash,
-      };
-      this.sendData(this.dexSwapStageData[key]);
-    } catch (error) {
-      console.error(error);
+  }: DexSwapAnalyticsParams): void {
+    this.sendData({
+      stage: "dex-swap",
+      _id: generateId(),
+      panel,
+      router,
+      srcTokenAddress: isNativeAddress(srcTokenAddress)
+        ? zeroAddress
+        : srcTokenAddress,
+      dstTokenAddress: isNativeAddress(dstTokenAddress)
+        ? zeroAddress
+        : dstTokenAddress,
+      inAmount,
+      inAmountUsd,
+      txHash,
+    });
+  }
+
+  private sendData(values: AnalyticsPayload = {}): void {
+    if (this.blockAnalytics) return;
+
+    const { start: _start, ...payload } = values;
+    void sendBI({ ...this.globalData, ...payload });
+  }
+
+  private updateGlobalData(data: Partial<GlobalData>): void {
+    this.globalData = { ...this.globalData, ...data };
+  }
+
+  private createStage(
+    stage: Stage,
+    values: AnalyticsPayload = {},
+    status: Status = "waiting",
+  ): StageData {
+    return {
+      _id: generateId(),
+      stage,
+      status,
+      start: Date.now(),
+      ...values,
+    };
+  }
+
+  private startStage(
+    stage: Stage,
+    values: AnalyticsPayload = {},
+    status: Status = "waiting",
+  ): StageData {
+    const data = this.createStage(stage, values, status);
+    this.sendData(data);
+    return data;
+  }
+
+  private finishStage(stage: StageData, values: AnalyticsPayload): StageData {
+    const completed = {
+      ...stage,
+      ...values,
+      stageMillis: getElapsedMillis(stage.start),
+    } as StageData;
+    this.sendData(completed);
+    return completed;
+  }
+
+  private finishTrackedStage(
+    current: StageData | undefined,
+    stage: Stage,
+    values: AnalyticsPayload,
+  ): StageData {
+    return this.finishStage(current ?? this.createStage(stage), values);
+  }
+
+  private requireStage(
+    stage: StageData | undefined,
+    stageName: Stage,
+  ): StageData {
+    return stage ?? this.createStage(stageName);
+  }
+
+  private resetSessionIfNeeded(args: QuoteRequest): void {
+    const sourceChanged =
+      this.globalData.srcTokenAddress !== undefined &&
+      !eqIgnoreCase(args.srcTokenAddress, this.globalData.srcTokenAddress);
+    const destinationChanged =
+      this.globalData.dstTokenAddress !== undefined &&
+      !eqIgnoreCase(args.dstTokenAddress, this.globalData.dstTokenAddress);
+    const amountChanged =
+      this.globalData.srcAmount !== undefined &&
+      args.inAmount !== this.globalData.srcAmount;
+    const walletChanged =
+      this.globalData.walletAddress !== undefined &&
+      !eqIgnoreCase(args.account, this.globalData.walletAddress);
+
+    if (sourceChanged || destinationChanged || amountChanged || walletChanged) {
+      this.updateGlobalData({
+        sessionId: generateId(),
+        liquidityHubId: "",
+      });
     }
   }
-}
 
-export const analyticsInstance = new Analytics();
+  private isCurrentQuote(quote: Quote): boolean {
+    return (
+      this.globalData.srcTokenAddress !== undefined &&
+      this.globalData.dstTokenAddress !== undefined &&
+      this.globalData.walletAddress !== undefined &&
+      eqIgnoreCase(quote.inToken, this.globalData.srcTokenAddress) &&
+      eqIgnoreCase(quote.outToken, this.globalData.dstTokenAddress) &&
+      quote.inAmount === this.globalData.srcAmount &&
+      eqIgnoreCase(quote.user, this.globalData.walletAddress)
+    );
+  }
+}

@@ -152,9 +152,11 @@ export interface SpotProps {
   outputToken?: Token;
   /** Host-owned chain metadata; may be undefined only before a chain is known. */
   wrappedNativeToken: Token | undefined;
-  inputTokenUsdPrice?: string;
+  /** Raw input-token balance; undefined represents a disconnected/loading state. */
+  inputBalanceRaw: string | undefined;
+  /** USD value of one input token; undefined represents a loading state. */
+  inputTokenUsdPrice: string | undefined;
   outputTokenUsdPrice?: string;
-  inputBalanceRaw?: string;
   priceProtectionPercent: number;
   module: Module;
   marketQuote: MarketQuote;

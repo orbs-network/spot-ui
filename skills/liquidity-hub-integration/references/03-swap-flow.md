@@ -10,7 +10,7 @@ The full Liquidity Hub swap flow has these stages:
 4. **Approve** — Approve Permit2 contract for the source token
 5. **Sign** — User signs the EIP-712 typed data from the quote
 6. **Swap** — Submit the signed quote to Liquidity Hub
-7. **Poll** — Wait for transaction confirmation
+7. **Confirm** — Use the DEX's receipt client and reject reverted receipts
 
 ## Step-by-Step
 
@@ -41,9 +41,9 @@ const useLiquidityHub =
 Liquidity Hub only works with ERC-20 tokens. If the user is swapping a native token, wrap it first:
 
 ```ts
-import { permit2Address, nativeTokenAddresses } from "@orbs-network/liquidity-hub-sdk";
+import { isNativeAddress } from "@orbs-network/liquidity-hub-sdk";
 
-const isNative = nativeTokenAddresses.includes(fromToken.toLowerCase());
+const isNative = isNativeAddress(fromToken);
 
 if (isNative) {
   lh.analytics.wrap.onRequest();
@@ -54,10 +54,17 @@ if (isNative) {
       address: wrappedTokenAddress,
       value: BigInt(amount),
     });
-    await waitForTransaction(wrapTx);
+    const wrapReceipt = await publicClient.waitForTransactionReceipt({
+      hash: wrapTx,
+    });
+    if (wrapReceipt.status !== "success") {
+      throw new Error("Wrap transaction reverted");
+    }
     lh.analytics.wrap.onSuccess(wrapTx);
   } catch (error) {
-    lh.analytics.wrap.onFailed(error.message);
+    lh.analytics.wrap.onFailed(
+      error instanceof Error ? error.message : "Wrap failed",
+    );
     throw error;
   }
 }
@@ -68,7 +75,7 @@ if (isNative) {
 The user needs to approve the Permit2 contract (`0x000000000022D473030F116dDEE9F6B43aC78BA3`) to spend the source token. This is a one-time approval per token:
 
 ```ts
-import { permit2Address } from "@orbs-network/liquidity-hub-sdk";
+import { maxUint256, permit2Address } from "@orbs-network/liquidity-hub-sdk";
 
 const allowance = await readContract({
   address: tokenAddress,
@@ -86,10 +93,17 @@ if (BigInt(allowance) < BigInt(amount)) {
       address: tokenAddress,
       args: [permit2Address, maxUint256],
     });
-    await waitForTransaction(approveTx);
+    const approvalReceipt = await publicClient.waitForTransactionReceipt({
+      hash: approveTx,
+    });
+    if (approvalReceipt.status !== "success") {
+      throw new Error("Approval transaction reverted");
+    }
     lh.analytics.approval.onSuccess(approveTx);
   } catch (error) {
-    lh.analytics.approval.onFailed(error.message);
+    lh.analytics.approval.onFailed(
+      error instanceof Error ? error.message : "Approval failed",
+    );
     throw error;
   }
 }
@@ -111,7 +125,9 @@ try {
   });
   lh.analytics.signature.onSuccess(signature);
 } catch (error) {
-  lh.analytics.signature.onFailed(error.message);
+  lh.analytics.signature.onFailed(
+    error instanceof Error ? error.message : "Signature failed",
+  );
   throw error;
 }
 ```
@@ -119,39 +135,50 @@ try {
 ### 6. Execute the Swap
 
 ```ts
+const txHash = await lh.swap(quote, signature, {
+  data: dexRouterCalldata, // Optional: DEX router calldata for fallback
+  to: dexRouterAddress, // Optional: DEX router address
+});
+```
+
+The SDK reports swap requests and failures itself. Do not call
+`swap.onFailed` again when `swap()` rejects, or the failure event will be
+duplicated.
+
+### 7. Wait for Confirmation
+
+```ts
 try {
-  const txHash = await lh.swap(quote, signature, {
-    data: dexRouterCalldata,  // Optional: DEX router calldata for fallback
-    to: dexRouterAddress,     // Optional: DEX router address
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: txHash as `0x${string}`,
   });
+  if (receipt.status !== "success") {
+    throw new Error("Liquidity Hub transaction reverted");
+  }
   lh.analytics.swap.onSuccess();
+  // Show success using the host DEX's receipt data.
 } catch (error) {
-  lh.analytics.swap.onFailed(error.message);
+  lh.analytics.swap.onFailed(
+    error instanceof Error ? error.message : "Transaction confirmation failed",
+  );
   throw error;
 }
 ```
 
-### 7. Poll for Confirmation
-
-```ts
-const details = await lh.getTransactionDetails(txHash, quote);
-
-if (details.isMined) {
-  // Swap confirmed — show success to user
-  // details.exactOutAmount has the actual output
-}
-```
+Once `txHash` exists, never start the DEX fallback because receipt polling or
+an RPC request failed. Re-query that hash through the host's normal recovery
+flow instead.
 
 ## Analytics Callbacks
 
 Report analytics at every stage so the protocol can optimize for your DEX. The SDK exposes callbacks via `lh.analytics`:
 
-| Stage | Callbacks |
-|-------|-----------|
-| Swap | `swap.onSuccess()`, `swap.onFailed(errorMsg)` |
-| DEX fallback | `dexSwap({ panel, router, srcTokenAddress, dstTokenAddress, inAmount, txHash })` |
-| Wrap | `wrap.onRequest()`, `wrap.onSuccess(txHash)`, `wrap.onFailed(errorMsg)` |
-| Approval | `approval.onRequest()`, `approval.onSuccess(txHash)`, `approval.onFailed(errorMsg)` |
-| Signature | `signature.onRequest()`, `signature.onSuccess(signature)`, `signature.onFailed(errorMsg)` |
+| Stage        | Callbacks                                                                                 |
+| ------------ | ----------------------------------------------------------------------------------------- |
+| Swap         | `swap.onSuccess()`, `swap.onFailed(errorMsg)`                                             |
+| DEX fallback | `dexSwap({ panel, router, srcTokenAddress, dstTokenAddress, inAmount, txHash })`          |
+| Wrap         | `wrap.onRequest()`, `wrap.onSuccess(txHash)`, `wrap.onFailed(errorMsg)`                   |
+| Approval     | `approval.onRequest()`, `approval.onSuccess(txHash)`, `approval.onFailed(errorMsg)`       |
+| Signature    | `signature.onRequest()`, `signature.onSuccess(signature)`, `signature.onFailed(errorMsg)` |
 
 **Always report `dexSwap` when falling back to the DEX router.** This lets the protocol learn from missed opportunities and improve future quotes.

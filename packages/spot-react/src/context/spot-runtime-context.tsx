@@ -23,9 +23,9 @@ export interface SpotRuntimeState {
   inputToken?: Token;
   outputToken?: Token;
   wrappedNativeToken: Token | undefined;
-  inputTokenUsdPrice?: string;
+  inputBalanceRaw: string | undefined;
+  inputTokenUsdPrice: string | undefined;
   outputTokenUsdPrice?: string;
-  inputBalanceRaw?: string;
   chainId?: number;
   isSupportedChain: boolean;
   priceProtectionPercent: number;

@@ -265,8 +265,8 @@ Use the connected wallet chain as the source of truth. When it is absent or unsu
 | `inputToken` | `Token` | No | Input token metadata |
 | `outputToken` | `Token` | No | Output token metadata |
 | `wrappedNativeToken` | `Token \| undefined` | Yes | Host-provided wrapped-native token; pass `undefined` only before a chain is known |
-| `inputBalanceRaw` | `string` | No | Raw input-token balance |
-| `inputTokenUsdPrice` | `string` | No | USD value of one whole input token |
+| `inputBalanceRaw` | `string \| undefined` | Yes | Raw input-token balance; pass `undefined` while disconnected or loading |
+| `inputTokenUsdPrice` | `string \| undefined` | Yes | USD value of one whole input token; pass `undefined` while loading |
 | `outputTokenUsdPrice` | `string` | No | USD value of one whole output token |
 | `callbacks` | `Callbacks` | No | Lifecycle and field-change callbacks |
 | `displayFeePercent` | `number` | No | Display-only fee estimate percentage; does not collect or subtract fees |
@@ -274,7 +274,10 @@ Use the connected wallet chain as the source of truth. When it is absent or unsu
 | `clientErrorFallback` | `ComponentType<ClientErrorFallbackProps>` | No | Host-rendered client initialization error UI with `error`, `retry`, and `isRetrying` |
 | `errorFallback` | `ComponentType<SpotErrorFallbackProps>` | No | Host-rendered fallback for unexpected calculation or rendering errors |
 
-Although the input balance and USD prices are optional in the TypeScript type, production integrations should pass them so validation, loading states, minimum trade size, and review details are correct.
+`inputBalanceRaw` and `inputTokenUsdPrice` are required provider props; pass
+`undefined` only while their values are genuinely unavailable. The output-token
+USD price remains optional because it is used for display details rather than
+submission readiness.
 
 `minTradeSizeUsd` must be a positive USD threshold approved for the partner;
 there is intentionally no SDK default. `priceProtectionPercent` uses percentage

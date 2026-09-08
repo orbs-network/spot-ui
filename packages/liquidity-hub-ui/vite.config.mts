@@ -1,26 +1,16 @@
-import { defineConfig } from 'vite'
-import svgr from "vite-plugin-svgr";
-import tsconfigPaths from "vite-tsconfig-paths";
-import dts from "vite-plugin-dts";
 import path from "path";
-import version from 'vite-plugin-package-version';
+import { defineConfig } from "vite";
+import dts from "vite-plugin-dts";
 
-// https://vitejs.dev/config/
 export default defineConfig({
-  define: {
-    "process.env": process.env,
-  },
   build: {
     lib: {
       entry: path.resolve(__dirname, "src/lib/index.ts"),
-      fileName: (format) => `main.${format}.js`,
-      name: "main",
+      fileName: (format) => (format === "es" ? "main.es.js" : "main.umd.cjs"),
+      name: "LiquidityHubSDK",
     },
   },
   plugins: [
-    svgr(),
-    tsconfigPaths(),
-    version(),
     dts({
       insertTypesEntry: true,
       outDir: "dist/types",

@@ -11,6 +11,27 @@ const jsonResponse = (body: unknown, ok = true) => ({
   json: async () => body,
 });
 
+const createV1Order = (): OrderV1 => ({
+  Contract_id: "1",
+  twapAddress: ADDRESS_4,
+  exchange: ADDRESS_4,
+  maker: ADDRESS_4,
+  ask_srcAmount: "100",
+  ask_srcBidAmount: "100",
+  ask_dstMinAmount: "1",
+  ask_srcToken: ADDRESS_4,
+  ask_dstToken: ADDRESS_4,
+  ask_fillDelay: 300,
+  ask_deadline: 4_000_000_000,
+  dollarValueIn: "1",
+  timestamp: "2026-01-01T00:00:00.000Z",
+  transactionHash: "0x1",
+  srcTokenSymbol: "SRC",
+  dstTokenSymbol: "DST",
+  blockNumber: 1,
+  dex: "test",
+});
+
 describe("v2 order history", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -94,22 +115,7 @@ describe("v1 order history", () => {
   });
 
   it("skips an unusable item before fetching related history", async () => {
-    const validOrder = {
-      Contract_id: "1",
-      twapAddress: ADDRESS_4,
-      exchange: ADDRESS_4,
-      maker: ADDRESS_4,
-      ask_srcAmount: "100",
-      ask_srcBidAmount: "100",
-      ask_dstMinAmount: "1",
-      ask_srcToken: ADDRESS_4,
-      ask_dstToken: ADDRESS_4,
-      ask_fillDelay: 300,
-      ask_deadline: 4_000_000_000,
-      dollarValueIn: "1",
-      timestamp: "2026-01-01T00:00:00.000Z",
-      transactionHash: "0x1",
-    } as OrderV1;
+    const validOrder = createV1Order();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     vi.stubGlobal(
       "fetch",
@@ -132,5 +138,47 @@ describe("v1 order history", () => {
     expect(orders).toHaveLength(1);
     expect(orders[0]?.id).toBe("1");
     expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it("matches string-valued Graph BigInt fill IDs to legacy orders", async () => {
+    const validOrder = createV1Order();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+        const query = JSON.parse(String(init?.body)).query as string;
+        if (query.includes("orderCreateds")) {
+          return jsonResponse({ data: { orderCreateds: [validOrder] } });
+        }
+        if (query.includes("orderFilleds")) {
+          return jsonResponse({
+            data: {
+              orderFilleds: [
+                {
+                  TWAP_id: "1",
+                  dollarValueIn: "1",
+                  dollarValueOut: "2",
+                  dstAmountOut: "200",
+                  dstFee: "0",
+                  id: "fill-1",
+                  srcAmountIn: "100",
+                  srcFilledAmount: "100",
+                  timestamp: Date.parse("2026-01-01T00:01:00.000Z"),
+                  twapAddress: ADDRESS_4,
+                  exchange: ADDRESS_4,
+                  transactionHash: "0xfill",
+                },
+              ],
+            },
+          });
+        }
+        return jsonResponse({ data: { statusNews: [] } });
+      }),
+    );
+
+    const orders = await getV1Orders({ chainId: 1 });
+
+    expect(orders[0]?.fills).toHaveLength(1);
+    expect(orders[0]?.progress).toBe(100);
+    expect(orders[0]?.status).toBe("COMPLETED");
   });
 });

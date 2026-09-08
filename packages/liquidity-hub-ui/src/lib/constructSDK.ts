@@ -1,75 +1,127 @@
-import { analyticsInstance } from "./analytics";
+import { Analytics } from "./analytics";
 import { fetchQuote } from "./quote";
-import { swap, getTxDetails } from "./swap";
-import { Quote, QuoteArgs } from "./types";
+import { swap as submitSwap } from "./swap";
+import type {
+  DexRouterData,
+  LiquidityHubAnalytics,
+  LiquidityHubSDKOptions,
+  Quote,
+  QuoteArgs,
+} from "./types";
+import { getApiUrl, isFreshQuote } from "./util";
 
-interface Args {
-  chainId: number;
-  partner: string;
-  blockAnalytics?: boolean;
-}
+const assertSDKOptions = ({
+  chainId,
+  partner,
+}: LiquidityHubSDKOptions): void => {
+  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+    throw new Error("Liquidity Hub chainId must be a positive integer");
+  }
+  if (!partner.trim()) {
+    throw new Error("Liquidity Hub partner is required");
+  }
+};
 
-
-const analyticsCallbacks = {
-  // Use a getter so consumers read the current id rather than the empty
-  // snapshot captured at module import time.
+const createAnalyticsCallbacks = (
+  reporter: Analytics,
+): LiquidityHubAnalytics => ({
   get liquidityHubId() {
-    return analyticsInstance.globalData.liquidityHubId;
+    return reporter.liquidityHubId;
   },
   swap: {
-    onSuccess: analyticsInstance.onSwapSuccess.bind(analyticsInstance),
-    onFailed: analyticsInstance.onSwapFailed.bind(analyticsInstance),
+    onSuccess: () => reporter.onSwapSuccess(),
+    onFailed: (error) => reporter.onSwapFailed(error),
   },
-  dexSwap: analyticsInstance.onDexSwap.bind(analyticsInstance),
+  dexSwap: (params) => reporter.onDexSwap(params),
   wrap: {
-    onRequest: analyticsInstance.onWrapRequest.bind(analyticsInstance),
-    onSuccess: analyticsInstance.onWrapSuccess.bind(analyticsInstance),
-    onFailed: analyticsInstance.onWrapFailed.bind(analyticsInstance),
+    onRequest: () => reporter.onWrapRequest(),
+    onSuccess: (txHash) => reporter.onWrapSuccess(txHash),
+    onFailed: (error) => reporter.onWrapFailed(error),
   },
   approval: {
-    onRequest: analyticsInstance.onApprovalRequest.bind(analyticsInstance),
-    onSuccess: analyticsInstance.onApprovalSuccess.bind(analyticsInstance),
-    onFailed: analyticsInstance.onApprovalFailed.bind(analyticsInstance),
+    onRequest: () => reporter.onApprovalRequest(),
+    onSuccess: (txHash) => reporter.onApprovalSuccess(txHash),
+    onFailed: (error) => reporter.onApprovalFailed(error),
   },
   signature: {
-    onRequest: analyticsInstance.onSignatureRequest.bind(analyticsInstance),
-    onSuccess: analyticsInstance.onSignatureSuccess.bind(analyticsInstance),
-    onFailed: analyticsInstance.onSignatureFailed.bind(analyticsInstance),
+    onRequest: () => reporter.onSignatureRequest(),
+    onSuccess: (signature) => reporter.onSignatureSuccess(signature),
+    onFailed: (error) => reporter.onSignatureFailed(error),
   },
-} as const;
+});
 
-class LiquidityHubSDK {
-  private chainId?: number;
-  private partner: string;
-  public analytics = analyticsCallbacks;
-  constructor(args: Args) {
-    this.chainId = args.chainId;
-    this.partner =  args.partner;
-    analyticsInstance.init(
-      args.chainId,
-      args.partner,
-      args.blockAnalytics || false
+export class LiquidityHubSDK {
+  public readonly chainId: number;
+  public readonly partner: string;
+  public readonly analytics: LiquidityHubAnalytics;
+
+  private readonly apiUrl: string;
+  private readonly analyticsReporter: Analytics;
+  private activeSwap?: Promise<string>;
+
+  constructor(options: LiquidityHubSDKOptions) {
+    assertSDKOptions(options);
+
+    this.chainId = options.chainId;
+    this.partner = options.partner.trim().toLowerCase();
+    this.apiUrl = getApiUrl(this.chainId, options.apiUrl);
+    this.analyticsReporter = new Analytics();
+    this.analyticsReporter.init(
+      this.chainId,
+      this.partner,
+      options.blockAnalytics ?? false,
+    );
+    this.analytics = createAnalyticsCallbacks(this.analyticsReporter);
+  }
+
+  /** Requests and validates a Liquidity Hub quote. */
+  public getQuote(args: QuoteArgs): Promise<Quote> {
+    return fetchQuote(
+      args,
+      this.partner,
+      this.chainId,
+      this.apiUrl,
+      this.analyticsReporter,
     );
   }
 
-  getQuote(args: QuoteArgs) {
-    return fetchQuote(args, this.partner, this.chainId);
-  }
-
-  swap(
+  /** Submits a fresh, signed quote and resolves when its transaction hash is known. */
+  public async swap(
     quote: Quote,
     signature: string,
-    dexRouterData?: { data?: string; to?: string }
-  ) {
-    return swap(quote, signature, this.chainId, dexRouterData);
-  }
+    dexRouterData?: DexRouterData,
+  ): Promise<string> {
+    if (this.activeSwap) {
+      throw new Error("A Liquidity Hub swap is already in progress");
+    }
+    if (!isFreshQuote(quote)) {
+      throw new Error("Liquidity Hub quote expired; request a new quote");
+    }
+    if (!signature.trim()) {
+      throw new Error("Liquidity Hub signature is required");
+    }
+    if (!quote.user.trim() || !quote.sessionId.trim()) {
+      throw new Error("Liquidity Hub quote is missing execution identity");
+    }
 
-  getTransactionDetails(txHash: string, quote: Quote) {
-    return getTxDetails(txHash, quote, this.chainId);
+    const activeSwap = submitSwap(
+      quote,
+      signature,
+      this.chainId,
+      this.apiUrl,
+      this.analyticsReporter,
+      dexRouterData,
+    );
+    this.activeSwap = activeSwap;
+
+    try {
+      return await activeSwap;
+    } finally {
+      if (this.activeSwap === activeSwap) this.activeSwap = undefined;
+    }
   }
 }
 
-export { LiquidityHubSDK };
-export const constructSDK = (args: Args): LiquidityHubSDK => {
-  return new LiquidityHubSDK(args);
-};
+export const constructSDK = (
+  options: LiquidityHubSDKOptions,
+): LiquidityHubSDK => new LiquidityHubSDK(options);

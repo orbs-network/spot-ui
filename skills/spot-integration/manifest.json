@@ -1,0 +1,16 @@
+{
+  "name": "spot-integration",
+  "description": "Framework-neutral TypeScript integration guide for @orbs-network/spot-ui. Reuses the host application's existing components and optimized state layer while covering form calculation, client lifecycle, wallet execution, history, and cancellation.",
+  "entrypoint": "SKILL.md",
+  "references": [
+    "references/01-quickstart.md",
+    "references/02-form-calculation.md",
+    "references/03-client-and-execution.md",
+    "references/04-history-and-cancellation.md",
+    "references/05-integration-principles.md"
+  ],
+  "assets": [
+    "assets/spot-integration-example.ts"
+  ],
+  "package": "@orbs-network/spot-ui"
+}

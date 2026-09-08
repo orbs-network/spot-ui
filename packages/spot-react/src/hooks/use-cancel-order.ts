@@ -82,6 +82,11 @@ export type CancelOrderStatus = {
   error?: string;
 };
 
+export const createCancelledOrder = (order: Order): Order => ({
+  ...order,
+  status: OrderStatus.Cancelled,
+});
+
 export const useCancelOrder = (order?: Order) => {
   const { account, walletInteractions, callbacks } = useSpotRuntime();
   const { data: client } = useClient();
@@ -120,6 +125,7 @@ export const useCancelOrder = (order?: Order) => {
       // The cancel is confirmed on-chain once we have a txHash. Update the
       // cache optimistically for both versions so an indexer lag doesn't get
       // reported to the user as a failed cancellation.
+      const cancelledOrder = createCancelledOrder(order);
       updateCachedOrderStatus(activeHistoryKey, OrderStatus.Cancelled);
       setCancelOrder(activeHistoryKey, {
         status: ExecutionStatus.SUCCESS,
@@ -127,10 +133,7 @@ export const useCancelOrder = (order?: Order) => {
       });
       observe(() =>
         callbacks?.onCancelOrderSuccess?.({
-          order:
-            order.version === 1
-              ? { ...order, status: OrderStatus.Cancelled }
-              : order,
+          order: cancelledOrder,
           txHash,
         }),
       );

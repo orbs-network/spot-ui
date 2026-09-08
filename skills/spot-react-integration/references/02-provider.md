@@ -287,8 +287,8 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 | `inputToken` | `Token` | No | `{ address, symbol, decimals, logoUrl? }` |
 | `outputToken` | `Token` | No | `{ address, symbol, decimals, logoUrl? }` |
 | `wrappedNativeToken` | `Token \| undefined` | Yes | Host-provided wrapped-native token; pass `undefined` only before a chain is known |
-| `inputBalanceRaw` | `string` | No | Raw input-token balance |
-| `inputTokenUsdPrice` | `string` | No | USD price of 1 input token |
+| `inputBalanceRaw` | `string \| undefined` | Yes | Raw input-token balance; pass `undefined` while disconnected or loading |
+| `inputTokenUsdPrice` | `string \| undefined` | Yes | USD price of 1 input token; pass `undefined` while loading |
 | `outputTokenUsdPrice` | `string` | No | USD price of 1 output token |
 | `callbacks` | `Callbacks` | No | Lifecycle event handlers |
 | `displayFeePercent` | `number` | No | Display-only fee estimate percentage; does not collect or subtract fees |
@@ -320,8 +320,8 @@ standard representations.
 ## Quote, Balance, and Price Inputs
 
 - `marketQuote.quotedOutputAmountRaw` should be the DEX quote output amount for the current `inputAmountUi`, not a standalone token price. The provider converts it into a per-unit market price internally.
-- `inputBalanceRaw` is a raw integer string. Pass it from the DEX balance hook so submission state and validation match the swap form.
-- `inputTokenUsdPrice` and `outputTokenUsdPrice` are the USD value of one token. They are optional in the type, but real integrations should pass them because loading states, minimum trade size, and review details depend on them.
+- `inputBalanceRaw` is a required provider prop whose value is a raw integer string. Pass `undefined` only while the wallet is disconnected or the balance is loading so submission state and validation match the swap form.
+- `inputTokenUsdPrice` is a required provider prop because loading state and minimum-trade validation depend on it; pass `undefined` only while the price is loading. `outputTokenUsdPrice` remains optional because it is used for display details only.
 - Get `chainId` from the connected account/wallet hook wherever Spot needs chain identity. Avoid mixing router, quote, and account chain sources.
 - Always pass the `wrappedNativeToken` prop from the DEX's chain configuration. Its value may be `undefined` only before a chain is known; Spot does not maintain a network registry or infer this token.
 - `chainId` and `account` may be missing while disconnected. Keep the form rendered; only swap the submit area to the DEX's connect-wallet or switch-network control.
@@ -330,7 +330,7 @@ standard representations.
 - The client owns RePermit-derived order, signing, approval, cancellation, submission, and history values. `SpotProvider` scopes and deduplicates client initialization internally; neither the React package nor the underlying `createClient` factory uses a global cache. A missing client on a supported chain represents initialization loading; pass a localized, DEX-native `clientErrorFallback` so failures remain retryable without passing configuration state through child contexts.
 - The SDK rejects configuration chain mismatches and malformed or zero RePermit/adapter addresses. The response still supplies the approval spender, v2 cancellation contract, adapter, reactor, and executor without deployed-bytecode verification, so only use the trusted Orbs endpoint over TLS.
 - If the DEX quote result exposes the input amount used for the quote, treat a mismatch with the current typed amount as stale. While stale, omit `marketQuote.quotedOutputAmountRaw` and set `isLoading` to `true`.
-- Compute `inputTokenUsdPrice` and `outputTokenUsdPrice` as the USD value of one token. Prefer the DEX's direct one-token USD hook. If unavailable, derive it as `usdAmount / tokenAmount` from the current swap form amounts. Pass strings; omit only when no valid positive value is available.
+- Compute `inputTokenUsdPrice` and `outputTokenUsdPrice` as the USD value of one token. Prefer the DEX's direct one-token USD hook. If unavailable, derive it as `usdAmount / tokenAmount` from the current swap form amounts. Pass strings; use `undefined` for the required input price while no valid positive value is available, and omit the optional output price in that state.
 
 ```tsx
 function getUsdValuePerToken(tokenAmount?: CurrencyAmount<Currency>, usdAmount?: CurrencyAmount<Currency>) {

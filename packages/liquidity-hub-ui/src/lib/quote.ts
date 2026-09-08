@@ -1,130 +1,247 @@
-import { devLog, getApiUrl } from "./util";
-import { analyticsInstance } from "./analytics";
-import { Quote, QuoteArgs } from "./types";
+import type { Analytics } from "./analytics";
+import type { Quote, QuoteArgs, QuotePermitData } from "./types";
+import {
+  devLog,
+  eqIgnoreCase,
+  isAbortError,
+  throwIfAborted,
+  toError,
+} from "./util";
+
 const QUOTE_TIMEOUT = 10_000;
+const REQUIRED_QUOTE_STRINGS = [
+  "inToken",
+  "outToken",
+  "inAmount",
+  "outAmount",
+  "user",
+  "qs",
+  "partner",
+  "exchange",
+  "sessionId",
+  "serializedOrder",
+  "minAmountOut",
+  "userMinOutAmountWithGas",
+  "outAmountWsMinusGas",
+  "outAmountWS",
+] as const;
+const REQUIRED_QUOTE_AMOUNTS = [
+  "inAmount",
+  "outAmount",
+  "minAmountOut",
+  "userMinOutAmountWithGas",
+  "outAmountWsMinusGas",
+  "outAmountWS",
+] as const;
 
-export async function promiseWithTimeout<T>(
-  promise: Promise<T>,
-  timeout: number
-): Promise<T> {
-  let timer: any;
+type QuoteResponse = Omit<Quote, "timestamp">;
+type JsonRecord = Record<string, unknown>;
 
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error("quote timeout"));
-    }, timeout);
-  });
+const isRecord = (value: unknown): value is JsonRecord =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
-  try {
-    const result = await Promise.race([promise, timeoutPromise]);
-    clearTimeout(timer);
-    return result;
-  } catch (error) {
-    clearTimeout(timer);
-    throw error;
+const getResponseError = (payload: unknown): string | undefined =>
+  isRecord(payload) && typeof payload.error === "string"
+    ? payload.error
+    : undefined;
+
+const isPermitData = (value: unknown): value is QuotePermitData => {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.domain) ||
+    !isRecord(value.types) ||
+    !isRecord(value.values)
+  ) {
+    return false;
+  }
+
+  return Object.values(value.types).every(
+    (fields) =>
+      Array.isArray(fields) &&
+      fields.every(
+        (field) =>
+          isRecord(field) &&
+          typeof field.name === "string" &&
+          typeof field.type === "string",
+      ),
+  );
+};
+
+function assertQuoteResponse(
+  payload: unknown,
+): asserts payload is QuoteResponse {
+  if (!isRecord(payload)) {
+    throw new Error("Liquidity Hub returned an invalid quote response");
+  }
+
+  for (const field of REQUIRED_QUOTE_STRINGS) {
+    if (typeof payload[field] !== "string") {
+      throw new Error(`Liquidity Hub quote is missing ${field}`);
+    }
+  }
+  for (const field of REQUIRED_QUOTE_AMOUNTS) {
+    if (!/^\d+$/.test(payload[field] as string)) {
+      throw new Error(`Liquidity Hub quote has invalid ${field}`);
+    }
+  }
+  if (
+    payload.gasAmountOut !== undefined &&
+    (typeof payload.gasAmountOut !== "string" ||
+      !/^\d+$/.test(payload.gasAmountOut))
+  ) {
+    throw new Error("Liquidity Hub quote has invalid gasAmountOut");
+  }
+  if (
+    typeof payload.slippage !== "number" ||
+    !Number.isFinite(payload.slippage)
+  ) {
+    throw new Error("Liquidity Hub quote is missing slippage");
+  }
+  if (!isPermitData(payload.permitData)) {
+    throw new Error("Liquidity Hub quote has invalid permitData");
   }
 }
 
-const safeEncodeURIComponent = () => {
-  try {
-    if (typeof window !== 'undefined') {
-      return encodeURIComponent(window.location.hash || window.location.search);
-    }
-    return "";
-  } catch (error) {
-    return "";
+const assertQuoteMatchesRequest = (
+  quote: QuoteResponse,
+  args: QuoteArgs,
+  partner: string,
+): void => {
+  if (
+    !eqIgnoreCase(quote.inToken, args.fromToken) ||
+    !eqIgnoreCase(quote.outToken, args.toToken) ||
+    quote.inAmount !== args.inAmount ||
+    !eqIgnoreCase(quote.partner, partner) ||
+    (args.account !== undefined && !eqIgnoreCase(quote.user, args.account))
+  ) {
+    throw new Error("Liquidity Hub quote does not match the request");
   }
 };
 
-let currentArgs: QuoteArgs | undefined;
-const isArgsChanged = (args: QuoteArgs) => {
-  if (
-    args.fromToken !== currentArgs?.fromToken ||
-    args.toToken !== currentArgs?.toToken ||
-    args.inAmount !== currentArgs?.inAmount ||
-    args.account !== currentArgs?.account
-  ) {
-    return true;
+const assertQuoteArgs = (args: QuoteArgs): void => {
+  if (!args.fromToken.trim() || !args.toToken.trim()) {
+    throw new Error("Liquidity Hub quote token addresses are required");
   }
-  return false;
+  if (!/^\d+$/.test(args.inAmount) || BigInt(args.inAmount) <= 0n) {
+    throw new Error("Liquidity Hub inAmount must be a positive integer string");
+  }
+  if (
+    args.dexMinAmountOut !== undefined &&
+    args.dexMinAmountOut !== "-1" &&
+    !/^\d+$/.test(args.dexMinAmountOut)
+  ) {
+    throw new Error(
+      "Liquidity Hub dexMinAmountOut must be a non-negative integer string",
+    );
+  }
+  if (!Number.isFinite(args.slippage) || args.slippage < 0) {
+    throw new Error("Liquidity Hub slippage must be a non-negative number");
+  }
+  if (
+    args.timeout !== undefined &&
+    (!Number.isFinite(args.timeout) || args.timeout <= 0)
+  ) {
+    throw new Error("Liquidity Hub quote timeout must be a positive number");
+  }
+};
+
+const safeEncodeLocation = (): string => {
+  try {
+    if (typeof window !== "undefined") {
+      return encodeURIComponent(window.location.hash || window.location.search);
+    }
+  } catch {}
+  return "";
 };
 
 export const fetchQuote = async (
   args: QuoteArgs,
   partner: string,
-  chainId?: number,
-) => {
-  if (!chainId) {
-    throw new Error("chainId is missing in constructSDK");
-  }
-  const apiUrl = getApiUrl(chainId);
-  const sessionId = isArgsChanged(args) ? undefined : analyticsInstance.globalData.liquidityHubId;
-  currentArgs = args;
+  chainId: number,
+  apiUrl: string,
+  analytics: Analytics,
+): Promise<Quote> => {
+  assertQuoteArgs(args);
+  throwIfAborted(args.signal);
 
-  analyticsInstance.onQuoteRequest({
+  const requestStage = analytics.onQuoteRequest({
     srcTokenAddress: args.fromToken,
     dstTokenAddress: args.toToken,
     slippage: args.slippage,
-    dexMinAmountOut: args.dexMinAmountOut || "",
+    dexMinAmountOut: args.dexMinAmountOut ?? "",
     inAmount: args.inAmount,
-    account: args.account || "",
+    account: args.account ?? "",
     inAmountUsd: args.inAmountUsd,
     disabled: args.disabled,
   });
+  const sessionId = analytics.liquidityHubId || undefined;
+  const controller = new AbortController();
+  const abortFromCaller = () => controller.abort(args.signal?.reason);
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, args.timeout ?? QUOTE_TIMEOUT);
 
+  args.signal?.addEventListener("abort", abortFromCaller, { once: true });
   devLog("quote start", { args });
 
   try {
-    const response = await promiseWithTimeout(
-      fetch(`${apiUrl}/quote?chainId=${chainId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          inToken: args.fromToken,
-          outToken: args.toToken,
-          inAmount: args.inAmount,
-          outAmount: !args.dexMinAmountOut ? "-1" : args.dexMinAmountOut,
-          user: args.account,
-          slippage: args.slippage,
-          qs: safeEncodeURIComponent(),
-          partner: partner.toLowerCase(),
-          sessionId,
-        }),
-        signal: args.signal,
+    const response = await fetch(`${apiUrl}/quote?chainId=${chainId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        inToken: args.fromToken,
+        outToken: args.toToken,
+        inAmount: args.inAmount,
+        outAmount: args.dexMinAmountOut || "-1",
+        user: args.account,
+        slippage: args.slippage,
+        qs: safeEncodeLocation(),
+        partner,
+        sessionId,
       }),
-      args.timeout || QUOTE_TIMEOUT
-    );
-    const quote = await response.json().catch(() => null);
+      signal: controller.signal,
+    });
+    const payload: unknown = await response.json().catch(() => undefined);
 
     if (!response.ok) {
-      throw new Error(quote?.error || `Quote request failed (${response.status})`);
+      throw new Error(
+        getResponseError(payload) ??
+          `Liquidity Hub quote request failed (${response.status})`,
+      );
     }
+    const responseError = getResponseError(payload);
+    if (responseError) throw new Error(responseError);
 
-    if (!quote) {
-      throw new Error("No result");
-    }
-
-    if (quote.error) {
-      throw new Error(quote.error);
-    }
-    analyticsInstance.onQuoteSuccess(quote);
-    const typedQuote = {
-      ...quote,
-      timestamp: Date.now(),
-    } as Quote;
+    assertQuoteResponse(payload);
+    assertQuoteMatchesRequest(payload, args, partner);
+    const quote: Quote = { ...payload, timestamp: Date.now() };
+    analytics.onQuoteSuccess(quote, requestStage);
     devLog("quote success", { quote });
     devLog("price compare", {
-      lhPrice: typedQuote.userMinOutAmountWithGas,
-      dexPrice: args.dexMinAmountOut,
+      liquidityHubMinimum: quote.userMinOutAmountWithGas,
+      dexMinimum: args.dexMinAmountOut,
     });
-    return typedQuote;
-  } catch (error: any) {
-    analyticsInstance.onQuoteFailed(error.message);
-    devLog("quote error", { error });
+    return quote;
+  } catch (error) {
+    const normalizedError = timedOut
+      ? Object.assign(new Error("Liquidity Hub quote request timed out"), {
+          name: "TimeoutError",
+        })
+      : toError(error, "Liquidity Hub quote request failed");
+    const wasCancelled = args.signal?.aborted || isAbortError(normalizedError);
 
-    throw new Error(error.message);
+    if (!wasCancelled) {
+      analytics.onQuoteFailed(normalizedError.message, requestStage);
+    }
+    devLog("quote error", { error: normalizedError });
+    throw normalizedError;
+  } finally {
+    clearTimeout(timeout);
+    args.signal?.removeEventListener("abort", abortFromCaller);
   }
 };

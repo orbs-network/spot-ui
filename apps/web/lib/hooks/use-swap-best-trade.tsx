@@ -1,11 +1,14 @@
-import { isFreshQuote, permit2Address, Quote,  } from "@orbs-network/liquidity-hub-sdk";
+import {
+  isFreshQuote,
+  permit2Address,
+  type Quote,
+} from "@orbs-network/liquidity-hub-sdk";
 import { useMutation } from "@tanstack/react-query";
 import { useSignEip } from "./use-sign-eip";
 import { useApproval } from "./use-approval";
 import { useWrappedNativeTransaction } from "./use-wrap";
 import { getExplorerUrl, isNativeAddress } from "../utils";
 import { useDerivedSwap } from "./use-derived-swap";
-import BN from "bignumber.js";
 import { useLiquidityHub } from "./liquidity-hub";
 import { useGetTransactionReceiptCallback } from "./use-get-transaction-receipt";
 import { useBestTradeSwapStore, useSwapStore } from "./store";
@@ -26,16 +29,14 @@ const usePrepareQuote = () => {
         throw new Error("Quote not found");
       }
       const originalQuote = trade.originalQuote as Quote;
-      
+
       if (isFreshQuote(originalQuote, 60)) {
         return originalQuote;
       }
-      const freshQuote = (await refetchTrade())?.data?.originalQuote as Quote | undefined;
-      if (!freshQuote) {
-        return originalQuote;
-      }
-      if (BN(freshQuote.minAmountOut).lt(BN(originalQuote.minAmountOut))) {
-        return originalQuote;
+      const freshQuote = (await refetchTrade())?.data?.originalQuote as
+        Quote | undefined;
+      if (!freshQuote || !isFreshQuote(freshQuote, 60)) {
+        throw new Error("Unable to refresh the Liquidity Hub quote");
       }
       return freshQuote;
     },
@@ -62,7 +63,7 @@ const useToasts = () => {
   const { txHash } = useBestTradeSwapStore();
   const onWrapRequest = useCallback(() => {
     wrapToastId.current = toast.loading(
-      `Wrapping ${inputCurrency?.symbol}...`
+      `Wrapping ${inputCurrency?.symbol}...`,
     ) as number;
   }, [inputCurrency?.symbol]);
 
@@ -74,7 +75,7 @@ const useToasts = () => {
 
   const onApproveRequest = useCallback(() => {
     approveToastId.current = toast.loading(
-      `Approving ${inputCurrency?.symbol}...`
+      `Approving ${inputCurrency?.symbol}...`,
     ) as number;
   }, [inputCurrency?.symbol]);
 
@@ -90,7 +91,7 @@ const useToasts = () => {
         prefix="Swapping"
         srcTokenAddress={inputCurrency?.address}
         dstTokenAddress={outputCurrency?.address}
-      />
+      />,
     ) as number;
   }, [inputCurrency?.address, outputCurrency?.address]);
 
@@ -115,7 +116,7 @@ const useToasts = () => {
         ),
         duration: 20_000,
         closeButton: true,
-      }
+      },
     );
   }, [inputCurrency?.address, outputCurrency?.address, chainId, txHash]);
 
@@ -160,7 +161,7 @@ export const useSwapBestTrade = () => {
   const { ensureAllowance, approve } = useApproval(
     permit2Address,
     inputCurrency?.address,
-    parsedInputAmount
+    parsedInputAmount,
   );
   const { mutateAsync: executeWrappedNativeTransaction } =
     useWrappedNativeTransaction();
@@ -207,8 +208,7 @@ export const useSwapBestTrade = () => {
       toasts.onSwapRequest();
       const signature = await signEip(quote);
       const tx = await liquidityHubClient.swap(quote, signature);
-      toasts.onSwapSuccess();
-      updateStore({ txHash: tx as `0x${string}` });      
+      updateStore({ txHash: tx as `0x${string}` });
       return await getTransactionReceiptCallback(tx as `0x${string}`);
     },
     onSuccess: () => {
@@ -216,8 +216,6 @@ export const useSwapBestTrade = () => {
       updateStore({ status: SwapStatus.SUCCESS });
     },
     onError: (error) => {
-      console.error(error);
-    
       if (error instanceof Error && error.message.includes("rejected")) {
         toasts.onTransactionRejected();
         updateStore({ status: undefined });

@@ -23,15 +23,18 @@ This skill lives in `skills/liquidity-hub-integration/` of the [`orbs-network/sp
 
 1. Read [references/01-quickstart.md](references/01-quickstart.md) for install, supported chains, and the minimum integration steps.
 2. Read [references/02-sdk.md](references/02-sdk.md) for SDK initialization, quote fetching, price comparison, and swap execution.
-3. Read [references/03-swap-flow.md](references/03-swap-flow.md) for the complete swap flow including approval, wrapping, signing, and analytics callbacks.
+3. Read [references/03-swap-flow.md](references/03-swap-flow.md) for the complete swap flow including approval, wrapping, signing, receipt confirmation, and analytics callbacks.
 4. Read [references/04-best-practices.md](references/04-best-practices.md) for error handling, quote freshness, native token wrapping, and debugging.
 5. Use [assets/liquidity-hub-example.ts](assets/liquidity-hub-example.ts) as a starting template.
 
 ## Guardrails
 
-1. Set the `partner` field to the DEX name (lowercase, e.g. `"myDex"`).
+1. Set the `partner` field to the DEX name (lowercase, e.g. `"mydex"`).
 2. Only install `@orbs-network/liquidity-hub-sdk`. No other Orbs packages needed.
 3. Never skip the price comparison — always compare Liquidity Hub quote against the DEX quote and use whichever is better.
 4. Always check quote freshness with `isFreshQuote` before executing a swap.
 5. Native tokens (ETH, BNB, MATIC, etc.) must be wrapped before swapping through Liquidity Hub.
-6. Report analytics callbacks for all stages (quote, approval, wrap, signature, swap) so the protocol can optimize for your DEX.
+6. Treat `swap()` as transaction-hash submission only. Confirm the hash with the DEX's existing `waitForTransactionReceipt` implementation and reject reverted receipts.
+7. Never submit the DEX fallback after an LH transaction hash has been returned. Receipt/RPC errors must be reconciled instead of creating a second swap.
+8. Do not automatically retry wallet mutations or `swap()`.
+9. Report host-controlled analytics stages (approval, wrap, signature, confirmed swap, and DEX fallback). The SDK reports quote and swap-submission events itself.

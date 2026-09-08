@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "noEmit": true
+  },
+  "include": [
+    "skills/liquidity-hub-integration/assets/**/*.ts",
+    "skills/spot-integration/assets/**/*.ts",
+    "skills/spot-react-integration/assets/**/*.tsx"
+  ]
+}

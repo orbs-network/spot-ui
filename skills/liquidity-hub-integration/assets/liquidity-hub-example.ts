@@ -8,8 +8,10 @@
 import {
   constructSDK,
   isFreshQuote,
+  isLiquidityHubBetter,
+  isNativeAddress,
+  maxUint256,
   permit2Address,
-  nativeTokenAddresses,
   type Quote,
   type LiquidityHubSDK,
 } from "@orbs-network/liquidity-hub-sdk";
@@ -18,9 +20,15 @@ import {
 
 // Create one instance per chain — re-create when chain changes
 const lh: LiquidityHubSDK = constructSDK({
-  chainId: 137,       // DEX: Replace with active chain ID
-  partner: "myDex",   // DEX: Replace with your registered partner name
+  chainId: 137, // DEX: Replace with active chain ID
+  partner: "mydex", // DEX: Replace with your registered partner name
 });
+
+interface WalletClient {
+  readContract(args: Record<string, unknown>): Promise<bigint>;
+  writeContract(args: Record<string, unknown>): Promise<string>;
+  signTypedData(args: Record<string, unknown>): Promise<string>;
+}
 
 // ============ Fetch & Compare Quotes ============
 
@@ -57,10 +65,7 @@ function shouldUseLiquidityHub(
   if (!lhQuote) return false;
   if (!isFreshQuote(lhQuote)) return false;
 
-  const lhOutput = BigInt(lhQuote.minAmountOut);
-  const dexOutput = BigInt(dexMinAmountOut);
-
-  return lhOutput > dexOutput;
+  return isLiquidityHubBetter(lhQuote, dexMinAmountOut);
 }
 
 // ============ Full Swap Flow ============
@@ -70,19 +75,20 @@ async function executeLiquidityHubSwap({
   fromToken,
   account,
   wrappedTokenAddress,
-  walletClient,  // DEX: Your wallet client (ethers/viem/wagmi)
+  walletClient, // DEX: Your wallet client (ethers/viem/wagmi)
+  waitForTransactionReceipt, // DEX: Your existing receipt waiter
   dexRouterData, // DEX: Optional { data, to } from DEX router for fallback
 }: {
   quote: Quote;
   fromToken: string;
   account: string;
   wrappedTokenAddress: string;
-  walletClient: any;
+  walletClient: WalletClient;
+  /** Must reject when the receipt is reverted or otherwise unsuccessful. */
+  waitForTransactionReceipt: (txHash: string) => Promise<void>;
   dexRouterData?: { data?: string; to?: string };
 }): Promise<string> {
-  const isNative = nativeTokenAddresses.some(
-    (addr) => addr.toLowerCase() === fromToken.toLowerCase(),
-  );
+  const isNative = isNativeAddress(fromToken);
 
   // Step 1: Wrap native token if needed
   if (isNative) {
@@ -90,15 +96,23 @@ async function executeLiquidityHubSwap({
     try {
       // DEX: Replace with your wrap implementation
       const wrapTx = await walletClient.writeContract({
-        abi: [{ name: "deposit", type: "function", inputs: [], outputs: [], stateMutability: "payable" }],
+        abi: [
+          {
+            name: "deposit",
+            type: "function",
+            inputs: [],
+            outputs: [],
+            stateMutability: "payable",
+          },
+        ],
         functionName: "deposit",
         address: wrappedTokenAddress,
         value: BigInt(quote.inAmount),
       });
-      // DEX: Wait for transaction confirmation
+      await waitForTransactionReceipt(wrapTx);
       lh.analytics.wrap.onSuccess(wrapTx);
-    } catch (error: any) {
-      lh.analytics.wrap.onFailed(error.message);
+    } catch (error) {
+      lh.analytics.wrap.onFailed(getErrorMessage(error));
       throw error;
     }
   }
@@ -107,7 +121,15 @@ async function executeLiquidityHubSwap({
   const tokenToApprove = isNative ? wrappedTokenAddress : fromToken;
   const allowance = await walletClient.readContract({
     address: tokenToApprove,
-    abi: [{ name: "allowance", type: "function", inputs: [{ type: "address" }, { type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "view" }],
+    abi: [
+      {
+        name: "allowance",
+        type: "function",
+        inputs: [{ type: "address" }, { type: "address" }],
+        outputs: [{ type: "uint256" }],
+        stateMutability: "view",
+      },
+    ],
     functionName: "allowance",
     args: [account, permit2Address],
   });
@@ -115,17 +137,24 @@ async function executeLiquidityHubSwap({
   if (BigInt(allowance) < BigInt(quote.inAmount)) {
     lh.analytics.approval.onRequest();
     try {
-      const maxApproval = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
       const approveTx = await walletClient.writeContract({
         address: tokenToApprove,
-        abi: [{ name: "approve", type: "function", inputs: [{ type: "address" }, { type: "uint256" }], outputs: [{ type: "bool" }], stateMutability: "nonpayable" }],
+        abi: [
+          {
+            name: "approve",
+            type: "function",
+            inputs: [{ type: "address" }, { type: "uint256" }],
+            outputs: [{ type: "bool" }],
+            stateMutability: "nonpayable",
+          },
+        ],
         functionName: "approve",
-        args: [permit2Address, maxApproval],
+        args: [permit2Address, maxUint256],
       });
-      // DEX: Wait for transaction confirmation
+      await waitForTransactionReceipt(approveTx);
       lh.analytics.approval.onSuccess(approveTx);
-    } catch (error: any) {
-      lh.analytics.approval.onFailed(error.message);
+    } catch (error) {
+      lh.analytics.approval.onFailed(getErrorMessage(error));
       throw error;
     }
   }
@@ -142,22 +171,28 @@ async function executeLiquidityHubSwap({
       account,
     });
     lh.analytics.signature.onSuccess(signature);
-  } catch (error: any) {
-    lh.analytics.signature.onFailed(error.message);
+  } catch (error) {
+    lh.analytics.signature.onFailed(getErrorMessage(error));
     throw error;
   }
 
   // Step 4: Execute the swap
   const txHash = await lh.swap(quote, signature, dexRouterData);
-  lh.analytics.swap.onSuccess();
 
-  // Step 5: Get transaction details
-  const details = await lh.getTransactionDetails(txHash, quote);
-  if (details.isMined) {
-    console.log("Swap confirmed! Output:", details.exactOutAmount);
+  // Step 5: Confirm through the DEX's existing wallet/RPC client
+  try {
+    await waitForTransactionReceipt(txHash);
+    lh.analytics.swap.onSuccess();
+  } catch (error) {
+    lh.analytics.swap.onFailed(getErrorMessage(error));
+    throw error;
   }
 
   return txHash;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
 }
 
 // ============ DEX Fallback ============
@@ -171,7 +206,7 @@ function reportDexSwap(
   // Always report when falling back to DEX — helps the protocol optimize
   lh.analytics.dexSwap({
     panel: "main",
-    router: "your-router-name",  // DEX: Your router identifier
+    router: "your-router-name", // DEX: Your router identifier
     srcTokenAddress: fromToken,
     dstTokenAddress: toToken,
     inAmount,

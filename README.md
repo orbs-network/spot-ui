@@ -65,23 +65,20 @@ Before publishing, make sure you're logged in to npm:
 npm login
 ```
 
-Then publish the packages:
+Publish each package with its repository script (the scripts build, verify, and
+prompt for the release version):
 
 ```bash
-pnpm publish:packages
-```
-
-Or publish individually:
-
-```bash
-cd packages/spot && pnpm publish --access public
-cd packages/spot-ui && pnpm publish --access public
+pnpm publish:spot-ui
+pnpm publish:spot-react
+pnpm publish:liquidity-hub-sdk
 ```
 
 ## Skills
 
 | Skill | Description |
 |-------|-------------|
+| [`spot-integration`](skills/spot-integration/SKILL.md) | Integrating framework-neutral `@orbs-network/spot-ui` into an existing TypeScript app. Reuses the app's components and optimized state layer for form calculation, execution, history, and cancellation. |
 | [`spot-react-integration`](skills/spot-react-integration/SKILL.md) | Integrating `@orbs-network/spot-react` into a DEX frontend. Covers SpotProvider setup, hook-driven panels, order submission, and DEX-native styling. |
 | [`liquidity-hub-integration`](skills/liquidity-hub-integration/SKILL.md) | Integrating `@orbs-network/liquidity-hub-sdk` into a DEX. Routes swaps through Liquidity Hub for better prices via on-chain and off-chain solvers. |
 
@@ -95,7 +92,9 @@ cd packages/spot-ui && pnpm publish --access public
 │   ├── spot-react/             # @orbs-network/spot-react (context, hooks, components)
 │   └── liquidity-hub-ui/      # @orbs-network/liquidity-hub-sdk
 ├── skills/
-│   └── spot-react-integration/ # AI-agent integration skill
+│   ├── liquidity-hub-integration/ # Liquidity Hub integration skill
+│   ├── spot-integration/           # Framework-neutral TypeScript integration skill
+│   └── spot-react-integration/     # React integration skill
 ├── package.json
 ├── pnpm-workspace.yaml
 └── tsconfig.json

@@ -13,7 +13,9 @@
 - **Check freshness** — Before executing a swap, verify the quote isn't stale:
   ```ts
   import { isFreshQuote } from "@orbs-network/liquidity-hub-sdk";
-  if (!isFreshQuote(quote)) { /* re-fetch */ }
+  if (!isFreshQuote(quote)) {
+    /* re-fetch */
+  }
   ```
 - **Refetch periodically** — Quotes are valid for ~60 seconds. Refetch every 10 seconds (`DEFAULT_QUOTE_INTERVAL`) while the user is on the swap page.
 
@@ -27,16 +29,14 @@
 
 Liquidity Hub only works with ERC-20 tokens. If the source token is a native token (ETH, BNB, MATIC, etc.):
 
-1. Check with `nativeTokenAddresses` from the SDK.
+1. Check with `isNativeAddress` from the SDK.
 2. Wrap to the chain's wrapped token (WETH, WBNB, WPOL, etc.) before approval/signing.
 3. Use the wrapped token address as `fromToken` in the quote.
 
 ```ts
-import { nativeTokenAddresses } from "@orbs-network/liquidity-hub-sdk";
+import { isNativeAddress } from "@orbs-network/liquidity-hub-sdk";
 
-const isNative = nativeTokenAddresses.some(
-  (addr) => addr.toLowerCase() === fromToken.toLowerCase()
-);
+const isNative = isNativeAddress(fromToken);
 ```
 
 ## Error Handling
@@ -46,30 +46,47 @@ const isNative = nativeTokenAddresses.some(
   - `"tns"` — Token not supported
   - `"ldv"` — Low dollar value (amount too small)
   - `"timeout"` — Quote request timed out
-- **Swap errors** — Show error to user, offer to retry or fall back to DEX.
-- **Never block the swap** — Liquidity Hub is an optimization. If anything fails, the user should still be able to swap through the DEX router.
+- **Pre-submission swap errors** — Before an LH transaction hash exists, show the error and allow the normal DEX route.
+- **Post-submission errors** — Once `swap()` returns a hash, never submit a fallback swap. Retry receipt lookup for that hash and surface pending/reverted state through the DEX's existing transaction UI.
+- **No mutation retries** — Do not automatically retry wrapping, approval, signing, or LH submission.
 
 ## SDK Lifecycle
 
-- **One instance per chain** — Create a new SDK instance when the chain changes:
+- **One instance per chain** — Memoize the SDK instance and replace it when the
+  chain changes:
   ```ts
-  useEffect(() => {
-    lhRef.current = constructSDK({ chainId, partner: "myDex" });
-  }, [chainId]);
+  const liquidityHub = useMemo(
+    () => constructSDK({ chainId, partner: "mydex" }),
+    [chainId],
+  );
   ```
 - **Don't create per-swap** — Reuse the instance across swaps on the same chain. The SDK tracks session state internally.
 
 ## Debugging
 
 Enable debug logging by setting `lhDebug` in localStorage:
+
 ```ts
 localStorage.setItem("lhDebug", "true");
 ```
 
-Override the API URL for testing:
+When browser CORS blocks local development, configure a same-origin proxy
+explicitly on the SDK client:
+
 ```ts
-localStorage.setItem("lhOverrideApiUrl", "https://custom-api-url.com");
+const liquidityHub = constructSDK({
+  chainId,
+  partner: "mydex",
+  apiUrl:
+    process.env.NODE_ENV === "development"
+      ? "/api/liquidity-hub"
+      : undefined,
+});
 ```
+
+The server proxy must be development-only and must allowlist both the upstream
+Liquidity Hub hosts and the `quote`, `swap-async`, and `swap/status/:sessionId`
+paths. Never expose a caller-controlled upstream URL or an unrestricted relay.
 
 ## Checklist
 
@@ -82,7 +99,11 @@ localStorage.setItem("lhOverrideApiUrl", "https://custom-api-url.com");
 - [ ] Permit2 approval checked and requested when needed
 - [ ] EIP-712 signature obtained from user
 - [ ] Quote freshness checked before swap execution
+- [ ] LH transaction confirmed with the DEX's `waitForTransactionReceipt`
+- [ ] Reverted receipt handled as a failure
+- [ ] No DEX fallback submitted after an LH transaction hash exists
+- [ ] Wallet and swap mutations are not automatically retried
 - [ ] All analytics callbacks reported (quote, wrap, approval, signature, swap, dexSwap)
-- [ ] Graceful fallback to DEX on any LH failure
+- [ ] Graceful DEX fallback only before an LH transaction hash exists
 - [ ] Debounce on quote requests
 - [ ] AbortController used for stale quotes

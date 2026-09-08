@@ -412,9 +412,9 @@ export function SpotForm({
   module: Module;
 }) {
   // DEX: Replace with real values from your DEX state
-  const marketReferencePrice = useMemo(
+  const marketQuote = useMemo(
     () => ({
-      value: "0",
+      quotedOutputAmountRaw: undefined,
       isLoading: false,
       noLiquidity: false,
     }),
@@ -423,6 +423,7 @@ export function SpotForm({
 
   const inputToken = useMemo<Token | undefined>(() => undefined, []);
   const outputToken = useMemo<Token | undefined>(() => undefined, []);
+  const wrappedNativeToken = useMemo<Token | undefined>(() => undefined, []);
   const walletInteractions = useMemo<WalletInteractions>(
     () => ({
       // DEX: call the wrapped native token deposit method, wait for receipt, return tx hash.
@@ -482,9 +483,9 @@ export function SpotForm({
   // DEX: Replace these with wallet, chain, balance, and USD price state.
   const chainId = undefined;
   const account = undefined;
-  const inputBalance = undefined;
-  const inputUsd1Token = undefined;
-  const outputUsd1Token = undefined;
+  const inputBalanceRaw = undefined;
+  const inputTokenUsdPrice = undefined;
+  const outputTokenUsdPrice = undefined;
 
   return (
     <SpotProvider
@@ -493,15 +494,16 @@ export function SpotForm({
       walletInteractions={walletInteractions}
       partner={Partners.Quick} // DEX: Replace with your partner
       module={module}
-      priceProtection={3}
+      priceProtectionPercent={3}
       minTradeSizeUsd={5}
-      typedInputAmount={inputAmount}
-      marketReferencePrice={marketReferencePrice}
+      inputAmountUi={inputAmount}
+      marketQuote={marketQuote}
       inputToken={inputToken}
       outputToken={outputToken}
-      inputBalance={inputBalance}
-      inputUsd1Token={inputUsd1Token}
-      outputUsd1Token={outputUsd1Token}
+      wrappedNativeToken={wrappedNativeToken}
+      inputBalanceRaw={inputBalanceRaw}
+      inputTokenUsdPrice={inputTokenUsdPrice}
+      outputTokenUsdPrice={outputTokenUsdPrice}
       callbacks={callbacks}
       clientErrorFallback={ClientErrorFallback}
       displayFeePercent={0.25}

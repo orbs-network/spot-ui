@@ -1,6 +1,7 @@
 import {
   constructSDK,
   isFreshQuote,
+  isLiquidityHubBetter,
   permit2Address,
   type LiquidityHubSDK,
   type Quote,
@@ -57,17 +58,6 @@ export function createLiquidityHubSDK(chainId: number): LiquidityHubSDK {
   });
 }
 
-export function isLiquidityHubBetter(
-  quote: Quote | null,
-  dexMinAmountOut?: string,
-): boolean {
-  return Boolean(
-    quote &&
-      dexMinAmountOut &&
-      BigInt(quote.minAmountOut) > BigInt(dexMinAmountOut),
-  );
-}
-
 export interface WalletAdapter {
   getAllowance(args: {
     token: string;
@@ -81,6 +71,7 @@ export interface WalletAdapter {
   }): Promise<string>;
   wrapNative?(args: { wrappedToken: string; amount: bigint }): Promise<string>;
   signQuote(permitData: Quote["permitData"]): Promise<string>;
+  waitForTransactionReceipt(txHash: string): Promise<void>;
 }
 
 export interface LiquidityHubSwapVariables {
@@ -192,6 +183,12 @@ export async function executeLiquidityHubSwap({
   }
 
   const txHash = await sdk.swap(latestQuote, signature, dexRouterData);
+  try {
+    await wallet.waitForTransactionReceipt(txHash);
+  } catch (error) {
+    sdk.analytics.swap.onFailed(getErrorMessage(error));
+    throw error;
+  }
   sdk.analytics.swap.onSuccess();
   return { txHash, quote: latestQuote };
 }
