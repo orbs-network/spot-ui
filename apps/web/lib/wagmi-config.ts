@@ -20,7 +20,7 @@ import {
 import { http, type Chain } from "viem";
 import { useIsSpotTab } from "./hooks/use-tabs";
 import { useMemo } from "react";
-import { hyperEvmChain, katanaChain, megaethChain } from "./chains";
+import { hyperEvmChain, katanaChain, megaethChain, robinhoodChain } from "./chains";
 
 const rpcProxyTransport = (chain: Chain) =>
   http(`/api/rpc?chainId=${chain.id}`);
@@ -56,6 +56,7 @@ const SPOT_CHAINS = [
   unichain,
   xLayer,
   megaethChain,
+  robinhoodChain,
 ] as const;
 
 const MAIN_CONFIG = getDefaultConfig({

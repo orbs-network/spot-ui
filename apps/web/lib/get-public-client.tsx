@@ -1,12 +1,8 @@
 import { createPublicClient, http } from 'viem';
-import * as chains from 'viem/chains';
-import { hyperEvmChain, katanaChain, megaethChain } from './chains';
-
-const customChains = [katanaChain, hyperEvmChain, megaethChain];
+import { getChain } from './chains';
 
 export function getPublicClient(chainId: number) {
-  const chain = customChains.find((c) => c.id === chainId) ??
-    Object.values(chains).find((chain) => chain.id === chainId);
+  const chain = getChain(chainId);
 
   return createPublicClient({
     chain,

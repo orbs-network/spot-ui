@@ -60,7 +60,6 @@ export {
   type AllowanceRequest,
   type PreparedOrderValues,
   type PreparedOrder,
-  type SignOrderCallback,
   type CancelOrderRequest,
   type ClientGetAccountOrdersParams,
 } from "./lib/client";

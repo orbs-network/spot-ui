@@ -9,7 +9,7 @@ import {
   getNativeTokenLogoUrl,
   sortByBaseAssets,
 } from "./utils";
-import { megaethChain } from "./chains";
+import { getChain, megaethChain, robinhoodChain } from "./chains";
 
 const coingekoChainToName = {
   [chains.flare.id]: "flare-network",
@@ -33,6 +33,7 @@ const coingekoChainToName = {
   [chains.unichain.id]: "unichain",
   [chains.xLayer.id]: "x-layer",
   [megaethChain.id]: "megaeth",
+  [robinhoodChain.id]: "robinhood",
 };
 
 export const getCurrencies = async (
@@ -72,9 +73,7 @@ export const getCurrencies = async (
       }
     );
 
-    const _native = Object.values(chains).find(
-      (chain) => chain.id === chainId
-    )?.nativeCurrency;
+    const _native = getChain(chainId)?.nativeCurrency;
 
     tokens = tokens.filter(
       (token: Currency) => !eqCompare(token.symbol, _native?.symbol ?? "")

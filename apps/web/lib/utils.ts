@@ -11,15 +11,8 @@ import {
   NATIVE_TOKENS_LOGO_URLS,
   POPULAR_TOKENS,
 } from "./consts";
-import * as chains from "viem/chains";
 import { OrderType, Partners } from "@orbs-network/spot-ui";
-import { hyperEvmChain, katanaChain, megaethChain } from "./chains";
-
-const customChains = [katanaChain, hyperEvmChain, megaethChain];
-
-const getChain = (chainId?: number) =>
-  customChains.find((chain) => chain.id === chainId) ??
-  Object.values(chains).find((chain) => chain.id === chainId);
+import { getChain } from "./chains";
 
 export const getBaseCurrencies = (chainId?: number) => {
   return POPULAR_TOKENS[chainId as keyof typeof POPULAR_TOKENS] ?? [];

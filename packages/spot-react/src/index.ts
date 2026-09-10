@@ -36,7 +36,6 @@ export {
   type PrepareOrderParams,
   type PreparedOrder,
   type PreparedOrderValues,
-  type SignOrderCallback,
   type Eip712TypedData,
   type OrderSigningRequest,
   type ApprovalRequest,

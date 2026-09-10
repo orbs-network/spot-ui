@@ -7,7 +7,8 @@
     "references/02-form-calculation.md",
     "references/03-client-and-execution.md",
     "references/04-history-and-cancellation.md",
-    "references/05-integration-principles.md"
+    "references/05-integration-principles.md",
+    "references/06-chain-integration.md"
   ],
   "assets": [
     "assets/spot-integration-example.ts"

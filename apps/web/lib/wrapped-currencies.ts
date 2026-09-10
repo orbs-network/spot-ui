@@ -44,6 +44,13 @@ export const wCurrencies: Record<number, Currency> = {
       logoUrl: "https://tokens-data.1inch.io/images/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.png",
       name: "Wrapped Ether",
     },
+    4663: {
+      symbol: "WETH",
+      address: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      decimals: 18,
+      logoUrl: "https://s2.coinmarketcap.com/static/img/coins/128x128/1027.png",
+      name: "Wrapped Ether",
+    },
     137: {
       symbol: "WPOL",
       address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",

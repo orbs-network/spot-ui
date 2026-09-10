@@ -157,9 +157,8 @@ export class SpotIntegration {
         swapperAddress: params.account,
       });
 
-      const signature = await client.signOrder(
-        preparedOrder,
-        (request) => this.options.wallet.signOrder(request),
+      const signature = await this.options.wallet.signOrder(
+        preparedOrder.signingRequest,
       );
       const order = await client.submitOrder(preparedOrder, signature);
 

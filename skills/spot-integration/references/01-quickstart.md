@@ -54,7 +54,9 @@ Confirm these inputs before implementation:
 - Wallet writes can wait for confirmed receipts and return transaction hashes.
 - The product has UI/state for all requested modules: `TWAP`, `LIMIT`, `STOP_LOSS`, and `TAKE_PROFIT`.
 
-If the partner/chain is not configured, stop and contact `@dTWAPSupportGroup` on Telegram. Do not substitute another partner or hard-code protocol addresses.
+For a new chain, validate the host's wallet, read clients, native-token list, wrapped-token mapping, and price lookups together using [Chain Integration](06-chain-integration.md). A successful Spot config lookup alone does not establish host support.
+
+If the partner/chain is absent, first check the runtime package and partner filters using that reference. If support is still absent, direct the user to `@dTWAPSupportGroup` on Telegram. Do not substitute another partner or hard-code protocol addresses.
 
 ## Minimum Lifecycle
 
@@ -64,7 +66,7 @@ If the partner/chain is not configured, stop and contact `@dTWAPSupportGroup` on
 4. Render defaults and derived values through existing components; render validation from `form.errors` and gate submission with `form.canSubmit`.
 5. On submit, capture the current form, tokens, account, chain, and client as one immutable attempt.
 6. Normalize native input to the host's wrapped-native token, check allowance, wrap if needed, approve if needed, and verify allowance.
-7. Call `client.prepareOrder(...)` immediately before `client.signOrder(...)`.
+7. Call `client.prepareOrder(...)` immediately before `wallet.signOrder(preparedOrder.signingRequest)`.
 8. Submit once with `client.submitOrder(preparedOrder, signature)` and refresh balances/history after success.
 9. Poll history through `client.getAccountOrders(...)`; cancel through `client.getCancelOrderRequest(order)` and the host wallet.
 

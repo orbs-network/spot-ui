@@ -62,6 +62,8 @@ const form = calculateSpotForm({
 
 Do not precompute raw order amounts, per-trade values, slippage, deadlines, or defaults in the host. The SDK derives them consistently for display and execution.
 
+For missing native-token USD values on a new chain, check the host's wrapped-native mapping and price normalization before changing SDK calculations. See [Chain Integration](06-chain-integration.md) for price-provider and cache checks. A token amount from a router quote and its USD valuation are separate inputs; one can succeed while the other is unavailable.
+
 Do not copy the returned form or its nested calculated values into mutable state. That creates duplicate sources of truth and update loops. Retain only editable inputs and external market data, then derive `CalculatedOrderForm` from them. When the state library supports equality functions, use shallow/field equality for component selectors so equivalent calculated values do not trigger unrelated renders.
 
 ## Quote Freshness

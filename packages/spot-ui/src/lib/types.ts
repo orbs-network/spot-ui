@@ -309,6 +309,7 @@ export enum Partners {
   Ginco = "ginco",
   Katana = "katana",
   Unknown = "unknown",
+  Orvex = "orvex",
 }
 
 export enum InputErrors {

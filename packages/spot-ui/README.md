@@ -198,11 +198,8 @@ try {
     outputTokenAddress: outputToken.address,
     swapperAddress: account,
   });
-  const signature = await client.signOrder(
-    preparedOrder,
-    ({ signerAddress, typedData }) =>
-      wallet.signTypedData(typedData, signerAddress),
-  );
+  const { signerAddress, typedData } = preparedOrder.signingRequest;
+  const signature = await wallet.signTypedData(typedData, signerAddress);
   const order = await client.submitOrder(preparedOrder, signature);
   console.info("Order submitted", order);
 } catch (error) {
@@ -211,10 +208,11 @@ try {
 }
 ```
 
-`signOrder` only invokes the supplied wallet signer and returns its signature.
-It never submits the order. `submitOrder` is the separate network operation.
-The complete sequence is allowance check, native wrapping when required,
-approval when required, allowance verification, signing, and submission.
+The client prepares the framework-neutral signing payload but does not interact
+with the wallet. The host signs `preparedOrder.signingRequest`, then passes the
+signature to `submitOrder`. The complete sequence is allowance check, native
+wrapping when required, approval when required, allowance verification,
+signing, and submission.
 
 `prepareOrder` does not recalculate form amounts, prices, trades, or schedules,
 and it rejects a form whose `canSubmit` value is `false`.

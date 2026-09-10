@@ -82,9 +82,6 @@ const createClient = (form: CalculatedOrderForm): SpotClient => {
   return {
     spenderAddress: SPENDER,
     prepareOrder: vi.fn(() => preparedOrder),
-    signOrder: vi.fn((_preparedOrder, signer) =>
-      signer(preparedOrder.signingRequest),
-    ),
     submitOrder: vi.fn(async () => order),
   } as unknown as SpotClient;
 };
@@ -252,7 +249,7 @@ describe("executeOrder", () => {
     expect(
       vi.mocked(client.prepareOrder).mock.invocationCallOrder[0],
     ).toBeLessThan(
-      vi.mocked(client.signOrder).mock.invocationCallOrder[0],
+      vi.mocked(wallet.signOrder).mock.invocationCallOrder[0],
     );
   });
 
@@ -464,7 +461,7 @@ describe("executeOrder", () => {
     });
 
     await expect(executeOrder(params)).rejects.toThrow("API unavailable");
-    expect(client.signOrder).toHaveBeenCalledTimes(1);
+    expect(params.walletInteractions.signOrder).toHaveBeenCalledTimes(1);
     expect(params.getCurrentExecution().phase).toBe(ExecutionPhase.FAILED);
     expect(params.getCurrentExecution().parsedError?.message).toBe(
       "API unavailable",

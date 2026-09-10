@@ -8,6 +8,7 @@ const PARTNER_NAMES: ReadonlySet<string> = new Set(Object.values(Partners));
 const isPartner = (name: string): name is Partners =>
   PARTNER_NAMES.has(name);
 
+
 export const getPartners = (): PartnerPayloadItem[] => {
   const raw = Spot.raw as Record<
     string,

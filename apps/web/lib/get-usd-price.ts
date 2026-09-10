@@ -3,7 +3,7 @@ import BN from "bignumber.js";
 import { getAddress, isAddress, zeroAddress } from "viem";
 import { USDPrices } from "./types";
 import { getWrappedNativeCurrency, isNativeAddress } from "./utils";
-import { megaethChain } from "./chains";
+import { megaethChain, robinhoodChain } from "./chains";
 
 const chainIdToLlamaName: Record<number, string> = {
   [chains.bsc.id]: "bsc",
@@ -29,6 +29,7 @@ const chainIdToLlamaName: Record<number, string> = {
   [chains.unichain.id]: "unichain",
   [chains.xLayer.id]: "xlayer",
   [megaethChain.id]: "megaeth",
+  [robinhoodChain.id]: "robinhood",
 };
 
 const chainIdToDexScreenerName: Record<number, string> = {

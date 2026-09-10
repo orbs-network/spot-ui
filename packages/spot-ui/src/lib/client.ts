@@ -1,5 +1,4 @@
 import { REPERMIT_ABI, TWAP_ABI } from "./abi";
-import { analytics } from "./analytics";
 import {
   buildRePermitOrderData,
   fetchRePermitData,
@@ -75,10 +74,6 @@ export interface PreparedOrder {
   values: PreparedOrderValues;
 }
 
-export type SignOrderCallback = (
-  request: OrderSigningRequest,
-) => Promise<`0x${string}`>;
-
 export interface CancelOrderRequest {
   order: Order;
   contractAddress: string;
@@ -99,11 +94,6 @@ export interface SpotClient {
   readonly exchangeAddress: Address;
   /** Converts a valid calculated form snapshot into signing and approval data. */
   prepareOrder(params: PrepareOrderParams): PreparedOrder;
-  /** Requests the wallet signature without submitting the order. */
-  signOrder(
-    preparedOrder: PreparedOrder,
-    signer: SignOrderCallback,
-  ): Promise<`0x${string}`>;
   /** Submits an already prepared and signed order to the order service. */
   submitOrder(
     preparedOrder: PreparedOrder,
@@ -263,28 +253,8 @@ export const createClient = async (
   };
 
   /**
-   * Passes the prepared EIP-712 payload to the host wallet adapter and returns
-   * its signature. It records signing analytics but does not submit the order.
-   */
-  const signOrder = async (
-    preparedOrder: PreparedOrder,
-    signer: SignOrderCallback,
-  ): Promise<`0x${string}`> => {
-    analytics.onSignOrderRequest(preparedOrder.order);
-
-    try {
-      const signature = await signer(preparedOrder.signingRequest);
-      analytics.onSignOrderSuccess(signature);
-      return signature;
-    } catch (error) {
-      analytics.onSignOrderError(error);
-      throw error;
-    }
-  };
-
-  /**
    * Sends a prepared order and its wallet signature to the order service. The
-   * order must already have been signed with signOrder or an equivalent signer.
+   * order must already have been signed by the host wallet.
    */
   const submitOrder = (
     preparedOrder: PreparedOrder,
@@ -332,7 +302,6 @@ export const createClient = async (
     spenderAddress,
     exchangeAddress,
     prepareOrder,
-    signOrder,
     submitOrder,
     getCancelOrderRequest,
     getAccountOrders: getConfiguredAccountOrders,

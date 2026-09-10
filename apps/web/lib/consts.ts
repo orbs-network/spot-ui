@@ -16,6 +16,7 @@ import {
 } from "viem/chains";
 import { TABS } from "./types";
 import { Partners } from "@orbs-network/spot-ui";
+import { robinhoodChain } from "./chains";
 
 export const DEFAULT_TOKENS = {
   [bsc.id]: {
@@ -144,6 +145,7 @@ export const POPULAR_TOKENS = {
 };
 
 export const NATIVE_TOKENS_LOGO_URLS = {
+  [robinhoodChain.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/1027.png",
   [bsc.id]: "https://s2.coinmarketcap.com/static/img/coins/128x128/1839.png",
   [polygon.id]:
     "https://s2.coinmarketcap.com/static/img/coins/128x128/3890.png",

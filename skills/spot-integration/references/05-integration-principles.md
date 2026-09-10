@@ -62,6 +62,7 @@ Classify state before wiring it:
 - [ ] The partner/chain is returned by `getPartnerChains(partner)`; no protocol addresses are hard-coded.
 - [ ] The connected wallet chain is the source of truth for client selection and transaction writes.
 - [ ] The host provides the chain's wrapped-native token and explorer metadata.
+- [ ] For new chains, the [chain integration checks](06-chain-integration.md) pass through the app's actual read client, token loader, and price adapter, including native-token balance and USD values; unavailable external checks are reported explicitly.
 - [ ] A current raw output quote is passed for the complete current input amount; stale quotes are omitted.
 - [ ] `inputTokenUsdPrice` and `outputTokenUsdPrice` are one-token USD prices, and `inputBalanceRaw` is raw.
 - [ ] `minTradeSizeUsd`, `priceProtectionPercent`, and optional `displayFeePercent` use the documented units.

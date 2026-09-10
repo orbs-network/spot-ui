@@ -55,7 +55,7 @@ Treat one click as one immutable attempt and reject concurrent attempts:
 6. If the allowance was insufficient, approve the exact raw amount and wait for confirmation.
 7. Re-read allowance with a small bounded retry to tolerate RPC indexing lag. Stop if it is still insufficient.
 8. Call `client.prepareOrder` with the captured form, normalized ERC-20 input address, output token address, and account.
-9. Call `client.signOrder(preparedOrder, wallet.signOrder)`.
+9. Call `wallet.signOrder(preparedOrder.signingRequest)`.
 10. Call `client.submitOrder(preparedOrder, signature)` once.
 11. Refresh balances and history on success.
 

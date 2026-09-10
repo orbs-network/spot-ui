@@ -376,20 +376,20 @@ export const executeOrder = async (
       outputToken,
       preparedOrder,
     });
-    const signature = await client.signOrder(
-      preparedOrder,
-      async (signingRequest) => {
-        observe(callbacks?.onSignOrderRequest);
-        try {
-          const result = await walletInteractions.signOrder(signingRequest);
-          observe(() => callbacks?.onSignOrderSuccess?.(result));
-          return result;
-        } catch (error) {
-          observe(() => callbacks?.onSignOrderError?.(normalizeError(error)));
-          throw error;
-        }
-      },
-    );
+    observe(() => analytics.onSignOrderRequest(preparedOrder.order));
+    observe(callbacks?.onSignOrderRequest);
+    let signature: `0x${string}`;
+    try {
+      signature = await walletInteractions.signOrder(
+        preparedOrder.signingRequest,
+      );
+      observe(() => analytics.onSignOrderSuccess(signature));
+      observe(() => callbacks?.onSignOrderSuccess?.(signature));
+    } catch (error) {
+      observe(() => analytics.onSignOrderError(error));
+      observe(() => callbacks?.onSignOrderError?.(normalizeError(error)));
+      throw error;
+    }
 
     transition(ExecutionPhase.SUBMITTING);
     const order = await client.submitOrder(preparedOrder, signature);
