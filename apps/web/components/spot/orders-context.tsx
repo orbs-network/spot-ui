@@ -15,6 +15,9 @@ import {
 export type OrdersPanelData = {
   orders: NonNullable<ReturnType<typeof useOrders>["data"]>;
   isLoading: boolean;
+  error?: Error;
+  isFetching: boolean;
+  refetch: ReturnType<typeof useOrders>["refetch"];
   filteredOrders: Order[];
   tokensByAddress: ReadonlyMap<string, Token>;
   selectedOrderKey?: string;

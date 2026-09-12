@@ -37,7 +37,7 @@ export const getAccountOrders = async ({
 }: GetAccountOrdersParams): Promise<Order[]> => {
   assertValidPagination(page, limit);
   const twapConfig = getTwapConfig(partner, chainId);
-  const allOrders = await Promise.all([
+  const results = await Promise.allSettled([
     !twapConfig || !legacyOrders
       ? Promise.resolve([])
       : getV1Orders({
@@ -59,8 +59,22 @@ export const getAccountOrders = async ({
       page,
       limit,
     }),
-  ]).then(([graphOrders, apiOrders]) => {
-    return [...graphOrders, ...apiOrders];
+  ]);
+  if (signal?.aborted) throw signal.reason;
+
+  const [legacyResult, currentResult] = results;
+  const hasLegacySource = Boolean(twapConfig && legacyOrders);
+  if (
+    currentResult.status === "rejected" &&
+    (!hasLegacySource || legacyResult.status === "rejected")
+  ) {
+    throw currentResult.reason;
+  }
+
+  const allOrders = results.flatMap((result) => {
+    if (result.status === "fulfilled") return result.value;
+    console.warn("An order history source is unavailable", result.reason);
+    return [];
   });
   const sortedOrders = allOrders.sort((a, b) => b.createdAt - a.createdAt);
   return sortedOrders;

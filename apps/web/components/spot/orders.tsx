@@ -81,7 +81,7 @@ const getSinkUrl = (orderId: string) => {
 };
 
 export const SpotsOrders = () => {
-  const { data, isLoading } = useOrders();
+  const { data, isLoading, error, isFetching, refetch } = useOrders();
   const { data: currencies } = useCurrenciesQuery();
   const orders = data ?? EMPTY_ORDERS;
   const uiState = useOrdersUIState();
@@ -167,11 +167,14 @@ export const SpotsOrders = () => {
     () => ({
       orders,
       isLoading,
+      error,
+      isFetching,
+      refetch,
       filteredOrders,
       tokensByAddress,
       ...uiState,
     }),
-    [filteredOrders, isLoading, orders, tokensByAddress, uiState],
+    [filteredOrders, isLoading, error, isFetching, refetch, orders, tokensByAddress, uiState],
   );
 
   return (

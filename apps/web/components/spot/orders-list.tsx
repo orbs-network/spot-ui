@@ -8,6 +8,7 @@ import { useTranslations } from "@/lib/use-translations";
 import { SpotTokenLogo } from "./components";
 import { useOrdersPanelContext } from "./orders-context";
 import { getOrderTitle } from "@/lib/utils";
+import { Button } from "../ui/button";
 
 const VIRTUAL_LIST_STYLE = { height: "100%" } as const;
 const getOrderKey = (_index: number, order: Order) => order.historyKey;
@@ -23,6 +24,9 @@ const ListLoader = () => {
 export const OrdersList = () => {
   const {
     isLoading,
+    error,
+    isFetching,
+    refetch,
     filteredOrders: ordersToDisplay,
     onDisplayOrder,
     tokensByAddress,
@@ -41,10 +45,18 @@ export const OrdersList = () => {
 
   return (
     <>
+      {error && (
+        <div role="alert" className="flex items-center justify-between gap-3 py-4 text-sm">
+          <p>Unable to load order history. Please try again.</p>
+          <Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>
+            {isFetching ? "Retrying…" : "Retry"}
+          </Button>
+        </div>
+      )}
       {isLoading ? (
         <ListLoader />
       ) : !ordersToDisplay?.length ? (
-        <EmptyList />
+        error ? null : <EmptyList />
       ) : (
         <div className="twap-orders__list">
           <Virtuoso
