@@ -96,7 +96,7 @@ export interface SpotClient {
   prepareOrder(params: PrepareOrderParams): PreparedOrder;
   /** Submits an already prepared and signed order to the order service. */
   submitOrder(
-    preparedOrder: PreparedOrder,
+    order: RePermitOrder,
     signature: `0x${string}`,
   ): Promise<Order>;
   /** Builds the contract call required to cancel an order without sending it. */
@@ -257,10 +257,9 @@ export const createClient = async (
    * order must already have been signed by the host wallet.
    */
   const submitOrder = (
-    preparedOrder: PreparedOrder,
+    order: RePermitOrder,
     signature: `0x${string}`,
-  ): Promise<Order> =>
-    submitOrderRequest(preparedOrder.order, signature);
+  ): Promise<Order> => submitOrderRequest(order, signature);
 
   /**
    * Builds the correct v1 or v2 cancellation contract request. It only returns

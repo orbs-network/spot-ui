@@ -160,7 +160,7 @@ export class SpotIntegration {
       const signature = await this.options.wallet.signOrder(
         preparedOrder.signingRequest,
       );
-      const order = await client.submitOrder(preparedOrder, signature);
+      const order = await client.submitOrder(preparedOrder.order, signature);
 
       return { order, approvalTxHash, wrapTxHash };
     } catch (error: unknown) {

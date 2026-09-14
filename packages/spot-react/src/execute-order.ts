@@ -392,7 +392,7 @@ export const executeOrder = async (
     }
 
     transition(ExecutionPhase.SUBMITTING);
-    const order = await client.submitOrder(preparedOrder, signature);
+    const order = await client.submitOrder(preparedOrder.order, signature);
     transition(ExecutionPhase.SUCCESS, {
       orderId: order.id.toString(),
     });

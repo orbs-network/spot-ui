@@ -200,7 +200,7 @@ try {
   });
   const { signerAddress, typedData } = preparedOrder.signingRequest;
   const signature = await wallet.signTypedData(typedData, signerAddress);
-  const order = await client.submitOrder(preparedOrder, signature);
+  const order = await client.submitOrder(preparedOrder.order, signature);
   console.info("Order submitted", order);
 } catch (error) {
   if (isTxRejected(error)) console.info("The wallet request was rejected");

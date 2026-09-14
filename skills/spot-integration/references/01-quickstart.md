@@ -67,7 +67,7 @@ If the partner/chain is absent, first check the runtime package and partner filt
 5. On submit, capture the current form, tokens, account, chain, and client as one immutable attempt.
 6. Normalize native input to the host's wrapped-native token, check allowance, wrap if needed, approve if needed, and verify allowance.
 7. Call `client.prepareOrder(...)` immediately before `wallet.signOrder(preparedOrder.signingRequest)`.
-8. Submit once with `client.submitOrder(preparedOrder, signature)` and refresh balances/history after success.
+8. Submit once with `client.submitOrder(preparedOrder.order, signature)` and refresh balances/history after success.
 9. Poll history through `client.getAccountOrders(...)`; cancel through `client.getCancelOrderRequest(order)` and the host wallet.
 
 Use the host's established state/data primitives—such as computed selectors, derived stores, services, signals, or a small TypeScript controller—to implement the lifecycle without introducing another UI component or global store.
