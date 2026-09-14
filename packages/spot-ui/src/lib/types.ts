@@ -308,7 +308,7 @@ export enum Partners {
   HtDigital = "ht",
   Ginco = "ginco",
   Katana = "katana",
-  Unknown = "unknown",
+  External = "external",
   Orvex = "orvex",
 }
 
