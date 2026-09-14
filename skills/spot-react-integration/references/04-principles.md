@@ -33,6 +33,8 @@
 29. **Trusted Configuration Boundary** — The SDK rejects chain mismatches and malformed or zero RePermit/adapter addresses, then uses the remaining `/config` contract values for approvals, cancellation, and order construction. It does not verify deployed bytecode or contract identity, so only use the trusted Orbs endpoint over TLS.
 30. **Preserve Wallet Signatures** — Return the wallet's original `0x`-prefixed value from `signOrder`. Spot submits it unchanged; do not split it into `{ v, r, s }`, rewrite `v`, or normalize its bytes.
 
+31. **Tooltip Defaults** — Include tooltips on the corresponding Spot controls and detail rows using [06-tooltips.md](06-tooltips.md). Use the reference app's default copy through the DEX tooltip/i18n components, including a non-empty English fallback.
+
 ## Module Navigation
 
 Use the same navigation pattern as the DEX (router or query params):
@@ -117,6 +119,8 @@ components/spot/
 Keep focused Spot hook calls in the component that renders the data whenever possible. Use context for DEX-owned values/actions that many children need: selected currencies, typed amount setters, DEX balance/quote formatting, modal open state, token selector actions, copied-to-clipboard feedback, and DEX-specific callbacks. Do not create context just to re-export every Spot panel.
 
 ## Final Checklist
+
+- [ ] All Spot tooltips have the `apps/web` defaults from [06-tooltips.md](06-tooltips.md), including fallback text for missing or empty translations
 
 - [ ] `@orbs-network/spot-react@latest` installed with all peer dependencies (no viem required)
 - [ ] `@orbs-network/swap-ui@latest` installed and used for order creation/progress modal content

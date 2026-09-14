@@ -32,8 +32,9 @@ Working example: [`apps/web/components/spot/spot-form.tsx`](https://github.com/o
 3. Read [references/03-panels.md](references/03-panels.md) for focused form, execution, configuration, and order-history hooks.
 4. Read [references/04-principles.md](references/04-principles.md) for integration principles, layout rules, module navigation, token selector behavior, and the final checklist.
 5. Read [references/05-ui-reference.md](references/05-ui-reference.md) when implementing or reviewing UI against the bundled screenshots.
-6. Use [assets/spot-form-skeleton.tsx](assets/spot-form-skeleton.tsx) as a starting template.
-7. Before finalizing, verify current public exports/types in `@orbs-network/spot-react` and `@orbs-network/swap-ui`; do not assume internal hooks or `dist/*` paths exist.
+6. Read [references/06-tooltips.md](references/06-tooltips.md) for required tooltip defaults and their placement. Every Spot tooltip must resolve to meaningful text, using the `apps/web` English copy as the fallback when a translation is missing or empty.
+7. Use [assets/spot-form-skeleton.tsx](assets/spot-form-skeleton.tsx) as a starting template.
+8. Before finalizing, verify current public exports/types in `@orbs-network/spot-react` and `@orbs-network/swap-ui`; do not assume internal hooks or `dist/*` paths exist.
 
 ## Guardrails
 
