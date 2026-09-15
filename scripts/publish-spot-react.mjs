@@ -7,6 +7,8 @@ import { tmpdir } from 'os'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { selectVersion, confirmPublish, promptOtp } from './publish-version.mjs'
+import { verifyPublishedVersion, assertVersionUnpublished, AlreadyPublishedError } from './verify-published-version.mjs'
+import { runPublish, StagedPublishError } from './run-publish.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const rootDir = join(__dirname, '..')
@@ -107,6 +109,8 @@ async function main() {
     process.exit(0)
   }
 
+  assertVersionUnpublished(pkg.name, newVersion, join(rootDir, pkg.path))
+
   const ok = await confirmPublish(pkg.name, pkgJson.version, newVersion)
   if (!ok) {
     console.log('\n❌ Cancelled\n')
@@ -137,21 +141,23 @@ async function main() {
   console.log(`  ✓ ${pkg.name}`)
 
   const otp = await promptOtp()
-  const otpFlag = otp ? `--otp ${otp}` : ''
 
   // Publish package
   console.log('\n📦 Publishing package...')
   try {
-    execSync(`pnpm publish --access public --no-git-checks ${otpFlag}`, {
-      cwd: join(rootDir, pkg.path),
-      stdio: 'inherit',
-    })
-    console.log(`\n✅ ${pkg.name}@${newVersion} published!\n`)
+    await runPublish(pkg.name, newVersion, join(rootDir, pkg.path), otp)
   } catch (error) {
+    if (error instanceof StagedPublishError || error instanceof AlreadyPublishedError) throw error
     console.error(`\n❌ Failed to publish ${pkg.name}, reverting version\n`)
     writePackageJson(pkg.path, originalPkgJson)
     process.exit(1)
   }
+
+  // Verification failures must not roll back a version that may already be
+  // published: npm publication cannot be undone by editing package.json.
+  console.log('\n🔎 Verifying published version...')
+  await verifyPublishedVersion(pkg.name, newVersion, join(rootDir, pkg.path))
+  console.log(`\n✅ ${pkg.name}@${newVersion} published!\n`)
 }
 
 main().catch((err) => {

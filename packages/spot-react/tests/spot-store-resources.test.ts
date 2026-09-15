@@ -88,6 +88,20 @@ describe("provider-scoped resources", () => {
     expect(load).toHaveBeenCalledTimes(2);
   });
 
+  it("refreshes legacy history after an existing request finishes", async () => {
+    const store = createSpotStore({});
+    const load = vi.fn(async (_previous: Order[] | undefined, _legacyLoaded: boolean) => ({
+      orders: [order],
+      legacyLoaded: true,
+    }));
+    store.getState().configureOrders("account:exchange", load);
+    await store.getState().refetchOrders(true);
+    const inFlight = store.getState().refetchOrders(true);
+    const refreshed = store.getState().refetchOrders(true, true);
+    await Promise.all([inFlight, refreshed]);
+    expect(load.mock.calls.map((call) => call[1])).toEqual([false, true, false]);
+  });
+
   it("resets only form state when the form scope changes", () => {
     const store = createSpotStore({ tradeCount: 5, isMarketOrder: true });
     store.getState().updateState({

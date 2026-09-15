@@ -61,7 +61,10 @@ export interface SpotStore {
   refetchClient: () => Promise<SpotClient | undefined>;
   configureOrders: (key?: string, loader?: OrdersLoader) => void;
   registerOrdersConsumer: () => () => void;
-  refetchOrders: (force?: boolean) => Promise<Order[] | undefined>;
+  refetchOrders: (
+    force?: boolean,
+    refreshLegacy?: boolean,
+  ) => Promise<Order[] | undefined>;
   addOrder: (order: Order) => void;
   updateOrderStatus: (historyKey: string, status: Order["status"]) => void;
   beginExecution: (
@@ -182,11 +185,18 @@ export const createSpotStore = (
 
     const refetchOrders = async (
       force = false,
+      refreshLegacy = false,
     ): Promise<Order[] | undefined> => {
       if ((!force && ordersConsumers === 0) || !ordersKey || !ordersLoader) {
         return get().orders.data;
       }
-      if (ordersPromise) return ordersPromise;
+      if (ordersPromise) {
+        if (!refreshLegacy) return ordersPromise;
+        const key = ordersKey;
+        await ordersPromise;
+        if (ordersKey !== key) return undefined;
+        return refetchOrders(force, refreshLegacy);
+      }
 
       const requestId = ++ordersRequestId;
       const load = ordersLoader;
@@ -204,7 +214,7 @@ export const createSpotStore = (
 
       const promise = load(
         previousOrders,
-        ordersLegacyLoaded,
+        refreshLegacy ? false : ordersLegacyLoaded,
         abortController.signal,
       )
         .then(({ orders, legacyLoaded }) => {

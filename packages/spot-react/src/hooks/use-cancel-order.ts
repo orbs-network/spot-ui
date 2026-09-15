@@ -11,7 +11,7 @@ import {
   useSpotStore,
   useSpotStoreApi,
 } from "../context/spot-store-context";
-import { useOrdersResource, useUpdateCachedOrderStatus } from "./order-hooks";
+import { useOrdersResource } from "./order-hooks";
 import { useCallback, useMemo } from "react";
 import {
   getErrorMessage,
@@ -24,9 +24,9 @@ const MAX_CANCEL_POLL_ATTEMPTS = 60;
 export const useCancelOrderRefetchUntilStatusSynced = () => {
   const { refetch } = useOrdersResource();
   return useCallback(
-    async (historyKey: string): Promise<void> => {
+    async (historyKey: string, refreshLegacy = false): Promise<void> => {
       for (let attempt = 0; attempt < MAX_CANCEL_POLL_ATTEMPTS; attempt++) {
-        const orders = await refetch();
+        const orders = await refetch(refreshLegacy);
 
         if (!orders) {
           throw new Error("orders not found");
@@ -91,7 +91,6 @@ export const useCancelOrder = (order?: Order) => {
   const { account, walletInteractions, callbacks } = useSpotRuntime();
   const { data: client } = useClient();
   const refetchUntilStatusSynced = useCancelOrderRefetchUntilStatusSynced();
-  const updateCachedOrderStatus = useUpdateCachedOrderStatus();
   const {
     cancelOrders: cancelOrdersState,
     setCancelOrder,
@@ -122,11 +121,13 @@ export const useCancelOrder = (order?: Order) => {
       if (!txHash) throw new Error("failed to cancel order");
       observe(() => analytics.onCancelOrderSuccess(txHash));
 
-      // The cancel is confirmed on-chain once we have a txHash. Update the
-      // cache optimistically for both versions so an indexer lag doesn't get
-      // reported to the user as a failed cancellation.
+      // Keep the loader active until server history reflects the cancellation.
+      setCancelOrder(activeHistoryKey, {
+        status: ExecutionStatus.LOADING,
+        txHash,
+      });
+      await refetchUntilStatusSynced(activeHistoryKey, order.version === 1);
       const cancelledOrder = createCancelledOrder(order);
-      updateCachedOrderStatus(activeHistoryKey, OrderStatus.Cancelled);
       setCancelOrder(activeHistoryKey, {
         status: ExecutionStatus.SUCCESS,
         txHash,
@@ -137,14 +138,6 @@ export const useCancelOrder = (order?: Order) => {
           txHash,
         }),
       );
-
-      if (order.version !== 1) {
-        // The wallet adapter resolves after on-chain confirmation. Reconcile
-        // indexer state in the background without keeping the UI loading.
-        void refetchUntilStatusSynced(activeHistoryKey).catch((syncError) => {
-          console.warn("cancel status sync lagging", syncError);
-        });
-      }
 
       return txHash;
     } catch (error) {
@@ -170,7 +163,6 @@ export const useCancelOrder = (order?: Order) => {
     order,
     refetchUntilStatusSynced,
     setCancelOrder,
-    updateCachedOrderStatus,
     walletInteractions,
   ]);
 

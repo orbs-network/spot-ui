@@ -68,11 +68,11 @@ export const useOrdersResource = () => {
     store.getState().configureOrders(key, enabled ? loader : undefined);
   }, [enabled, key, loader, store]);
 
-  const refetch = useCallback(() => {
+  const refetch = useCallback((refreshLegacy = false) => {
     if (!enabled || !key) return Promise.resolve(undefined);
     const state = store.getState();
     state.configureOrders(key, loader);
-    return state.refetchOrders(true);
+    return state.refetchOrders(true, refreshLegacy);
   }, [enabled, key, loader, store]);
 
   return { enabled, key, refetch };
