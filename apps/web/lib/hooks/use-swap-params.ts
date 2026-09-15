@@ -8,6 +8,12 @@ import { DEFAULT_CHAIN_ID, DEFAULT_PARTNER } from "../consts";
 
 const partners = getPartners();
 
+const parsePositiveNumber = (value: string | null | undefined): number | undefined => {
+  if (!value?.trim()) return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : undefined;
+};
+
 export const useSwapParams = () => {
   const [currencies, setCurrencies] = useQueryParams({
     inputCurrency: StringParam,
@@ -15,6 +21,9 @@ export const useSwapParams = () => {
   });
   const [swapType, setSwapType] = useQueryParam("swapType", StringParam);
   const [partner, setPartner] = useQueryParam("partner", StringParam);
+  // URL overrides: minimum trade size in USD, order duration in minutes.
+  const [minTradeSize] = useQueryParam("minTradeSize", StringParam);
+  const [duration] = useQueryParam("duration", StringParam);
 
   const { chainId } = useConnection();
   const defaultTokens = useMemo(() => {
@@ -54,6 +63,8 @@ export const useSwapParams = () => {
   }, [partner]);
 
   return {
+    minTradeSizeUsd: parsePositiveNumber(minTradeSize),
+    durationMinutes: parsePositiveNumber(duration),
     inputCurrency: effectiveInput,
     setInputCurrency,
     outputCurrency: effectiveOutput,

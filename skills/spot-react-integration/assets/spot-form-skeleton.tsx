@@ -17,7 +17,6 @@ import {
   useFillDelay,
   useInputErrors,
   useLimitPrice,
-  useOrderForm,
   useOutputAmount,
   usePriceDisplay,
   useSubmitButton,
@@ -305,8 +304,7 @@ function SubmitOrderSection({
     isPreparingOrder,
     isExecuting,
   } = useExecution();
-  const form = useOrderForm();
-  const [accepted, setAccepted] = useState(false);
+  const [accepted, setAccepted] = useState(true);
 
   // DEX: Replace with your ConnectWallet / SwitchNetwork checks
 
@@ -353,22 +351,15 @@ function SubmitOrderSection({
           ) : (
             <>
               {/* Order review details from the authoritative calculated form */}
-              {!status && (
+              {(!status || isPreparingOrder) && (
                 <>
-                  <p>
-                    {form.inputAmount.ui} → {form.outputAmount.ui}
-                  </p>
-                  {form.limitPrice.display.ui && (
-                    <p>Limit: {form.limitPrice.display.ui}</p>
-                  )}
-                  {form.triggerPrice.display.ui && (
-                    <p>Trigger: {form.triggerPrice.display.ui}</p>
-                  )}
-                  <p>Trades: {form.trades.totalTrades}</p>
-                  <p>Duration: {form.schedule.durationMillis} ms</p>
-                  {form.fees.percentage && (
-                    <p>Fees: {form.fees.percentage}%</p>
-                  )}
+                  {/* DEX: Render review rows per references/03-panels.md:
+                      recipient explorer link; abbreviated ID when available;
+                      Individual trade size and trade count only for >1 trade;
+                      expiry as a date/time; min output only for limit execution;
+                      trigger price only for SL/TP. Use DEX amount/date formatters.
+                      Build a DEX-owned OrderReviewDetails component using
+                      useOrderForm() and the DEX account/chain context. */}
 
                   <label>
                     <input
@@ -390,11 +381,12 @@ function SubmitOrderSection({
                     onClick={submitOrder}
                     disabled={!accepted || Boolean(isPreparingOrder)}
                   >
-                    {isPreparingOrder ? "Creating..." : "Create Order"}
+                    {/* DEX: Replace loading text with your button spinner. */}
+                    {isPreparingOrder ? "Loading..." : "Create Order"}
                   </button>
                 </>
               )}
-              {/* Swap progress UI when status is set */}
+              {/* DEX: Render SwapFlow when status is set and !isPreparingOrder. */}
             </>
           )}
         </div>

@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import {
   Module,
   SpotProvider,
+  TimeUnit,
+  type Overrides,
   type Token,
 } from "@orbs-network/spot-react";
 import { useConnection } from "wagmi";
@@ -11,6 +13,7 @@ import { useActionHandlers } from "@/lib/hooks/use-action-handlers";
 import { useBalance } from "@/lib/hooks/use-balances";
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
 import { useSettings } from "@/lib/hooks/use-settings";
+import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import {
   useCallbacks,
   useSpotMarketQuote,
@@ -81,6 +84,15 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   const walletInteractions = useWalletInteractions();
   const partner = useSpotPartner();
   const callbacks = useCallbacks();
+  const { minTradeSizeUsd, durationMinutes } = useSwapParams();
+  const overrides = useMemo<Overrides | undefined>(
+    () => durationMinutes === undefined ? undefined : {
+      state: {
+        orderDuration: { value: durationMinutes, unit: TimeUnit.Minutes },
+      },
+    },
+    [durationMinutes],
+  );
 
   return (
     <SpotFormContextProvider value={contextValue}>
@@ -101,7 +113,8 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           inputTokenUsdPrice={inputUsdPrice.data.toString()}
           outputTokenUsdPrice={outputUsdPrice.data.toString()}
           marketQuote={marketQuote}
-          minTradeSizeUsd={1}
+          minTradeSizeUsd={minTradeSizeUsd ?? 1}
+          overrides={overrides}
           callbacks={callbacks}
           supportLegacyOrders
           clientErrorFallback={ClientErrorFallback}

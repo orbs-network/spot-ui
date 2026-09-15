@@ -414,7 +414,29 @@ function SubmitOrderSection({ partner }: { partner: Partners }) {
 
 Build your submit order UI using `useExecution()` for execution state and `useOrderForm()` for order review details. Use `@orbs-network/swap-ui` for the order creation/progress flow UI inside the modal. The host DEX can still provide the modal shell, backdrop, close button, and surrounding layout, but the execution state content should be driven by `SwapFlow`.
 
-When `useExecution().status` is not `undefined`, switch from review mode to execution mode:
+### Review details and defaults
+
+Use the following rules in the submit modal and for the corresponding fields when shown after submission:
+
+| Field | Rendering rule |
+| --- | --- |
+| Recipient | Link the recipient address to the connected chain's address explorer using the DEX's explorer URL helper. Use the actual recipient, and do not construct a transaction URL for an address. |
+| Order ID | When an ID is available, shorten its display with the DEX's identifier utility or a middle ellipsis, for example `0x1234…abcd`. Keep the full value in a tooltip and copy action. Do not invent an ID before submission. |
+| Individual trade size | Show only when `form.trades.totalTrades > 1`, with the label **Individual trade size** and `form.trades.inputAmountPerTrade`. |
+| Number of trades | Show only when `form.trades.totalTrades > 1`. |
+| Expiry | Show a formatted calendar date and time using the DEX's date formatter, rather than a duration or milliseconds. Before submission, derive the estimated date from the current time plus `form.schedule.durationMillis`; after submission, use the order's actual deadline. Respect the timestamp units and the DEX's timezone convention. |
+| Minimum amount out | Show only for limit execution (`!form.values.isMarketOrder`), including TWAP-limit and SL/TP with a limit enabled. Use `form.trades.minOutputAmountPerTrade`; label it per trade only when there is more than one trade. Hide it for market execution. |
+| Trigger price | Show only for Stop-Loss or Take-Profit (`form.values.isTriggerPrice`), not merely because a price field contains a value. |
+
+Use the DEX's existing amount parsing and formatting utilities for every token amount, price, fee, and USD value, including the main input/output summary. Convert `.raw` into the DEX amount type when supported, then format with its significant-digit/compact-number utilities. Avoid long decimal strings and avoid rounding tiny nonzero amounts to a misleading zero. Keep full precision for calculations, transactions, and copy actions; shortening applies only to display.
+
+Initialize disclaimer acceptance to `true`. Show the checked, editable checkbox and disclaimer link; if the user unchecks it, disable submission.
+
+While `useExecution().isPreparingOrder` is true, including allowance fetching, keep review mode visible and show the DEX's loading spinner in the disabled submit button. Use the same loading/disabled behavior on the outer submit-order button via `useSubmitButton()`. Once preparation finishes and execution status is set, show the progress flow.
+
+The examples use `OrderReviewDetails` as a DEX-owned component implementing the table above, with focused Spot hooks and DEX formatting/explorer helpers. It is not an SDK export.
+
+When `useExecution().status` is set **and `isPreparingOrder` is false**, switch from review mode to execution mode:
 
 - Hide review details.
 - Hide the confirm/submit button.
@@ -423,7 +445,7 @@ When `useExecution().status` is not `undefined`, switch from review mode to exec
 - Keep the top-right close button only if the DEX normally allows closing progress modals.
 - Render the built progress/swap-flow state from `useExecution()`.
 
-This mirrors the reference submit panel: review details are shown only before submission; progress/success/failure content owns the modal after submission begins.
+This mirrors the reference submit panel: review details are shown only before submission; progress/success/failure content owns the modal after preparation finishes.
 
 ### swap-ui flow
 
@@ -535,10 +557,9 @@ Use `useClient()` only when review UI also needs configuration such as
 
 ```tsx
 function SubmitOrderModal({ isOpen, onClose }) {
-  const [accepted, setAccepted] = useState(false);
+  const [accepted, setAccepted] = useState(true);
   const { submitOrder, status, isExecuting, isSuccess, isFailed, error, isPreparingOrder, inputToken, outputToken, currentStep, currentStepIndex, totalSteps } =
     useExecution();
-  const form = useOrderForm();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -547,15 +568,9 @@ function SubmitOrderModal({ isOpen, onClose }) {
           <ErrorDisplay error={error} onClose={onClose} />
         ) : (
           <>
-            {!status && (
+            {(!status || isPreparingOrder) && (
               <>
-                {/* Order review details */}
-                <p>Amount: {form.inputAmount.ui} → {form.outputAmount.ui}</p>
-                {form.limitPrice.display.ui && <p>Limit: {form.limitPrice.display.ui}</p>}
-                {form.triggerPrice.display.ui && <p>Trigger: {form.triggerPrice.display.ui}</p>}
-                <p>Trades: {form.trades.totalTrades}</p>
-                <p>Duration: {form.schedule.durationMillis} ms</p>
-                {form.fees.percentage && <p>Fees: {form.fees.percentage}%</p>}
+                <OrderReviewDetails />
 
                 <DisclaimerAccept accepted={accepted} onAcceptedChange={setAccepted} />
                 <Button
@@ -567,7 +582,7 @@ function SubmitOrderModal({ isOpen, onClose }) {
                 </Button>
               </>
             )}
-            {status && <SpotOrderFlow />}
+            {status && !isPreparingOrder && <SpotOrderFlow />}
           </>
         )}
       </DialogContent>

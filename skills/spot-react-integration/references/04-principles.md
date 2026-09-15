@@ -23,7 +23,7 @@
 19. **DEX Swap State Context** — Keep selected tokens, typed amount, balances, USD amounts, and quote state in the DEX swap form context/store. If Spot components need shared access or the same props are passed to multiple children, expose a small Spot adapter context rather than prop-drilling.
 20. **Connected Chain Source** — Use the connected account/wallet chain id for Spot config, provider props, token conversion, and history links. Do not mix it with quote/router chain sources.
 21. **Token Selector Lock** — If reusing the DEX token selector, hide chain selection for Spot. Network changes should go through the DEX network control.
-22. **Submit Progress Mode** — Once `useExecution().status` is set, hide review details, submit button, and secondary modal footer close/cancel actions. The progress/success/failure content owns the modal.
+22. **Submit Progress Mode** — Once `useExecution().status` is set and `isPreparingOrder` is false, hide review details, submit button, and secondary modal footer close/cancel actions. The progress/success/failure content owns the modal.
 23. **Order Created Toast** — Avoid a toast on `onOrderCreated` unless explicitly requested. Refetch balances silently; keep toasts for fills, cancellation, copy, and errors.
 24. **Virtualized History** — Use existing virtualization for order history and fills lists when available. Store the selected order's stable `historyKey`, not the selected order object or collision-prone v1 numeric id.
 25. **No Hidden Unsupported Chain** — Spot never substitutes another chain. Its client and submission remain disabled until the connected wallet is on a supported chain; show the host DEX's switch-network control.
@@ -120,6 +120,8 @@ Keep focused Spot hook calls in the component that renders the data whenever pos
 
 ## Final Checklist
 
+- [ ] Submit review follows [03-panels.md](03-panels.md): recipient explorer link, shortened ID, conditional trade/price rows, expiry date, DEX number formatting, allowance spinner, and disclaimer accepted by default
+
 - [ ] All Spot tooltips have the `apps/web` defaults from [06-tooltips.md](06-tooltips.md), including fallback text for missing or empty translations
 
 - [ ] `@orbs-network/spot-react@latest` installed with all peer dependencies (no viem required)
@@ -142,7 +144,7 @@ Keep focused Spot hook calls in the component that renders the data whenever pos
 - [ ] Raw panel/history amounts converted into DEX amount objects before display when possible
 - [ ] Submit modal built using `useExecution()` and `useOrderForm()`
 - [ ] Submit modal progress/success/failure states rendered with `@orbs-network/swap-ui`
-- [ ] Submit modal hides review details and submit/footer buttons while `useExecution().status` is set
+- [ ] Submit modal hides review details and submit/footer buttons while `useExecution().status` is set and preparation is finished
 - [ ] RePermit configuration failures use a localized, DEX-native `clientErrorFallback` with retry
 - [ ] Submit remains disabled while RePermit configuration is loading or unavailable
 - [ ] Order cancellation uses `useCancelOrder(order)` hook
