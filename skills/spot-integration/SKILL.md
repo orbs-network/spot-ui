@@ -17,7 +17,7 @@ The completed integration should include:
 4. One host-managed `SpotClient` resource per partner and chain, with loading, retry, and invalidation behavior appropriate to the host application.
 5. A wallet adapter that handles native wrapping, allowance reads, approval, EIP-712 signing, contract cancellation, and confirmed transaction receipts.
 6. A submission flow that prepares the order immediately before signing and forwards the wallet's original signature unchanged.
-7. Order history keyed by `order.historyKey`, plus cancellation and refresh behavior.
+7. Full v2 order history scoped by partner and chain, without exchange or pagination parameters, keyed by `order.historyKey`, plus cancellation and refresh behavior.
 8. Chain names, wrapped-native tokens, explorer links, notifications, and visual components supplied by the host DEX.
 
 ## Distribution

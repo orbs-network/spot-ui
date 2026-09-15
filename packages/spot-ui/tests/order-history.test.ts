@@ -38,28 +38,28 @@ describe("v2 order history", () => {
     vi.unstubAllGlobals();
   });
 
-  it("converts public zero-based pages to one-based API pages", async () => {
-    const requestedPages: number[] = [];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string | URL | Request) => {
-        const url = new URL(String(input));
-        const page = Number(url.searchParams.get("page"));
-        requestedPages.push(page);
-        return jsonResponse({
-          orders: [createV2Order(1, `order-${page}`)],
-          totalPages: 2,
-        });
-      }),
-    );
+  it("fetches all orders with partner and no pagination parameters", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({
+      orders: [createV2Order(1, "order-1"), createV2Order(1, "order-2")],
+    }));
+    vi.stubGlobal("fetch", fetchMock);
 
-    const orders = await getV2Orders({ chainId: 1, account: ADDRESS_4 });
+    const orders = await getV2Orders({
+      chainId: 1,
+      account: ADDRESS_4,
+      partner: Partners.Katana,
+    });
 
-    expect(requestedPages.sort()).toEqual([1, 1, 2, 2]);
-    expect(orders.map((order) => order.hash).sort()).toEqual([
-      "order-1",
-      "order-2",
-    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [input] of vi.mocked(fetch).mock.calls) {
+      const url = new URL(String(input));
+      expect(Object.fromEntries(url.searchParams)).toEqual({
+        swapper: ADDRESS_4,
+        chainId: "1",
+        partner: Partners.Katana,
+      });
+    }
+    expect(orders.map((order) => order.hash)).toEqual(["order-1", "order-2"]);
   });
 
   it("skips malformed items without hiding valid history", async () => {
@@ -74,19 +74,19 @@ describe("v2 order history", () => {
       ),
     );
 
-    const orders = await getV2Orders({ chainId: 1, account: ADDRESS_4 });
+    const orders = await getV2Orders({ chainId: 1, account: ADDRESS_4, partner: Partners.Thena });
 
     expect(orders).toHaveLength(1);
     expect(orders[0]?.hash).toBe("valid-order");
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
-  it("returns successful targets when another exchange target fails", async () => {
+  it("returns successful history when another endpoint fails", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL | Request) => {
         const url = new URL(String(input));
-        if (url.searchParams.get("exchange") !== ADDRESS_4) {
+        if (url.hostname === "order-sink-v2.orbs.network") {
           return jsonResponse({}, false);
         }
         return jsonResponse({
@@ -99,7 +99,6 @@ describe("v2 order history", () => {
     const orders = await getV2Orders({
       chainId: 56,
       account: ADDRESS_4,
-      exchange: ADDRESS_4,
       partner: Partners.Thena,
     });
 

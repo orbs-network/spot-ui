@@ -5,12 +5,11 @@ import { getOrders as getV2Orders } from "./v2-orders";
 
 export interface GetAccountOrdersParams {
   signal?: AbortSignal;
-  /** Zero-based page. Omit it to fetch every available page. */
+  /** Zero-based legacy history page. V2 always fetches all orders. */
   page?: number;
-  /** Positive number of orders requested per page. */
+  /** Positive number of legacy orders requested per page. */
   limit?: number;
   chainId: number;
-  exchange?: string;
   partner: Partners;
   account: string;
   legacyOrders?: boolean;
@@ -30,7 +29,6 @@ export const getAccountOrders = async ({
   page,
   chainId,
   limit,
-  exchange,
   partner,
   account,
   legacyOrders = true,
@@ -54,10 +52,7 @@ export const getAccountOrders = async ({
       chainId,
       signal,
       account,
-      exchange,
       partner,
-      page,
-      limit,
     }),
   ]);
   if (signal?.aborted) throw signal.reason;

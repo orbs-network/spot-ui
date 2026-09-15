@@ -624,7 +624,7 @@ Each order's cancel status is tracked independently, so multiple cancellations c
 
 Build order history using `useOrders()` for the list and `useHistoryOrder()` for individual order display. The history query and polling are active only while a component using `useOrders()` is mounted:
 
-History starts after the Spot client configuration succeeds because v2 requests use the returned exchange adapter. When `supportLegacyOrders` is enabled, legacy v1 orders are fetched with the first successful history snapshot and retained while v2 history continues polling.
+History starts after the Spot client configuration succeeds. V2 requests fetch all orders using `swapper`, `chainId`, and `partner`, without `exchange`, `page`, or `limit`; let `useOrders()` own this fetching rather than adding host-side pagination requests. When `supportLegacyOrders` is enabled, legacy v1 orders are fetched with the first successful history snapshot and retained while v2 history continues polling.
 
 `useHistoryOrder` returns each amount as `{ raw, ui }`; historical USD values
 are intentionally omitted when the service response does not provide them.

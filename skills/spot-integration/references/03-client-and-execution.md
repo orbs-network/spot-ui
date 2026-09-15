@@ -11,7 +11,7 @@ Keep the client promise, wallet adapter, and in-flight locks in a non-reactive s
 Do not separately fetch RePermit configuration or copy its addresses into application configuration. Use:
 
 - `client.spenderAddress` for allowance and approval;
-- `client.exchangeAddress` through configured history;
+- `client.getAccountOrders` for history scoped to the configured partner and chain;
 - `client.prepareOrder` for the exact protocol order, signing payload, and approval payload;
 - `client.getCancelOrderRequest` for version-aware cancellation.
 

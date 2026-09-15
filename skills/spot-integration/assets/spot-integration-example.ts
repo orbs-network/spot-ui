@@ -178,7 +178,7 @@ export class SpotIntegration {
     signal?: AbortSignal,
   ): Promise<Order[]> {
     const client = await this.getClient();
-    return client.getAccountOrders({ account, signal, page: 0, limit: 25 });
+    return client.getAccountOrders({ account, signal });
   }
 
   public async cancelOrder(order: Order): Promise<`0x${string}`> {

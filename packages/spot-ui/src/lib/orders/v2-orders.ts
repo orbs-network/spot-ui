@@ -2,7 +2,6 @@
 /* eslint-disable no-constant-condition */
 import {
   getOrderApiEndpoints,
-  getOrderSinkExchanges,
   SPOT_VERSION,
 } from "../api-config";
 import { MAX_UINT_256 } from "../evm-constants";
@@ -222,17 +221,6 @@ export const buildV2Order = (order: OrderV2): Order => {
 
 interface OrdersApiPayload {
   orders: unknown[];
-  totalPages?: number;
-}
-
-interface ParsedOrdersPage {
-  orders: Order[];
-  totalPages: number;
-}
-
-interface OrdersRequestTarget {
-  exchange?: string;
-  endpoints: string[];
 }
 
 const reportInvalidOrders = (
@@ -247,7 +235,6 @@ const reportInvalidOrders = (
 
 const parseOrdersPayload = (
   payload: unknown,
-  requestedPage: number,
 ): OrdersApiPayload => {
   if (
     !payload ||
@@ -257,44 +244,29 @@ const parseOrdersPayload = (
     throw new Error("Invalid order history response: missing orders array");
   }
 
-  const rawTotalPages = Number(
-    (payload as { totalPages?: number | string }).totalPages,
-  );
-  const totalPages =
-    Number.isSafeInteger(rawTotalPages) && rawTotalPages > 0
-      ? Math.max(requestedPage, rawTotalPages)
-      : requestedPage;
-
   return {
     orders: (payload as { orders: unknown[] }).orders,
-    totalPages,
   };
 };
 
-const fetchOrdersPage = async ({
+const fetchOrdersForTarget = async ({
   endpoint,
   chainId,
   signal,
   account,
-  exchange,
-  page,
-  limit,
+  partner,
 }: {
   endpoint: string;
   chainId: number;
   signal?: AbortSignal;
   account: string;
-  exchange?: string;
-  page: number;
-  limit?: number;
-}): Promise<ParsedOrdersPage> => {
+  partner: Partners;
+}): Promise<Order[]> => {
   const query = new URLSearchParams({
     swapper: account,
     chainId: chainId.toString(),
-    page: page.toString(),
   });
-  if (exchange) query.set("exchange", exchange);
-  if (limit !== undefined) query.set("limit", limit.toString());
+  query.set("partner", partner);
 
   const response = await fetch(`${endpoint}/orders?${query}`, { signal });
   if (!response.ok) {
@@ -303,7 +275,7 @@ const fetchOrdersPage = async ({
     );
   }
 
-  const payload = parseOrdersPayload(await response.json(), page);
+  const payload = parseOrdersPayload(await response.json());
   let invalidOrders = 0;
   const orders = payload.orders.flatMap((rawOrder) => {
     try {
@@ -315,91 +287,7 @@ const fetchOrdersPage = async ({
   });
   reportInvalidOrders(invalidOrders, endpoint);
 
-  return { orders, totalPages: payload.totalPages ?? page };
-};
-
-const fetchOrdersForTarget = async ({
-  endpoint,
-  chainId,
-  signal,
-  account,
-  exchange,
-  page,
-  limit,
-}: {
-  endpoint: string;
-  chainId: number;
-  signal?: AbortSignal;
-  account: string;
-  exchange?: string;
-  page?: number;
-  limit?: number;
-}): Promise<Order[]> => {
-  // The public SDK page is zero-based; the order service page is one-based.
-  const firstPageNumber = page === undefined ? 1 : page + 1;
-  const firstPage = await fetchOrdersPage({
-    endpoint,
-    chainId,
-    signal,
-    account,
-    exchange,
-    page: firstPageNumber,
-    limit,
-  });
-
-  if (page !== undefined || firstPageNumber >= firstPage.totalPages) {
-    return firstPage.orders;
-  }
-
-  const remainingPageNumbers = Array.from(
-    { length: firstPage.totalPages - firstPageNumber },
-    (_, index) => firstPageNumber + index + 1,
-  );
-  const remainingPages = await Promise.all(
-    remainingPageNumbers.map((nextPage) =>
-      fetchOrdersPage({
-        endpoint,
-        chainId,
-        signal,
-        account,
-        exchange,
-        page: nextPage,
-        limit,
-      }),
-    ),
-  );
-
-  return [
-    ...firstPage.orders,
-    ...remainingPages.flatMap((result) => result.orders),
-  ];
-};
-
-const getRequestTargets = (
-  endpoints: string[],
-  exchange?: string,
-  partner?: Partners,
-): OrdersRequestTarget[] => {
-  const targets = new Map<string, OrdersRequestTarget>();
-
-  for (const endpoint of endpoints) {
-    const exchanges = getOrderSinkExchanges({ endpoint, exchange, partner });
-    const targetExchanges: Array<string | undefined> = exchanges.length
-      ? exchanges
-      : [undefined];
-
-    for (const targetExchange of targetExchanges) {
-      const key = targetExchange?.toLowerCase() ?? "all";
-      const target = targets.get(key) ?? {
-        exchange: targetExchange,
-        endpoints: [],
-      };
-      target.endpoints.push(endpoint);
-      targets.set(key, target);
-    }
-  }
-
-  return Array.from(targets.values());
+  return orders;
 };
 
 const throwAbortError = (): never => {
@@ -412,60 +300,25 @@ export const getOrders = async ({
   chainId,
   signal,
   account,
-  exchange,
   partner,
-  page,
-  limit,
 }: {
   chainId: number;
   signal?: AbortSignal;
   account?: string;
-  exchange?: string;
-  partner?: Partners;
-  page?: number;
-  limit?: number;
+  partner: Partners;
 }): Promise<Order[]> => {
   if (!account) return [];
 
-  const targets = getRequestTargets(
-    getOrderApiEndpoints(),
-    exchange,
-    partner,
-  );
   const targetResults = await Promise.allSettled(
-    targets.map(async (target) => {
-      const results = await Promise.allSettled(
-        target.endpoints.map((endpoint) =>
-          fetchOrdersForTarget({
-            endpoint,
-            chainId,
-            signal,
-            account,
-            exchange: target.exchange,
-            page,
-            limit,
-          }),
-        ),
-      );
-
-      if (signal?.aborted) throwAbortError();
-
-      const successfulResults = results.filter(
-        (result): result is PromiseFulfilledResult<Order[]> =>
-          result.status === "fulfilled",
-      );
-      if (!successfulResults.length) {
-        const firstFailure = results.find(
-          (result): result is PromiseRejectedResult =>
-            result.status === "rejected",
-        );
-        throw firstFailure?.reason instanceof Error
-          ? firstFailure.reason
-          : new Error("Failed to fetch order history");
-      }
-
-      return successfulResults.flatMap((result) => result.value);
-    }),
+    getOrderApiEndpoints().map((endpoint) =>
+      fetchOrdersForTarget({
+        endpoint,
+        chainId,
+        signal,
+        account,
+        partner,
+      }),
+    ),
   );
 
   if (signal?.aborted) throwAbortError();

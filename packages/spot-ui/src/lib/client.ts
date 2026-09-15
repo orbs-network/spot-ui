@@ -83,7 +83,7 @@ export interface CancelOrderRequest {
 
 export type ClientGetAccountOrdersParams = Omit<
   GetAccountOrdersParams,
-  "chainId" | "exchange" | "partner"
+  "chainId" | "partner"
 >;
 
 export interface SpotClient {
@@ -281,7 +281,7 @@ export const createClient = async (
   };
 
   /**
-   * Fetches order history with the partner, chain, and exchange captured by
+   * Fetches order history with the partner and chain captured by
    * this client, leaving only account and pagination options to the caller.
    */
   const getConfiguredAccountOrders = (
@@ -290,7 +290,6 @@ export const createClient = async (
     getAccountOrders({
       ...params,
       chainId,
-      exchange: exchangeAddress,
       partner,
     });
 

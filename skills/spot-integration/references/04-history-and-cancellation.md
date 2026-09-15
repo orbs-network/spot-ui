@@ -2,24 +2,22 @@
 
 ## Fetching History
 
-Use the configured client so partner, chain, and exchange stay aligned with order submission:
+Use the configured client so partner and chain stay aligned with order submission:
 
 ```ts
-const recentOrders = await client.getAccountOrders({
+const orders = await client.getAccountOrders({
   account,
-  page: 0,
-  limit: 25,
   signal: abortController.signal,
 });
 ```
 
-Omit `page` to fetch all available pages. Use a zero-based `page`, a positive `limit`, and `AbortSignal` when the host lifecycle can cancel an obsolete request. `legacyOrders` defaults to `true`; disable it only when the product intentionally excludes v1 orders.
+V2 history fetches all orders in one request per configured endpoint. The request query contains only `swapper`, `chainId`, and `partner`; do not send `exchange`, `page`, or `limit`, or add a page-fetching loop. `client.getAccountOrders` supplies the configured partner and chain automatically. The public `page` and `limit` options apply only to legacy v1 history. Use `AbortSignal` when the host lifecycle can cancel an obsolete request. `legacyOrders` defaults to `true`; disable it only when the product intentionally excludes v1 orders.
 
-The method merges configured v1 and v2 history and sorts it newest first. There is no authoritative single-order endpoint. Track progress by polling a suitable recent page and matching `order.historyKey`.
+The method merges configured v1 and v2 history and sorts it newest first. There is no authoritative single-order endpoint. Track progress by refetching the full history and matching `order.historyKey`.
 
 Use the host data layer's polling, visibility, retry, and invalidation rules. Avoid overlapping polls, stop polling when the view is no longer active, and refetch after submission or cancellation. Do not call `createClient` for every poll.
 
-Cache history by partner, chain, account, page, and limit. Preserve object identity for unchanged orders keyed by `historyKey`, and update only the existing history rows whose normalized data changed. Keep polling status separate from the form state so a background refresh does not rerender the whole order form.
+Cache history by partner, chain, account, and whether legacy history is enabled. Include page and limit only when explicitly paginating legacy v1 history. Preserve object identity for unchanged orders keyed by `historyKey`, and update only the existing history rows whose normalized data changed. Keep polling status separate from the form state so a background refresh does not rerender the whole order form.
 
 ## Identity and Units
 
