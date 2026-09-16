@@ -1,88 +1,53 @@
 #!/usr/bin/env node
 
-import { execSync } from 'child_process'
-import { readFileSync, writeFileSync } from 'fs'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import { execFileSync } from 'node:child_process'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { selectVersion, confirmPublish, promptOtp } from './publish-version.mjs'
-import { verifyPublishedVersion, assertVersionUnpublished, AlreadyPublishedError } from './verify-published-version.mjs'
-import { runPublish, StagedPublishError } from './run-publish.mjs'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const rootDir = join(__dirname, '..')
-
-const pkg = { name: '@orbs-network/spot-ui', path: 'packages/spot-ui' }
-
-function getPackageJson(pkgPath) {
-  const fullPath = join(rootDir, pkgPath, 'package.json')
-  return JSON.parse(readFileSync(fullPath, 'utf-8'))
-}
-
-function writePackageJson(pkgPath, data) {
-  const fullPath = join(rootDir, pkgPath, 'package.json')
-  writeFileSync(fullPath, JSON.stringify(data, null, 2) + '\n')
-}
+const rootDir = join(dirname(fileURLToPath(import.meta.url)), '..')
+const packageDir = join(rootDir, 'packages/spot-ui')
+const manifestPath = join(packageDir, 'package.json')
 
 async function main() {
-  console.log(`\n🚀 ${pkg.name} Publisher\n`)
+  const originalManifest = readFileSync(manifestPath, 'utf8')
+  const manifest = JSON.parse(originalManifest)
+  console.log(`\n🚀 ${manifest.name} Publisher\nCurrent version: ${manifest.version}\n`)
 
-  const pkgJson = getPackageJson(pkg.path)
-  console.log(`Current version: ${pkgJson.version}\n`)
-
-  const newVersion = await selectVersion(pkgJson.version)
-  if (newVersion === null) {
-    console.log('\n❌ Cancelled\n')
-    process.exit(0)
+  const version = await selectVersion(manifest.version)
+  if (version === null || !await confirmPublish(manifest.name, manifest.version, version)) {
+    console.log('Cancelled')
+    return
   }
 
-  assertVersionUnpublished(pkg.name, newVersion, join(rootDir, pkg.path))
-
-  const ok = await confirmPublish(pkg.name, pkgJson.version, newVersion)
-  if (!ok) {
-    console.log('\n❌ Cancelled\n')
-    process.exit(0)
-  }
-
-  // Build first with the current version so a build failure never leaves the
-  // working tree with a bumped-but-unpublished version.
-  console.log('\n🔨 Building package...')
+  // Build with the release version so it is also correct inside the bundle.
+  manifest.version = version
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+  console.log('\n🔨 Building...')
   try {
-    execSync('pnpm build:spot-ui', { cwd: rootDir, stdio: 'inherit' })
-  } catch (error) {
-    console.error('\n❌ Build failed\n')
-    process.exit(1)
+    execFileSync('pnpm', ['build:spot-ui'], { cwd: rootDir, stdio: 'inherit' })
+  } catch {
+    writeFileSync(manifestPath, originalManifest)
+    throw new Error('Build failed; restored the original package version.')
   }
-
-  // Update version only after a successful build.
-  console.log('\n📝 Updating version...')
-  const originalPkgJson = getPackageJson(pkg.path)
-  pkgJson.version = newVersion
-  writePackageJson(pkg.path, pkgJson)
-  console.log(`  ✓ ${pkg.name}`)
 
   const otp = await promptOtp()
+  // The build has already run; skip the duplicate prepublishOnly build.
+  const args = ['publish', '--access', 'public', '--no-git-checks', '--ignore-scripts']
+  if (otp) args.push('--otp', otp)
 
-  // Publish package
-  console.log('\n📦 Publishing package...')
+  console.log(`\n📦 Publishing ${manifest.name}@${version}...`)
   try {
-    await runPublish(pkg.name, newVersion, join(rootDir, pkg.path), otp)
-  } catch (error) {
-    if (error instanceof StagedPublishError || error instanceof AlreadyPublishedError) throw error
-    // Roll back the version bump so the next run starts from the right base.
-    console.error(`\n❌ Failed to publish ${pkg.name}, reverting version\n`)
-    writePackageJson(pkg.path, originalPkgJson)
-    process.exit(1)
+    execFileSync('pnpm', args, { cwd: packageDir, stdio: 'inherit' })
+  } catch {
+    // An upload may already be accepted even if the command fails afterward.
+    throw new Error(`Publish command failed. Local version remains ${version}; see npm output above.`)
   }
-
-  // Verification failures must not roll back a version that may already be
-  // published: npm publication cannot be undone by editing package.json.
-  console.log('\n🔎 Verifying published version...')
-  await verifyPublishedVersion(pkg.name, newVersion, join(rootDir, pkg.path))
-  console.log(`\n✅ ${pkg.name}@${newVersion} published!\n`)
+  console.log('\nPublish command completed. See npm output above for release status.\n')
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
+main().catch((error) => {
+  console.error(`\n${error instanceof Error ? error.message : String(error)}\n`)
+  process.exitCode = 1
 })
-
