@@ -1,10 +1,11 @@
 "use client";
 import React, { Suspense } from "react";
-import { useWagmiConfig } from "./wagmi-config";
+import { wagmiConfig } from "./wagmi-config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { darkTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { WagmiProvider } from "wagmi";
 import { QueryProvider } from "./query-provider";
+import { WalletReconnect } from "./wallet-reconnect";
 
 import { Spinner } from "@/components/ui/spinner";
 import dynamic from "next/dynamic";
@@ -20,30 +21,22 @@ const Fallback = () => {
   );
 };
 
-const WagmiWrapper = ({ children }: { children: React.ReactNode }) => {
-  const config = useWagmiConfig();
-  return (
-    <WagmiProvider config={config}>
-      {children}
-    </WagmiProvider>
-  );
-};
-
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <Suspense
       fallback={<Fallback />}
     >
       <QueryProvider>
-        <WagmiWrapper>
+        <WagmiProvider config={wagmiConfig} reconnectOnMount={false}>
           <QueryClientProvider client={queryClient}>
+            <WalletReconnect />
             <RainbowKitProvider theme={darkTheme()}>
               <AppProvider>
               {children}
               </AppProvider>
             </RainbowKitProvider>
           </QueryClientProvider>
-        </WagmiWrapper>
+        </WagmiProvider>
       </QueryProvider>
     </Suspense>
   );
