@@ -266,7 +266,7 @@ const fetchOrdersForTarget = async ({
     swapper: account,
     chainId: chainId.toString(),
   });
-  query.set("partner", partner);
+  query.set("exchange", partner);
 
   const response = await fetch(`${endpoint}/orders?${query}`, { signal });
   if (!response.ok) {

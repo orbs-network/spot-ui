@@ -38,7 +38,7 @@ describe("v2 order history", () => {
     vi.unstubAllGlobals();
   });
 
-  it("fetches all orders with partner and no pagination parameters", async () => {
+  it("fetches all orders with exchange instead of partner and no pagination parameters", async () => {
     const fetchMock = vi.fn(async () => jsonResponse({
       orders: [createV2Order(1, "order-1"), createV2Order(1, "order-2")],
     }));
@@ -56,7 +56,7 @@ describe("v2 order history", () => {
       expect(Object.fromEntries(url.searchParams)).toEqual({
         swapper: ADDRESS_4,
         chainId: "1",
-        partner: Partners.Katana,
+        exchange: Partners.Katana,
       });
     }
     expect(orders.map((order) => order.hash)).toEqual(["order-1", "order-2"]);
