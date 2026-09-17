@@ -45,6 +45,16 @@ const DURATION_OPTIONS = [
   { text: "Days", value: TimeUnit.Days },
 ];
 
+// DEX: Register these defaults in your i18n resources (see 03-panels.md).
+const DISCLAIMER_DEFAULTS = {
+  marketOrderDisclaimer:
+    "Each individual trade in this order will be filled at the current market price at the time of execution.",
+  limitOrderDisclaimer:
+    "Limit orders may not execute when the token's price is equal or close to the limit price, due to gas and standard swap fees.",
+  triggerMarketPriceDisclaimer:
+    "In extreme market movements, slippage may occur and the executed price of the market order may be worse than the specified trigger price.",
+};
+
 function ClientErrorFallback({
   error,
   retry,
@@ -276,10 +286,11 @@ function InputErrorPanel() {
 function DisclaimerPanel() {
   const disclaimer = useDisclaimer();
   if (!disclaimer) return null;
-  // DEX: Use your i18n system: t(disclaimer)
+  // DEX: Use t(disclaimer), falling back to this English default when the
+  // translation is missing, empty/whitespace-only, or returns the key itself.
   return (
     <p>
-      {disclaimer}{" "}
+      {DISCLAIMER_DEFAULTS[disclaimer]}{" "}
       <a href={ORBS_TWAP_FAQ_URL} target="_blank" rel="noopener noreferrer">
         Learn more
       </a>

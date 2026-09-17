@@ -341,23 +341,46 @@ function humanizeErrorArg(value: string) {
 
 ## Disclaimer Panel
 
+Render the disclaimer returned by `useDisclaimer()` in the order form, using the DEX's card/surface style. Register all three English defaults below in the host's i18n resources. The copy comes from `apps/web/lib/spot-translations.json`; copy it into the integration rather than importing from `apps/web`. These strings are integration defaults, not SDK exports.
+
+| Key | Default text |
+| --- | --- |
+| `marketOrderDisclaimer` | Each individual trade in this order will be filled at the current market price at the time of execution. |
+| `limitOrderDisclaimer` | Limit orders may not execute when the token's price is equal or close to the limit price, due to gas and standard swap fees. |
+| `triggerMarketPriceDisclaimer` | In extreme market movements, slippage may occur and the executed price of the market order may be worse than the specified trigger price. |
+
+The translation catalog also contains `marketOrderWarning` and `limitPriceMessage`, which use exactly the same copy as `marketOrderDisclaimer` and `limitOrderDisclaimer`, respectively. Reuse those defaults if the host uses these aliases.
+
+Use the hook as the source of truth for which disclaimer to show:
+
+| Order state | Disclaimer key |
+| --- | --- |
+| TWAP or Limit with `values.isMarketOrder` | `marketOrderDisclaimer` |
+| TWAP or Limit without `values.isMarketOrder` | `limitOrderDisclaimer` |
+| Stop-Loss with `values.isMarketOrder` | `triggerMarketPriceDisclaimer` |
+| Stop-Loss without `values.isMarketOrder`, or Take-Profit | None (`undefined`) |
+
+Fall back to the English default when a translation is missing, empty, whitespace-only, or returns the key itself. Never render the raw key or hide an applicable disclaimer because a translation is unavailable. In this example, `disclaimerDefaults` is a host-owned map containing the three defaults above, and `t` is the host's translation function configured to return `undefined` or the key for missing translations.
+
 ```tsx
 function DisclaimerPanel() {
   const disclaimer = useDisclaimer();
   if (!disclaimer) return null;
 
-  // disclaimer is a key: "limitOrderDisclaimer", "marketOrderDisclaimer",
-  // or "triggerMarketPriceDisclaimer"
+  const translated = t(disclaimer)?.trim();
+  const text = translated && translated !== disclaimer
+    ? translated
+    : disclaimerDefaults[disclaimer];
   return (
     <div>
-      <p>{t(disclaimer)}</p>
-      <a href={ORBS_TWAP_FAQ_URL} target="_blank">Learn more</a>
+      <p>{text}</p>
+      <a href={ORBS_TWAP_FAQ_URL} target="_blank" rel="noopener noreferrer">Learn more</a>
     </div>
   );
 }
 ```
 
-When the host DEX has a collapsible disclaimer pattern, follow it. Keep the disclaimer text in the DEX's card/surface style, with a "Learn more" link to `DISCLAIMER_URL` / `ORBS_TWAP_FAQ_URL` as appropriate.
+When the host DEX has a collapsible disclaimer pattern, follow it. Use "Learn more" as the default link label and link the form disclaimer to `ORBS_TWAP_FAQ_URL`. The submit review separately shows "Accept Disclaimer", with "Disclaimer" linked to `DISCLAIMER_URL`; localize these labels through the host's i18n system. Keep the order-specific explanation as well as the submit acceptance control.
 
 ## Submit Order
 

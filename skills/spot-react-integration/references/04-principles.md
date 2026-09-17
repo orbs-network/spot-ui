@@ -18,7 +18,7 @@
 14. **Split Big Files** — A tiny integration can start in one file, but production integrations should split large files into focused `components`, `hooks`, `context`, and `utils` files. Do not leave one giant file that mixes provider setup, wallet adapters, form sections, modals, history rows, formatting, and transaction helpers.
 15. **Balance Refetch via Callbacks** — Wire `refetchBalances` into `onWrapSuccess`, `onOrderCreated`, `onOrderFilled`, `onOrdersProgressUpdate`, and `onCancelOrderSuccess`. Do not pass it as a prop.
 16. **Input Reset in onClose** — Ignore close/reset requests while `isExecuting` is true. Clear the DEX input only when `isSuccess` is true inside the modal's `onClose` callback. On success call `startNewOrder()`; on failed/rejected submissions keep the input and call `returnToOrderForm()` (see [02-provider.md](02-provider.md)).
-17. **Translations** — The SDK returns string keys for disclaimers and errors. Resolve via your own i18n system.
+17. **Translations** — The SDK returns string keys for disclaimers and errors. Resolve via your own i18n system. Register all disclaimer defaults from [03-panels.md](03-panels.md#disclaimer-panel) and fall back to the English copy when a translation is missing, empty, or returns the key.
 18. **Direct Provider Props** — Pass values directly to `SpotProvider`. Do not create `useSpotProviderProps()` wrappers that hide simple prop wiring.
 19. **DEX Swap State Context** — Keep selected tokens, typed amount, balances, USD amounts, and quote state in the DEX swap form context/store. If Spot components need shared access or the same props are passed to multiple children, expose a small Spot adapter context rather than prop-drilling.
 20. **Connected Chain Source** — Use the connected account/wallet chain id for Spot config, provider props, token conversion, and history links. Do not mix it with quote/router chain sources.
@@ -154,6 +154,6 @@ Keep focused Spot hook calls in the component that renders the data whenever pos
 - [ ] Price Protection setting persisted
 - [ ] Callbacks wired for balance refetch; no order-created toast unless explicitly requested
 - [ ] Spot tabs in same container as Swap tab
-- [ ] Disclaimer keys resolved through i18n
+- [ ] All three disclaimer defaults from [03-panels.md](03-panels.md#disclaimer-panel) registered in i18n; the applicable `useDisclaimer()` text appears in the form, including when translations are missing or empty, with a "Learn more" link
 - [ ] Powered-by-Orbs attribution/link included if required by the integration agreement, using DEX-native styling
 - [ ] UI checked against [05-ui-reference.md](05-ui-reference.md), with the reference structure preserved and the host DEX theme applied
