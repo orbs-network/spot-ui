@@ -16,7 +16,6 @@ import {
   Partners,
   calculateOrderForm,
   createClient,
-  getPartnerChains,
 } from "@orbs-network/spot-ui";
 ```
 
@@ -42,7 +41,7 @@ Do not import from `@orbs-network/spot-ui/dist/*`. The package does not require 
 
 Confirm these inputs before implementation:
 
-- The DEX has a member in `Partners`, and the connected chain is included in `getPartnerChains(partner)`.
+- The DEX has a member in `Partners`, and `createClient(partner, chainId)` successfully validates the connected chain’s order-sink configuration.
 - The existing `App`/swap form component and its reusable inputs, selectors, buttons, dialogs, rows, loading states, and error surfaces have been identified.
 - The application's current state container and the narrow selectors/computed values used by those components have been identified.
 - The host can provide input/output token addresses, symbols, and decimals.

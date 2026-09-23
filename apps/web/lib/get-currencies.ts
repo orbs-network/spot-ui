@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import _ from "lodash";
 import * as chains from "viem/chains";
-import { Currency } from "./types";
+import type { Currency } from "./types";
 import { zeroAddress } from "viem";
 import axios from "axios";
 import {
@@ -10,6 +9,23 @@ import {
   sortByBaseAssets,
 } from "./utils";
 import { getChain, megaethChain, robinhoodChain } from "./chains";
+
+const flareTokens: Currency[] = [
+  {
+    address: "0x1502FA4be69d526124D453619276FacCab275d3D",
+    symbol: "WETH",
+    decimals: 18,
+    logoUrl: "https://tokens-data.1inch.io/images/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.png",
+    name: "Wrapped Ether",
+  },
+  {
+    address: "0x657097cC15fdEc9e383dB8628B57eA4a763F2ba0",
+    symbol: "SPRK",
+    decimals: 18,
+    logoUrl: "https://res.cloudinary.com/sparkdex/image/upload/q_100/v1/website-assets/coins/sprk",
+    name: "SparkDEX",
+  },
+];
 
 const coingekoChainToName = {
   [chains.flare.id]: "flare-network",
@@ -55,7 +71,7 @@ export const getCurrencies = async (
     
     const safeResponse = response.data.tokens.filter((token: { address: string }) => token.address.startsWith("0x"));
 
-    let tokens = safeResponse.map(
+    let tokens: Currency[] = safeResponse.map(
       (token: {
         address: string;
         symbol: string;
@@ -72,6 +88,15 @@ export const getCurrencies = async (
         };
       }
     );
+
+    if (chainId === chains.flare.id) {
+      tokens = [
+        ...tokens,
+        ...flareTokens.filter(
+          (extra) => !tokens.some((token) => eqCompare(token.address, extra.address))
+        ),
+      ];
+    }
 
     const _native = getChain(chainId)?.nativeCurrency;
 

@@ -1,6 +1,6 @@
 # Hook-Driven Panels
 
-Use `useOrderForm()` for the authoritative calculated form and the other focused named hooks in leaf components so they depend only on the contract they render. Use `useExecution()` for submission state and `useOrders()` for history. Keep the module in host state and derive supported chains with `getPartnerChains(partner)`.
+Use `useOrderForm()` for the authoritative calculated form and the other focused named hooks in leaf components so they depend only on the contract they render. Use `useExecution()` for submission state and `useOrders()` for history. Keep the module and network selector configuration in host state. Client initialization uses the order-sink `/config` API to determine partner/chain availability.
 
 The snippets below are intentionally framework-neutral. Replace placeholder components such as `CurrencyInputPanel`, `Select`, `Button`, `Dialog`, `ConnectWalletButton`, `SwitchNetworkButton`, and `DisclaimerAccept` with existing DEX components, and source variables such as `address`, `chainId`, `inputValue`, and `setInputAmount` from the DEX state/hooks.
 
@@ -387,14 +387,12 @@ When the host DEX has a collapsible disclaimer pattern, follow it. Use "Learn mo
 Render the form normally even without `chainId` or `account`. Only the submit area changes:
 
 ```tsx
-import { getPartnerChains, Partners } from "@orbs-network/spot-react";
-
-function SubmitOrderSection({ partner }: { partner: Partners }) {
+// Load supportedChains in a host loader/query and render loading/error states there.
+function SubmitOrderSection({ supportedChains }: { supportedChains: number[] }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { disabled, loading } = useSubmitButton();
   const { status, isSuccess, isExecuting, returnToOrderForm, startNewOrder } =
     useExecution();
-  const supportedChains = getPartnerChains(partner);
 
   const onClose = useCallback(() => {
     if (isExecuting) return;
@@ -431,7 +429,7 @@ function SubmitOrderSection({ partner }: { partner: Partners }) {
 }
 ```
 
-`useClient` reads provider-scoped client initialization state when `partner` and a connected supported chain are available. The React package requires no host query provider, and the underlying `spot-ui` factory has no global cache. While initialization is active, submit loading follows the client state; a missing or unsupported chain disables submission without showing an endless loader. After retries are exhausted, `SpotProvider` renders `clientErrorFallback` with `error`, `retry`, and `isRetrying`; provide a localized DEX-native component.
+`useClient` reads provider-scoped client initialization state when `partner` and a valid connected chain ID are available. The React package requires no host query provider, and the underlying `spot-ui` factory has no global cache. While initialization is active, submit loading follows the client state; a missing chain disables submission, while remote configuration failures stop loading and keep submission disabled. After retries are exhausted, `SpotProvider` renders `clientErrorFallback` with `error`, `retry`, and `isRetrying`; provide a localized DEX-native component.
 
 ## Submit Modal
 
@@ -758,9 +756,7 @@ const permitData = client?.rePermitData;
 
 ```tsx
 import {
-  getPartners,        // () => all registered partners
   getTwapConfig,      // (partner, chainId) => legacy v1 timing config
-  getPartnerChains,   // (partner) => supported chain IDs
   isNativeAddress,    // (address) => boolean
   eqIgnoreCase,       // (a, b) => case-insensitive address comparison
   getOrderExecutionRate,   // (srcFilled, dstFilled, srcDecimals, dstDecimals) => rate
@@ -779,7 +775,6 @@ import {
   ORBS_SLTP_FAQ_URL,
   ORBS_LOGO,
   ORBS_WEBSITE_URL,
-  SPOT_VERSION,
 } from "@orbs-network/spot-react";
 ```
 

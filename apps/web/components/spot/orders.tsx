@@ -1,6 +1,5 @@
 import {
   OrderFilter,
-  SPOT_VERSION,
   useOrders,
   type Order,
   type Token,
@@ -73,12 +72,8 @@ const ORDER_FILTERS = Object.values(OrderFilter).map((filter) => ({
   value: filter,
 }));
 
-const getSinkUrl = (orderId: string) => {
-  if (Number(SPOT_VERSION) >= 2) {
-    return `https://order-sink-v2.orbs.network/?order=${orderId}`;
-  }
-  return `https://order-sink.orbs.network/?order=${orderId}`;
-};
+const getSinkUrl = (orderId: string) =>
+  `https://order-sink-v2.orbs.network/?order=${orderId}`;
 
 export const SpotsOrders = () => {
   const { data, isLoading, error, isFetching, refetch } = useOrders();

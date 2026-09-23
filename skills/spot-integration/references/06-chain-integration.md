@@ -2,12 +2,12 @@
 
 Use this reference when enabling a chain or investigating missing partners, balances, native assets, or USD values. Spot protocol support and host application network support are separate concerns.
 
-## Confirm the Runtime Partner List
+## Confirm the Runtime Configuration
 
-- Execute `getPartners()` / `getPartnerChains(partner)` through the package resolution used by the app. A current GitHub config does not prove the installed SDK or running app contains it.
-- Check the installed Spot version, the SDK's `Partners` enum, and any partner allowlist. A config entry can be excluded by an enum filter even when the underlying Spot config resolves.
+- Call `createClient(partner, chainId)` through the package resolution used by the app. It reads order-sink `/config` directly and validates the returned chain IDs and addresses; surface initialization failures and allow retries.
+- Partner discovery and network selectors belong to the host. The demo web app reads the GitHub Spot JSON for its picker, but the SDK does not depend on that registry. Check host filters separately if a pair is missing from the UI.
 - In a source workspace, inspect development aliases, package exports, and the actual app bundle before blaming stale `dist`. Rebuild only if the app consumes built output; source aliases should reflect source changes. An isolated test importing `dist` does not establish what the dev app runs.
-- If the supported pair is still absent, report the evidence and direct the user to Spot support. Do not bypass SDK support checks or replace protocol addresses.
+- If the API does not support the pair, report the evidence and direct the user to Spot support. Do not bypass configuration validation or replace protocol addresses.
 
 ## Wire the Host Chain Once
 

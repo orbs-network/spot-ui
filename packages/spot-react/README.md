@@ -8,13 +8,19 @@ For the complete integration workflow, see the [Spot React integration skill](ht
 
 ## Before You Start
 
+The host owns partner discovery and chain selectors. Client initialization reads
+and validates the order-sink `/config` response directly and exposes failures
+through `useClient()` and `clientErrorFallback`. Analytics configuration also
+comes exclusively from this response. The demo's GitHub partner-list fetch is
+local to the web app and is not an SDK dependency.
+
 Every DEX needs a member of the exported `Partners` enum and a server-side Orbs Spot configuration for its supported chains. The SDK fetches contract and adapter addresses from that configuration. If the DEX is not configured yet, contact [@dTWAPSupportGroup](https://t.me/dTWAPSupportGroup) before integrating.
 
 ### RePermit configuration security
 
 The `/config` endpoint is a security boundary. The SDK rejects configurations whose domain or order chain differs from the requested chain, and rejects zero or malformed RePermit and exchange-adapter addresses. It uses `domain.verifyingContract` as the ERC-20 approval spender and the v2 cancellation contract, and uses the returned adapter, reactor, and executor when constructing orders. The SDK does not independently verify deployed bytecode or contract identity, so deployments must use the trusted Orbs endpoint over TLS and contract-address changes require explicit approval from the protocol/security owner.
 
-`SpotProvider` initializes the `spot-ui` client only when the connected chain supports the selected partner. It never substitutes another chain. Client state and order history are scoped to that provider, with no global cache or host query provider required. The framework-neutral `createClient` factory also retains no global state. The client owns configuration-dependent order preparation, signing/approval/cancellation request values, submission, and configured history access; calculations remain package-level functions. Form previews and order construction share the framework-agnostic `calculateOrderForm` model, so defaults, prices, trades, schedules, errors, raw/token-formatted/USD values, and signed execution values cannot diverge. Form calculation is time-independent; `prepareOrder` assigns fresh start, deadline, and nonce values after wrapping and approval, immediately before signing. Initialization is retried twice. After those retries, the provider keeps its children mounted and renders the retryable `clientErrorFallback` alongside them. Supply that component to localize and style the error for the host DEX.
+`SpotProvider` initializes the `spot-ui` client when a valid connected chain ID is available; the order-sink API determines whether the selected partner/chain is supported. It never substitutes another chain. Client state and order history are scoped to that provider, with no global cache or host query provider required. The framework-neutral `createClient` factory does not cache clients. It initializes analytics after validating configuration; no `appId` or React analytics effect is needed. The client owns configuration-dependent order preparation, signing/approval/cancellation request values, submission, and configured history access; calculations remain package-level functions. Form previews and order construction share the framework-agnostic `calculateOrderForm` model, so defaults, prices, trades, schedules, errors, raw/token-formatted/USD values, and signed execution values cannot diverge. Form calculation is time-independent; `prepareOrder` assigns fresh start, deadline, and nonce values after wrapping and approval, immediately before signing. Initialization is retried twice. After those retries, the provider keeps its children mounted and renders the retryable `clientErrorFallback` alongside them. Supply that component to localize and style the error for the host DEX.
 
 The authoritative shared model is available from `useOrderForm()`.
 
@@ -228,7 +234,6 @@ function SpotOrderForm({ module }: { module: Module }) {
       outputTokenUsdPrice={outputTokenUsdPrice}
       callbacks={callbacks}
       clientErrorFallback={ClientErrorFallback}
-      appId="my-dex"
       displayFeePercent={0.25}
     >
       <SpotFormContent />
@@ -261,7 +266,6 @@ Use the connected wallet chain as the source of truth. When it is absent or unsu
 | `walletInteractions` | `WalletInteractions` | Yes | Five wallet methods implemented by the DEX |
 | `chainId` | `number` | No | Connected wallet chain ID |
 | `account` | `Address` | No | Connected wallet address |
-| `appId` | `string` | No | Stable host-defined analytics identifier (for example the DEX slug) |
 | `inputToken` | `Token` | No | Input token metadata |
 | `outputToken` | `Token` | No | Output token metadata |
 | `wrappedNativeToken` | `Token \| undefined` | Yes | Host-provided wrapped-native token; pass `undefined` only before a chain is known |
@@ -626,8 +630,6 @@ import {
   getOrderExecutionRate,
   getOrderFillDelayMillis,
   getOrderLimitPriceRate,
-  getPartnerChains,
-  getPartners,
   getTwapConfig,
   calculateOrderForm,
   toAmountRaw,
@@ -641,7 +643,6 @@ import {
   ORBS_SLTP_FAQ_URL,
   ORBS_LOGO,
   ORBS_WEBSITE_URL,
-  SPOT_VERSION,
 } from "@orbs-network/spot-react";
 ```
 

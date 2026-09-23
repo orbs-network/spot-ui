@@ -1,3 +1,14 @@
+## Partner discovery
+
+The web app owns the partner and chain picker. `lib/spot-config.ts` fetches
+[Spot config.json](https://raw.githubusercontent.com/orbs-network/spot/master/config.json),
+and `lib/spot-partners.ts` extracts partner/chain pairs for `useSpotPartners`.
+Successful responses are cached for five minutes and concurrent requests are
+shared; failed requests can be retried. This JSON is used only for the picker.
+SDK client configuration and analytics use the order-sink `/config` response.
+
+Run the partner discovery tests with `pnpm --filter web test`.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

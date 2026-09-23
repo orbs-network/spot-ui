@@ -21,8 +21,6 @@ import { useConnection, usePublicClient, useWalletClient } from "wagmi";
 
 import TokensPair from "@/components/tokens-pair";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
-import * as chains from "viem/chains";
-import { getPartners } from "@orbs-network/spot-ui";
 import { DEFAULT_PARTNER } from "../consts";
 import { useRefetchSelectedCurrenciesBalances } from "./use-balances";
 
@@ -202,38 +200,9 @@ export const useSpotMarketQuote = () => {
   }, [trade, isLoadingTrade]);
 };
 
-export const useSpotPartner = () => {
-  const { partner } = useSwapParams();
-
-  const { chainId } = useConnection();
-
-  return useMemo(() => {
-    const selected = partner?.split("_")[0];
-
-    if (selected) {
-      return selected as Partners;
-    }
-    if (!chainId) {
-      return DEFAULT_PARTNER;
-    }
-
-    switch (chainId) {
-      case chains.base.id:
-      case chains.polygon.id:
-        return Partners.Quick;
-      case chains.bsc.id:
-        return Partners.Thena;
-      case chains.sonic.id:
-        return Partners.Spooky;
-      case chains.sei.id:
-        return Partners.Nami;
-      case chains.linea.id:
-        return Partners.Lynex;
-      default:
-        return (getPartners().find((p) => p.chainId === chainId)?.name ||
-          DEFAULT_PARTNER) as Partners;
-    }
-  }, [chainId, partner]);
+export const useSpotPartner = (): Partners => {
+  const { parsedPartner } = useSwapParams();
+  return (parsedPartner as Partners | undefined) ?? DEFAULT_PARTNER;
 };
 
 export const useWalletInteractions = () => {

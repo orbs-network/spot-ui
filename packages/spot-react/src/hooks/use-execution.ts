@@ -50,7 +50,7 @@ export const useExecution = (): SpotExecutionData => {
     inputToken: currentInputToken,
     outputToken: currentOutputToken,
     chainId: currentChainId,
-    isSupportedChain,
+    hasChainId,
     module,
     overrides,
   } = useSpotRuntime();
@@ -89,7 +89,7 @@ export const useExecution = (): SpotExecutionData => {
       isRejected: swapExecution.phase === ExecutionPhase.REJECTED,
       isPreparingOrder:
         swapExecution.phase === ExecutionPhase.PREPARING ||
-        (isSupportedChain && isClientLoading && !client),
+        (hasChainId && isClientLoading && !client),
       canDismiss: !isExecuting,
     };
   }, [
@@ -100,7 +100,7 @@ export const useExecution = (): SpotExecutionData => {
     currentChainId,
     isClientLoading,
     isExecuting,
-    isSupportedChain,
+    hasChainId,
     startNewOrder,
     submit,
     status,
@@ -117,7 +117,7 @@ export const useSubmitButton = () => {
     noLiquidity,
     inputAmountUi,
     marketPriceLoading,
-    isSupportedChain,
+    hasChainId,
   } = useSpotRuntime();
   const form = useOrderForm();
   const { data: client, isLoading: isClientLoading } = useClient();
@@ -136,12 +136,12 @@ export const useSubmitButton = () => {
 
   const buttonLoading =
     isExecuting ||
-    (isSupportedChain && isClientLoading && !client) ||
+    (hasChainId && isClientLoading && !client) ||
     Boolean(inputToken && outputToken && inputAmountUi && isPropsLoading);
   const disabled = Boolean(
     !form.canSubmit ||
       isExecuting ||
-      !isSupportedChain ||
+      !hasChainId ||
       !client ||
       noLiquidity ||
       buttonLoading ||

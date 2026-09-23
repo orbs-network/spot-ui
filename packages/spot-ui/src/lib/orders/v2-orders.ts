@@ -2,7 +2,6 @@
 /* eslint-disable no-constant-condition */
 import {
   getOrderApiEndpoints,
-  SPOT_VERSION,
 } from "../api-config";
 import { MAX_UINT_256 } from "../evm-constants";
 import {
@@ -130,7 +129,7 @@ type Amounts = {
   dstMinAmountTotal: string;
 };
 
-const getAmountsSpotV2 = (order: OrderV2): Amounts => {
+const getAmounts = (order: OrderV2): Amounts => {
   const { triggerLower = "0", triggerUpper = "0" } = order.order.witness.output;
 
   const dstMinAmountPerTrade = getDstMinAmountPerTrade(order);
@@ -144,31 +143,6 @@ const getAmountsSpotV2 = (order: OrderV2): Amounts => {
       ? BN(dstMinAmountPerTrade).multipliedBy(totalTradesAmount).toFixed()
       : "",
   };
-};
-
-const getAmountsProd = (order: OrderV2): Amounts => {
-  const dstMinAmountPerTrade = getDstMinAmountPerTrade(order);
-
-  const isTakeProfit = BN(order.order.witness.output.stop || 0).eq(MAX_UINT_256);
-
-  const totalTradesAmount = order.metadata.expectedChunks || 1;
-
-  return {
-    dstMinAmountPerTrade: isTakeProfit ? "" : dstMinAmountPerTrade,
-    triggerPricePerTrade: isTakeProfit
-      ? dstMinAmountPerTrade
-      : BN(order.order.witness.output.stop || 0).toFixed(),
-    dstMinAmountTotal:
-      isTakeProfit || !dstMinAmountPerTrade
-        ? ""
-        : BN(dstMinAmountPerTrade).multipliedBy(totalTradesAmount).toFixed(),
-  };
-};
-
-const getAmounts = (order: OrderV2): Amounts => {
-  return Number(SPOT_VERSION) >= 2
-    ? getAmountsSpotV2(order)
-    : getAmountsProd(order);
 };
 
 export const buildV2Order = (order: OrderV2): Order => {

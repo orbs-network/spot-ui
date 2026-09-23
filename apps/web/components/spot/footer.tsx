@@ -1,6 +1,5 @@
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { getSpotPartnerDemoLink, getSpotPartnerProdLink } from "@/lib/utils";
-import pkg from "@orbs-network/spot/package.json";
 import { Button } from "../ui/button";
 import { LinkIcon } from "lucide-react";
 import {
@@ -66,7 +65,7 @@ export const SpotFooter = () => {
   return (
     <div className="flex flex-row gap-2 items-center  fixed z-10 bottom-0 left-12 right-0 p-4 w-fit">
       <p className="text-[16px] font-bold text-foreground/80">
-        Spot: v{pkg.version}
+        Spot
       </p>
       {demo && (
         <Button variant="secondary" onClick={() => window.open(demo, "_blank")}>

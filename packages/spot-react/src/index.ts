@@ -29,7 +29,6 @@ export {
   // Types
   type Config,
   type TimeDuration,
-  type PartnerPayloadItem,
   type RePermitData,
   type RePermitOrder,
   type SpotClient,
@@ -72,14 +71,12 @@ export {
   InputErrors,
 
   // Functions
-  getPartners,
   getTwapConfig,
   calculateOrderForm,
   toAmountRaw,
   toAmountUI,
   invertPriceInput,
   createClient,
-  getPartnerChains,
   isNativeAddress,
   eqIgnoreCase,
   getOrderExecutionRate,
@@ -89,7 +86,6 @@ export {
   isTxRejected,
 
   // Constants
-  SPOT_VERSION,
   DISCLAIMER_URL,
   ORBS_TWAP_FAQ_URL,
   ORBS_SLTP_FAQ_URL,

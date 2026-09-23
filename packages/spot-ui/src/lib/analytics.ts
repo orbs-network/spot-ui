@@ -1,15 +1,11 @@
 import type {
   Address,
-  Config,
+  Hex,
   Module,
   Partners,
   RePermitData,
   RePermitOrder,
 } from "./types";
-import spotPkg from "@orbs-network/spot/package.json";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import * as Spot from "@orbs-network/spot";
 
 
 const Version = 0.7;
@@ -35,59 +31,30 @@ interface Token {
   decimals: number;
 }
 
-const getModuleImportDetails = (
-  partner: Partners,
-  minChunkSizeUsd: number,
-  chainId?: number,
-) => ({
-  spotVersion: spotPkg.version,
-  partner,
-  chainId: chainId || 0,
-  minChunkSizeUsd,
-});
-
 const getFetchedConfigDetails = (
   permitData: RePermitData,
   partner: Partners,
-  twapConfig?: Config,
-  minChunkSizeUsd?: number,
 ) => {
   const { witness } = permitData.order;
-  const legacyConfig = Spot.config(
-    permitData.domain.chainId,
-    partner,
-  ) as Partial<{
-    cosigner: Address;
-    fee: Address;
-    refinery: Address;
-    router: Address;
-    type: string;
-    wm: Address;
-  }> | undefined;
   return {
-    spotVersion: spotPkg.version,
     partner,
-    cosigner: legacyConfig?.cosigner,
-    fee: legacyConfig?.fee,
-    refinery: legacyConfig?.refinery,
-    router: legacyConfig?.router,
-    type: legacyConfig?.type,
-    wm: legacyConfig?.wm,
     adapter: witness.exchange.adapter,
     executor: witness.executor,
     reactor: witness.reactor,
     repermit: permitData.domain.verifyingContract,
     chainId: permitData.domain.chainId,
-    chainName: twapConfig?.chainName || "",
-    twapVersion: twapConfig?.twapVersion || 0,
-    twapAddress: twapConfig?.twapAddress || "",
-    lensAddress: twapConfig?.lensAddress || "",
-    bidDelaySeconds: twapConfig?.bidDelaySeconds || 0,
-    minChunkSizeUsd: minChunkSizeUsd || 0,
-    name: twapConfig?.name || "",
-    exchangeAddress: twapConfig?.exchangeAddress || "",
-    exchangeType: twapConfig?.exchangeType || "",
-    pathfinderKey: twapConfig?.pathfinderKey || "",
+    name: permitData.partner,
+    domainName: permitData.domain.name,
+    domainVersion: permitData.domain.version,
+    primaryType: permitData.primaryType,
+    spender: permitData.order.spender,
+    exchangeRef: witness.exchange.ref,
+    exchangeShare: witness.exchange.share,
+    exchangeData: witness.exchange.data,
+    configFreshness: witness.freshness,
+    configExclusivity: witness.exclusivity,
+    configEpoch: witness.epoch,
+    configSlippage: witness.slippage,
   };
 };
 
@@ -98,15 +65,12 @@ type Action =
   | "sign order"
   | "create order"
   | "module-import"
-  | "config-update"
   | "reset"
   | "crash";
 
 interface Data {
   _id: string;
-  spotVersion?: string;
   uiVersion?: string;
-  appId?: string;
   origin?: string;
   actionError?: string;
   cancelOrderSuccess?: boolean;
@@ -137,26 +101,22 @@ interface Data {
 
   partner?: Partners;
   adapter?: Address;
-  cosigner?: Address;
   executor?: Address;
-  fee?: Address;
   reactor?: Address;
-  refinery?: Address;
   repermit?: Address;
-  router?: Address;
-  type?: string;
-  wm?: Address;
-  chainName?: string;
   chainId?: number;
-  twapVersion?: number;
-  twapAddress?: string;
-  lensAddress?: string;
-  bidDelaySeconds?: number;
-  minChunkSizeUsd?: number;
   name?: string;
-  exchangeAddress?: string;
-  exchangeType?: string;
-  pathfinderKey?: string;
+  domainName?: string;
+  domainVersion?: string;
+  primaryType?: string;
+  spender?: Address;
+  exchangeRef?: Address;
+  exchangeShare?: number;
+  exchangeData?: Hex;
+  configFreshness?: number;
+  configExclusivity?: number;
+  configEpoch?: number;
+  configSlippage?: number;
 }
 
 const sendBI = async (data: Partial<Data>) => {
@@ -198,7 +158,6 @@ const getAnalyticsErrorMessage = (error: unknown): string => {
 class Analytics {
   timeout: ReturnType<typeof setTimeout> | undefined;
   configDetails: Partial<Data> = {};
-  configUpdateKey = "";
   moduleImportKey = "";
   data: Data = {
     _id: generateId(),
@@ -359,60 +318,21 @@ class Analytics {
     });
   }
 
-  init(
-    partner: Partners,
-    minChunkSizeUsd: number,
-    chainId?: number,
-    appId?: string,
-  ) {
-    const moduleImportKey = `${partner}:${chainId || 0}:${appId || ""}`;
-    if (moduleImportKey !== this.moduleImportKey) {
-      this.moduleImportKey = moduleImportKey;
-      const moduleImportData: Data = {
-        _id: generateId(),
-        action: "module-import",
-        uiVersion: UI_VERSION,
-        appId,
-        ...getModuleImportDetails(partner, minChunkSizeUsd, chainId),
-        origin: window.location.origin,
-      };
-      const configMatchesIntegration =
-        this.configDetails.partner === partner &&
-        this.configDetails.chainId === (chainId || 0);
-      if (!configMatchesIntegration) {
-        this.configDetails = {};
-      }
-      this.data = { ...moduleImportData, ...this.configDetails };
-      void sendBI(moduleImportData);
-    }
-  }
-
-  onFetchedConfig(
-    permitData: RePermitData,
-    partner: Partners,
-    twapConfig?: Config,
-    minChunkSizeUsd?: number,
-  ) {
-    const details = getFetchedConfigDetails(
-      permitData,
-      partner,
-      twapConfig,
-      minChunkSizeUsd,
-    );
-    const configUpdateKey = `${partner}:${details.chainId}:${details.repermit}:${details.adapter}:${details.executor}:${details.reactor}`;
-    if (configUpdateKey === this.configUpdateKey) return;
-    this.configUpdateKey = configUpdateKey;
+  init(partner: Partners, permitData: RePermitData) {
+    const details = getFetchedConfigDetails(permitData, partner);
+    const moduleImportKey = JSON.stringify(details);
+    if (moduleImportKey === this.moduleImportKey) return;
+    this.moduleImportKey = moduleImportKey;
     this.configDetails = details;
-    this.data = { ...this.data, ...details };
-    void sendBI({
+    const moduleImportData: Data = {
       _id: generateId(),
-      action: "config-update",
+      action: "module-import",
       uiVersion: UI_VERSION,
-      appId: this.data.appId,
-      origin:
-        typeof window === "undefined" ? undefined : window.location.origin,
+      origin: typeof window === "undefined" ? undefined : window.location.origin,
       ...details,
-    });
+    };
+    this.data = moduleImportData;
+    void sendBI(moduleImportData);
   }
 
   onCreateOrderError(error: unknown) {
@@ -438,31 +358,8 @@ class Analytics {
           _id: generateId(),
           action: "reset",
           uiVersion: UI_VERSION,
-          appId: this.data.appId,
           origin: this.data.origin,
-          spotVersion: spotPkg.version,
-          partner: this.data.partner,
-          adapter: this.data.adapter,
-          cosigner: this.data.cosigner,
-          executor: this.data.executor,
-          fee: this.data.fee,
-          reactor: this.data.reactor,
-          refinery: this.data.refinery,
-          repermit: this.data.repermit,
-          router: this.data.router,
-          type: this.data.type,
-          wm: this.data.wm,
-          chainName: this.data.chainName || "",
-          chainId: this.data.chainId || 0,
-          twapVersion: this.data.twapVersion || 0,
-          twapAddress: this.data.twapAddress || "",
-          lensAddress: this.data.lensAddress || "",
-          bidDelaySeconds: this.data.bidDelaySeconds || 0,
-          minChunkSizeUsd: this.data.minChunkSizeUsd || 0,
-          name: this.data.name || "",
-          exchangeAddress: this.data.exchangeAddress || "",
-          exchangeType: this.data.exchangeType || "",
-          pathfinderKey: this.data.pathfinderKey || "",
+          ...this.configDetails,
         };
       },
     );

@@ -257,7 +257,6 @@ const callbacks = useMemo<Callbacks>(() => ({
   outputTokenUsdPrice={outputTokenUsdPrice}
   chainId={chainId}
   account={address}
-  appId="my-dex"
   walletInteractions={walletInteractions}
   displayFeePercent={0.25}
   callbacks={callbacks}
@@ -283,7 +282,6 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 | `walletInteractions` | `WalletInteractions` | Yes | Wallet interaction handlers implemented by the DEX |
 | `chainId` | `number` | No | Connected chain ID |
 | `account` | `Address` | No | Connected wallet address |
-| `appId` | `string` | No | Stable host-defined analytics identifier, such as the DEX slug |
 | `inputToken` | `Token` | No | `{ address, symbol, decimals, logoUrl? }` |
 | `outputToken` | `Token` | No | `{ address, symbol, decimals, logoUrl? }` |
 | `wrappedNativeToken` | `Token \| undefined` | Yes | Host-provided wrapped-native token; pass `undefined` only before a chain is known |

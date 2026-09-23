@@ -2,7 +2,8 @@
 // @ts-ignore
 import IWETHABI from "./iweth.json";
 import ERC20 from "./erc20.json";
-import TwapAbi from "@orbs-network/twap/twap.abi.json";
+// Copied from @orbs-network/twap 2.7.28; see THIRD_PARTY_NOTICES.md.
+import TwapAbi from "./twap.json";
 import RePermitAbi from "./repermit.json";
 
 

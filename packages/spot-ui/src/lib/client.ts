@@ -1,3 +1,4 @@
+import { analytics } from "./analytics";
 import { REPERMIT_ABI, TWAP_ABI } from "./abi";
 import {
   buildRePermitOrderData,
@@ -7,7 +8,6 @@ import type {
   CalculatedOrderForm,
   CalculatedOrderValues,
 } from "./order-form/types";
-import { getPartners } from "./partners";
 import { isNativeAddress } from "./utils";
 import {
   getAccountOrders,
@@ -105,19 +105,6 @@ export interface SpotClient {
   getAccountOrders(params: ClientGetAccountOrdersParams): Promise<Order[]>;
 }
 
-const assertSupportedPartnerChain = (
-  partner: Partners,
-  chainId: number,
-): void => {
-  const supported = getPartners().some(
-    (candidate) =>
-      candidate.name === partner && candidate.chainId === chainId,
-  );
-  if (!supported) {
-    throw new Error(`Partner "${partner}" is not supported on chain ${chainId}`);
-  }
-};
-
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/i;
 const ZERO_ADDRESS_PATTERN = /^0x0{40}$/i;
 
@@ -168,17 +155,21 @@ const assertRePermitConfiguration = (
 
 /**
  * Creates a new initialized SDK client for a partner and chain. The caller owns
- * caching, request deduplication, and refresh policy.
+ * caching, request deduplication, and refresh policy. Analytics initializes only
+ * after configuration is validated.
  */
 export const createClient = async (
   partner: Partners,
   chainId: number,
 ): Promise<SpotClient> => {
-  assertSupportedPartnerChain(partner, chainId);
+  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+    throw new Error("chainId must be a positive safe integer");
+  }
 
   // Fetch the chain-specific RePermit configuration once for this client.
   const rePermitData = await fetchRePermitData(partner, chainId);
   assertRePermitConfiguration(rePermitData, chainId);
+  analytics.init(partner, rePermitData);
   const spenderAddress = rePermitData.domain.verifyingContract;
   const exchangeAddress = rePermitData.order.witness.exchange.adapter;
   let latestNonce = 0;

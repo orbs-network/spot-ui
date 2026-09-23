@@ -42,7 +42,7 @@ interface ExecutionStoreActions {
 export interface ExecuteOrderParams extends ExecutionStoreActions {
   account?: Address;
   chainId?: number;
-  isSupportedChain: boolean;
+  hasChainId: boolean;
   inputToken?: Token;
   outputToken?: Token;
   wrappedNativeToken?: Token;
@@ -104,7 +104,7 @@ const validateExecutionInputs = (
   params: ExecuteOrderParams,
 ): ValidatedExecutionInputs => {
   if (!params.client) throw new Error("Spot client is unavailable");
-  if (!params.isSupportedChain || !params.chainId) {
+  if (!params.hasChainId || !params.chainId) {
     throw new Error("Spot is unavailable on the connected chain");
   }
   if (!params.account) throw new Error("missing account");

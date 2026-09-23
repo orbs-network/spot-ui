@@ -2,7 +2,7 @@
 
 ## Client Lifecycle
 
-`createClient(partner, chainId)` validates the supported partner/chain, fetches RePermit configuration, validates its chain and addresses, and returns a new frozen `SpotClient`. It has no global cache.
+`createClient(partner, chainId)` fetches RePermit configuration directly from order-sink `/config` for the requested partner/chain, validates its chain and addresses, initializes analytics, and returns a new frozen `SpotClient`. No separate analytics initialization or `appId` is needed. Clients are not globally cached.
 
 Key the host resource by both partner and chain. Reuse an in-flight promise to deduplicate initialization, and remove a rejected promise so a deliberate retry can initialize again. Invalidate the old resource when either key changes. Keep the previous form mounted while initialization loads or retries; the host should show its own retryable error state.
 

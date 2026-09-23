@@ -3,7 +3,7 @@ import {
   Module,
   calculateOrderForm,
   createClient,
-  getPartners,
+  Partners,
   type RePermitData,
 } from "../src";
 import {
@@ -13,10 +13,8 @@ import {
   createRePermitData,
 } from "./fixtures";
 
-const configuredPartner = getPartners()[0];
-if (!configuredPartner) throw new Error("Expected at least one Spot partner");
-const partner = configuredPartner.name;
-const chainId = configuredPartner.chainId;
+const partner = Partners.Thena;
+const chainId = 56;
 
 const createForm = () =>
   calculateOrderForm({
@@ -54,6 +52,30 @@ describe("createClient", () => {
     vi.unstubAllGlobals();
   });
 
+  it("uses order-sink directly for a new partner/chain pair", async () => {
+    const newChainId = 123456;
+    responseData = createRePermitData(newChainId);
+    const client = await createClient(Partners.Ring, newChainId);
+    expect(client.chainId).toBe(newChainId);
+    const configRequests = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method !== "POST");
+    expect(configRequests).toEqual([
+      ["https://order-sink-v2.orbs.network/config?partner=ring&chain=123456"],
+    ]);
+  });
+
+  it("surfaces unsupported pairs rejected by order-sink", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false, status: 400, text: async () => "Unsupported partner/chain",
+    } as Response);
+    await expect(createClient(Partners.Ring, chainId)).rejects.toThrow("Unsupported partner/chain");
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each([0, -1, 1.5, NaN, Infinity])("rejects invalid chain ID %s before fetching", async (invalidChainId) => {
+    await expect(createClient(partner, invalidChainId)).rejects.toThrow("chainId must be a positive safe integer");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it.each([
     [
       "domain chain",
@@ -87,6 +109,55 @@ describe("createClient", () => {
   ])("rejects an invalid %s", async (_label, mutate, expectedField) => {
     mutate(responseData);
     await expect(createClient(partner, chainId)).rejects.toThrow(expectedField);
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+  });
+
+  it("initializes analytics from validated config without window or appId", async () => {
+    vi.stubGlobal("window", undefined);
+    responseData.partner = "Thena from order-sink";
+    const client = await createClient(partner, chainId);
+    expect(client.rePermitData).toEqual(responseData);
+
+    const payloads = vi.mocked(fetch).mock.calls
+      .filter(([, init]) => init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body)));
+    expect(payloads).toHaveLength(1);
+    expect(payloads[0]).toMatchObject({
+      action: "module-import", partner, chainId,
+      name: responseData.partner,
+      adapter: responseData.order.witness.exchange.adapter,
+      repermit: responseData.domain.verifyingContract,
+      domainName: responseData.domain.name,
+      domainVersion: responseData.domain.version,
+      primaryType: responseData.primaryType,
+      spender: responseData.order.spender,
+      exchangeRef: responseData.order.witness.exchange.ref,
+      exchangeShare: responseData.order.witness.exchange.share,
+      exchangeData: responseData.order.witness.exchange.data,
+    });
+    for (const payload of payloads) {
+      expect(payload).not.toHaveProperty("appId");
+      expect(payload).not.toHaveProperty("spotVersion");
+      expect(payload).not.toHaveProperty("minChunkSizeUsd");
+      expect(payload).not.toHaveProperty("minTradeSizeUsd");
+      expect(payload).not.toHaveProperty("origin");
+    }
+
+    vi.mocked(fetch).mockClear();
+    await createClient(partner, chainId);
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+
+  });
+
+  it("still creates the client when telemetry delivery fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(fetch).mockImplementation(async (_input, init) => {
+      if (init?.method === "POST") throw new Error("BI unavailable");
+      return { ok: true, json: async () => responseData } as Response;
+    });
+
+    await expect(createClient(partner, chainId)).resolves.toMatchObject({ partner, chainId });
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST")).toBe(true);
   });
 
   it("creates strictly increasing nonces within one client", async () => {

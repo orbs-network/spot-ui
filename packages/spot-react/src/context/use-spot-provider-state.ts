@@ -1,6 +1,5 @@
 import {
   eqIgnoreCase,
-  getPartnerChains,
   isNativeAddress,
   toAmountRaw,
 } from "@orbs-network/spot-ui";
@@ -19,13 +18,9 @@ interface SpotProviderState {
 }
 
 export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
-  const supportedChains = useMemo(
-    () => getPartnerChains(props.partner),
-    [props.partner],
-  );
-  const isSupportedChain = Boolean(
-    props.chainId && supportedChains.includes(props.chainId),
-  );
+  // The asynchronous client loader checks remote partner/chain support.
+  const hasChainId =
+    Number.isSafeInteger(props.chainId) && Number(props.chainId) > 0;
   const wrappedNativeAddress = props.wrappedNativeToken?.address;
   const isNativePair = Boolean(
     wrappedNativeAddress &&
@@ -76,7 +71,7 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
       noLiquidity,
       priceProtectionPercent: props.priceProtectionPercent,
       chainId: props.chainId,
-      isSupportedChain,
+      hasChainId,
       partner: props.partner,
       module: props.module,
       displayFeePercent: props.displayFeePercent ?? 0,
@@ -109,7 +104,7 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
       props.supportLegacyOrders,
       props.inputAmountUi,
       props.walletInteractions,
-      isSupportedChain,
+      hasChainId,
       marketPriceLoading,
       noLiquidity,
       quotedOutputAmountRaw,

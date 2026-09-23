@@ -3,10 +3,10 @@ import { SwapType } from "../types";
 import { useConnection } from "wagmi";
 import { useCallback, useMemo } from "react";
 import { getDefaultTokensForChain } from "../utils";
-import { getPartners } from "@orbs-network/spot-ui";
+import { Partners } from "@orbs-network/spot-ui";
 import { DEFAULT_CHAIN_ID, DEFAULT_PARTNER } from "../consts";
 
-const partners = getPartners();
+const partnerNames: ReadonlySet<string> = new Set(Object.values(Partners));
 
 const parsePositiveNumber = (value: string | null | undefined): number | undefined => {
   if (!value?.trim()) return undefined;
@@ -53,13 +53,17 @@ export const useSwapParams = () => {
     });
   }, [effectiveInput, effectiveOutput, setCurrencies]);
 
+  // Keep the requested selection while remote support is loading or unavailable.
   const selectedPartner = useMemo(() => {
-
-    const p = partners.find((it) => {
-      const value = `${it.name}_${it.chainId}`;            
-      return value === partner
-    });
-    return p ? `${p.name}_${p.chainId}` : `${DEFAULT_PARTNER}_${DEFAULT_CHAIN_ID}`;
+    const [name, chain, extra] = partner?.split("_") ?? [];
+    const chainId = Number(chain);
+    if (
+      name && partnerNames.has(name) && chain && /^\d+$/.test(chain) &&
+      Number.isSafeInteger(chainId) && chainId > 0 && extra === undefined
+    ) {
+      return `${name}_${chainId}`;
+    }
+    return `${DEFAULT_PARTNER}_${DEFAULT_CHAIN_ID}`;
   }, [partner]);
 
   return {
@@ -75,7 +79,7 @@ export const useSwapParams = () => {
     partner: selectedPartner,
     setPartner,
     setCurrencies,
-    parsedPartner: selectedPartner?.split("_")[0],
-    targetChainId: selectedPartner?.split("_")[1],
+    parsedPartner: selectedPartner.split("_")[0] ?? DEFAULT_PARTNER,
+    targetChainId: selectedPartner.split("_")[1] ?? String(DEFAULT_CHAIN_ID),
   };
 };

@@ -59,7 +59,7 @@ Classify state before wiring it:
 - [ ] Editable/external source state is stored once, and `CalculatedOrderForm` remains a memoized/computed derivation rather than mirrored state.
 - [ ] Existing components subscribe to narrow fields with appropriate equality; client/wallet objects are kept outside broadly reactive state.
 - [ ] History polling does not rerender the form, and form typing does not rerender unrelated history/progress surfaces.
-- [ ] The partner/chain is returned by `getPartnerChains(partner)`; no protocol addresses are hard-coded.
+- [ ] The partner/chain configuration is validated by `createClient(partner, chainId)`; no protocol addresses are hard-coded.
 - [ ] The connected wallet chain is the source of truth for client selection and transaction writes.
 - [ ] The host provides the chain's wrapped-native token and explorer metadata.
 - [ ] For new chains, the [chain integration checks](06-chain-integration.md) pass through the app's actual read client, token loader, and price adapter, including native-token balance and USD values; unavailable external checks are reported explicitly.

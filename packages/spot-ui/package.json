@@ -1,6 +1,6 @@
 {
   "name": "@orbs-network/spot-ui",
-  "version": "2.1.13",
+  "version": "2.1.14",
   "description": "Spot SDK",
   "type": "module",
   "main": "./dist/spot-ui.umd.cjs",
@@ -14,7 +14,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
     "dev": "vite build --watch",
@@ -28,8 +29,6 @@
   ],
   "license": "MIT",
   "devDependencies": {
-    "@orbs-network/spot": "^2.11.0",
-    "@orbs-network/twap": "^2.7.28",
     "bignumber.js": "^9.3.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",

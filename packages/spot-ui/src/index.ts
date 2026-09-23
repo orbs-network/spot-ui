@@ -15,7 +15,6 @@ export {
   type RePermitOrder,
   type RePermitData,
   type Signature,
-  type PartnerPayloadItem,
   type InputError,
   type Token,
 } from "./lib/types";
@@ -64,12 +63,7 @@ export {
   type ClientGetAccountOrdersParams,
 } from "./lib/client";
 
-export { getPartners } from "./lib/partners";
 export { getTwapConfig } from "./lib/orders/legacy-twap-config";
-
-export {
-  SPOT_VERSION,
-} from "./lib/api-config";
 
 export {
   DISCLAIMER_URL,
@@ -85,7 +79,6 @@ export {
   isNativeAddress,
   eqIgnoreCase,
   getOrderFillDelayMillis,
-  getPartnerChains,
   getOrderExecutionRate,
   getOrderLimitPriceRate,
   getTriggerPriceRate,

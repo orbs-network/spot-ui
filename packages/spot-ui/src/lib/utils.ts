@@ -4,11 +4,9 @@ import {
   Config,
   Order,
   OrderType,
-  Partners,
   TimeDuration,
   TimeUnit,
 } from "./types";
-import { getPartners } from "./partners";
 import {
   getEstimatedDelayBetweenTradesMillis,
   getLegacyExchanges,
@@ -114,12 +112,6 @@ export const getOrderFillDelayMillis = (order: Order, config?: Config) => {
   }
   // v2 history normalization already stores epoch/fillDelay in milliseconds.
   return order.fillDelay || 0;
-};
-
-export const getPartnerChains = (partner: Partners) => {
-  return getPartners()
-    .filter((p) => p.name === partner)
-    .map((p) => p.chainId);
 };
 
 export const getOrderExecutionRate = (

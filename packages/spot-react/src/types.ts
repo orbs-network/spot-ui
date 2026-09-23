@@ -146,7 +146,6 @@ export interface SpotProps {
   walletInteractions: WalletInteractions;
   chainId?: number;
   account?: Address;
-  appId?: string;
   partner: Partners;
   inputToken?: Token;
   outputToken?: Token;

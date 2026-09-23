@@ -5,12 +5,10 @@ import { SpotFormSynchronizer } from "./spot-form-synchronizer";
 import { OrderFormProvider } from "./order-form-context";
 import { SpotRuntimeProvider } from "./spot-runtime-context";
 import { SpotStoreProvider } from "./spot-store-context";
-import { useSpotAnalytics } from "./use-spot-analytics";
 import { useSpotProviderState } from "./use-spot-provider-state";
 
 export const SpotProvider = (props: SpotProps) => {
   const { initialState, formScopeKey, runtime } = useSpotProviderState(props);
-  useSpotAnalytics(props, runtime.isSupportedChain);
 
   return (
     <SpotRuntimeProvider value={runtime}>

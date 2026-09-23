@@ -1,7 +1,5 @@
-import { analytics, getTwapConfig } from "@orbs-network/spot-ui";
 import {
   useCallback,
-  useEffect,
   type ComponentType,
   type ReactNode,
 } from "react";
@@ -34,27 +32,16 @@ export const ClientErrorNotice = ({
   children: ReactNode;
   fallback?: ComponentType<ClientErrorFallbackProps>;
 }) => {
-  const { partner, chainId, isSupportedChain, minTradeSizeUsd } =
-    useSpotRuntime();
+  const { hasChainId } = useSpotRuntime();
   const { data: client, error, isFetching, refetch } = useClient();
   const retry = useCallback(async (): Promise<void> => {
     await refetch();
   }, [refetch]);
 
-  useEffect(() => {
-    if (!client || !chainId || !isSupportedChain) return;
-    analytics.onFetchedConfig(
-      client.rePermitData,
-      partner,
-      getTwapConfig(partner, chainId),
-      minTradeSizeUsd,
-    );
-  }, [chainId, client, isSupportedChain, minTradeSizeUsd, partner]);
-
   return (
     <>
       {children}
-      {!client && error && isSupportedChain ? (
+      {!client && error && hasChainId ? (
         <ClientErrorFallback
           error={error}
           retry={retry}

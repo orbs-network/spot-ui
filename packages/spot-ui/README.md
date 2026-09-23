@@ -7,6 +7,30 @@ application. It has no React dependency.
 For the complete framework-neutral TypeScript workflow, see the
 [`spot-integration` skill](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-integration).
 
+`createClient(partner, chainId)` initializes analytics after validating the
+order-sink configuration. No separate analytics initialization or `appId` is
+needed. Minimum trade size is used for form calculations only, not analytics.
+Telemetry delivery does not block client creation, and initialization works
+without a browser `window`.
+
+## Client configuration
+
+`createClient(partner, chainId)` loads and validates the order-sink `/config`
+response directly. The SDK does not fetch a partner registry or depend on the
+Spot npm package. Handle initialization errors when the API rejects a pair or
+is unavailable. Partner and chain selectors belong to the host application;
+the demo web app fetches the GitHub Spot JSON for its picker.
+
+Analytics configuration comes exclusively from the validated `/config` response.
+Initialization logs the returned partner name, chain ID, contract addresses,
+signing-domain name/version, primary type, spender, exchange reference/share/data,
+and execution defaults. Fields absent from the response are omitted; no synthetic
+Spot version is logged. Unchanged configuration is logged once, and changed
+configuration produces a new initialization event.
+
+Legacy TWAP deployment configuration and the contract ABI are bundled locally
+from version 2.7.28; the SDK does not require the TWAP npm package.
+
 ## Complete form calculation
 
 Use `calculateOrderForm` as the primary calculation API. Pass the DEX-owned

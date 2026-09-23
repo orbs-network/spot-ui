@@ -1,6 +1,5 @@
 import {
   Module,
-  SPOT_VERSION,
   useLimitPrice,
   usePriceDisplay,
   useTriggerPrice,
@@ -32,10 +31,6 @@ const LimitPricePanel = () => {
     isTypedValue,
   } = useLimitPrice();
   const { swapModule } = useSpotFormContext();
-
-  if (Number(SPOT_VERSION) < 2 && swapModule === Module.TAKE_PROFIT) {
-    return null;
-  }
 
   return (
     <div className="flex flex-col gap-2">

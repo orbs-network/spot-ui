@@ -15,10 +15,10 @@ export interface ClientResult {
 const EMPTY_CLIENT_RESULT: ClientResourceState = { isFetching: false };
 
 export const useClient = (): ClientResult => {
-  const { partner, chainId, isSupportedChain } = useSpotRuntime();
+  const { partner, chainId, hasChainId } = useSpotRuntime();
   const store = useSpotStoreApi();
   const clientState = useSpotStore((state) => state.client);
-  const enabled = Boolean(chainId && isSupportedChain);
+  const enabled = Boolean(chainId && hasChainId);
   const key = enabled ? `${partner}:${chainId}` : undefined;
   const currentState =
     clientState.key === key ? clientState : EMPTY_CLIENT_RESULT;

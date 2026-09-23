@@ -106,7 +106,7 @@ const createParams = (
   return {
     account: ACCOUNT,
     chainId: 1,
-    isSupportedChain: true,
+    hasChainId: true,
     inputToken,
     outputToken,
     wrappedNativeToken,

@@ -310,6 +310,7 @@ export enum Partners {
   Katana = "katana",
   External = "external",
   Orvex = "orvex",
+  Listed = "listed",
 }
 
 export enum InputErrors {
@@ -328,11 +329,6 @@ export enum InputErrors {
   INSUFFICIENT_BALANCE = "insufficientFunds",
   MAX_ORDER_SIZE = "maxOrderSize",
 }
-
-export type PartnerPayloadItem = {
-  chainId: number;
-  name: Partners;
-};
 
 export type InputError = {
   type: InputErrors;

@@ -1,134 +1,102 @@
 import { useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import {
-  getPartners,
-  type PartnerPayloadItem,
-} from "@orbs-network/spot-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandInput,
-  CommandItem,
-  CommandList,
+  Command, CommandEmpty, CommandInput, CommandItem, CommandList,
 } from "../ui/command";
-import { useSwapParams } from "@/lib/hooks/use-swap-params";
-import { Avatar, AvatarImage } from "../ui/avatar";
-import { useIsSpotTab } from "@/lib/hooks/use-tabs";
 import {
-  getChainName,
-  getNativeTokenLogoUrl,
-  getNativeTokenSymbol,
-  getSpotPartnerProdLink,
-} from "@/lib/utils";
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../ui/select";
+import { useSwapParams } from "@/lib/hooks/use-swap-params";
+import { useSpotPartners } from "@/lib/hooks/use-spot-partners";
+import { useIsSpotTab } from "@/lib/hooks/use-tabs";
+import { getChainName } from "@/lib/utils";
 import { ChevronDownIcon } from "lucide-react";
 import { Button } from "../ui/button";
 
-const partners = getPartners();
-const getPartnerValue = ({ name, chainId }: PartnerPayloadItem) =>
-  `${name}_${chainId}`;
-const partnerSearchText = new Map(
-  partners.map((partner) => [
-    getPartnerValue(partner),
-    [
-      partner.name,
-      getChainName(partner.chainId),
-      getNativeTokenSymbol(partner.chainId),
-    ]
-      .join(" ")
-      .toLowerCase(),
-  ]),
-);
-
 export function PartnerSelector() {
-  const { partner, setPartner } = useSwapParams();
+  const { parsedPartner, targetChainId, setPartner } = useSwapParams();
+  const { data, isPending, isError, isFetching, refetch } = useSpotPartners();
   const isSpotTab = useIsSpotTab();
   const [open, setOpen] = useState(false);
+  const partners = [...new Set(data?.map(({ name }) => name))];
+  const chainIds = data?.filter(({ name }) => name === parsedPartner)
+    .map(({ chainId }) => chainId) ?? [];
 
-  const selectedPartner = partners.find(
-    (item) => getPartnerValue(item) === partner,
-  );
-  if (!isSpotTab) {
-    return null;
-  }
+  if (!isSpotTab) return null;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-fit justify-between gap-2"
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-label="Partner"
+              aria-expanded={open}
+              disabled={isPending || !data}
+              className="justify-between gap-2 capitalize"
+            >
+              {isPending ? "Loading partners…" : parsedPartner}
+              <ChevronDownIcon className="size-4 opacity-50" aria-hidden="true" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-0" align="start">
+            <Command>
+              <CommandInput aria-label="Search partners" name="partner-search" autoComplete="off" placeholder="Search partners…" />
+              <CommandList>
+                <CommandEmpty>No partners match.</CommandEmpty>
+                {partners.map((name) => (
+                  <CommandItem
+                    key={name}
+                    value={name}
+                    className="capitalize"
+                    onSelect={() => {
+                      const available = data?.filter((item) => item.name === name) ?? [];
+                      const next = available.find(({ chainId }) => String(chainId) === targetChainId) ?? available[0];
+                      if (next) setPartner(`${name}_${next.chainId}`);
+                      setOpen(false);
+                    }}
+                  >
+                    {name}
+                  </CommandItem>
+                ))}
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+        <Select
+          value={targetChainId}
+          disabled={isPending || !data}
+          onValueChange={(chainId) => setPartner(`${parsedPartner}_${chainId}`)}
         >
-          {selectedPartner ? (
-            <PartnerDisplay partner={selectedPartner} />
-          ) : (
-            "Select partner..."
-          )}
-          <ChevronDownIcon className="size-4 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-fit p-0" align="start">
-        <Command
-          filter={(value, search) => {
-            const terms = search.trim().toLowerCase().split(/\s+/);
-            const searchableText = partnerSearchText.get(value) ?? "";
-            return terms.every((term) => searchableText.includes(term))
-              ? 1
-              : 0;
-          }}
-        >
-          <CommandInput placeholder="Search partner, chain, or symbol..." />
-          <CommandList>
-            <CommandEmpty>No partners match.</CommandEmpty>
-            {partners.map((p) => {
-              const value = getPartnerValue(p);
-              return (
-                <CommandItem
-                  key={value}
-                  value={value}
-                  onSelect={() => {
-                    setPartner(value);
-                    setOpen(false);
-                  }}
-                >
-                  <PartnerDisplay partner={p} />
-                </CommandItem>
-              );
-            })}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-const PartnerDisplay = ({
-  partner,
-  isSelector = false,
-}: {
-  partner: PartnerPayloadItem;
-  isSelector?: boolean;
-}) => {
-  const chainName = getChainName(partner.chainId);
-  const chainLogoUrl = getNativeTokenLogoUrl(partner.chainId);
-  const prodLink = getSpotPartnerProdLink(partner.name);
-
-  return (
-    <div className="flex flex-row gap-2 items-center">
-      <p className="capitalize">{partner.name}</p>
-      <span>-</span>
-      <p>{chainName}</p>
-      <Avatar className="size-4">
-        <AvatarImage src={chainLogoUrl} />
-      </Avatar>
-      {prodLink && !isSelector ? (
-        <small className="text-xs text-gray-500">Prod</small>
+          <SelectTrigger aria-label="Chain" className="max-w-full">
+            <SelectValue placeholder="Select chain" />
+          </SelectTrigger>
+          <SelectContent>
+            {!chainIds.includes(Number(targetChainId)) && (
+              <SelectItem value={targetChainId} disabled>
+                {getChainName(Number(targetChainId)) || `Chain ${targetChainId}`}
+              </SelectItem>
+            )}
+            {chainIds.map((chainId) => (
+              <SelectItem key={chainId} value={String(chainId)}>
+                {getChainName(chainId) || `Chain ${chainId}`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {isError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
+          <span>Unable to load partners.</span>
+          <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
+            {isFetching ? "Retrying…" : "Retry"}
+          </Button>
+        </div>
+      ) : data?.length === 0 ? (
+        <p role="status" className="text-sm text-muted-foreground">No partners available.</p>
       ) : null}
     </div>
   );
-};
+}

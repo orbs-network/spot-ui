@@ -27,7 +27,7 @@ export interface SpotRuntimeState {
   inputTokenUsdPrice: string | undefined;
   outputTokenUsdPrice?: string;
   chainId?: number;
-  isSupportedChain: boolean;
+  hasChainId: boolean;
   priceProtectionPercent: number;
   displayFeePercent: number;
   module: Module;
