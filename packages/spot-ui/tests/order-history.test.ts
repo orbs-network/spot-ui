@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Partners } from "../src";
+import { Partners, OrderStatus } from "../src";
 import type { OrderV1 } from "../src/lib/types";
 import { getOrders as getV1Orders } from "../src/lib/orders/v1-orders";
 import { getOrders as getV2Orders } from "../src/lib/orders/v2-orders";
@@ -137,6 +137,29 @@ describe("v1 order history", () => {
     expect(orders).toHaveLength(1);
     expect(orders[0]?.id).toBe("1");
     expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it("indexes fills and statuses without mixing matching IDs across contracts or exchanges", async () => {
+    const otherAddress = "0x0000000000000000000000000000000000000005";
+    const first = createV1Order();
+    const second = { ...first, twapAddress: otherAddress };
+    vi.stubGlobal("fetch", vi.fn(async (_input, init) => {
+      const query = JSON.parse(String(init?.body)).query as string;
+      if (query.includes("orderCreateds")) return jsonResponse({ data: { orderCreateds: [first, second] } });
+      if (query.includes("orderFilleds")) return jsonResponse({ data: { orderFilleds: [
+        { TWAP_id: "1", twapAddress: first.twapAddress, exchange: first.exchange, srcFilledAmount: "25", srcAmountIn: "25", dstAmountOut: "50", timestamp: 1, transactionHash: "0xfill" },
+        { TWAP_id: "1", twapAddress: first.twapAddress, exchange: otherAddress, srcFilledAmount: "100", srcAmountIn: "100", dstAmountOut: "200", timestamp: 1, transactionHash: "0xother" },
+      ] } });
+      return jsonResponse({ data: { statusNews: [
+        { twapId: "1", twapAddress: otherAddress, status: "CANCELLED" },
+      ] } });
+    }));
+    const orders = await getV1Orders({ chainId: 1 });
+    expect(orders[0]?.fills).toHaveLength(1);
+    expect(orders[0]?.progress).toBe(25);
+    expect(orders[0]?.status).toBe(OrderStatus.Open);
+    expect(orders[1]?.fills).toHaveLength(0);
+    expect(orders[1]?.status).toBe(OrderStatus.Cancelled);
   });
 
   it("matches string-valued Graph BigInt fill IDs to legacy orders", async () => {

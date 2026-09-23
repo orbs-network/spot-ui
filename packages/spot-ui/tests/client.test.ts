@@ -144,8 +144,9 @@ describe("createClient", () => {
     }
 
     vi.mocked(fetch).mockClear();
-    await createClient(partner, chainId);
-    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    const secondClient = await createClient(partner, chainId);
+    expect(secondClient.analytics).not.toBe(client.analytics);
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST")).toBe(true);
 
   });
 

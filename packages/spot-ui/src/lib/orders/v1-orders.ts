@@ -10,7 +10,7 @@ import {
   GetV1OrdersFilters,
 } from "../types";
 import BN from "bignumber.js";
-import { eqIgnoreCase, getExchanges } from "../utils";
+import { getExchanges } from "../utils";
 import { THE_GRAPH_ORDERS_API } from "./legacy-twap-config";
 type RawStatus = "CANCELLED" | "COMPLETED" | null;
 
@@ -156,7 +156,7 @@ const buildV1Order = (
   order: OrderV1,
   chainId: number,
   fills: FillV1[],
-  status: OrderStatus
+  status: RawStatus | undefined
 ): Order => {
   const parsedFills = parseFills(fills || ([] as FillV1[]));
   const bidAmount = new BN(order.ask_srcBidAmount || 0);
@@ -191,7 +191,7 @@ const buildV1Order = (
     isTriggerPrice: false,
     id: order.Contract_id.toString(),
     hash: "",
-    type: getOrderType(order.ask_dstMinAmount, chunks),
+    type,
     srcTokenAddress: order.ask_srcToken,
     dstTokenAddress: order.ask_dstToken,
     exchangeAddress: order.exchange,
@@ -219,7 +219,7 @@ const buildV1Order = (
     isMarketPrice: [OrderType.TWAP_MARKET].includes(type),
     chainId,
     filledOrderTimestamp: filledOrderTimestamp || 0,
-    status,
+    status: parseOrderStatus(progress, order.ask_deadline * 1000, status),
     rawOrder: order,
   };
 };
@@ -515,21 +515,44 @@ export const getOrders = async ({
       getStatuses({ chainId, orders: usableOrders, signal }),
     ]);
 
+    const fillsByOrder = new Map<string, FillV1[]>();
+    for (const fill of fills) {
+      if (
+        typeof fill.twapAddress !== "string" ||
+        typeof fill.exchange !== "string"
+      ) continue;
+      const key = JSON.stringify([
+        String(fill.TWAP_id),
+        fill.twapAddress.toLowerCase(),
+        fill.exchange.toLowerCase(),
+      ]);
+      const group = fillsByOrder.get(key);
+      if (group) group.push(fill);
+      else fillsByOrder.set(key, [fill]);
+    }
+    const statusesByOrder = new Map<string, RawStatus>();
+    for (const status of statuses) {
+      if (typeof status.twapAddress !== "string") continue;
+      const key = JSON.stringify([
+        String(status.twapId), status.twapAddress.toLowerCase(),
+      ]);
+      if (!statusesByOrder.has(key)) statusesByOrder.set(key, status.status);
+    }
+
     const parsedOrders = usableOrders
       .flatMap((o) => {
-        const orderFills = fills?.filter(
-          (it) =>
-            String(it.TWAP_id) === String(o.Contract_id) &&
-            eqIgnoreCase(it.exchange, o.exchange) &&
-            eqIgnoreCase(it.twapAddress, o.twapAddress)
-        );
+        const orderId = String(o.Contract_id);
+        const address = o.twapAddress.toLowerCase();
+        const orderFills = fillsByOrder.get(
+          JSON.stringify([orderId, address, o.exchange.toLowerCase()]),
+        ) ?? [];
         try {
           return [
             buildV1Order(
               o,
               chainId,
               orderFills,
-              getStatus(o, orderFills || [], statuses)
+              statusesByOrder.get(JSON.stringify([orderId, address]))
             ),
           ];
         } catch {
@@ -553,22 +576,6 @@ export const getOrders = async ({
     if (error instanceof NoGraphEndpointError) return [];
     throw error;
   }
-};
-
-const getStatus = (
-  order: OrderV1,
-  fills: FillV1[],
-  statuses?: GraphStatus[]
-): OrderStatus => {
-  const status = statuses?.find(
-    (it) =>
-      it.twapId === order.Contract_id.toString() &&
-      eqIgnoreCase(it.twapAddress, order.twapAddress)
-  )?.status;
-  const parsedFills = parseFills(fills);
-  const filledSrcAmount = parsedFills.reduce((acc, fill) => acc.plus(fill.inAmount), new BN(0)).toFixed();
-  const progress = getV1OrderProgress(order.ask_srcAmount, filledSrcAmount);
-  return parseOrderStatus(progress, order.ask_deadline * 1000, status);
 };
 
 export const getV1OrderProgress = (

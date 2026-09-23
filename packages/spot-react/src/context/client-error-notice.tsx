@@ -5,7 +5,7 @@ import {
 } from "react";
 import type { ClientErrorFallbackProps } from "../types";
 import { useClient } from "./use-client";
-import { useSpotRuntime } from "./spot-runtime-context";
+import { useSpotTrading } from "./spot-trading-context";
 
 const DefaultClientErrorFallback = ({
   error,
@@ -32,7 +32,7 @@ export const ClientErrorNotice = ({
   children: ReactNode;
   fallback?: ComponentType<ClientErrorFallbackProps>;
 }) => {
-  const { hasChainId } = useSpotRuntime();
+  const { hasChainId } = useSpotTrading();
   const { data: client, error, isFetching, refetch } = useClient();
   const retry = useCallback(async (): Promise<void> => {
     await refetch();

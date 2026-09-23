@@ -1,5 +1,4 @@
 import {
-  analytics,
   isNativeAddress,
   isTxRejected,
   toAmountUI,
@@ -134,6 +133,7 @@ const validateExecutionInputs = (
 };
 
 const trackOrderRequest = ({
+  analytics,
   account,
   chainId,
   inputToken,
@@ -144,6 +144,7 @@ const trackOrderRequest = ({
   chainId: number;
   inputToken: Token;
   outputToken: Token;
+  analytics: SpotClient["analytics"];
   preparedOrder: PreparedOrder;
 }): void => {
   const { form, values } = preparedOrder;
@@ -215,6 +216,7 @@ export const executeOrder = async (
     client,
     inputAmountRaw,
   } = inputs;
+  const { analytics } = client;
   const previousExecution = getCurrentExecution();
   const completedWrap = getReusableCompletedWrap({
     execution: previousExecution,
@@ -370,6 +372,7 @@ export const executeOrder = async (
     });
     transition(ExecutionPhase.SIGNING, { preparedOrder });
     trackOrderRequest({
+      analytics,
       account,
       chainId,
       inputToken,

@@ -10,14 +10,6 @@ const mocks = vi.hoisted(() => ({
 }));
 const store = createSpotStore({});
 
-vi.mock("@orbs-network/spot-ui", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@orbs-network/spot-ui")>(),
-  analytics: {
-    onCancelOrderRequest: vi.fn(),
-    onCancelOrderSuccess: vi.fn(),
-    onCancelOrderError: vi.fn(),
-  },
-}));
 vi.mock("react", async (importOriginal) => ({
   ...await importOriginal<typeof import("react")>(),
   useCallback: (callback: unknown) => callback,
@@ -27,15 +19,15 @@ vi.mock("../src/context/spot-store-context", () => ({
   useSpotStoreApi: () => store,
   useSpotStore: (selector: (state: ReturnType<typeof store.getState>) => unknown) => selector(store.getState()),
 }));
-vi.mock("../src/context/spot-runtime-context", () => ({
-  useSpotRuntime: () => ({
+vi.mock("../src/context/spot-trading-context", () => ({
+  useSpotTrading: () => ({
     account: "0x1",
     walletInteractions: { cancelOrder: mocks.cancelOrder },
     callbacks: { onCancelOrderSuccess: mocks.onSuccess },
   }),
 }));
 vi.mock("../src/context/use-client", () => ({
-  useClient: () => ({ data: { getCancelOrderRequest: () => ({}) } }),
+  useClient: () => ({ data: { getCancelOrderRequest: () => ({}), analytics: { onCancelOrderRequest: vi.fn(), onCancelOrderSuccess: vi.fn(), onCancelOrderError: vi.fn() } } }),
 }));
 vi.mock("../src/hooks/order-hooks", () => ({
   useOrdersResource: () => ({ refetch: mocks.refetch }),

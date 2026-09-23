@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { OrderStatus, type Order } from "@orbs-network/spot-ui";
 import {
   categorizeOrders,
+  loadOrderHistory,
   notifyOrderUpdates,
   structurallyShareOrders,
 } from "../src/order-history-data";
@@ -24,6 +25,27 @@ const createOrder = (
   }) as Order;
 
 describe("order history data", () => {
+  it("retries partial legacy loads and retains cached legacy orders during an outage", async () => {
+    const legacy = { ...createOrder("legacy", OrderStatus.Open, 1), version: 1 } as Order;
+    const current = createOrder("current", OrderStatus.Open, 2);
+    const getAccountOrdersResult = vi.fn()
+      .mockResolvedValueOnce({ orders: [current], legacyLoaded: false })
+      .mockResolvedValueOnce({ orders: [current, legacy], legacyLoaded: true })
+      .mockResolvedValueOnce({ orders: [current], legacyLoaded: false });
+    const params = {
+      client: { getAccountOrdersResult }, account: "0x1",
+      signal: new AbortController().signal, supportLegacyOrders: true,
+      previousOrders: [legacy], legacyLoaded: false,
+    };
+    const partial = await loadOrderHistory(params);
+    expect(partial).toEqual({ orders: [current, legacy], legacyLoaded: false });
+    const recovered = await loadOrderHistory({ ...params, previousOrders: partial.orders, legacyLoaded: partial.legacyLoaded });
+    expect(recovered.legacyLoaded).toBe(true);
+    const cached = await loadOrderHistory({ ...params, previousOrders: recovered.orders, legacyLoaded: recovered.legacyLoaded });
+    expect(cached.orders).toEqual([current, legacy]);
+    expect(getAccountOrdersResult.mock.calls.map(([params]) => params.legacyOrders)).toEqual([true, true, false]);
+  });
+
   it("categorizes and sorts a provider-owned array once", () => {
     const orders = [
       createOrder("older", OrderStatus.Open, 1),

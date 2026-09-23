@@ -1,12 +1,12 @@
 import { type TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotTrading } from "../context/spot-trading-context";
 import { useSpotStore } from "../context/spot-store-context";
 import { observe } from "../execution-state";
 
 export const useDuration = () => {
-  const { callbacks } = useSpotRuntime();
+  const { callbacks } = useSpotTrading();
   const updateState = useSpotStore((state) => state.updateState);
   const { schedule } = useOrderForm();
   const { duration } = schedule;

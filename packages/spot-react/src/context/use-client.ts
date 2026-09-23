@@ -1,7 +1,7 @@
 import { createClient, type SpotClient } from "@orbs-network/spot-ui";
 import { useCallback, useEffect, useMemo } from "react";
 import type { ClientResourceState } from "./create-spot-store";
-import { useSpotRuntime } from "./spot-runtime-context";
+import { useSpotTrading } from "./spot-trading-context";
 import { useSpotStore, useSpotStoreApi } from "./spot-store-context";
 
 export interface ClientResult {
@@ -14,14 +14,12 @@ export interface ClientResult {
 
 const EMPTY_CLIENT_RESULT: ClientResourceState = { isFetching: false };
 
-export const useClient = (): ClientResult => {
-  const { partner, chainId, hasChainId } = useSpotRuntime();
+/** Mounted once by SpotResources. Public consumers only read this resource. */
+export const useConfigureClient = (): void => {
+  const { partner, chainId, hasChainId } = useSpotTrading();
   const store = useSpotStoreApi();
-  const clientState = useSpotStore((state) => state.client);
   const enabled = Boolean(chainId && hasChainId);
   const key = enabled ? `${partner}:${chainId}` : undefined;
-  const currentState =
-    clientState.key === key ? clientState : EMPTY_CLIENT_RESULT;
   const loader = useCallback(() => {
     if (!chainId) {
       return Promise.reject(
@@ -36,13 +34,23 @@ export const useClient = (): ClientResult => {
       .getState()
       .configureClient(key, enabled ? loader : undefined);
   }, [enabled, key, loader, store]);
+};
+
+export const useClient = (): ClientResult => {
+  const { partner, chainId, hasChainId } = useSpotTrading();
+  const store = useSpotStoreApi();
+  const clientState = useSpotStore((state) => state.client);
+  const enabled = Boolean(chainId && hasChainId);
+  const key = enabled ? `${partner}:${chainId}` : undefined;
+  const currentState =
+    clientState.key === key ? clientState : EMPTY_CLIENT_RESULT;
 
   const refetch = useCallback(() => {
     if (!enabled || !key) return Promise.resolve(undefined);
     const state = store.getState();
-    state.configureClient(key, loader);
+    if (state.client.key !== key) return Promise.resolve(undefined);
     return state.refetchClient();
-  }, [enabled, key, loader, store]);
+  }, [enabled, key, store]);
 
   return useMemo(
     () => ({

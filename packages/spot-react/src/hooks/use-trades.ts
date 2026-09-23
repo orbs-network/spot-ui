@@ -1,11 +1,11 @@
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotTrading } from "../context/spot-trading-context";
 import { useSpotStore } from "../context/spot-store-context";
 import { observe } from "../execution-state";
 
 export const useTrades = () => {
-  const { inputToken, outputToken, callbacks } = useSpotRuntime();
+  const { inputToken, outputToken, callbacks } = useSpotTrading();
   const updateState = useSpotStore((state) => state.updateState);
   const { trades } = useOrderForm();
 

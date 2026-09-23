@@ -1,4 +1,4 @@
-import { OrderStatus, type Order } from "@orbs-network/spot-ui";
+import { OrderStatus, type Order, type SpotClient } from "@orbs-network/spot-ui";
 import { observe } from "./execution-state";
 import type { Callbacks } from "./types";
 
@@ -141,3 +141,28 @@ export const structurallyShareOrders = (
   previousOrders
     ? (replaceEqualDeep(previousOrders, orders) as Order[])
     : orders;
+
+/** A partial SDK result must not suppress the next legacy-history retry. */
+export const loadOrderHistory = async ({
+  client, account, signal, supportLegacyOrders, previousOrders, legacyLoaded, callbacks,
+}: {
+  client: Pick<SpotClient, "getAccountOrdersResult">;
+  account: string;
+  signal: AbortSignal;
+  supportLegacyOrders: boolean;
+  previousOrders?: Order[];
+  legacyLoaded: boolean;
+  callbacks?: Callbacks;
+}): Promise<{ orders: Order[]; legacyLoaded: boolean }> => {
+  const result = await client.getAccountOrdersResult({
+    signal, account, legacyOrders: supportLegacyOrders && !legacyLoaded,
+  });
+  if (signal.aborted) throw signal.reason;
+  notifyOrderUpdates(previousOrders, result.orders, callbacks);
+  return {
+    orders: supportLegacyOrders && !result.legacyLoaded
+      ? mergeCachedLegacyOrders(result.orders, previousOrders)
+      : result.orders,
+    legacyLoaded: legacyLoaded || result.legacyLoaded,
+  };
+};

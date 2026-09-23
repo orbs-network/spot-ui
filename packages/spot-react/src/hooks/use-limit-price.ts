@@ -1,13 +1,13 @@
 import { Module } from "@orbs-network/spot-ui";
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotTrading } from "../context/spot-trading-context";
 import { useSpotStore } from "../context/spot-store-context";
 import { observe } from "../execution-state";
 
 export const useLimitPrice = () => {
   const { marketPriceLoading, inputToken, outputToken, callbacks } =
-    useSpotRuntime();
+    useSpotTrading();
   const { limitPrice, values, module, isInverted } = useOrderForm();
   const updateState = useSpotStore((state) => state.updateState);
 

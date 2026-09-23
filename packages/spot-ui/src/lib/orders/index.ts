@@ -24,7 +24,13 @@ const assertValidPagination = (page?: number, limit?: number): void => {
   }
 };
 
-export const getAccountOrders = async ({
+export interface AccountOrdersResult {
+  orders: Order[];
+  /** True only when the requested legacy source completed successfully. */
+  legacyLoaded: boolean;
+}
+
+export const getAccountOrdersResult = async ({
   signal,
   page,
   chainId,
@@ -32,7 +38,7 @@ export const getAccountOrders = async ({
   partner,
   account,
   legacyOrders = true,
-}: GetAccountOrdersParams): Promise<Order[]> => {
+}: GetAccountOrdersParams): Promise<AccountOrdersResult> => {
   assertValidPagination(page, limit);
   const twapConfig = getTwapConfig(partner, chainId);
   const results = await Promise.allSettled([
@@ -72,5 +78,12 @@ export const getAccountOrders = async ({
     return [];
   });
   const sortedOrders = allOrders.sort((a, b) => b.createdAt - a.createdAt);
-  return sortedOrders;
+  return {
+    orders: sortedOrders,
+    legacyLoaded: hasLegacySource && legacyResult.status === "fulfilled",
+  };
 };
+
+export const getAccountOrders = async (
+  params: GetAccountOrdersParams,
+): Promise<Order[]> => (await getAccountOrdersResult(params)).orders;

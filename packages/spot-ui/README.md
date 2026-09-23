@@ -25,8 +25,13 @@ Analytics configuration comes exclusively from the validated `/config` response.
 Initialization logs the returned partner name, chain ID, contract addresses,
 signing-domain name/version, primary type, spender, exchange reference/share/data,
 and execution defaults. Fields absent from the response are omitted; no synthetic
-Spot version is logged. Unchanged configuration is logged once, and changed
-configuration produces a new initialization event.
+Spot version is logged. Each client owns its analytics instance and logs its
+initialization. Use `client.analytics` for execution events; the global analytics
+export is deprecated. Delayed events retain their original client configuration.
+
+`client.getAccountOrders(params)` still returns an order array. Use
+`client.getAccountOrdersResult(params)` when you also need `legacyLoaded` to
+distinguish a successful legacy fetch from a partial result during an outage.
 
 Legacy TWAP deployment configuration and the contract ABI are bundled locally
 from version 2.7.28; the SDK does not require the TWAP npm package.

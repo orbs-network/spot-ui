@@ -66,7 +66,8 @@ export interface SpotStore {
     refreshLegacy?: boolean,
   ) => Promise<Order[] | undefined>;
   addOrder: (order: Order) => void;
-  updateOrderStatus: (historyKey: string, status: Order["status"]) => void;
+  setCancelOrder: (historyKey: string, value: State["cancelOrders"][string]) => void;
+  clearCancelOrder: (historyKey: string) => void;
   beginExecution: (
     value: Omit<SwapExecution, "executionId" | "phase">,
   ) => StartedSwapExecution | undefined;
@@ -354,15 +355,21 @@ export const createSpotStore = (
           };
         });
       },
-      updateOrderStatus: (historyKey, status) => {
+      setCancelOrder: (historyKey, value) => {
         set((store) => ({
-          orders: {
-            ...store.orders,
-            data: store.orders.data?.map((order) =>
-              order.historyKey === historyKey ? { ...order, status } : order,
-            ),
+          state: {
+            ...store.state,
+            cancelOrders: { ...store.state.cancelOrders, [historyKey]: value },
           },
         }));
+      },
+      clearCancelOrder: (historyKey) => {
+        set((store) => {
+          if (!(historyKey in store.state.cancelOrders)) return store;
+          const cancelOrders = { ...store.state.cancelOrders };
+          delete cancelOrders[historyKey];
+          return { state: { ...store.state, cancelOrders } };
+        });
       },
       updateState: (value: Partial<State>) =>
         set((store) => ({ state: { ...store.state, ...value } })),

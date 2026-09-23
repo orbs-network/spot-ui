@@ -73,7 +73,9 @@ export {
   ORBS_WEBSITE_URL,
 } from "./lib/public-links";
 
-export { analytics, setUIVersion } from "./lib/analytics";
+export type { AccountOrdersResult } from "./lib/orders";
+
+export { analytics, setUIVersion, type SpotAnalytics } from "./lib/analytics";
 
 export {
   isNativeAddress,

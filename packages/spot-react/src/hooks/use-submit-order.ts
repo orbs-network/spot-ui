@@ -1,12 +1,13 @@
 import { useCallback } from "react";
 import { executeOrder } from "../execute-order";
-import { useClient } from "../context/use-client";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotTrading } from "../context/spot-trading-context";
 import { useSpotStoreApi } from "../context/spot-store-context";
+import { useClient } from "../context/use-client";
 import { useAddNewOrder, useRefetchActiveOrders } from "./order-hooks";
 
 export const useSubmitOrder = (): (() => void) => {
+  const { data: client } = useClient();
   const {
     inputToken,
     outputToken,
@@ -16,8 +17,7 @@ export const useSubmitOrder = (): (() => void) => {
     callbacks,
     account,
     walletInteractions,
-  } = useSpotRuntime();
-  const { data: client } = useClient();
+  } = useSpotTrading();
   const addNewOrder = useAddNewOrder();
   const refetchActiveOrders = useRefetchActiveOrders();
   const form = useOrderForm();

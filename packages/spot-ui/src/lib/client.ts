@@ -1,4 +1,4 @@
-import { analytics } from "./analytics";
+import { Analytics, type SpotAnalytics } from "./analytics";
 import { REPERMIT_ABI, TWAP_ABI } from "./abi";
 import {
   buildRePermitOrderData,
@@ -11,6 +11,8 @@ import type {
 import { isNativeAddress } from "./utils";
 import {
   getAccountOrders,
+  getAccountOrdersResult,
+  type AccountOrdersResult,
   type GetAccountOrdersParams,
 } from "./orders";
 import { submitOrder as submitOrderRequest } from "./submit-order";
@@ -87,6 +89,7 @@ export type ClientGetAccountOrdersParams = Omit<
 >;
 
 export interface SpotClient {
+  readonly analytics: SpotAnalytics;
   readonly partner: Partners;
   readonly chainId: number;
   readonly rePermitData: RePermitData;
@@ -103,6 +106,10 @@ export interface SpotClient {
   getCancelOrderRequest(order: Order): CancelOrderRequest;
   /** Fetches account orders using this client's partner, chain, and exchange. */
   getAccountOrders(params: ClientGetAccountOrdersParams): Promise<Order[]>;
+  /** Includes source status so partial results can be retried. */
+  getAccountOrdersResult(
+    params: ClientGetAccountOrdersParams,
+  ): Promise<AccountOrdersResult>;
 }
 
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/i;
@@ -169,6 +176,7 @@ export const createClient = async (
   // Fetch the chain-specific RePermit configuration once for this client.
   const rePermitData = await fetchRePermitData(partner, chainId);
   assertRePermitConfiguration(rePermitData, chainId);
+  const analytics = new Analytics();
   analytics.init(partner, rePermitData);
   const spenderAddress = rePermitData.domain.verifyingContract;
   const exchangeAddress = rePermitData.order.witness.exchange.adapter;
@@ -250,7 +258,7 @@ export const createClient = async (
   const submitOrder = (
     order: RePermitOrder,
     signature: `0x${string}`,
-  ): Promise<Order> => submitOrderRequest(order, signature);
+  ): Promise<Order> => submitOrderRequest(order, signature, analytics);
 
   /**
    * Builds the correct v1 or v2 cancellation contract request. It only returns
@@ -275,16 +283,17 @@ export const createClient = async (
    * Fetches order history with the partner and chain captured by
    * this client, leaving only account and pagination options to the caller.
    */
-  const getConfiguredAccountOrders = (
+  const getConfiguredAccountOrdersResult = (
     params: ClientGetAccountOrdersParams,
-  ): Promise<Order[]> =>
-    getAccountOrders({
+  ): Promise<AccountOrdersResult> =>
+    getAccountOrdersResult({
       ...params,
       chainId,
       partner,
     });
 
   return Object.freeze({
+    analytics,
     partner,
     chainId,
     rePermitData,
@@ -293,6 +302,8 @@ export const createClient = async (
     prepareOrder,
     submitOrder,
     getCancelOrderRequest,
-    getAccountOrders: getConfiguredAccountOrders,
+    getAccountOrdersResult: getConfiguredAccountOrdersResult,
+    getAccountOrders: (params: ClientGetAccountOrdersParams): Promise<Order[]> =>
+      getAccountOrders({ ...params, chainId, partner }),
   });
 };

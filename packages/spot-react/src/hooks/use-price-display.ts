@@ -1,11 +1,11 @@
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotTrading } from "../context/spot-trading-context";
 import { useSpotStore } from "../context/spot-store-context";
 import { invertPriceInput } from "@orbs-network/spot-ui";
 
 export const usePriceDisplay = () => {
-  const { inputToken, outputToken } = useSpotRuntime();
+  const { inputToken, outputToken } = useSpotTrading();
   const updateState = useSpotStore((s) => s.updateState);
   const { isInverted, values } = useOrderForm();
   const triggerPriceUi = useSpotStore((s) => s.state.triggerPriceUi);

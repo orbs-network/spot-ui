@@ -1,15 +1,13 @@
 import { ExecutionStatus } from "../types";
 import {
-  analytics,
   isTxRejected,
   OrderStatus,
   type Order,
 } from "@orbs-network/spot-ui";
 import { useClient } from "../context/use-client";
-import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotTrading } from "../context/spot-trading-context";
 import {
   useSpotStore,
-  useSpotStoreApi,
 } from "../context/spot-store-context";
 import { useOrdersResource } from "./order-hooks";
 import { useCallback, useMemo } from "react";
@@ -49,32 +47,6 @@ export const useCancelOrderRefetchUntilStatusSynced = () => {
   );
 };
 
-const useCancelOrderState = () => {
-  const store = useSpotStoreApi();
-  const updateState = useSpotStore((s) => s.updateState);
-  const cancelOrders = useSpotStore((s) => s.state.cancelOrders);
-
-  return {
-    cancelOrders,
-    setCancelOrder: (
-      orderId: string,
-      data: { status: ExecutionStatus; txHash?: string; error?: string },
-    ) => {
-      // Read the latest state at write time to avoid clobbering concurrent
-      // cancellations with a stale render-time snapshot.
-      const current = store.getState().state.cancelOrders;
-      updateState({
-        cancelOrders: { ...current, [orderId]: data },
-      });
-    },
-    clearCancelOrder: (orderId: string) => {
-      const current = store.getState().state.cancelOrders;
-      const { [orderId]: _, ...rest } = current;
-      updateState({ cancelOrders: rest });
-    },
-  };
-};
-
 export type CancelOrderStatus = {
   status: ExecutionStatus;
   disabled?: boolean;
@@ -88,14 +60,12 @@ export const createCancelledOrder = (order: Order): Order => ({
 });
 
 export const useCancelOrder = (order?: Order) => {
-  const { account, walletInteractions, callbacks } = useSpotRuntime();
+  const { account, walletInteractions, callbacks } = useSpotTrading();
   const { data: client } = useClient();
   const refetchUntilStatusSynced = useCancelOrderRefetchUntilStatusSynced();
-  const {
-    cancelOrders: cancelOrdersState,
-    setCancelOrder,
-    clearCancelOrder,
-  } = useCancelOrderState();
+  const cancelOrderEntry = useSpotStore((s) => s.state.cancelOrders[order?.historyKey ?? ""]);
+  const setCancelOrder = useSpotStore((s) => s.setCancelOrder);
+  const clearCancelOrder = useSpotStore((s) => s.clearCancelOrder);
 
   const cancelOrder = useCallback(async () => {
     const historyKey = order?.historyKey;
@@ -110,7 +80,7 @@ export const useCancelOrder = (order?: Order) => {
       observe(() => callbacks?.onCancelOrderRequest?.(order));
 
       observe(() =>
-        analytics.onCancelOrderRequest(
+        client.analytics.onCancelOrderRequest(
           [order.version === 1 ? order.id.toString() : order.hash],
           order.version as 1 | 2,
         ),
@@ -119,7 +89,7 @@ export const useCancelOrder = (order?: Order) => {
       const txHash = await walletInteractions.cancelOrder(request);
 
       if (!txHash) throw new Error("failed to cancel order");
-      observe(() => analytics.onCancelOrderSuccess(txHash));
+      observe(() => client.analytics.onCancelOrderSuccess(txHash));
 
       // Keep the loader active until server history reflects the cancellation.
       setCancelOrder(activeHistoryKey, {
@@ -150,7 +120,7 @@ export const useCancelOrder = (order?: Order) => {
             error: getErrorMessage(error),
           });
         }
-        observe(() => analytics.onCancelOrderError(error));
+        observe(() => client?.analytics.onCancelOrderError(error));
       }
       observe(() => callbacks?.onCancelOrderFailed?.(normalizeError(error)));
     }
@@ -167,7 +137,7 @@ export const useCancelOrder = (order?: Order) => {
   ]);
 
   const cancelOrderState = useMemo(() => {
-    const res = cancelOrdersState[order?.historyKey || ""];
+    const res = cancelOrderEntry;
     return {
       isLoading: res?.status === ExecutionStatus.LOADING,
       disabled: Boolean(order && !client),
@@ -176,7 +146,7 @@ export const useCancelOrder = (order?: Order) => {
       error: res?.error,
       txHash: res?.txHash,
     };
-  }, [cancelOrdersState, order, client]);
+  }, [cancelOrderEntry, order, client]);
 
   return useMemo(() => {
     return { cancelOrder, ...cancelOrderState };

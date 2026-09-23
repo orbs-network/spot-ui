@@ -128,7 +128,7 @@ const sendBI = async (data: Partial<Data>) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(data),
-    }).then();
+    });
   } catch (error) {
     console.error("Failed to send BI", error);
   }
@@ -155,7 +155,7 @@ const getAnalyticsErrorMessage = (error: unknown): string => {
   return "unknown error";
 };
 
-class Analytics {
+export class Analytics {
   timeout: ReturnType<typeof setTimeout> | undefined;
   configDetails: Partial<Data> = {};
   moduleImportKey = "";
@@ -169,13 +169,14 @@ class Analytics {
         ...this.data,
         ...values,
       };
+      const payload = { ...this.data };
       if (noTimeout) {
-        await sendBI(this.data);
+        await sendBI(payload);
         callback?.();
       } else {
         clearTimeout(this.timeout);
         this.timeout = setTimeout(() => {
-          sendBI(this.data);
+          void sendBI(payload);
           callback?.();
         }, 1_000);
       }
@@ -346,25 +347,23 @@ class Analytics {
   }
   
 
-  async onCreateOrderSuccess(orderHash?: string) {
-    this.updateAndSend(
-      {
-        orderHash,
-        orderSuccess: true,
-      },
-      undefined,
-      () => {
-        this.data = {
-          _id: generateId(),
-          action: "reset",
-          uiVersion: UI_VERSION,
-          origin: this.data.origin,
-          ...this.configDetails,
-        };
-      },
-    );
+  async onCreateOrderSuccess(orderHash?: string): Promise<void> {
+    // Flush the completed order before another action can replace its timer.
+    clearTimeout(this.timeout);
+    const payload = { ...this.data, orderHash, orderSuccess: true };
+    this.data = {
+      _id: generateId(),
+      action: "reset",
+      uiVersion: UI_VERSION,
+      origin: this.data.origin,
+      ...this.configDetails,
+    };
+    await sendBI(payload);
   }
 
 }
 
+/** @deprecated Use client.analytics for client-scoped events. */
 export const analytics = new Analytics();
+
+export type SpotAnalytics = Analytics;

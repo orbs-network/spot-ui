@@ -1,10 +1,10 @@
-import { OrderStatus, type Order } from "@orbs-network/spot-ui";
+import type { Order, SpotClient } from "@orbs-network/spot-ui";
 import { useMemo, useCallback, useEffect } from "react";
 import type {
   OrdersLoader,
   OrdersResourceState,
 } from "../context/create-spot-store";
-import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotTrading } from "../context/spot-trading-context";
 import {
   useSpotStore,
   useSpotStoreApi,
@@ -12,8 +12,7 @@ import {
 import { useClient } from "../context/use-client";
 import {
   categorizeOrders,
-  mergeCachedLegacyOrders,
-  notifyOrderUpdates,
+  loadOrderHistory,
   type CategorizedOrders,
 } from "../order-history-data";
 
@@ -21,45 +20,39 @@ export type { CategorizedOrders } from "../order-history-data";
 
 const EMPTY_ORDERS_RESULT: OrdersResourceState = { isFetching: false };
 
+const getOrdersResourceKey = (
+  account: string | undefined,
+  client: SpotClient | undefined,
+  supportLegacyOrders: boolean,
+): string | undefined =>
+  account && client
+    ? JSON.stringify([
+        account, client.exchangeAddress, client.partner, client.chainId,
+        supportLegacyOrders,
+      ])
+    : undefined;
+
 /**
  * Connects the provider store to the account/client-specific history source.
  * This configures fetching but does not start polling; useOrders owns the
  * mounted-consumer subscription that activates it.
  */
-export const useOrdersResource = () => {
-  const { account, partner, chainId, supportLegacyOrders, callbacks } =
-    useSpotRuntime();
+export const useConfigureOrdersResource = (): void => {
+  const { account, supportLegacyOrders, callbacks } =
+    useSpotTrading();
   const { data: client } = useClient();
   const store = useSpotStoreApi();
-  const enabled = Boolean(account && client);
-  const key = enabled
-    ? JSON.stringify([
-        account,
-        client?.exchangeAddress,
-        partner,
-        chainId,
-        supportLegacyOrders,
-      ])
-    : undefined;
+  const key = getOrdersResourceKey(account, client, supportLegacyOrders);
+  const enabled = Boolean(key);
   const loader = useCallback<OrdersLoader>(
     async (previousOrders, legacyLoaded, signal) => {
       if (!account || !client) {
         return { orders: [], legacyLoaded: false };
       }
-      const loadLegacyOrders = supportLegacyOrders && !legacyLoaded;
-      const orders = await client.getAccountOrders({
-        signal,
-        account,
-        legacyOrders: loadLegacyOrders,
+      return loadOrderHistory({
+        client, account, signal, supportLegacyOrders,
+        previousOrders, legacyLoaded, callbacks,
       });
-      notifyOrderUpdates(previousOrders, orders, callbacks);
-      return {
-        orders:
-          supportLegacyOrders && !loadLegacyOrders
-            ? mergeCachedLegacyOrders(orders, previousOrders)
-            : orders,
-        legacyLoaded: legacyLoaded || loadLegacyOrders,
-      };
     },
     [account, callbacks, client, supportLegacyOrders],
   );
@@ -67,34 +60,28 @@ export const useOrdersResource = () => {
   useEffect(() => {
     store.getState().configureOrders(key, enabled ? loader : undefined);
   }, [enabled, key, loader, store]);
+};
 
+export const useOrdersResource = () => {
+  const { account, supportLegacyOrders } = useSpotTrading();
+  const { data: client } = useClient();
+  const store = useSpotStoreApi();
+  const key = getOrdersResourceKey(account, client, supportLegacyOrders);
+  const enabled = Boolean(key);
   const refetch = useCallback((refreshLegacy = false) => {
-    if (!enabled || !key) return Promise.resolve(undefined);
-    const state = store.getState();
-    state.configureOrders(key, loader);
-    return state.refetchOrders(true, refreshLegacy);
-  }, [enabled, key, loader, store]);
-
+    if (!enabled || !key || store.getState().orders.key !== key) {
+      return Promise.resolve(undefined);
+    }
+    return store.getState().refetchOrders(true, refreshLegacy);
+  }, [enabled, key, store]);
   return { enabled, key, refetch };
 };
 
 /** Cache commands used by order creation and cancellation flows. */
 export const useAddNewOrder = () => {
-  // Configure the correct account history key even when no history UI is
-  // mounted, so the optimistic order cannot enter another account's cache.
-  useOrdersResource();
   const store = useSpotStoreApi();
   return useCallback(
     (order: Order) => store.getState().addOrder(order),
-    [store],
-  );
-};
-
-export const useUpdateCachedOrderStatus = () => {
-  const store = useSpotStoreApi();
-  return useCallback(
-    (historyKey: string, status: OrderStatus) =>
-      store.getState().updateOrderStatus(historyKey, status),
     [store],
   );
 };

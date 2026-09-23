@@ -9,12 +9,12 @@ import {
   createSpotFormDefaults,
   type SpotFormDefaults,
 } from "./create-spot-store";
-import type { SpotRuntimeState } from "./spot-runtime-context";
+import type { SpotTradingState } from "./spot-trading-context";
 
 interface SpotProviderState {
   initialState: SpotFormDefaults;
   formScopeKey: string;
-  runtime: SpotRuntimeState;
+  trading: SpotTradingState;
 }
 
 export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
@@ -60,7 +60,7 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
     props.wrappedNativeToken?.decimals,
     initialState,
   ]);
-  const runtime = useMemo<SpotRuntimeState>(
+  const trading = useMemo<SpotTradingState>(
     () => ({
       inputAmountUi: props.inputAmountUi,
       minTradeSizeUsd: props.minTradeSizeUsd,
@@ -111,5 +111,5 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
     ],
   );
 
-  return { initialState, formScopeKey, runtime };
+  return { initialState, formScopeKey, trading };
 };

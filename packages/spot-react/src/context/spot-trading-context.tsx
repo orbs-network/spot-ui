@@ -11,7 +11,8 @@ import type {
   WalletInteractions,
 } from "../types";
 
-export interface SpotRuntimeState {
+/** Complete trading inputs, including connection and integration settings. */
+export interface SpotTradingState {
   walletInteractions: WalletInteractions;
   quotedOutputAmountRaw?: string;
   marketPriceLoading?: boolean;
@@ -36,24 +37,26 @@ export interface SpotRuntimeState {
   overrides?: Overrides;
 }
 
-const SpotRuntimeContext = createContext<SpotRuntimeState | null>(null);
+const SpotTradingContext = createContext<SpotTradingState | null>(null);
 
-export const SpotRuntimeProvider = ({
+export const SpotTradingProvider = ({
   children,
   value,
 }: {
   children: ReactNode;
-  value: SpotRuntimeState;
-}) => (
-  <SpotRuntimeContext.Provider value={value}>
-    {children}
-  </SpotRuntimeContext.Provider>
-);
+  value: SpotTradingState;
+}) => {
+  return (
+    <SpotTradingContext.Provider value={value}>
+      {children}
+    </SpotTradingContext.Provider>
+  );
+};
 
-export const useSpotRuntime = (): SpotRuntimeState => {
-  const runtime = useContext(SpotRuntimeContext);
-  if (runtime === null) {
-    throw new Error("useSpotRuntime must be used within SpotProvider");
+export const useSpotTrading = (): SpotTradingState => {
+  const trading = useContext(SpotTradingContext);
+  if (trading === null) {
+    throw new Error("useSpotTrading must be used within SpotProvider");
   }
-  return runtime;
+  return trading;
 };

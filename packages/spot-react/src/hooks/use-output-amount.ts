@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
-import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotTrading } from "../context/spot-trading-context";
 
 export const useOutputAmount = () => {
-  const { marketPriceLoading } = useSpotRuntime();
+  const { marketPriceLoading } = useSpotTrading();
   const { outputAmount } = useOrderForm();
 
   return useMemo(

@@ -10,7 +10,7 @@ import { useMemo, useCallback } from "react";
 import { useSubmitOrder } from "./use-submit-order";
 import { useSwapExecution } from "./use-swap-execution";
 import { createSpotFormDefaults } from "../context/create-spot-store";
-import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotTrading } from "../context/spot-trading-context";
 import { useSpotStore } from "../context/spot-store-context";
 import { useOrderForm } from "../context/order-form-context";
 import { useClient } from "../context/use-client";
@@ -53,7 +53,7 @@ export const useExecution = (): SpotExecutionData => {
     hasChainId,
     module,
     overrides,
-  } = useSpotRuntime();
+  } = useSpotTrading();
   const { data: client, isLoading: isClientLoading } = useClient();
   const submitOrder = useSubmitOrder();
   const resetOrderState = useSpotStore((state) => state.startNewOrder);
@@ -118,7 +118,7 @@ export const useSubmitButton = () => {
     inputAmountUi,
     marketPriceLoading,
     hasChainId,
-  } = useSpotRuntime();
+  } = useSpotTrading();
   const form = useOrderForm();
   const { data: client, isLoading: isClientLoading } = useClient();
   const executionPhase = useSpotStore(

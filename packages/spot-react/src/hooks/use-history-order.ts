@@ -10,7 +10,7 @@ import {
   type OrderFill,
 } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
-import { useSpotRuntime } from "../context/spot-runtime-context";
+import { useSpotTrading } from "../context/spot-trading-context";
 import type { Token } from "../types";
 
 const getAmount = (raw?: string, decimals?: number) => ({
@@ -48,7 +48,7 @@ export const useHistoryOrder = (
   inputToken?: Token,
   outputToken?: Token,
 ) => {
-  const { chainId, partner } = useSpotRuntime();
+  const { chainId, partner } = useSpotTrading();
 
   const limitPriceUI = useMemo(() => {
     if (!inputToken || !outputToken || !order || order.isMarketPrice) return;

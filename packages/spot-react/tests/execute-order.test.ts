@@ -80,6 +80,12 @@ const createPreparedOrder = (form: CalculatedOrderForm): PreparedOrder =>
 const createClient = (form: CalculatedOrderForm): SpotClient => {
   const preparedOrder = createPreparedOrder(form);
   return {
+    analytics: {
+      onRequestOrder: vi.fn(), onWrapRequest: vi.fn(), onWrapSuccess: vi.fn(),
+      onApproveRequest: vi.fn(), onApproveSuccess: vi.fn(),
+      onSignOrderRequest: vi.fn(), onSignOrderSuccess: vi.fn(), onSignOrderError: vi.fn(),
+      onWrapError: vi.fn(), onApproveError: vi.fn(),
+    },
     spenderAddress: SPENDER,
     prepareOrder: vi.fn(() => preparedOrder),
     submitOrder: vi.fn(async () => order),

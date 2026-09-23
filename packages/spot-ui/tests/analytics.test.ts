@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { analytics, Partners } from "../src";
+import { analytics, createClient, Partners } from "../src";
 import { fetchRePermitData } from "../src/lib/build-repermit-order-data";
 import { createRePermitData } from "./fixtures";
 
@@ -19,6 +19,49 @@ describe("Spot analytics", () => {
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it("keeps concurrent clients' delayed events isolated", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => createRePermitData(56) } as Response);
+    const first = await createClient(Partners.Thena, 56);
+    first.analytics.onApproveRequest();
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => createRePermitData(137) } as Response);
+    const second = await createClient(Partners.Quick, 137);
+    second.analytics.onWrapRequest();
+    await vi.runAllTimersAsync();
+    const payloads = fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body)));
+    expect(payloads.map(({ action, partner, chainId }) => ({ action, partner, chainId }))).toEqual([
+      { action: "module-import", partner: Partners.Thena, chainId: 56 },
+      { action: "module-import", partner: Partners.Quick, chainId: 137 },
+      { action: "approve", partner: Partners.Thena, chainId: 56 },
+      { action: "wrap", partner: Partners.Quick, chainId: 137 },
+    ]);
+  });
+
+  it("snapshots queued events before configuration changes", async () => {
+    analytics.init(Partners.Thena, createRePermitData(56));
+    analytics.onApproveRequest();
+    analytics.init(Partners.Quick, createRePermitData(137));
+    const latestId = analytics.data._id;
+    await vi.runAllTimersAsync();
+    const payload = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body));
+    expect(payload).toMatchObject({ partner: Partners.Thena, chainId: 56, action: "approve" });
+    expect(analytics.data._id).toBe(latestId);
+    expect(analytics.data.partner).toBe(Partners.Quick);
+  });
+
+  it("flushes a completed order before the next action can replace it", async () => {
+    analytics.init(Partners.Thena, createRePermitData(56));
+    analytics.onCreateOrderRequest();
+    await analytics.onCreateOrderSuccess("completed-order");
+    analytics.onWrapRequest();
+    await vi.runAllTimersAsync();
+    const payloads = fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+    expect(payloads[1]).toMatchObject({ orderHash: "completed-order", orderSuccess: true });
+    expect(payloads[2]).toMatchObject({ action: "wrap", partner: Partners.Thena });
+    expect(payloads[2]).not.toHaveProperty("orderHash");
+    expect(payloads[2]._id).not.toBe(payloads[1]._id);
   });
 
   it("never includes a signed order or wallet signature in BI payloads", async () => {

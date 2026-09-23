@@ -6,6 +6,12 @@ React SDK for building TWAP, Limit, Stop-Loss, and Take-Profit order interfaces 
 
 For the complete integration workflow, see the [Spot React integration skill](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-react-integration) and the [reference implementation](https://github.com/orbs-network/spot-ui/blob/master/apps/web/components/spot/spot-form.tsx).
 
+Client and history resources are configured once per provider. History and
+cancellation consumers subscribe to configuration separately from live form
+quotes. Failed legacy-history requests remain eligible for retry, and cached
+legacy orders remain visible during an outage. Execution analytics belong to
+the provider's client.
+
 ## Before You Start
 
 The host owns partner discovery and chain selectors. Client initialization reads

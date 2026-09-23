@@ -36,7 +36,7 @@ describe("provider-scoped resources", () => {
     });
   });
 
-  it("polls orders only while subscribed and updates cached orders", async () => {
+  it("polls orders only while subscribed and deduplicates cached orders", async () => {
     const store = createSpotStore({});
     const load = vi.fn(async () => ({
       orders: [{ ...order }],
@@ -51,16 +51,23 @@ describe("provider-scoped resources", () => {
     expect(load).toHaveBeenCalledTimes(1);
     expect(store.getState().orders.data).toEqual([order]);
 
-    store
-      .getState()
-      .updateOrderStatus(order.historyKey, OrderStatus.Cancelled);
-    expect(store.getState().orders.data?.[0]?.status).toBe(
-      OrderStatus.Cancelled,
-    );
-
     store.getState().addOrder(order);
     expect(store.getState().orders.data).toHaveLength(1);
     unsubscribe();
+  });
+
+  it("keeps cancellation actions stable and unrelated entries unchanged", () => {
+    const store = createSpotStore({});
+    const { setCancelOrder, clearCancelOrder } = store.getState();
+    setCancelOrder("a", { status: ExecutionStatus.LOADING });
+    const first = store.getState().state.cancelOrders.a;
+    setCancelOrder("b", { status: ExecutionStatus.SUCCESS });
+    expect(store.getState().state.cancelOrders.a).toBe(first);
+    expect(store.getState().setCancelOrder).toBe(setCancelOrder);
+    expect(store.getState().clearCancelOrder).toBe(clearCancelOrder);
+    clearCancelOrder("b");
+    expect(store.getState().state.cancelOrders.a).toBe(first);
+    expect(store.getState().state.cancelOrders.b).toBeUndefined();
   });
 
   it("shares order polling until the last consumer unsubscribes", async () => {

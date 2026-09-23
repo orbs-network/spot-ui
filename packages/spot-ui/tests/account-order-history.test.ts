@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAccountOrders } from "../src/lib/orders";
+import { getAccountOrders, getAccountOrdersResult } from "../src/lib/orders";
 import { getOrders as getLegacyOrders } from "../src/lib/orders/v1-orders";
 import { buildV2Order, getOrders as getCurrentOrders } from "../src/lib/orders/v2-orders";
 import { Partners } from "../src/lib/types";
@@ -16,11 +16,21 @@ const order = buildV2Order(createV2Order(747474, "available-order"));
 
 describe("account history source failures", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(getLegacyOrders).mockResolvedValue([]);
     vi.mocked(getCurrentOrders).mockResolvedValue([order]);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
   });
   afterEach(() => vi.restoreAllMocks());
+
+  it("reports a failed legacy source and allows it to recover", async () => {
+    vi.mocked(getLegacyOrders).mockRejectedValueOnce(new Error("temporary outage"));
+    const partial = await getAccountOrdersResult(params);
+    expect(partial).toEqual({ orders: [order], legacyLoaded: false });
+    const recovered = await getAccountOrdersResult(params);
+    expect(recovered).toEqual({ orders: [order], legacyLoaded: true });
+    expect(getLegacyOrders).toHaveBeenCalledTimes(2);
+  });
 
   it("keeps current orders when the legacy subgraph is unavailable", async () => {
     vi.mocked(getLegacyOrders).mockRejectedValue(new Error("subgraph not found: no allocations"));

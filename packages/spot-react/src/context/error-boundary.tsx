@@ -1,6 +1,7 @@
 import { analytics } from "@orbs-network/spot-ui";
-import { Component, type ComponentType, type ReactNode } from "react";
+import { Component, useCallback, type ComponentType, type ReactNode } from "react";
 import type { SpotErrorFallbackProps } from "../types";
+import { useSpotStoreApi } from "./spot-store-context";
 
 const DefaultErrorFallback = ({
   resetErrorBoundary,
@@ -19,15 +20,23 @@ export const SpotErrorBoundary = ({
 }: {
   children: ReactNode;
   fallback?: ComponentType<SpotErrorFallbackProps>;
-}) => (
-  <InternalErrorBoundary fallback={ErrorFallback}>
-    {children}
-  </InternalErrorBoundary>
-);
+}) => {
+  const store = useSpotStoreApi();
+  const reportCrash = useCallback((error: Error) => {
+    const reporter = store.getState().client.data?.analytics ?? analytics;
+    reporter.onCrash(error);
+  }, [store]);
+  return (
+    <InternalErrorBoundary fallback={ErrorFallback} reportCrash={reportCrash}>
+      {children}
+    </InternalErrorBoundary>
+  );
+};
 
 interface InternalErrorBoundaryProps {
   children: ReactNode;
   fallback: ComponentType<SpotErrorFallbackProps>;
+  reportCrash: (error: Error) => void;
 }
 
 interface InternalErrorBoundaryState {
@@ -47,7 +56,7 @@ class InternalErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error): void {
-    analytics.onCrash(error);
+    this.props.reportCrash(error);
   }
 
   private resetErrorBoundary = (): void => {

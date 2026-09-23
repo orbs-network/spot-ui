@@ -5,7 +5,7 @@ import {
 } from "@orbs-network/spot-ui";
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { ExecutionPhase } from "../types";
-import { useSpotRuntime } from "./spot-runtime-context";
+import { useSpotTrading } from "./spot-trading-context";
 import { useSpotStore } from "./spot-store-context";
 
 const OrderFormContext = createContext<CalculatedOrderForm | null>(null);
@@ -23,7 +23,7 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
     displayFeePercent,
     priceProtectionPercent,
     module,
-  } = useSpotRuntime();
+  } = useSpotTrading();
   const tradeCount = useSpotStore((store) => store.state.tradeCount);
   const tradeInterval = useSpotStore((store) => store.state.tradeInterval);
   const orderDuration = useSpotStore((store) => store.state.orderDuration);
@@ -98,6 +98,7 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
     ],
   );
   const form = useMemo(() => {
+    if (frozenForm) return frozenForm;
     const calculatedForm = calculateOrderForm(params);
     if (inputToken && outputToken) return calculatedForm;
 
@@ -108,10 +109,10 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
       isReady: false,
       canSubmit: false,
     };
-  }, [inputToken, outputToken, params]);
+  }, [frozenForm, inputToken, outputToken, params]);
 
   return (
-    <OrderFormContext.Provider value={frozenForm ?? form}>
+    <OrderFormContext.Provider value={form}>
       {children}
     </OrderFormContext.Provider>
   );

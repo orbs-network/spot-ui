@@ -1,4 +1,4 @@
-import { analytics } from "./analytics";
+import type { SpotAnalytics } from "./analytics";
 import { getApiEndpoint } from "./api-config";
 import { buildV2Order } from "./orders/v2-orders";
 import { Order, RePermitOrder } from "./types";
@@ -6,6 +6,7 @@ import { Order, RePermitOrder } from "./types";
 export const submitOrder = async (
   order: RePermitOrder,
   signature: `0x${string}`,
+  analytics: SpotAnalytics,
 ): Promise<Order> => {
   try {
     const body = {
