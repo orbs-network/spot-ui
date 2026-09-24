@@ -1,12 +1,12 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { createClient } from "@orbs-network/liquidity-hub-sdk";
 import { useMemo } from "react";
-import { useConnection } from "wagmi";
 
 const localApiUrl =
   process.env.NODE_ENV === "development" ? "/api/liquidity-hub" : undefined;
 
 export const useLiquidityHub = () => {
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
   return useMemo(
     () =>
       createClient({

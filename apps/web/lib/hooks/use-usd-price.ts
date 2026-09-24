@@ -1,6 +1,6 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { useQuery } from "@tanstack/react-query";
 import { getUSDPrice } from "../get-usd-price";
-import { useConnection } from "wagmi";
 import BN from "bignumber.js";
 import { useMemo } from "react";
 import { useFormatNumber } from "./common";
@@ -9,7 +9,7 @@ export const useUSDPrices = (
   tokens?: Array<string | undefined>,
   disabled?: boolean,
 ) => {
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
   const tokenKey = useMemo(
     () => (tokens ?? []).filter(Boolean).join(","),
     [tokens],

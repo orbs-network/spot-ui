@@ -1,3 +1,4 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
 import { getExplorerUrl, getWrappedNativeCurrency } from "@/lib/utils";
@@ -17,7 +18,7 @@ import {
 import { erc20Abi } from "viem";
 import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { useConnection, usePublicClient, useWalletClient } from "wagmi";
+import { usePublicClient, useWalletClient } from "wagmi";
 
 import TokensPair from "@/components/tokens-pair";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
@@ -29,7 +30,7 @@ export const useCallbacks = () => {
   const approveToastId = useRef<number>(null);
   const createOrderToastId = useRef<number>(null);
   const { inputCurrency, outputCurrency } = useDerivedSwap();
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
   const { mutateAsync: refetchBalances } =
     useRefetchSelectedCurrenciesBalances();
 
@@ -208,7 +209,7 @@ export const useSpotPartner = (): Partners => {
 export const useWalletInteractions = () => {
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
 
   const waitForTx = useCallback(
     async (hash: `0x${string}`) => {

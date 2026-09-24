@@ -1,13 +1,27 @@
 ## Partner discovery
 
-The web app owns the partner and chain picker. `lib/spot-config.ts` fetches
+The web app owns the partner picker and the navbar network selector. `lib/spot-config.ts` fetches
 [Spot config.json](https://raw.githubusercontent.com/orbs-network/spot/master/config.json),
 and `lib/spot-partners.ts` extracts partner/chain pairs for `useSpotPartners`.
 Successful responses are cached for five minutes and concurrent requests are
 shared; failed requests can be retried. This JSON is used only for the picker.
 SDK client configuration and analytics use the order-sink `/config` response.
 
-Run the partner discovery tests with `pnpm --filter web test`.
+The navbar opens RainbowKit's built-in network modal, including chain logos.
+Its trigger stays visible even when the partner supports only one network.
+It appears after wallet connection. On Spot routes it lists only the selected
+partner's supported networks that are configured in wagmi; other routes show all
+configured networks. `PartnerWalletProvider` scopes the chain list while sharing
+the original wallet store and connectors, so changing partners preserves the
+connection. Loading, unavailable, and empty partner lists offer no networks.
+Before a wallet connects, the form follows wagmi's selected network; afterwards
+it follows the wallet chain.
+Changing partners does not automatically switch the wallet. If the current chain
+is unsupported, select a supported network from the navbar before creating an order.
+The `partner` URL parameter now contains only the partner name. Older
+`partner=name_chainId` links still select the partner, but their chain suffix is ignored.
+
+Run the partner discovery and network-selection tests with `pnpm --filter web test`.
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 

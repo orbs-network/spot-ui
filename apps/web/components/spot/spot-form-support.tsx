@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import {
   ORBS_TWAP_FAQ_URL,
   useDisclaimer,
@@ -6,8 +5,6 @@ import {
   type ClientErrorFallbackProps,
 } from "@orbs-network/spot-react";
 import { AlertTriangleIcon, InfoIcon } from "lucide-react";
-import { useConnection, useSwitchChain } from "wagmi";
-import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { useTranslations } from "@/lib/use-translations";
 import { Button } from "../ui/button";
 
@@ -47,20 +44,6 @@ export const InputsErrorPanel = () => {
       </p>
     </div>
   );
-};
-
-export const SpotChainSynchronizer = () => {
-  const { chainId } = useConnection();
-  const { targetChainId } = useSwapParams();
-  const switchChain = useSwitchChain();
-
-  useEffect(() => {
-    if (chainId && targetChainId && chainId !== Number(targetChainId)) {
-      switchChain.mutate({ chainId: Number(targetChainId) });
-    }
-  }, [chainId, switchChain, targetChainId]);
-
-  return null;
 };
 
 export const ClientErrorFallback = ({

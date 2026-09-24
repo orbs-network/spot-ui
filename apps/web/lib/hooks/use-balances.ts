@@ -1,3 +1,4 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useConnection } from "wagmi";
 import axios from "axios";
@@ -8,7 +9,8 @@ import { useCurrenciesQuery } from "./use-currencies-query";
 import { useDerivedSwap } from "./use-derived-swap";
 
 const useQueryKey = () => {
-  const { chainId, address } = useConnection();
+  const chainId = useActiveChainId();
+  const { address } = useConnection();
   const { data: currencies } = useCurrenciesQuery();
   const addressesKey = useMemo(() => {
     const addrs = currencies?.map((it) => it.address) ?? [];
@@ -21,7 +23,8 @@ const useQueryKey = () => {
 };
 
 export const useBalances = () => {
-  const { chainId, address } = useConnection();
+  const chainId = useActiveChainId();
+  const { address } = useConnection();
   const { data: currencies } = useCurrenciesQuery();
   const addresses = useMemo(
     () => currencies?.map((it) => it.address) ?? [],
@@ -47,7 +50,8 @@ export const useBalances = () => {
 
 export const useRefetchSelectedCurrenciesBalances = () => {
   const queryClient = useQueryClient();
-  const { chainId, address } = useConnection();
+  const chainId = useActiveChainId();
+  const { address } = useConnection();
   const { inputCurrency, outputCurrency } = useDerivedSwap();
   const queryKey = useQueryKey();
   return useMutation({

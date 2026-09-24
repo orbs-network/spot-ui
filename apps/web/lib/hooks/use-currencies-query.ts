@@ -1,10 +1,10 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { useQuery } from "@tanstack/react-query";
-import { useConnection } from "wagmi";
 import { getCurrencies } from "../get-currencies";
 import { useUserStore } from "./store";
 
 export function useCurrenciesQuery() {
-    const { chainId = 56 } = useConnection();
+    const chainId = useActiveChainId();
     const { customCurrencies } = useUserStore();
   
     return useQuery({

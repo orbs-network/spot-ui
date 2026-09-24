@@ -1,3 +1,4 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import {
   isFreshQuote,
   permit2Address,
@@ -18,7 +19,6 @@ import { toast } from "sonner";
 import { useBalances } from "./use-balances";
 import { useCallback, useRef } from "react";
 import TokensPair from "@/components/tokens-pair";
-import { useConnection } from "wagmi";
 
 const usePrepareQuote = () => {
   const { trade, refetchTrade } = useDerivedSwap();
@@ -59,7 +59,7 @@ const useToasts = () => {
   const approveToastId = useRef<number>(null);
   const swapToastId = useRef<number>(null);
   const { inputCurrency, outputCurrency } = useDerivedSwap();
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
   const { txHash } = useBestTradeSwapStore();
   const onWrapRequest = useCallback(() => {
     wrapToastId.current = toast.loading(

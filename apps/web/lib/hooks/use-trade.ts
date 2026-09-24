@@ -1,3 +1,4 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { useQuery } from "@tanstack/react-query";
 import { useLiquidityHub } from "./liquidity-hub";
 import { BestTradeQuote, Currency } from "../types";
@@ -36,13 +37,15 @@ const useQuoteLiquidityHub = (
   const liquidityHub = useLiquidityHub();
   const { slippage } = useSettings();
   const { pauseQuote } = useSwapStore();
-  const { chainId, address: account } = useConnection();
+  const chainId = useActiveChainId();
+  const { address: account } = useConnection();
   const inputCurrencyAddress = inputCurrency?.address ?? "";
   const outputCurrencyAddress = outputCurrency?.address ?? "";
   const isSpotTab = useIsSpotTab();
   return useQuery<BestTradeQuote>({
     queryKey: [
       "quote-liquidity-hub",
+      chainId,
       inputCurrencyAddress,
       outputCurrencyAddress,
       parsedInputAmount,

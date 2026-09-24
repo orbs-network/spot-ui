@@ -1,3 +1,4 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { useMutation } from "@tanstack/react-query";
 import { useConnection, useWalletClient } from "wagmi";
 import { getWrappedNativeCurrency } from "../utils";
@@ -7,7 +8,8 @@ import type { WrappedNativeAction } from "../types";
 
 export const useWrappedNativeTransaction = () => {
   const { data: walletClient } = useWalletClient();
-  const { address: account, chainId } = useConnection();
+  const chainId = useActiveChainId();
+  const { address: account } = useConnection();
   const { mutateAsync: getTransactionReceiptCallback } =
     useGetTransactionReceiptCallback();
 

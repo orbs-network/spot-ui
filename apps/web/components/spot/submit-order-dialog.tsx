@@ -7,7 +7,6 @@ import {
   useSubmitButton,
 } from "@orbs-network/spot-react";
 import { AlertTriangleIcon } from "lucide-react";
-import { useSwapParams } from "@/lib/hooks/use-swap-params";
 import { getOrderTitle } from "@/lib/utils";
 import { useTranslations } from "@/lib/use-translations";
 import { Button } from "../ui/button";
@@ -93,10 +92,7 @@ const OrderReview = ({
 
 const OpenOrderReviewButton = ({ onClick }: { onClick: () => void }) => {
   const t = useTranslations();
-  const { partner } = useSwapParams();
   const { disabled, loading } = useSubmitButton();
-  const chainId = partner?.split("_")[1];
-  const partnerChainId = chainId ? Number(chainId) : undefined;
 
   return (
     <SubmitSwapButton
@@ -104,7 +100,6 @@ const OpenOrderReviewButton = ({ onClick }: { onClick: () => void }) => {
       disabled={disabled}
       isLoading={loading}
       text={loading ? t("fetchingQuote") : t("placeOrder")}
-      chainId={partnerChainId}
     />
   );
 };

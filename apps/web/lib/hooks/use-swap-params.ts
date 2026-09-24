@@ -1,14 +1,13 @@
 import { StringParam, useQueryParam, useQueryParams } from "use-query-params";
 import { SwapType } from "../types";
-import { useConnection } from "wagmi";
+import { useActiveChainId } from "./use-active-chain-id";
 import { useCallback, useMemo } from "react";
 import { getDefaultTokensForChain } from "../utils";
-import { Partners } from "@orbs-network/spot-ui";
-import { DEFAULT_CHAIN_ID, DEFAULT_PARTNER } from "../consts";
+import { parsePartner } from "../spot-partners";
 
-const partnerNames: ReadonlySet<string> = new Set(Object.values(Partners));
-
-const parsePositiveNumber = (value: string | null | undefined): number | undefined => {
+const parsePositiveNumber = (
+  value: string | null | undefined,
+): number | undefined => {
   if (!value?.trim()) return undefined;
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : undefined;
@@ -25,7 +24,7 @@ export const useSwapParams = () => {
   const [minTradeSize] = useQueryParam("minTradeSize", StringParam);
   const [duration] = useQueryParam("duration", StringParam);
 
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
   const defaultTokens = useMemo(() => {
     return getDefaultTokensForChain(chainId);
   }, [chainId]);
@@ -37,13 +36,13 @@ export const useSwapParams = () => {
     (inputCurrency: string) => {
       setCurrencies({ ...currencies, inputCurrency });
     },
-    [currencies, setCurrencies]
+    [currencies, setCurrencies],
   );
   const setOutputCurrency = useCallback(
     (outputCurrency: string) => {
       setCurrencies({ ...currencies, outputCurrency });
     },
-    [currencies, setCurrencies]
+    [currencies, setCurrencies],
   );
 
   const toggleCurrencies = useCallback(() => {
@@ -53,18 +52,7 @@ export const useSwapParams = () => {
     });
   }, [effectiveInput, effectiveOutput, setCurrencies]);
 
-  // Keep the requested selection while remote support is loading or unavailable.
-  const selectedPartner = useMemo(() => {
-    const [name, chain, extra] = partner?.split("_") ?? [];
-    const chainId = Number(chain);
-    if (
-      name && partnerNames.has(name) && chain && /^\d+$/.test(chain) &&
-      Number.isSafeInteger(chainId) && chainId > 0 && extra === undefined
-    ) {
-      return `${name}_${chainId}`;
-    }
-    return `${DEFAULT_PARTNER}_${DEFAULT_CHAIN_ID}`;
-  }, [partner]);
+  const selectedPartner = parsePartner(partner);
 
   return {
     minTradeSizeUsd: parsePositiveNumber(minTradeSize),
@@ -79,7 +67,6 @@ export const useSwapParams = () => {
     partner: selectedPartner,
     setPartner,
     setCurrencies,
-    parsedPartner: selectedPartner.split("_")[0] ?? DEFAULT_PARTNER,
-    targetChainId: selectedPartner.split("_")[1] ?? String(DEFAULT_CHAIN_ID),
+    parsedPartner: selectedPartner,
   };
 };

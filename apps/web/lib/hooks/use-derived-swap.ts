@@ -1,17 +1,17 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { SwapType } from "../types";
 import { useSwapStore } from "./store";
 import { useSwapParams } from "./use-swap-params";
 import { useCurrency } from "./use-currencies";
 import { useFormatDecimals, useToAmountUI, useToAmountWei } from "./common";
 import { useTrade } from "./use-trade";
-import { useConnection } from "wagmi";
 import { getWrappedNativeAction } from "../utils";
 import { useMemo } from "react";
 import type { BestTradeQuote } from "../types";
 import { DEFAULT_CHAIN_ID } from "../consts";
 
 export const useDerivedSwap = () => {
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
   const {
     inputCurrency: inputCurrencyAddress,
     outputCurrency: outputCurrencyAddress,

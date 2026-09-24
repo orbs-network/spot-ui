@@ -2,7 +2,7 @@
 import React, { Suspense } from "react";
 import { wagmiConfig } from "./wagmi-config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { darkTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
+import { PartnerWalletProvider } from "./partner-wallet-provider";
 import { WagmiProvider } from "wagmi";
 import { QueryProvider } from "./query-provider";
 import { WalletReconnect } from "./wallet-reconnect";
@@ -30,11 +30,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <WagmiProvider config={wagmiConfig} reconnectOnMount={false}>
           <QueryClientProvider client={queryClient}>
             <WalletReconnect />
-            <RainbowKitProvider theme={darkTheme()}>
+            <PartnerWalletProvider>
               <AppProvider>
               {children}
               </AppProvider>
-            </RainbowKitProvider>
+            </PartnerWalletProvider>
           </QueryClientProvider>
         </WagmiProvider>
       </QueryProvider>

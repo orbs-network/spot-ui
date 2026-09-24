@@ -1,4 +1,5 @@
 "use client";
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { Virtuoso } from "react-virtuoso";
 import { useHistoryOrder, type Token } from "@orbs-network/spot-react";
 import { useDateFormat } from "@/lib/hooks/common";
@@ -10,7 +11,6 @@ import { useTranslations } from "@/lib/use-translations";
 import { useOrdersPanelContext } from "./orders-context";
 import { ArrowRightIcon, ChevronDownIcon } from "lucide-react";
 import { useCallback } from "react";
-import { useConnection } from "wagmi";
 
 type SelectedOrder = NonNullable<ReturnType<typeof useHistoryOrder>>;
 type DerivedFill = SelectedOrder["fills"][number];
@@ -75,7 +75,7 @@ const FillItem = ({
 }) => {
   const dateUi = useDateFormat(fill.timestamp);
   const t = useTranslations();
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
   const explorerUrl = getExplorerUrl(chainId, fill.txHash);
 
   return (

@@ -1,4 +1,5 @@
 "use client";
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import React, { CSSProperties, ReactNode, useMemo } from "react";
 import type { Token } from "@orbs-network/spot-react";
 import { useFormatNumber, useDateFormat, useCopyToClipboard } from "@/lib/hooks/common";
@@ -80,7 +81,8 @@ const TradesAmount = ({ trades, label, tooltip }: { trades?: number; label: stri
 
 const Recipient = () => {
   const t = useTranslations();
-  const {address: account, chainId} = useConnection();
+  const chainId = useActiveChainId();
+  const { address: account } = useConnection();
   const explorerUrl = getExplorerAddressUrl(chainId, account);
 
   return (

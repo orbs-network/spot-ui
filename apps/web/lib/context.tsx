@@ -1,11 +1,11 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { createContext, useEffect, useRef } from "react";
-import { useConnection, useSwitchChain } from "wagmi";
 import { useSwapParams } from "./hooks/use-swap-params";
 
 const Context = createContext({});
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
   const { setCurrencies } = useSwapParams();
   const chainRef = useRef<number | undefined>(undefined);
 

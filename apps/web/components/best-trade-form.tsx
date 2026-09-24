@@ -1,4 +1,5 @@
 "use client";
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { CurrencyCard } from "./currency-card";
 import { useSwapBestTrade } from "@/lib/hooks/use-swap-best-trade";
 import { ToggleCurrencies } from "./toggle-currencies";
@@ -16,7 +17,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import BN from "bignumber.js";
 import { FormContainer } from "./form-container";
 import { getExplorerUrl } from "@/lib/utils";
-import { useConnection } from "wagmi";
 import { Spinner } from "./ui/spinner";
 import { WrappedNativeButton } from "./wrapped-native-button";
 
@@ -133,7 +133,7 @@ const Details = () => {
 
 const Success = () => {
   const { txHash } = useSwapBestTrade();
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
 
   return <SwapFlow.Success footerLink={getExplorerUrl(chainId, txHash)} footerText="View on explorer" />;
 };

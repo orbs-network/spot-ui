@@ -1,10 +1,10 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { TransactionReceipt } from "viem";
-import { useConnection } from "wagmi";
 
 export const useGetTransactionReceiptCallback = () => {
-  const chainId = useConnection().chainId;
+  const chainId = useActiveChainId();
   return useMutation({
     mutationFn: async (hash: `0x${string}`) => {
       const result = await axios.get(

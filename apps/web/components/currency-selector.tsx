@@ -1,3 +1,4 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 /* eslint-disable @next/next/no-img-element */
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -16,7 +17,6 @@ import { useBalance } from "@/lib/hooks/use-balances";
 import { useFormatNumber } from "@/lib/hooks/common";
 import { useUSDPrice } from "@/lib/hooks/use-usd-price";
 import BN from "bignumber.js";
-import { useConnection } from "wagmi";
 import {
   filterCurrencies,
   getPopularTokenForChain,
@@ -41,7 +41,7 @@ const PopularTokens = ({
 }: {
   onCurrencyChange: (currency: Currency) => void;
 }) => {
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
   const { currencies } = useCurrencies();
   const popularTokens = getPopularTokenForChain(chainId);
 
@@ -114,7 +114,7 @@ const Loader = () => {
 
 export function CurrencySelector({ onCurrencyChange, trigger }: Props) {
   const [open, setOpen] = useState(false);
-  const { chainId } = useConnection();
+  const chainId = useActiveChainId();
   const [search, setSearch] = useState("");
   const { currencies, isLoading } = useCurrencies(search);
   const { setCustomCurrency } = useUserStore();

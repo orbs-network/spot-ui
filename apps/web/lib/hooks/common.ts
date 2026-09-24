@@ -1,7 +1,7 @@
+import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { useCallback, useMemo } from "react";
 import { formatDecimals, parseNativeCurrencyAddress, toAmountRaw, toAmountUI } from "../utils";
 import {useNumericFormat} from "react-number-format";
-import { useConnection } from "wagmi";
 
 export const useToAmountUI = (decimals?: number, value?: string) => {
     return useMemo(() => {
@@ -40,7 +40,7 @@ export const useFormatNumber = ({ value, decimalScale = 3, prefix, suffix }: { v
   
 
   export const useParseNativeCurrencyAddress = (address?: string) => {
-    const { chainId } = useConnection();
+    const chainId = useActiveChainId();
     return useMemo(() => {
         if(!address || !chainId) return undefined;
       return parseNativeCurrencyAddress(address, chainId);
