@@ -1,0 +1,208 @@
+import {
+  ExecutionPhase,
+  ExecutionStatus,
+  Steps,
+  type CompletedWrap,
+  type ExecutionDetails,
+  type ParsedError,
+  type SwapExecution,
+} from "./types";
+
+const ACTIVE_PHASES = new Set<ExecutionPhase>([
+  ExecutionPhase.PREPARING,
+  ExecutionPhase.WRAPPING,
+  ExecutionPhase.APPROVING,
+  ExecutionPhase.SIGNING,
+  ExecutionPhase.SUBMITTING,
+]);
+
+const ALLOWED_TRANSITIONS: Record<
+  ExecutionPhase,
+  ReadonlySet<ExecutionPhase>
+> = {
+  [ExecutionPhase.IDLE]: new Set(),
+  [ExecutionPhase.PREPARING]: new Set([
+    ExecutionPhase.PREPARING,
+    ExecutionPhase.WRAPPING,
+    ExecutionPhase.APPROVING,
+    ExecutionPhase.SIGNING,
+    ExecutionPhase.FAILED,
+    ExecutionPhase.REJECTED,
+  ]),
+  [ExecutionPhase.WRAPPING]: new Set([
+    ExecutionPhase.WRAPPING,
+    ExecutionPhase.APPROVING,
+    ExecutionPhase.SIGNING,
+    ExecutionPhase.FAILED,
+    ExecutionPhase.REJECTED,
+  ]),
+  [ExecutionPhase.APPROVING]: new Set([
+    ExecutionPhase.APPROVING,
+    ExecutionPhase.SIGNING,
+    ExecutionPhase.FAILED,
+    ExecutionPhase.REJECTED,
+  ]),
+  [ExecutionPhase.SIGNING]: new Set([
+    ExecutionPhase.SIGNING,
+    ExecutionPhase.SUBMITTING,
+    ExecutionPhase.FAILED,
+    ExecutionPhase.REJECTED,
+  ]),
+  [ExecutionPhase.SUBMITTING]: new Set([
+    ExecutionPhase.SUCCESS,
+    ExecutionPhase.FAILED,
+    ExecutionPhase.REJECTED,
+  ]),
+  [ExecutionPhase.SUCCESS]: new Set(),
+  [ExecutionPhase.FAILED]: new Set(),
+  [ExecutionPhase.REJECTED]: new Set(),
+};
+
+export const createIdleExecution = (
+  completedWrap?: CompletedWrap,
+): SwapExecution => ({
+  phase: ExecutionPhase.IDLE,
+  completedWrap,
+});
+
+export const isExecutionActive = (phase: ExecutionPhase): boolean =>
+  ACTIVE_PHASES.has(phase);
+
+export const canBeginExecution = (phase: ExecutionPhase): boolean =>
+  phase === ExecutionPhase.IDLE ||
+  phase === ExecutionPhase.FAILED ||
+  phase === ExecutionPhase.REJECTED;
+
+export const canTransitionExecution = (
+  from: ExecutionPhase,
+  to: ExecutionPhase,
+): boolean => ALLOWED_TRANSITIONS[from].has(to);
+
+export const getExecutionStatus = (
+  phase: ExecutionPhase,
+): ExecutionStatus | undefined => {
+  if (isExecutionActive(phase)) return ExecutionStatus.LOADING;
+  if (phase === ExecutionPhase.SUCCESS) return ExecutionStatus.SUCCESS;
+  if (phase === ExecutionPhase.FAILED || phase === ExecutionPhase.REJECTED) {
+    return ExecutionStatus.FAILED;
+  }
+  return undefined;
+};
+
+export const getExecutionStep = (phase: ExecutionPhase): Steps | undefined => {
+  if (phase === ExecutionPhase.WRAPPING) return Steps.WRAP;
+  if (phase === ExecutionPhase.APPROVING) return Steps.APPROVE;
+  if (phase === ExecutionPhase.SIGNING || phase === ExecutionPhase.SUBMITTING) {
+    return Steps.CREATE;
+  }
+  return undefined;
+};
+
+export const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (typeof error === "object" && error !== null) {
+    const message = Reflect.get(error, "message");
+    if (typeof message === "string") return message;
+  }
+  return "Unknown error";
+};
+
+const getErrorCode = (error: unknown): number => {
+  if (typeof error !== "object" || error === null) return 0;
+  const code = Reflect.get(error, "code");
+  if (typeof code === "number" && Number.isFinite(code)) return code;
+  if (typeof code === "string" && /^-?\d+$/.test(code)) return Number(code);
+  return 0;
+};
+
+export const normalizeError = (error: unknown): Error =>
+  error instanceof Error ? error : new Error(getErrorMessage(error));
+
+export const parseExecutionError = (error: unknown): ParsedError => {
+  const input = getErrorMessage(error);
+  const codeMatch = input.match(/,\s*code\s*:\s*(-?\d+)/i);
+  const message = input
+    .replace(/^error\s*:/i, "")
+    .replace(/,\s*code\s*:\s*-?\d+/i, "")
+    .trim();
+
+  return {
+    message: message || "Unknown error",
+    code: getErrorCode(error) || (codeMatch ? Number(codeMatch[1]) : 0),
+  };
+};
+
+export const observe = (callback: (() => unknown) | undefined): void => {
+  if (!callback) return;
+  try {
+    const result = callback();
+    void Promise.resolve(result).catch(() => undefined);
+  } catch {
+    // Observational callbacks must never alter the transaction result.
+  }
+};
+
+export const getReusableCompletedWrap = ({
+  execution,
+  account,
+  chainId,
+  inputTokenAddress,
+  inputAmountRaw,
+}: {
+  execution: SwapExecution;
+  account: string;
+  chainId: number;
+  inputTokenAddress: string;
+  inputAmountRaw: string;
+}): CompletedWrap | undefined => {
+  const completedWrap = execution.completedWrap;
+  if (
+    completedWrap?.account.toLowerCase() === account.toLowerCase() &&
+    completedWrap.chainId === chainId &&
+    completedWrap.inputTokenAddress.toLowerCase() ===
+      inputTokenAddress.toLowerCase() &&
+    hasEnoughWrappedAmount(completedWrap.inputAmountRaw, inputAmountRaw)
+  ) {
+    return completedWrap;
+  }
+  return undefined;
+};
+
+const hasEnoughWrappedAmount = (
+  completedAmountWei: string,
+  requestedAmountWei: string,
+): boolean => {
+  try {
+    return BigInt(completedAmountWei) >= BigInt(requestedAmountWei);
+  } catch {
+    return false;
+  }
+};
+
+/** Constructs a phase snapshot while enforcing terminal-state invariants. */
+export const createExecutionSnapshot = (
+  executionId: number,
+  phase: Exclude<ExecutionPhase, ExecutionPhase.IDLE>,
+  details: ExecutionDetails,
+): SwapExecution => {
+  switch (phase) {
+    case ExecutionPhase.SUCCESS:
+      if (!details.orderId)
+        throw new Error("Successful execution requires an order ID");
+      return { ...details, phase, executionId, orderId: details.orderId };
+    case ExecutionPhase.FAILED:
+    case ExecutionPhase.REJECTED:
+      if (!details.error || !details.parsedError)
+        throw new Error("Failed execution requires an error");
+      return {
+        ...details,
+        phase,
+        executionId,
+        error: details.error,
+        parsedError: details.parsedError,
+      };
+    default:
+      return { ...details, phase, executionId };
+  }
+};

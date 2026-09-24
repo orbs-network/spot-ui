@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { Partners, OrderStatus } from "../src";
-import type { OrderV1 } from "../src/lib/types";
-import { getOrders as getV1Orders } from "../src/lib/orders/v1-orders";
-import { getOrders as getV2Orders } from "../src/lib/orders/v2-orders";
-import { ADDRESS_4, createV2Order } from "./fixtures";
+import { afterEach,describe,expect,it,vi } from "vitest";
+import { getOrders as getV2Orders } from "../src/history/current/api";
+import { getOrders as getV1Orders } from "../src/history/legacy/api";
+import type { OrderV1 } from "../src/history/legacy/types";
+import { OrderStatus,Partners } from "../src/index";
+import { ADDRESS_4,createV2Order } from "./fixtures";
 
 const jsonResponse = (body: unknown, ok = true) => ({
   ok,
@@ -39,9 +39,11 @@ describe("v2 order history", () => {
   });
 
   it("fetches all orders with exchange instead of partner and no pagination parameters", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({
-      orders: [createV2Order(1, "order-1"), createV2Order(1, "order-2")],
-    }));
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        orders: [createV2Order(1, "order-1"), createV2Order(1, "order-2")],
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const orders = await getV2Orders({
@@ -74,7 +76,11 @@ describe("v2 order history", () => {
       ),
     );
 
-    const orders = await getV2Orders({ chainId: 1, account: ADDRESS_4, partner: Partners.Thena });
+    const orders = await getV2Orders({
+      chainId: 1,
+      account: ADDRESS_4,
+      partner: Partners.Thena,
+    });
 
     expect(orders).toHaveLength(1);
     expect(orders[0]?.hash).toBe("valid-order");
@@ -143,17 +149,48 @@ describe("v1 order history", () => {
     const otherAddress = "0x0000000000000000000000000000000000000005";
     const first = createV1Order();
     const second = { ...first, twapAddress: otherAddress };
-    vi.stubGlobal("fetch", vi.fn(async (_input, init) => {
-      const query = JSON.parse(String(init?.body)).query as string;
-      if (query.includes("orderCreateds")) return jsonResponse({ data: { orderCreateds: [first, second] } });
-      if (query.includes("orderFilleds")) return jsonResponse({ data: { orderFilleds: [
-        { TWAP_id: "1", twapAddress: first.twapAddress, exchange: first.exchange, srcFilledAmount: "25", srcAmountIn: "25", dstAmountOut: "50", timestamp: 1, transactionHash: "0xfill" },
-        { TWAP_id: "1", twapAddress: first.twapAddress, exchange: otherAddress, srcFilledAmount: "100", srcAmountIn: "100", dstAmountOut: "200", timestamp: 1, transactionHash: "0xother" },
-      ] } });
-      return jsonResponse({ data: { statusNews: [
-        { twapId: "1", twapAddress: otherAddress, status: "CANCELLED" },
-      ] } });
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input, init) => {
+        const query = JSON.parse(String(init?.body)).query as string;
+        if (query.includes("orderCreateds"))
+          return jsonResponse({ data: { orderCreateds: [first, second] } });
+        if (query.includes("orderFilleds"))
+          return jsonResponse({
+            data: {
+              orderFilleds: [
+                {
+                  TWAP_id: "1",
+                  twapAddress: first.twapAddress,
+                  exchange: first.exchange,
+                  srcFilledAmount: "25",
+                  srcAmountIn: "25",
+                  dstAmountOut: "50",
+                  timestamp: 1,
+                  transactionHash: "0xfill",
+                },
+                {
+                  TWAP_id: "1",
+                  twapAddress: first.twapAddress,
+                  exchange: otherAddress,
+                  srcFilledAmount: "100",
+                  srcAmountIn: "100",
+                  dstAmountOut: "200",
+                  timestamp: 1,
+                  transactionHash: "0xother",
+                },
+              ],
+            },
+          });
+        return jsonResponse({
+          data: {
+            statusNews: [
+              { twapId: "1", twapAddress: otherAddress, status: "CANCELLED" },
+            ],
+          },
+        });
+      }),
+    );
     const orders = await getV1Orders({ chainId: 1 });
     expect(orders[0]?.fills).toHaveLength(1);
     expect(orders[0]?.progress).toBe(25);

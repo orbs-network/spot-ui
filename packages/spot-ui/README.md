@@ -36,6 +36,23 @@ distinguish a successful legacy fetch from a partial result during an outage.
 Legacy TWAP deployment configuration and the contract ABI are bundled locally
 from version 2.7.28; the SDK does not require the TWAP npm package.
 
+## Framework-neutral execution
+
+Use `executeOrder` with your wallet adapter and `createExecutionController()`
+to manage wrapping, approvals, signing, submission, and retries without React.
+Pass `getCurrentExecution`, `beginExecution`, and `replaceExecution` from the
+controller along with your client, calculated form, account, chain, and tokens.
+A controller can also bind to an external store through synchronous `get`/`set`
+functions. Optional callbacks observe progress; callback failures do not change
+the transaction outcome.
+
+UI metadata is explicit: `createClient(partner, chainId, { uiVersion })`.
+`client.analytics` exposes event methods, while payload state and timers are
+private. The deprecated `setUIVersion` affects only the legacy singleton.
+
+See [architecture](../../docs/architecture.md) for module ownership and the
+execution-state contract.
+
 ## Complete form calculation
 
 Use `calculateOrderForm` as the primary calculation API. Pass the DEX-owned

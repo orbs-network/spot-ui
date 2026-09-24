@@ -10,6 +10,9 @@ A monorepo containing the Spot SDK, UI components, and a demo web application.
 | `@orbs-network/spot-react` | Headless React provider and hooks consuming spot-ui | ✅ npm |
 | `web` | Next.js app integrating spot-react (SpotProvider, SpotForm, orders) | ❌ Private |
 
+See [package architecture](docs/architecture.md) for feature ownership, dependency
+boundaries, and verification commands.
+
 ## Getting Started
 ### Prerequisites
 

@@ -16,7 +16,9 @@
     "publish:spot-ui": "node scripts/publish-spot-ui.mjs",
     "publish:spot-react": "node scripts/publish-spot-react.mjs",
     "publish:liquidity-hub-sdk": "node scripts/publish-liquidity-hub.mjs",
-    "login-npm": "npm login --auth-type=web"
+    "login-npm": "npm login --auth-type=web",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "test:spot": "pnpm check:architecture && pnpm --filter @orbs-network/spot-ui test && pnpm --filter @orbs-network/spot-react test"
   },
   "devDependencies": {
     "@inquirer/prompts": "^7.2.0",

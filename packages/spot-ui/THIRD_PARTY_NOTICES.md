@@ -1,7 +1,7 @@
 # Third-party notices
 
-The legacy TWAP configurations in `src/lib/orders/legacy-twap-config.ts` and
-`src/lib/abi/twap.json` were copied from `@orbs-network/twap` version 2.7.28
+The legacy TWAP configurations in `src/history/legacy/deployments.ts` and
+`src/contracts/abi/twap.json` were copied from `@orbs-network/twap` version 2.7.28
 (https://github.com/orbs-network/twap).
 
 MIT License

@@ -1,11 +1,13 @@
+import { resolve } from 'path'
 import { defineConfig } from 'vite'
 import dts from 'vite-plugin-dts'
-import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [
     dts({
       insertTypesEntry: true,
+      entryRoot: "src",
+      exclude: ["**/*.test.ts", "**/*.test.tsx"],
       tsconfigPath: './tsconfig.json',
       include: ['src'],
       pathsToAliases: false,

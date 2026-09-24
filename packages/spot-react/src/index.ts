@@ -1,99 +1,118 @@
-import { setUIVersion } from "@orbs-network/spot-ui";
-import pkg from "../package.json";
-import { SpotProvider } from "./context/spot-provider";
-export * from "./types";
-export { useOrderForm } from "./context/order-form-context";
-export { useClient } from "./context/use-client";
-export { useAmountUi } from "./hooks/helper-hooks";
-export { useOrders } from "./hooks/order-hooks";
-export { useCancelOrder } from "./hooks/use-cancel-order";
-export { useDisclaimer } from "./hooks/use-disclaimer";
-export { useDuration } from "./hooks/use-duration";
-export { useFillDelay } from "./hooks/use-fill-delay";
-export { useHistoryOrder } from "./hooks/use-history-order";
-export { useInputErrors } from "./hooks/use-input-errors";
-export { useLimitPrice } from "./hooks/use-limit-price";
-export { useOutputAmount } from "./hooks/use-output-amount";
-export { usePriceDisplay } from "./hooks/use-price-display";
-export { useExecution, useSubmitButton } from "./hooks/use-execution";
-export { useTrades } from "./hooks/use-trades";
-export { useTriggerPrice } from "./hooks/use-trigger-price";
-export { type CancelOrderStatus } from "./hooks/use-cancel-order";
-export type { SpotExecutionData } from "./hooks/use-execution";
-
-// Set the UI version in spot-sdk for analytics
-setUIVersion(pkg.version);
+import { SpotProvider } from "./provider/spot-provider";
+export { ExecutionPhase, ExecutionStatus, Steps } from "@orbs-network/spot-ui";
+export type {
+  ApproveTokenProps,
+  CancelOrderProps,
+  CompletedWrap,
+  GetAllowanceProps,
+  ObserverResult,
+  OnApproveSuccessCallback,
+  OnWrapSuccessCallback,
+  Order,
+  OrderFill,
+  ParsedError,
+  StartedSwapExecution,
+  SwapExecution,
+  Token,
+  WalletInteractions,
+} from "@orbs-network/spot-ui";
+export type { OnCancelOrderSuccess } from "./cancellation/types";
+export {
+  useCancelOrder,
+  type CancelOrderStatus,
+} from "./cancellation/use-cancel-order";
+export { useClient } from "./client/use-client";
+export { useExecution, useSubmitButton } from "./execution/use-execution";
+export type { SpotExecutionData } from "./execution/use-execution";
+export { useOrderForm } from "./form/form-context";
+export { useAmountUi } from "./form/hooks/use-amount-ui";
+export { useDisclaimer } from "./form/hooks/use-disclaimer";
+export { useDuration } from "./form/hooks/use-duration";
+export { useFillDelay } from "./form/hooks/use-fill-delay";
+export { useInputErrors } from "./form/hooks/use-input-errors";
+export { useLimitPrice } from "./form/hooks/use-limit-price";
+export { useOutputAmount } from "./form/hooks/use-output-amount";
+export { usePriceDisplay } from "./form/hooks/use-price-display";
+export { useTrades } from "./form/hooks/use-trades";
+export { useTriggerPrice } from "./form/hooks/use-trigger-price";
+export { Disclaimer } from "./form/types";
+export type { InitialState, MarketQuote, Overrides } from "./form/types";
+export { useHistoryOrder } from "./history/use-history-order";
+export { useOrders } from "./history/use-orders";
+export type { Callbacks } from "./provider/callbacks";
+export type {
+  ClientErrorFallbackProps,
+  SpotErrorFallbackProps,
+  SpotProps,
+} from "./provider/types";
+export type { State } from "./store/types";
 
 // Re-export public API from spot-ui (explicit, not wildcard)
 export {
-  // Types
-  type Config,
-  type TimeDuration,
-  type RePermitData,
-  type RePermitOrder,
-  type SpotClient,
-  type SpotAnalytics,
-  type AccountOrdersResult,
-  type PrepareOrderParams,
-  type PreparedOrder,
-  type PreparedOrderValues,
-  type Eip712TypedData,
-  type OrderSigningRequest,
-  type ApprovalRequest,
-  type AllowanceRequest,
-  type CancelOrderRequest,
-  type ClientGetAccountOrdersParams,
-  type Signature,
-  type Address,
-  type Hex,
-  type InputError,
-  type CalculateOrderFormParams,
-  type CalculatedAmount,
-  type CalculatedOrderInputAmount,
-  type CalculatedMarketPriceValues,
-  type CalculatedOrderTrades,
-  type CalculatedOrderFees,
-  type CalculatedOrderFormSchedule,
-  type CalculatedOrderFormErrors,
-  type CalculatedOrderForm,
-  type CalculatedOrderSchedule,
-  type CalculatedPriceInput,
-  type CalculatedPriceDisplay,
-  type CalculatedTriggerPriceValues,
-  type CalculatedLimitPriceValues,
-  type CalculatedOrderValues,
-
-  // Enums
-  Module,
-  OrderStatus,
-  OrderFilter,
-  OrderType,
-  TimeUnit,
-  Partners,
-  InputErrors,
-
-  // Functions
-  getTwapConfig,
   calculateOrderForm,
-  toAmountRaw,
-  toAmountUI,
-  invertPriceInput,
   createClient,
-  isNativeAddress,
-  eqIgnoreCase,
-  getOrderExecutionRate,
-  getOrderLimitPriceRate,
-  getOrderFillDelayMillis,
-  getTriggerPriceRate,
-  isTxRejected,
-
   // Constants
   DISCLAIMER_URL,
-  ORBS_TWAP_FAQ_URL,
-  ORBS_SLTP_FAQ_URL,
+  eqIgnoreCase,
+  getOrderExecutionRate,
+  getOrderFillDelayMillis,
+  getOrderLimitPriceRate,
+  getTriggerPriceRate,
+  // Functions
+  getTwapConfig,
+  InputErrors,
+  invertPriceInput,
+  isNativeAddress,
+  isTxRejected,
+  // Enums
+  Module,
   ORBS_LOGO,
+  ORBS_SLTP_FAQ_URL,
+  ORBS_TWAP_FAQ_URL,
   ORBS_WEBSITE_URL,
-  // Analytics
+  OrderFilter,
+  OrderStatus,
+  OrderType,
+  Partners,
+  TimeUnit,
+  toAmountRaw,
+  toAmountUI,
+  type AccountOrdersResult,
+  type Address,
+  type AllowanceRequest,
+  type ApprovalRequest,
+  type CalculatedAmount,
+  type CalculatedLimitPriceValues,
+  type CalculatedMarketPriceValues,
+  type CalculatedOrderFees,
+  type CalculatedOrderForm,
+  type CalculatedOrderFormErrors,
+  type CalculatedOrderFormSchedule,
+  type CalculatedOrderInputAmount,
+  type CalculatedOrderSchedule,
+  type CalculatedOrderTrades,
+  type CalculatedOrderValues,
+  type CalculatedPriceDisplay,
+  type CalculatedPriceInput,
+  type CalculatedTriggerPriceValues,
+  type CalculateOrderFormParams,
+  type CancelOrderRequest,
+  type ClientGetAccountOrdersParams,
+  // Types
+  type Config,
+  type Eip712TypedData,
+  type Hex,
+  type InputError,
+  type OrderSigningRequest,
+  type PreparedOrder,
+  type PreparedOrderValues,
+  type PrepareOrderParams,
+  type RePermitData,
+  type RePermitOrder,
+  type Signature,
+  type SpotAnalytics,
+  type SpotClient,
+  type TimeDuration,
 } from "@orbs-network/spot-ui";
 
 export { SpotProvider };

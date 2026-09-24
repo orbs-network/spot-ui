@@ -1,16 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
 import {
-  Module,
-  calculateOrderForm,
-  createClient,
-  Partners,
-  type RePermitData,
-} from "../src";
+calculateOrderForm,
+createClient,
+Module,
+Partners,
+type RePermitData,
+} from "../src/index";
 import {
-  ADDRESS_1,
-  ADDRESS_2,
-  ADDRESS_3,
-  createRePermitData,
+ADDRESS_1,
+ADDRESS_2,
+ADDRESS_3,
+createRePermitData,
 } from "./fixtures";
 
 const partner = Partners.Thena;
@@ -57,7 +57,9 @@ describe("createClient", () => {
     responseData = createRePermitData(newChainId);
     const client = await createClient(Partners.Ring, newChainId);
     expect(client.chainId).toBe(newChainId);
-    const configRequests = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method !== "POST");
+    const configRequests = vi
+      .mocked(fetch)
+      .mock.calls.filter(([, init]) => init?.method !== "POST");
     expect(configRequests).toEqual([
       ["https://order-sink-v2.orbs.network/config?partner=ring&chain=123456"],
     ]);
@@ -65,16 +67,25 @@ describe("createClient", () => {
 
   it("surfaces unsupported pairs rejected by order-sink", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
-      ok: false, status: 400, text: async () => "Unsupported partner/chain",
+      ok: false,
+      status: 400,
+      text: async () => "Unsupported partner/chain",
     } as Response);
-    await expect(createClient(Partners.Ring, chainId)).rejects.toThrow("Unsupported partner/chain");
+    await expect(createClient(Partners.Ring, chainId)).rejects.toThrow(
+      "Unsupported partner/chain",
+    );
     expect(fetch).toHaveBeenCalledOnce();
   });
 
-  it.each([0, -1, 1.5, NaN, Infinity])("rejects invalid chain ID %s before fetching", async (invalidChainId) => {
-    await expect(createClient(partner, invalidChainId)).rejects.toThrow("chainId must be a positive safe integer");
-    expect(fetch).not.toHaveBeenCalled();
-  });
+  it.each([0, -1, 1.5, NaN, Infinity])(
+    "rejects invalid chain ID %s before fetching",
+    async (invalidChainId) => {
+      await expect(createClient(partner, invalidChainId)).rejects.toThrow(
+        "chainId must be a positive safe integer",
+      );
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     [
@@ -109,7 +120,9 @@ describe("createClient", () => {
   ])("rejects an invalid %s", async (_label, mutate, expectedField) => {
     mutate(responseData);
     await expect(createClient(partner, chainId)).rejects.toThrow(expectedField);
-    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    expect(
+      vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST"),
+    ).toBe(false);
   });
 
   it("initializes analytics from validated config without window or appId", async () => {
@@ -118,12 +131,15 @@ describe("createClient", () => {
     const client = await createClient(partner, chainId);
     expect(client.rePermitData).toEqual(responseData);
 
-    const payloads = vi.mocked(fetch).mock.calls
-      .filter(([, init]) => init?.method === "POST")
+    const payloads = vi
+      .mocked(fetch)
+      .mock.calls.filter(([, init]) => init?.method === "POST")
       .map(([, init]) => JSON.parse(String(init?.body)));
     expect(payloads).toHaveLength(1);
     expect(payloads[0]).toMatchObject({
-      action: "module-import", partner, chainId,
+      action: "module-import",
+      partner,
+      chainId,
       name: responseData.partner,
       adapter: responseData.order.witness.exchange.adapter,
       repermit: responseData.domain.verifyingContract,
@@ -146,8 +162,9 @@ describe("createClient", () => {
     vi.mocked(fetch).mockClear();
     const secondClient = await createClient(partner, chainId);
     expect(secondClient.analytics).not.toBe(client.analytics);
-    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST")).toBe(true);
-
+    expect(
+      vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST"),
+    ).toBe(true);
   });
 
   it("still creates the client when telemetry delivery fails", async () => {
@@ -157,8 +174,13 @@ describe("createClient", () => {
       return { ok: true, json: async () => responseData } as Response;
     });
 
-    await expect(createClient(partner, chainId)).resolves.toMatchObject({ partner, chainId });
-    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST")).toBe(true);
+    await expect(createClient(partner, chainId)).resolves.toMatchObject({
+      partner,
+      chainId,
+    });
+    expect(
+      vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST"),
+    ).toBe(true);
   });
 
   it("creates strictly increasing nonces within one client", async () => {

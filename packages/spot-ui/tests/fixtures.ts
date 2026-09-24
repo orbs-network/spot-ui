@@ -1,14 +1,10 @@
-import type { RePermitData } from "../src";
-import type { OrderV2 } from "../src/lib/types";
+import type { OrderV2 } from "../src/history/current/types";
+import type { RePermitData } from "../src/index";
 
-export const ADDRESS_1 =
-  "0x0000000000000000000000000000000000000001" as const;
-export const ADDRESS_2 =
-  "0x0000000000000000000000000000000000000002" as const;
-export const ADDRESS_3 =
-  "0x0000000000000000000000000000000000000003" as const;
-export const ADDRESS_4 =
-  "0x0000000000000000000000000000000000000004" as const;
+export const ADDRESS_1 = "0x0000000000000000000000000000000000000001" as const;
+export const ADDRESS_2 = "0x0000000000000000000000000000000000000002" as const;
+export const ADDRESS_3 = "0x0000000000000000000000000000000000000003" as const;
+export const ADDRESS_4 = "0x0000000000000000000000000000000000000004" as const;
 
 export const createRePermitData = (chainId: number): RePermitData => ({
   domain: {
@@ -47,10 +43,7 @@ export const createRePermitData = (chainId: number): RePermitData => ({
   },
 });
 
-export const createV2Order = (
-  chainId: number,
-  hash: string,
-): OrderV2 => ({
+export const createV2Order = (chainId: number, hash: string): OrderV2 => ({
   hash,
   metadata: {
     chunks: [],

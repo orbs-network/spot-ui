@@ -1,11 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
 import {
-  OrderStatus,
-  type Order,
-  type SpotClient,
+ExecutionPhase,
+ExecutionStatus,
+OrderStatus,
+type Order,
+type SpotClient,
 } from "@orbs-network/spot-ui";
-import { createSpotStore } from "../src/context/create-spot-store";
-import { ExecutionPhase, ExecutionStatus } from "../src/types";
+import { describe,expect,it,vi } from "vitest";
+import { createSpotStore } from "../src/store/create-store";
 
 const order = {
   id: "order-1",
@@ -97,16 +98,22 @@ describe("provider-scoped resources", () => {
 
   it("refreshes legacy history after an existing request finishes", async () => {
     const store = createSpotStore({});
-    const load = vi.fn(async (_previous: Order[] | undefined, _legacyLoaded: boolean) => ({
-      orders: [order],
-      legacyLoaded: true,
-    }));
+    const load = vi.fn(
+      async (_previous: Order[] | undefined, _legacyLoaded: boolean) => ({
+        orders: [order],
+        legacyLoaded: true,
+      }),
+    );
     store.getState().configureOrders("account:exchange", load);
     await store.getState().refetchOrders(true);
     const inFlight = store.getState().refetchOrders(true);
     const refreshed = store.getState().refetchOrders(true, true);
     await Promise.all([inFlight, refreshed]);
-    expect(load.mock.calls.map((call) => call[1])).toEqual([false, true, false]);
+    expect(load.mock.calls.map((call) => call[1])).toEqual([
+      false,
+      true,
+      false,
+    ]);
   });
 
   it("resets only form state when the form scope changes", () => {

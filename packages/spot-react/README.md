@@ -674,3 +674,12 @@ package-internal source paths.
 ## License
 
 MIT
+
+## Package structure
+
+Features own their hooks. The provider creates one store with local actions and
+separate client/history resources; the SDK owns execution and its wallet adapter contract.
+Public package-root imports remain stable. The client loader passes the React
+package version explicitly, so importing this package has no analytics metadata
+side effect. See [architecture](../../docs/architecture.md) for boundaries and
+verification commands.
