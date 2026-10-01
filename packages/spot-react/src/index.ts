@@ -32,6 +32,7 @@ export {
   type RePermitData,
   type RePermitOrder,
   type SpotClient,
+  type CreateClientOptions,
   type SpotAnalytics,
   type AccountOrdersResult,
   type PrepareOrderParams,

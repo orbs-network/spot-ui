@@ -88,6 +88,11 @@ export type ClientGetAccountOrdersParams = Omit<
   "chainId" | "partner"
 >;
 
+export interface CreateClientOptions {
+  /** Disable all analytics events for this client. Defaults to false. */
+  disableAnalytics?: boolean;
+}
+
 export interface SpotClient {
   readonly analytics: SpotAnalytics;
   readonly partner: Partners;
@@ -163,11 +168,12 @@ const assertRePermitConfiguration = (
 /**
  * Creates a new initialized SDK client for a partner and chain. The caller owns
  * caching, request deduplication, and refresh policy. Analytics initializes only
- * after configuration is validated.
+ * after configuration is validated, unless disabled through options.
  */
 export const createClient = async (
   partner: Partners,
   chainId: number,
+  options: CreateClientOptions = {},
 ): Promise<SpotClient> => {
   if (!Number.isSafeInteger(chainId) || chainId <= 0) {
     throw new Error("chainId must be a positive safe integer");
@@ -176,7 +182,7 @@ export const createClient = async (
   // Fetch the chain-specific RePermit configuration once for this client.
   const rePermitData = await fetchRePermitData(partner, chainId);
   assertRePermitConfiguration(rePermitData, chainId);
-  const analytics = new Analytics();
+  const analytics = new Analytics(options.disableAnalytics);
   analytics.init(partner, rePermitData);
   const spenderAddress = rePermitData.domain.verifyingContract;
   const exchangeAddress = rePermitData.order.witness.exchange.adapter;

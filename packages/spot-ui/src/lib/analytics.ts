@@ -156,6 +156,8 @@ const getAnalyticsErrorMessage = (error: unknown): string => {
 };
 
 export class Analytics {
+  constructor(private readonly disabled = false) {}
+
   timeout: ReturnType<typeof setTimeout> | undefined;
   configDetails: Partial<Data> = {};
   moduleImportKey = "";
@@ -164,6 +166,8 @@ export class Analytics {
   };
 
   async updateAndSend(values = {} as Partial<Data>, noTimeout = false, callback?: () => void) {
+    if (this.disabled) return;
+
     try {
       this.data = {
         ...this.data,
@@ -320,6 +324,8 @@ export class Analytics {
   }
 
   init(partner: Partners, permitData: RePermitData) {
+    if (this.disabled) return;
+
     const details = getFetchedConfigDetails(permitData, partner);
     const moduleImportKey = JSON.stringify(details);
     if (moduleImportKey === this.moduleImportKey) return;
@@ -348,6 +354,8 @@ export class Analytics {
   
 
   async onCreateOrderSuccess(orderHash?: string): Promise<void> {
+    if (this.disabled) return;
+
     // Flush the completed order before another action can replace its timer.
     clearTimeout(this.timeout);
     const payload = { ...this.data, orderHash, orderSuccess: true };

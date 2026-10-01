@@ -51,6 +51,7 @@ export type {
 
 export {
   createClient,
+  type CreateClientOptions,
   type SpotClient,
   type PrepareOrderParams,
   type Eip712TypedData,

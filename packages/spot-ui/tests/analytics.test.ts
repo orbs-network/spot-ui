@@ -21,6 +21,46 @@ describe("Spot analytics", () => {
     vi.unstubAllGlobals();
   });
 
+  it("disables initialization, delayed, and immediate analytics for an opted-out client", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => createRePermitData(56) } as Response);
+    const client = await createClient(Partners.Thena, 56, { disableAnalytics: true });
+
+    expect(client.chainId).toBe(56);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://order-sink-v2.orbs.network/config?partner=thena&chain=56",
+    );
+    fetchMock.mockClear();
+
+    client.analytics.onApproveRequest();
+    client.analytics.onCrash(new Error("test crash"));
+    expect(vi.getTimerCount()).toBe(0);
+    await client.analytics.updateAndSend({ action: "wrap" }, true);
+    await client.analytics.onCreateOrderSuccess("completed-order");
+    client.analytics.onWrapRequest();
+    await vi.runAllTimersAsync();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps analytics enabled for other clients when one opts out", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => createRePermitData(56) } as Response);
+    const disabled = await createClient(Partners.Thena, 56, { disableAnalytics: true });
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => createRePermitData(137) } as Response);
+    const enabled = await createClient(Partners.Quick, 137, { disableAnalytics: false });
+
+    disabled.analytics.onApproveRequest();
+    enabled.analytics.onWrapRequest();
+    await vi.runAllTimersAsync();
+
+    const payloads = fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")
+      .map(([, init]) => JSON.parse(String(init?.body)));
+    expect(payloads.map(({ action, partner }) => ({ action, partner }))).toEqual([
+      { action: "module-import", partner: Partners.Quick },
+      { action: "wrap", partner: Partners.Quick },
+    ]);
+  });
+
   it("keeps concurrent clients' delayed events isolated", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => createRePermitData(56) } as Response);
     const first = await createClient(Partners.Thena, 56);

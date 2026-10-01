@@ -13,6 +13,18 @@ needed. Minimum trade size is used for form calculations only, not analytics.
 Telemetry delivery does not block client creation, and initialization works
 without a browser `window`.
 
+Pass `{ disableAnalytics: true }` as the third argument to disable all analytics
+events for that client, including initialization and order execution:
+
+```ts
+const client = await createClient(Partners.Quick, 137, {
+  disableAnalytics: true,
+});
+```
+
+Analytics remains enabled by default. When disabled, `client.analytics` methods
+remain safe to call and do not send telemetry or schedule analytics timers.
+
 ## Client configuration
 
 `createClient(partner, chainId)` loads and validates the order-sink `/config`
