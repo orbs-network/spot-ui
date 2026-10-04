@@ -23,6 +23,16 @@ describe("account history source failures", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
+  it.each([undefined, false, true])("forwards getv1orders=%s independently of legacyOrders", async (getv1orders) => {
+    await getAccountOrders({ ...params, legacyOrders: false, getv1orders });
+
+    expect(getCurrentOrders).toHaveBeenCalledWith(expect.objectContaining({
+      account: params.account,
+      getv1orders: getv1orders ?? true,
+    }));
+    expect(getLegacyOrders).not.toHaveBeenCalled();
+  });
+
   it("reports a failed legacy source and allows it to recover", async () => {
     vi.mocked(getLegacyOrders).mockRejectedValueOnce(new Error("temporary outage"));
     const partial = await getAccountOrdersResult(params);

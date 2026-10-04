@@ -48,11 +48,13 @@ describe("v2 order history", () => {
       chainId: 1,
       account: ADDRESS_4,
       partner: Partners.Katana,
+      getv1orders: false,
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledOnce();
     for (const [input] of vi.mocked(fetch).mock.calls) {
       const url = new URL(String(input));
+      expect(url.origin).toBe("https://order-sink-v2.orbs.network");
       expect(Object.fromEntries(url.searchParams)).toEqual({
         swapper: ADDRESS_4,
         chainId: "1",
@@ -60,6 +62,28 @@ describe("v2 order history", () => {
       });
     }
     expect(orders.map((order) => order.hash)).toEqual(["order-1", "order-2"]);
+  });
+
+  it.each([undefined, true])("includes and deduplicates both API histories when getv1orders is %s", async (getv1orders) => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const isV1 = new URL(String(input)).hostname === "order-sink.orbs.network";
+      return jsonResponse({
+        orders: [createV2Order(1, "shared-order"), createV2Order(1, isV1 ? "v1-only" : "v2-only")],
+      });
+    }));
+
+    const orders = await getV2Orders({
+      chainId: 1,
+      account: ADDRESS_4,
+      partner: Partners.Katana,
+      getv1orders,
+    });
+
+    expect(vi.mocked(fetch).mock.calls.map(([input]) => new URL(String(input)).origin)).toEqual([
+      "https://order-sink-v2.orbs.network",
+      "https://order-sink.orbs.network",
+    ]);
+    expect(orders.map((order) => order.hash)).toEqual(["shared-order", "v2-only", "v1-only"]);
   });
 
   it("skips malformed items without hiding valid history", async () => {
@@ -100,6 +124,7 @@ describe("v2 order history", () => {
       chainId: 56,
       account: ADDRESS_4,
       partner: Partners.Thena,
+      getv1orders: true,
     });
 
     expect(orders).toHaveLength(1);

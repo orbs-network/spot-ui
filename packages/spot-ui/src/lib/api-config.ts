@@ -7,5 +7,5 @@ export const getApiEndpoint = (): string =>
 export const getRePermitConfigEndpoint = (): string =>
   `${ORDER_API_V2_URL}/config`;
 
-export const getOrderApiEndpoints = (): string[] =>
-  [ORDER_API_V2_URL, ORDER_API_URL];
+export const getOrderApiEndpoints = (getv1orders = true): string[] =>
+  getv1orders ? [ORDER_API_V2_URL, ORDER_API_URL] : [ORDER_API_V2_URL];

@@ -275,16 +275,18 @@ export const getOrders = async ({
   signal,
   account,
   partner,
+  getv1orders = true,
 }: {
   chainId: number;
   signal?: AbortSignal;
   account?: string;
   partner: Partners;
+  getv1orders?: boolean;
 }): Promise<Order[]> => {
   if (!account) return [];
 
   const targetResults = await Promise.allSettled(
-    getOrderApiEndpoints().map((endpoint) =>
+    getOrderApiEndpoints(getv1orders).map((endpoint) =>
       fetchOrdersForTarget({
         endpoint,
         chainId,

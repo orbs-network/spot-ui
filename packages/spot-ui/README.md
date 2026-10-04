@@ -45,6 +45,18 @@ export is deprecated. Delayed events retain their original client configuration.
 `client.getAccountOrdersResult(params)` when you also need `legacyLoaded` to
 distinguish a successful legacy fetch from a partial result during an outage.
 
+Order history queries both `order-sink-v2.orbs.network` and
+`order-sink.orbs.network` by default. Pass `getv1orders: false` to query only
+`order-sink-v2.orbs.network`:
+
+```ts
+const orders = await client.getAccountOrders({ account, getv1orders: false });
+```
+
+This option defaults to `true` and is independent of `legacyOrders`, which
+controls legacy TWAP subgraph history and defaults to `true`. Both options also
+apply to `client.getAccountOrdersResult`.
+
 Legacy TWAP deployment configuration and the contract ABI are bundled locally
 from version 2.7.28; the SDK does not require the TWAP npm package.
 

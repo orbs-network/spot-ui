@@ -13,6 +13,8 @@ export interface GetAccountOrdersParams {
   partner: Partners;
   account: string;
   legacyOrders?: boolean;
+  /** Include orders from order-sink.orbs.network. Defaults to true. */
+  getv1orders?: boolean;
 }
 
 const assertValidPagination = (page?: number, limit?: number): void => {
@@ -38,6 +40,7 @@ export const getAccountOrdersResult = async ({
   partner,
   account,
   legacyOrders = true,
+  getv1orders = true,
 }: GetAccountOrdersParams): Promise<AccountOrdersResult> => {
   assertValidPagination(page, limit);
   const twapConfig = getTwapConfig(partner, chainId);
@@ -59,6 +62,7 @@ export const getAccountOrdersResult = async ({
       signal,
       account,
       partner,
+      getv1orders,
     }),
   ]);
   if (signal?.aborted) throw signal.reason;
