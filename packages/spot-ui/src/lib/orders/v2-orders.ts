@@ -229,20 +229,25 @@ const fetchOrdersForTarget = async ({
   signal,
   account,
   partner,
+  page,
+  limit,
 }: {
   endpoint: string;
-  chainId: number;
+  chainId?: number;
   signal?: AbortSignal;
-  account: string;
-  partner: Partners;
+  account?: string;
+  partner?: Partners;
+  page?: number;
+  limit?: number;
 }): Promise<Order[]> => {
-  const query = new URLSearchParams({
-    swapper: account,
-    chainId: chainId.toString(),
-  });
-  query.set("exchange", partner);
+  const query = new URLSearchParams();
+  if (account !== undefined) query.set("swapper", account);
+  if (chainId !== undefined) query.set("chainId", chainId.toString());
+  if (partner !== undefined) query.set("exchange", partner);
+  if (page !== undefined) query.set("page", page.toString());
+  if (limit !== undefined) query.set("limit", limit.toString());
 
-  const response = await fetch(`${endpoint}/orders?${query}`, { signal });
+  const response = await fetch(`${endpoint}/orders${query.size ? `?${query}` : ""}`, { signal });
   if (!response.ok) {
     throw new Error(
       `Failed to fetch order history from ${endpoint}: ${response.status}`,
@@ -275,16 +280,18 @@ export const getOrders = async ({
   signal,
   account,
   partner,
+  page,
+  limit,
   getv1orders = true,
 }: {
-  chainId: number;
+  chainId?: number;
   signal?: AbortSignal;
   account?: string;
-  partner: Partners;
+  partner?: Partners;
+  page?: number;
+  limit?: number;
   getv1orders?: boolean;
 }): Promise<Order[]> => {
-  if (!account) return [];
-
   const targetResults = await Promise.allSettled(
     getOrderApiEndpoints(getv1orders).map((endpoint) =>
       fetchOrdersForTarget({
@@ -293,6 +300,8 @@ export const getOrders = async ({
         signal,
         account,
         partner,
+        page,
+        limit,
       }),
     ),
   );

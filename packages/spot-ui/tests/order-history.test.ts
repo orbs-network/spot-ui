@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Partners, OrderStatus } from "../src";
+import { getOrders, Partners, OrderStatus, type GetOrdersParams } from "../src";
 import type { OrderV1 } from "../src/lib/types";
 import { getOrders as getV1Orders } from "../src/lib/orders/v1-orders";
 import { getOrders as getV2Orders } from "../src/lib/orders/v2-orders";
@@ -30,6 +30,89 @@ const createV1Order = (): OrderV1 => ({
   dstTokenSymbol: "DST",
   blockNumber: 1,
   dex: "test",
+});
+
+describe("standalone order history", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it.each<[GetOrdersParams, Record<string, string>]>([
+    [{}, {}],
+    [{ chainId: 1 }, { chainId: "1" }],
+    [{ swapper: ADDRESS_4 }, { swapper: ADDRESS_4 }],
+    [{ chainId: 1, swapper: ADDRESS_4 }, { chainId: "1", swapper: ADDRESS_4 }],
+    [{ exchange: Partners.Quick }, { exchange: Partners.Quick }],
+    [{ page: 0 }, { page: "0" }],
+    [{ limit: 20 }, { limit: "20" }],
+    [
+      { chainId: 137, swapper: ADDRESS_4, exchange: Partners.Quick, page: 2, limit: 20 },
+      { chainId: "137", swapper: ADDRESS_4, exchange: Partners.Quick, page: "2", limit: "20" },
+    ],
+  ])("fetches with only the supplied filters: %j", async (params, expectedQuery) => {
+    const fetchMock = vi.fn(async () => jsonResponse({ orders: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getOrders(params)).resolves.toEqual([]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [input] of vi.mocked(fetch).mock.calls) {
+      const url = new URL(String(input));
+      expect(url.pathname).toBe("/orders");
+      expect(Object.fromEntries(url.searchParams)).toEqual(expectedQuery);
+    }
+  });
+
+  it.each<[GetOrdersParams, string]>([
+    [{ page: -1 }, "page must be a non-negative integer"],
+    [{ page: 0.5 }, "page must be a non-negative integer"],
+    [{ limit: 0 }, "limit must be a positive integer"],
+    [{ limit: -1 }, "limit must be a positive integer"],
+    [{ limit: 1.5 }, "limit must be a positive integer"],
+  ])("rejects invalid pagination before fetching: %j", async (params, message) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getOrders(params)).rejects.toThrow(message);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("needs no arguments and deduplicates across services while preserving distinct chains", async () => {
+    const olderOrder = createV2Order(1, "same-hash");
+    const newerOrder = {
+      ...createV2Order(56, "same-hash"),
+      timestamp: "2026-01-02T00:00:00.000Z",
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ orders: [olderOrder, newerOrder] })));
+
+    const orders = await getOrders();
+
+    expect(orders.map((order) => order.chainId)).toEqual([56, 1]);
+    expect(vi.mocked(fetch).mock.calls.map(([input]) => String(input))).toEqual([
+      "https://order-sink-v2.orbs.network/orders",
+      "https://order-sink.orbs.network/orders",
+    ]);
+  });
+
+  it("supports querying only the current service and forwards cancellation", async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn(async () => jsonResponse({ orders: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getOrders({ getv1orders: false, signal: controller.signal });
+
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      "https://order-sink-v2.orbs.network/orders",
+      { signal: controller.signal },
+    );
+  });
+
+  it("reports an error when all services fail", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({}, false)));
+
+    await expect(getOrders()).rejects.toThrow("Failed to fetch order history");
+  });
 });
 
 describe("v2 order history", () => {

@@ -65,14 +65,25 @@ Before publishing, make sure you're logged in to npm:
 npm login
 ```
 
-Publish each package with its repository script (the scripts build, verify, and
-prompt for the release version):
+Publish each package with its repository script. The scripts prompt for the
+release version, run the relevant package tests, build, and then request an OTP:
 
 ```bash
 pnpm publish:spot-ui
 pnpm publish:spot-react
 pnpm publish:liquidity-hub-sdk
 ```
+
+Publish `spot-ui` first when releasing a new SDK version alongside `spot-react`.
+The React publisher checks that the exact local SDK version exists in the
+registry before proceeding, because `workspace:*` becomes an exact version in
+the published package. A failed registry lookup stops the release.
+
+Test failures, build failures, and cancellation at the OTP prompt restore the
+original package manifest. Once the publish command starts, failures retain
+the selected version because the registry may already have accepted the upload;
+check npm before retrying. Run `pnpm test:publish` to verify these release paths
+without publishing packages.
 
 ## Skills
 

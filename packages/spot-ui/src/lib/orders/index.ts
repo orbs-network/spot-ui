@@ -3,6 +3,45 @@ import { getTwapConfig } from "./legacy-twap-config";
 import { getOrders as getV1Orders } from "./v1-orders";
 import { getOrders as getV2Orders } from "./v2-orders";
 
+export interface GetOrdersParams {
+  /** Omit to fetch orders across all chains. */
+  chainId?: number;
+  /** Omit to fetch orders for all swappers. */
+  swapper?: string;
+  /** Omit to fetch orders across all exchanges. */
+  exchange?: Partners;
+  /** Zero-based order-sink history page. */
+  page?: number;
+  /** Positive number of orders requested per service page. */
+  limit?: number;
+  signal?: AbortSignal;
+  /** Include orders from order-sink.orbs.network. Defaults to true. */
+  getv1orders?: boolean;
+}
+
+/** Fetches order-sink history without requiring an initialized client. */
+export const getOrders = async ({
+  chainId,
+  swapper,
+  exchange,
+  page,
+  limit,
+  signal,
+  getv1orders,
+}: GetOrdersParams = {}): Promise<Order[]> => {
+  assertValidPagination(page, limit);
+  const orders = await getV2Orders({
+    chainId,
+    account: swapper,
+    partner: exchange,
+    page,
+    limit,
+    signal,
+    getv1orders,
+  });
+  return orders.sort((a, b) => b.createdAt - a.createdAt);
+};
+
 export interface GetAccountOrdersParams {
   signal?: AbortSignal;
   /** Zero-based legacy history page. V2 always fetches all orders. */

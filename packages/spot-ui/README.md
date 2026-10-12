@@ -57,6 +57,36 @@ This option defaults to `true` and is independent of `legacyOrders`, which
 controls legacy TWAP subgraph history and defaults to `true`. Both options also
 apply to `client.getAccountOrdersResult`.
 
+Use the standalone `getOrders` function to fetch order-sink history without
+creating a client. `chainId`, `swapper`, and `exchange` are optional; omitted
+filters include all chains, swappers, or exchanges. `exchange` accepts a
+`Partners` value. Results are deduplicated and sorted newest first, without a
+legacy TWAP subgraph lookup.
+
+```ts
+import { getOrders, Partners } from "@orbs-network/spot-ui";
+
+const allOrders = await getOrders();
+const chainOrders = await getOrders({ chainId: 137 });
+const swapperOrders = await getOrders({ swapper: account });
+const exchangeOrders = await getOrders({ exchange: Partners.Quick });
+const orders = await getOrders({
+  chainId: 137,
+  swapper: account,
+  exchange: Partners.Quick,
+  page: 0,
+  limit: 20,
+});
+```
+
+Optional `page` (a zero-based, non-negative integer) and `limit` (a positive
+integer) are forwarded to each queried order-sink service. Omitted pagination
+parameters are left out of the request. With both services enabled, the merged
+result can contain more than `limit` orders.
+
+It also accepts `signal` for cancellation and `getv1orders: false` to query
+only `order-sink-v2.orbs.network`.
+
 Legacy TWAP deployment configuration and the contract ABI are bundled locally
 from version 2.7.28; the SDK does not require the TWAP npm package.
 

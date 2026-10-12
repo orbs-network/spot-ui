@@ -74,7 +74,7 @@ export {
   ORBS_WEBSITE_URL,
 } from "./lib/public-links";
 
-export type { AccountOrdersResult } from "./lib/orders";
+export { getOrders, type GetOrdersParams, type AccountOrdersResult } from "./lib/orders";
 
 export { analytics, setUIVersion, type SpotAnalytics } from "./lib/analytics";
 
