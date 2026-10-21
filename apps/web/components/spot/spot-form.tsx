@@ -130,7 +130,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
             minTradeSizeUsd={minTradeSizeUsd ?? 1}
             overrides={overrides}
             callbacks={callbacks}
-            supportLegacyOrders
+            supportLegacyOrders={true}
             clientErrorFallback={ClientErrorFallback}
             displayFeePercent={0.25}
           >

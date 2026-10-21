@@ -81,8 +81,10 @@ export const getAccountOrdersResult = async ({
   legacyOrders = true,
   getv1orders = true,
 }: GetAccountOrdersParams): Promise<AccountOrdersResult> => {
+  
   assertValidPagination(page, limit);
   const twapConfig = getTwapConfig(partner, chainId);
+  
   const results = await Promise.allSettled([
     !twapConfig || !legacyOrders
       ? Promise.resolve([])

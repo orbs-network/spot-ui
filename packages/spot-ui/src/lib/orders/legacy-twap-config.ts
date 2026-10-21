@@ -309,6 +309,23 @@ const Configs = {
     "exchangeType": "ExchangeV2",
     "pathfinderKey": ""
   },
+  "Kodiak": {
+    "chainName": "berachain",
+    "chainId": 80094,
+    "twapVersion": 4,
+    "twapAddress": "0xD13609A8ace04D11Ea2FFE176B69dF77C6d9375E",
+    "lensAddress": "0xA0b07F9a11dFb01388149abBdbc5B4f2196600AB",
+    "takers": [
+      "0xA05405b6340A7F43dC5835351BFC4f5b1F028359",
+      "0xE3Efef1563a5960ACc731F9e4d6f4cBf5bd87dcA"
+    ],
+    "bidDelaySeconds": 60,
+    "minChunkSizeUsd": 10,
+    "name": "Kodiak",
+    "partner": "Orbs:TWAP:Kodiak",
+    "exchangeAddress": "0x69B7aE1250B8d1309954CaD65b6607ae478Ec6eE",
+    "exchangeType": "ExchangeV2"
+  },
   "BlackholeAvax": {
     "chainName": "avax",
     "chainId": 43114,
@@ -410,6 +427,9 @@ const LEGACY_EXCHANGES_BY_CONFIG: Record<string, string[]> = {
   [getPartnerIdentifier(Configs.SparkDEX)]: [
     "0xe59c53C76bB7EEc01401A18fA8215B94bC65Bf56",
   ],
+  [getPartnerIdentifier(Configs.Kodiak)]: [
+    "0x69B7aE1250B8d1309954CaD65b6607ae478Ec6eE",
+  ],
 };
 
 export const getLegacyExchanges = (config: Config): string[] =>
@@ -449,6 +469,7 @@ const LEGACY_TWAP_CONFIGS_BY_SPOT_PARTNER: Partial<
   [Partners.Blackhole]: indexTwapConfigsByChain([Configs.BlackholeAvax]),
   [Partners.Spark]: indexTwapConfigsByChain([Configs.SparkDEX]),
   [Partners.Katana]: indexTwapConfigsByChain([Configs.SushiKatana]),
+  [Partners.Kodiak]: indexTwapConfigsByChain([Configs.Kodiak]),
 };
 
 /** Returns the legacy TWAP config for an exact Spot partner and chain pair. */

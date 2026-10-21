@@ -235,6 +235,7 @@ const getCreatedOrdersFilters = (filters?: GetV1OrdersFilters) => {
     getExchanges(filters.configs),
     (e) => `"${e.toLowerCase()}"`
   );
+  
   const inTokenSymbols = normalizeSubgraphList(
     filters.inTokenSymbols,
     (s) => `"${s.toUpperCase()}"`
