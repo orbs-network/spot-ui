@@ -5,10 +5,11 @@
  * Search for "DEX:" comments to find what needs replacing.
  */
 
-import { useMemo, useCallback, useState } from "react";
+import { useEffect, useMemo, useCallback, useState } from "react";
 import {
   SpotProvider,
   Module,
+  ExecutionPhase,
   Partners,
   TimeUnit,
   useDisclaimer,
@@ -18,11 +19,13 @@ import {
   useInputErrors,
   useLimitPrice,
   useOutputAmount,
+  useOrderForm,
   usePriceDisplay,
   useSubmitButton,
   useTrades,
   useTriggerPrice,
   type ClientErrorFallbackProps,
+  type MarketQuote,
   type Token,
   type WalletInteractions,
   DISCLAIMER_URL,
@@ -300,8 +303,10 @@ function DisclaimerPanel() {
 
 function SubmitOrderSection({
   setInputAmount,
+  onQuotePauseChange,
 }: {
   setInputAmount: (v: string) => void;
+  onQuotePauseChange: (paused: boolean) => void;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { disabled, loading } = useSubmitButton();
@@ -314,8 +319,16 @@ function SubmitOrderSection({
     error,
     isPreparingOrder,
     isExecuting,
+    phase,
   } = useExecution();
+  const isSwap = useOrderForm().module === Module.SWAP;
   const [accepted, setAccepted] = useState(true);
+
+  useEffect(() => {
+    // DEX: Disable automatic/manual quotes AND cancel in-flight quote requests.
+    onQuotePauseChange(isExecuting);
+    return () => onQuotePauseChange(false);
+  }, [isExecuting, onQuotePauseChange]);
 
   // DEX: Replace with your ConnectWallet / SwitchNetwork checks
 
@@ -347,7 +360,7 @@ function SubmitOrderSection({
         onClick={() => setIsModalOpen(true)}
         disabled={disabled}
       >
-        {loading ? "Loading..." : "Place Order"}
+        {isSwap && isExecuting ? "Executing swap..." : loading ? "Loading..." : isSwap ? "Review Swap" : "Place Order"}
       </button>
 
       {isModalOpen && (
@@ -367,7 +380,9 @@ function SubmitOrderSection({
                   {/* DEX: Render review rows per references/03-panels.md:
                       recipient explorer link; abbreviated ID when available;
                       Individual trade size and trade count only for >1 trade;
-                      expiry as a date/time; min output only for limit execution;
+                      expiry as a date/time for advanced orders only;
+                      hide both expiry and limit price for Module.SWAP;
+                      min output for swaps and other limit execution;
                       trigger price only for SL/TP. Use DEX amount/date formatters.
                       Build a DEX-owned OrderReviewDetails component using
                       useOrderForm() and the DEX account/chain context. */}
@@ -387,17 +402,23 @@ function SubmitOrderSection({
                       disclaimer
                     </a>
                   </label>
-                  <button onClick={onClose}>Cancel</button>
+                  {!isExecuting && <button onClick={onClose}>Cancel</button>}
                   <button
                     onClick={submitOrder}
-                    disabled={!accepted || Boolean(isPreparingOrder)}
+                    disabled={!accepted || disabled || Boolean(isPreparingOrder)}
                   >
                     {/* DEX: Replace loading text with your button spinner. */}
-                    {isPreparingOrder ? "Loading..." : "Create Order"}
+                    {isPreparingOrder ? "Loading..." : isSwap ? "Confirm Swap" : "Create Order"}
                   </button>
                 </>
               )}
-              {/* DEX: Render SwapFlow when status is set and !isPreparingOrder. */}
+              {phase === ExecutionPhase.SETTLING && (
+                <p role="status">Waiting for your swap to fill...</p>
+              )}
+              {/* DEX: Render SwapFlow when status is set and !isPreparingOrder.
+                  Swap status stays LOADING through settlement; label success
+                  "Swap completed" only after a fill. Hide close/dismiss while
+                  isExecuting. Other modules show creation success on acceptance. */}
             </>
           )}
         </div>
@@ -410,20 +431,16 @@ function SubmitOrderSection({
 
 export function SpotForm({
   module,
+  marketQuote,
+  onQuotePauseChange,
   // DEX: Add your props (inputCurrency, outputCurrency, etc.)
 }: {
   module: Module;
+  /** DEX: Map getQuote.netAmountOut and the UI-slippage-adjusted raw minimum. */
+  marketQuote: MarketQuote;
+  /** DEX: Stable callback controlling automatic/manual refresh and cancellation. */
+  onQuotePauseChange: (paused: boolean) => void;
 }) {
-  // DEX: Replace with real values from your DEX state
-  const marketQuote = useMemo(
-    () => ({
-      quotedOutputAmountRaw: undefined,
-      isLoading: false,
-      noLiquidity: false,
-    }),
-    [],
-  );
-
   const inputToken = useMemo<Token | undefined>(() => undefined, []);
   const outputToken = useMemo<Token | undefined>(() => undefined, []);
   const wrappedNativeToken = useMemo<Token | undefined>(() => undefined, []);
@@ -463,7 +480,7 @@ export function SpotForm({
         // refetchBalances();
       },
       onOrderCreated: () => {
-        // Usually no toast: submit modal already shows success.
+        // Acceptance only. Swap success waits for onOrderFilled/execution success.
         // refetchBalances();
       },
       onOrderFilled: () => {
@@ -509,18 +526,18 @@ export function SpotForm({
       outputTokenUsdPrice={outputTokenUsdPrice}
       callbacks={callbacks}
       clientErrorFallback={ClientErrorFallback}
-      displayFeePercent={0.25}
+      displayFeePercent={module === Module.SWAP ? 0 : 0.25}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* DEX: Token inputs section using your CurrencyInputPanel */}
         <OutputAmount />
-        <PriceConfigSection module={module} />
+        {module !== Module.SWAP && <PriceConfigSection module={module} />}
         {module === Module.TWAP && <TradeSizeSection />}
         {module === Module.TWAP && <TradeIntervalSection />}
-        {module !== Module.TWAP && <DurationSection />}
+        {module !== Module.TWAP && module !== Module.SWAP && <DurationSection />}
         <InputErrorPanel />
         <DisclaimerPanel />
-        <SubmitOrderSection setInputAmount={setInputAmount} />
+        <SubmitOrderSection setInputAmount={setInputAmount} onQuotePauseChange={onQuotePauseChange} />
       </div>
     </SpotProvider>
   );

@@ -1,7 +1,6 @@
-import { SwapBestTradeForm } from "@/components/best-trade-form";
+import { SpotForm } from "@/components/spot/spot-form";
+import { SwapType } from "@/lib/types";
 
 export default function HomePage() {
-  return (
-    <SwapBestTradeForm />
-  );
+  return <SpotForm swapType={SwapType.SWAP} />;
 }

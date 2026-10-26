@@ -8,6 +8,8 @@ import { createContext, ReactNode, useContext, useMemo } from "react";
 import {
   ORBS_TWAP_FAQ_URL,
   Steps,
+  Module,
+  ExecutionPhase,
   ExecutionStatus,
   useExecution,
   useOrderForm,
@@ -63,7 +65,11 @@ const useTitle = () => {
   const t = useTranslations();
   const { orderTitle = "" } = useSubmitPanelContext();
   const { status } = useExecution();
+  const isSwap = useOrderForm().module === Module.SWAP;
 
+  if (isSwap) {
+    return status === ExecutionStatus.SUCCESS ? "Swap completed" : "Create swap order";
+  }
   if (status === ExecutionStatus.SUCCESS) {
     return t("createOrderActionSuccess", { name: orderTitle });
   }
@@ -73,7 +79,7 @@ const useTitle = () => {
 
 const useStep = () => {
   const { inputToken } = useSubmitPanelContext();
-  const { currentStep, wrapTxHash, approvalTxHash, status, chainId } =
+  const { currentStep, wrapTxHash, approvalTxHash, status, chainId, phase } =
     useExecution();
   const t = useTranslations();
   const wrapExplorerUrl = getExplorerUrl(chainId, wrapTxHash);
@@ -85,6 +91,9 @@ const useStep = () => {
   
 
   return useMemo((): Step | undefined => {
+    if (phase === ExecutionPhase.SETTLING) {
+      return { title: "Executing swap", footerText: "Waiting for your swap to fill…" };
+    }
     if (currentStep === Steps.WRAP) {
       return {
         title: t("wrapAction", { symbol }),
@@ -108,7 +117,7 @@ const useStep = () => {
       footerText:
         status === ExecutionStatus.LOADING ? t("proceedInWallet") : undefined,
     };
-  }, [currentStep, approveExplorerUrl, symbol, swapTitle, t, wrapExplorerUrl, status]);
+  }, [phase, currentStep, approveExplorerUrl, symbol, swapTitle, t, wrapExplorerUrl, status]);
 };
 
 const TxError = ({ error }: { error?: ParsedError }) => {
@@ -167,11 +176,13 @@ const Main = () => {
         <div className="twap-create-order-bottom">
           <OrderDetails.Container>
             <div className="twap-create-order-details">
-              <OrderDetails.Duration
-                durationMillis={order.schedule.durationMillis}
-                label={t("expirationLabel")}
-                tooltip={t("expirationTooltip")}
-              />
+              {order.module !== Module.SWAP && (
+                <OrderDetails.Duration
+                  durationMillis={order.schedule.durationMillis}
+                  label={t("expirationLabel")}
+                  tooltip={t("expirationTooltip")}
+                />
+              )}
               <OrderDetails.Price
                 inputToken={inputToken}
                 price={order.triggerPrice.display.ui}
@@ -180,14 +191,16 @@ const Main = () => {
                 tooltip={t("triggerPriceTooltip")}
                 usd={order.triggerPrice.display.usd}
               />
-              <OrderDetails.Price
-                inputToken={inputToken}
-                price={order.limitPrice.display.ui}
-                outputToken={outputToken}
-                label={t("limitPrice")}
-                usd={order.limitPrice.display.usd}
-                tooltip={t("limitPriceTooltip")}
-              />
+              {order.module !== Module.SWAP && (
+                <OrderDetails.Price
+                  inputToken={inputToken}
+                  price={order.limitPrice.display.ui}
+                  outputToken={outputToken}
+                  label={t("limitPrice")}
+                  usd={order.limitPrice.display.usd}
+                  tooltip={t("limitPriceTooltip")}
+                />
+              )}
               <OrderDetails.MinOutputAmount
                 outputToken={outputToken}
                 minOutputAmount={order.trades.minOutputAmountPerTrade.ui}

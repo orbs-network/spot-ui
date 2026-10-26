@@ -36,6 +36,7 @@ export const useDerivedSwap = () => {
     data: quotedTrade,
     isLoading: isLoadingTrade,
     refetch: refetchTrade,
+    error: quoteError,
   } = useTrade(
     inputCurrency,
     outputCurrency,
@@ -79,6 +80,7 @@ export const useDerivedSwap = () => {
     trade,
     isLoadingTrade: wrappedNativeAction ? false : isLoadingTrade,
     refetchTrade,
+    quoteError,
     outputAmount,
     wrappedNativeAction,
   };

@@ -464,7 +464,9 @@ export const createSpotFormDefaults = (
 ): SpotFormDefaults => {
   const state = props.overrides?.state;
   return {
-    isMarketOrder: props.module === Module.LIMIT ? false : state?.isMarketOrder,
+    isMarketOrder: props.module === Module.LIMIT || props.module === Module.SWAP
+      ? false
+      : state?.isMarketOrder,
     tradeCount: state?.tradeCount,
     tradeInterval: state?.tradeInterval,
     orderDuration: state?.orderDuration,

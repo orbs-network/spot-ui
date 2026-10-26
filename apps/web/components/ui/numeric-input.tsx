@@ -3,7 +3,7 @@ import BN from "bignumber.js";
 import { maxUint256 } from "viem";
 import { cn } from "@/lib/utils";
 
-export const NumericInput = ({ className = "", allowNegative = false, disabled = false, decimalScale = 18, onBlur, onFocus, placeholder, maxValue, prefix, suffix, value, minAmount, onChange, isLoading = false }: { className?: string, allowNegative?: boolean, disabled?: boolean, decimalScale?: number, onBlur?: () => void, onFocus?: () => void, placeholder?: string, maxValue?: number, prefix?: string, suffix?: string, value?: string, minAmount?: number, onChange: (value: string) => void, isLoading?: boolean }) => {
+export const NumericInput = ({ ariaLabel, className = "", allowNegative = false, disabled = false, decimalScale = 18, onBlur, onFocus, placeholder, maxValue, prefix, suffix, value, minAmount, onChange, isLoading = false }: { ariaLabel?: string, className?: string, allowNegative?: boolean, disabled?: boolean, decimalScale?: number, onBlur?: () => void, onFocus?: () => void, placeholder?: string, maxValue?: number, prefix?: string, suffix?: string, value?: string, minAmount?: number, onChange: (value: string) => void, isLoading?: boolean }) => {
     const inputValue = value || minAmount || "";
 
     return (
@@ -18,6 +18,9 @@ export const NumericInput = ({ className = "", allowNegative = false, disabled =
       decimalScale={decimalScale}
       onBlur={onBlur}
       name="number-input"
+      aria-label={ariaLabel}
+      inputMode="decimal"
+      autoComplete="off"
       onFocus={onFocus}
       placeholder={placeholder || "0"}
       max={maxValue}

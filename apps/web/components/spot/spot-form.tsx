@@ -1,11 +1,13 @@
 "use client";
 import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Module,
   SpotProvider,
   TimeUnit,
+  useExecution,
   type Overrides,
   type Token,
 } from "@orbs-network/spot-react";
@@ -16,6 +18,8 @@ import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { useSpotPartners } from "@/lib/hooks/use-spot-partners";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
+import { useSwapStore } from "@/lib/hooks/store";
+import { SWAP_QUOTE_QUERY_KEY } from "@/lib/hooks/use-trade";
 import {
   useCallbacks,
   useSpotMarketQuote,
@@ -43,6 +47,7 @@ import { SubmitOrderDialog } from "./submit-order-dialog";
 import { TokenPanel } from "./token-panel";
 
 const getModule = (swapType: SwapType): Module => {
+  if (swapType === SwapType.SWAP) return Module.SWAP;
   if (swapType === SwapType.LIMIT) return Module.LIMIT;
   if (swapType === SwapType.STOP_LOSS) return Module.STOP_LOSS;
   if (swapType === SwapType.TAKE_PROFIT) return Module.TAKE_PROFIT;
@@ -60,8 +65,24 @@ const useSpotToken = (currency?: Currency): Token | undefined =>
     };
   }, [currency]);
 
+const PauseQuotesDuringExecution = () => {
+  const { isExecuting } = useExecution();
+  const setPauseQuote = useSwapStore((state) => state.setPauseQuote);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    setPauseQuote(isExecuting);
+    if (isExecuting) {
+      void queryClient.cancelQueries({ queryKey: SWAP_QUOTE_QUERY_KEY });
+    }
+    return () => setPauseQuote(false);
+  }, [isExecuting, queryClient, setPauseQuote]);
+
+  return null;
+};
+
 export function SpotForm({ swapType }: { swapType: SwapType }) {
-  const { inputCurrency, outputCurrency, inputAmount, wrappedNativeAction } =
+  const { inputCurrency, outputCurrency, inputAmount, wrappedNativeAction, quoteError, refetchTrade } =
     useDerivedSwap();
   const { setInputAmount } = useActionHandlers();
   const chainId = useActiveChainId();
@@ -132,8 +153,9 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
             callbacks={callbacks}
             supportLegacyOrders={true}
             clientErrorFallback={ClientErrorFallback}
-            displayFeePercent={0.25}
+            displayFeePercent={swapModule === Module.SWAP ? 0 : 0.25}
           >
+            <PauseQuotesDuringExecution />
             <div className="flex flex-col gap-1">
               <div className="flex flex-col gap-0">
                 <TokenPanel isInputToken />
@@ -144,8 +166,13 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
                 <WrappedNativeButton action={wrappedNativeAction} />
               ) : (
                 <>
-                  <PriceSettings />
-                  <OrderSettings />
+                  {swapModule !== Module.SWAP && <PriceSettings />}
+                  {swapModule !== Module.SWAP && <OrderSettings />}
+                  {quoteError && (
+                    <div role="alert" className="text-sm text-destructive">
+                      {quoteError.message} <button type="button" className="underline" onClick={() => void refetchTrade()}>Try again</button>
+                    </div>
+                  )}
                   <InputsErrorPanel />
                   <SubmitOrderDialog />
                   <DisclaimerPanel />

@@ -43,12 +43,12 @@ describe("standalone order history", () => {
     [{ chainId: 1 }, { chainId: "1" }],
     [{ swapper: ADDRESS_4 }, { swapper: ADDRESS_4 }],
     [{ chainId: 1, swapper: ADDRESS_4 }, { chainId: "1", swapper: ADDRESS_4 }],
-    [{ exchange: Partners.Quick }, { exchange: Partners.Quick }],
+    [{ exchange: Partners.Quick }, { exchange: "quickswap" }],
     [{ page: 0 }, { page: "0" }],
     [{ limit: 20 }, { limit: "20" }],
     [
       { chainId: 137, swapper: ADDRESS_4, exchange: Partners.Quick, page: 2, limit: 20 },
-      { chainId: "137", swapper: ADDRESS_4, exchange: Partners.Quick, page: "2", limit: "20" },
+      { chainId: "137", swapper: ADDRESS_4, exchange: "quickswap", page: "2", limit: "20" },
     ],
   ])("fetches with only the supplied filters: %j", async (params, expectedQuery) => {
     const fetchMock = vi.fn(async () => jsonResponse({ orders: [] }));
@@ -119,6 +119,13 @@ describe("v2 order history", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("includes the current Spot adapter alongside QuickSwap's legacy adapters", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ orders: [] })));
+    await getV2Orders({ chainId: 137, account: ADDRESS_4, partner: Partners.Quick, exchangeAddress: ADDRESS_4, getv1orders: false });
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
+    expect(url.searchParams.get("exchange")).toBe(`quickswap,${ADDRESS_4}`);
   });
 
   it("fetches all orders with exchange instead of partner and no pagination parameters", async () => {

@@ -13,6 +13,7 @@ const ACTIVE_PHASES = new Set<ExecutionPhase>([
   ExecutionPhase.APPROVING,
   ExecutionPhase.SIGNING,
   ExecutionPhase.SUBMITTING,
+  ExecutionPhase.SETTLING,
 ]);
 
 const ALLOWED_TRANSITIONS: Record<ExecutionPhase, ReadonlySet<ExecutionPhase>> = {
@@ -45,9 +46,14 @@ const ALLOWED_TRANSITIONS: Record<ExecutionPhase, ReadonlySet<ExecutionPhase>> =
     ExecutionPhase.REJECTED,
   ]),
   [ExecutionPhase.SUBMITTING]: new Set([
+    ExecutionPhase.SETTLING,
     ExecutionPhase.SUCCESS,
     ExecutionPhase.FAILED,
     ExecutionPhase.REJECTED,
+  ]),
+  [ExecutionPhase.SETTLING]: new Set([
+    ExecutionPhase.SUCCESS,
+    ExecutionPhase.FAILED,
   ]),
   [ExecutionPhase.SUCCESS]: new Set(),
   [ExecutionPhase.FAILED]: new Set(),

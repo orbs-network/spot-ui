@@ -21,7 +21,7 @@ export const SubmitSwapButton = ({
 }) => {
   const { address } = useConnection();
   const { openConnectModal } = useConnectModal();
-  const { inputCurrency, outputCurrency, parsedInputAmount, isLoadingTrade, trade } = useDerivedSwap();
+  const { inputCurrency, outputCurrency, parsedInputAmount, isLoadingTrade, trade, quoteError } = useDerivedSwap();
   const inputTokenBalance = useBalance(inputCurrency).wei;
 
 
@@ -44,6 +44,7 @@ export const SubmitSwapButton = ({
     if (enterAmount) {
       return "Enter an amount";
     }
+    if (quoteError) return "Quote unavailable";
     if (isLoadingTrade) {
       return "Fetching quote...";
     }
@@ -54,7 +55,7 @@ export const SubmitSwapButton = ({
       return "Insufficient liquidity";
     }  
     return text;
-  }, [enterAmount, forceAction, insufficientBalance, text, isLoadingTrade, insufficientLiquidity]);
+  }, [quoteError, enterAmount, forceAction, insufficientBalance, text, isLoadingTrade, insufficientLiquidity]);
 
 
   if (!address) {
@@ -71,7 +72,7 @@ export const SubmitSwapButton = ({
 
 
   return (
-    <Button onClick={onClick} isLoading={isLoading  && !insufficientLiquidity} disabled={_disabled}>
+    <Button onClick={onClick} isLoading={isLoading && !quoteError && !insufficientLiquidity} disabled={_disabled}>
       {_text}
     </Button>
   );

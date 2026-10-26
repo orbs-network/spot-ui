@@ -2,6 +2,8 @@
 
 Every Spot tooltip must have meaningful default text. Use the English copy below from `apps/web/lib/spot-translations.json`, with the host DEX's tooltip component and i18n system. Register these strings as English defaults and fall back to them when a translation is missing or empty; never display a translation key, placeholder, or empty tooltip. Reuse the same defaults in the form, order preview, and submit review.
 
+Only show a tooltip when its corresponding control/row is visible. `Module.SWAP` hides limit price and expiration in the submit modal and uses UI Slippage instead of an editable Price Protection control; do not add those rows just to display these tooltips.
+
 ## Copy
 
 | Key | Default text |

@@ -18,10 +18,12 @@ export const amountUi = (decimals?: number, amount?: string) => {
   return BN(amount).times(precision).idiv(precision).div(precision).toFixed();
 };
 
+/** Compares strings without case sensitivity, for example EVM addresses or order hashes. */
 export function eqIgnoreCase(a: string, b: string) {
   return a == b || a.toLowerCase() == b.toLowerCase();
 }
 
+/** Recognizes the SDK's native-token placeholder addresses; wrapped native tokens return false. */
 export const isNativeAddress = (address?: string) =>
   NATIVE_TOKEN_ADDRESSES.some((candidate) =>
     eqIgnoreCase(candidate, address || ""),
@@ -49,6 +51,10 @@ export const safeBNString = (value?: string | number) => {
   return BN(value).decimalPlaces(0).toFixed();
 };
 
+/**
+ * Recognizes common wallet user-rejection codes and messages, including a nested
+ * `error` or `cause`. Use it to distinguish a declined wallet prompt from other failures.
+ */
 export const isTxRejected = (error: unknown): boolean => {
   const candidates: unknown[] = [error];
   if (typeof error === "object" && error !== null) {
@@ -103,6 +109,11 @@ export const getExchanges = (config?: Config[]) => {
   return Array.from(allAddresses);
 };
 
+/**
+ * Returns the order's delay between fills in milliseconds across history versions.
+ * Legacy v1 delays are converted from seconds and include the configured estimated
+ * execution delay when `config` is supplied. V2 delays are already normalized.
+ */
 export const getOrderFillDelayMillis = (order: Order, config?: Config) => {
   if (order.version === 1) {
     return (
@@ -114,6 +125,11 @@ export const getOrderFillDelayMillis = (order: Order, config?: Config) => {
   return order.fillDelay || 0;
 };
 
+/**
+ * Calculates the realized rate in output tokens per input token from raw filled amounts.
+ * Pass each token's actual decimals; the default is 18 for both tokens.
+ * Returns `""` until both filled amounts are positive.
+ */
 export const getOrderExecutionRate = (
   srcAmountFilled = "",
   dstAmountFilled = "",
@@ -132,6 +148,10 @@ export const getOrderExecutionRate = (
 };
 
 
+/**
+ * Returns the minimum output tokens per input token for one trade, using each
+ * token's decimal precision. Returns `""` for a TWAP market order.
+ */
 export const getOrderLimitPriceRate = (
   order: Order,
   srcTokenDecimals: number,
@@ -144,6 +164,10 @@ export const getOrderLimitPriceRate = (
 };
 
 
+/**
+ * Returns the trigger rate in output tokens per input token for one trade, using
+ * each token's decimal precision. Returns `""` for a TWAP market order.
+ */
 export const getTriggerPriceRate = (
   order: Order,
   srcTokenDecimals: number,

@@ -10,6 +10,15 @@ export const normalizeAmount = (value?: string): string => {
   return amount.isFinite() && !amount.isNaN() ? value : "";
 };
 
+/**
+ * Converts a decimal token amount into an integer string of token base units.
+ * Fractional base units are rounded using BigNumber's configured rounding mode.
+ *
+ * @param value Token amount in UI units, for example `"1.5"`.
+ * @param decimals The token's decimal precision, for example `6` for USDC.
+ * @returns Base units, or `""` when an argument is missing or the amount is not finite.
+ * @example toAmountRaw("1.5", 6) // "1500000"
+ */
 export const toAmountRaw = (value?: string, decimals?: number): string => {
   if (decimals == null || !value) return "";
   const amount = BN(value);
@@ -17,6 +26,14 @@ export const toAmountRaw = (value?: string, decimals?: number): string => {
   return amount.multipliedBy(BN(10).pow(decimals)).toFixed(0);
 };
 
+/**
+ * Converts token base units into a decimal token amount without display formatting.
+ *
+ * @param value Token base units as a decimal string.
+ * @param decimals The token's decimal precision.
+ * @returns A decimal amount, or `""` when an argument is missing or the amount is not finite.
+ * @example toAmountUI("1500000", 6) // "1.5"
+ */
 export const toAmountUI = (value?: string, decimals?: number): string => {
   if (decimals == null || !value) return "";
   const amount = BN(value);

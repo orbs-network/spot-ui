@@ -50,6 +50,7 @@ const createAnalyticsCallbacks = (
   },
 });
 
+/** @deprecated Use createClient and getQuote from @orbs-network/spot-ui instead. */
 export class LiquidityHubClient {
   public readonly chainId: number;
   public readonly partner: string;
@@ -74,7 +75,7 @@ export class LiquidityHubClient {
     this.analytics = createAnalyticsCallbacks(this.analyticsReporter);
   }
 
-  /** Requests and validates a Liquidity Hub quote. */
+  /** @deprecated Use the package-level getQuote from @orbs-network/spot-ui. */
   public getQuote(args: QuoteArgs): Promise<Quote> {
     return fetchQuote(
       args,
@@ -85,7 +86,7 @@ export class LiquidityHubClient {
     );
   }
 
-  /** Submits a fresh, signed quote and resolves when its transaction hash is known. */
+  /** @deprecated Prepare, sign, and submit a Spot order, then track it with client.getOrder. */
   public async swap(
     quote: Quote,
     signature: string,
@@ -122,6 +123,7 @@ export class LiquidityHubClient {
   }
 }
 
+/** @deprecated Use createClient(partner, chainId) from @orbs-network/spot-ui instead. */
 export const createClient = (
   options: LiquidityHubClientOptions,
 ): LiquidityHubClient => new LiquidityHubClient(options);

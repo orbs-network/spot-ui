@@ -12,6 +12,7 @@
   "retryOrderConfiguration": "Retry order configuration",
   "enterAmount": "Enter an amount",
   "insufficientFunds": "Insufficient Balance",
+  "invalidSwapMinimum": "Minimum received is unavailable or invalid. Refresh the quote and try again.",
   "tradeIntervalLabel": "Trade interval",
   "expirationLabel": "Expiration",
   "limitPrice": "Limit Price",

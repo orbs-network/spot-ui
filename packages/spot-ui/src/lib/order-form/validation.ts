@@ -165,7 +165,25 @@ export const validateOrderForm = (
           value: params.inputBalanceRaw,
         }
       : undefined;
+  const hasRequiredInputs =
+    BN(marketPrice || 0).gt(0) &&
+    BN(inputAmount.raw || 0).gt(0) &&
+    BN(params.inputTokenUsdPrice || 0).gt(0);
+  const validSwapQuote = params.module !== Module.SWAP || Boolean(
+    /^\d+$/.test(params.minimumOutputAmountRaw || "") &&
+    /^\d+$/.test(params.quotedOutputAmountRaw || "") &&
+    BN(params.minimumOutputAmountRaw || 0).gt(0) &&
+    BN(params.minimumOutputAmountRaw || 0).lte(params.quotedOutputAmountRaw || 0)
+  );
+  const swapMinimumError: InputError | undefined =
+    hasRequiredInputs && !validSwapQuote
+      ? {
+          type: InputErrors.INVALID_SWAP_MINIMUM,
+          value: params.minimumOutputAmountRaw ?? "",
+        }
+      : undefined;
   const orderedErrors = [
+    swapMinimumError,
     minTradeSizeError,
     prices.triggerPrice.error,
     prices.limitPrice.error,
@@ -174,17 +192,15 @@ export const validateOrderForm = (
     schedule.durationError,
     balanceError,
   ].filter((error): error is InputError => Boolean(error));
-  const isReady =
-    BN(marketPrice || 0).gt(0) &&
-    BN(inputAmount.raw || 0).gt(0) &&
-    BN(params.inputTokenUsdPrice || 0).gt(0);
-  const primaryError = !isReady ? undefined : orderedErrors[0];
+  const isReady = hasRequiredInputs && validSwapQuote;
+  const primaryError = hasRequiredInputs ? orderedErrors[0] : undefined;
 
   return {
     errors: {
       primary: primaryError,
       all: orderedErrors,
       minTradeSize: minTradeSizeError,
+      swapMinimum: swapMinimumError,
       triggerPrice: prices.triggerPrice.error,
       limitPrice: prices.limitPrice.error,
       trades: tradePlan.error,

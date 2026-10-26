@@ -36,7 +36,9 @@ export interface SpotExecutionData {
   submitOrder: () => void;
   startNewOrder: () => boolean;
   returnToOrderForm: () => boolean;
+  /** True throughout preparation, wallet steps, submission, and swap settlement. */
   isExecuting: boolean;
+  /** For swaps, true only after the order fills; other modules finish on submission. */
   isSuccess: boolean;
   isFailed: boolean;
   isRejected: boolean;
@@ -132,7 +134,9 @@ export const useSubmitButton = () => {
   );
 
   const isPropsLoading =
-    marketPriceLoading || !form.isReady || inputBalanceRaw === undefined;
+    marketPriceLoading ||
+    (!form.isReady && !form.errors.primary) ||
+    inputBalanceRaw === undefined;
 
   const buttonLoading =
     isExecuting ||

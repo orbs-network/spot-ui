@@ -28,12 +28,6 @@ export enum SwapType {
     TAKE_PROFIT = 'TAKE_PROFIT',
 }
 
-export enum SwapStep {
-    WRAP = 'WRAP',
-    APPROVE = 'APPROVE',
-    SWAP = 'SWAP',
-}
-
 export type WrappedNativeAction = "wrap" | "unwrap";
 
 export enum Field {

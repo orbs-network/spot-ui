@@ -1,3 +1,5 @@
+> **Deprecated:** This is a legacy Liquidity Hub maintenance reference. Use [Spot](../../../packages/spot-ui/README.md#migrating-from-liquidity-hub) for new integrations and migration.
+
 # Quickstart
 
 ## Install

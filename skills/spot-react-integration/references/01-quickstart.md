@@ -16,6 +16,10 @@ npm uninstall @orbs-network/twap-ui && npm install @orbs-network/spot-react@late
 
 Verify `@orbs-network/spot-react` and `@orbs-network/swap-ui` appear in `package.json` dependencies. Use `@orbs-network/swap-ui` for the Spot order creation/progress flow modal content, then skin it with the host DEX colors, backgrounds, typography, and token-logo components.
 
+### Swap and Liquidity Hub migration
+
+Liquidity Hub is deprecated. For swaps, import `getQuote` from `@orbs-network/spot-react` without a separate `spot-ui` install and follow [Swap and Migration](07-swap-and-migration.md). Use the same provider with `Module.SWAP`; supply the net quote and exact UI-slippage minimum, pause quotes while executing, and show success after the fill.
+
 ### Peer Dependencies
 
 The host app must also have these installed:

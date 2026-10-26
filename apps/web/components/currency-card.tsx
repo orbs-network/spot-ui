@@ -77,13 +77,14 @@ const PercentageButtons = ({
   return (
     <div className="cursor-pointer flex items-center gap-1 justify-end  absolute right-[10px] top-[10px]">
       {PERCENTAGE_BUTTONS.map((button) => (
-        <div
+        <button
+          type="button"
           key={button.value}
           className="cursor-pointer bg-secondary px-2 py-1 text-[12px] font-medium flex items-center gap-1 border border-border rounded-full hover:bg-accent/80"
           onClick={() => onPercentageClick(button.value)}
         >
           {button.label}
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -110,6 +111,7 @@ export function CurrencyCard({
       <p>{title}</p>
       <div className="flex items-center gap-2">
         <NumericInput
+          ariaLabel={`${title ?? "Token"} amount`}
           disabled={disabled}
           value={amount}
           onChange={onAmountChange ?? (() => {})}

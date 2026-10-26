@@ -67,6 +67,9 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
       account: props.account,
       walletInteractions: props.walletInteractions,
       quotedOutputAmountRaw,
+      minimumOutputAmountRaw: props.marketQuote.isLoading
+        ? undefined
+        : props.marketQuote.minimumOutputAmountRaw,
       marketPriceLoading,
       noLiquidity,
       priceProtectionPercent: props.priceProtectionPercent,
@@ -86,6 +89,8 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
       overrides: props.overrides,
     }),
     [
+      props.marketQuote.isLoading,
+      props.marketQuote.minimumOutputAmountRaw,
       props.account,
       props.callbacks,
       props.chainId,

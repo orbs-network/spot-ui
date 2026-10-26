@@ -2,6 +2,7 @@ import BN from "bignumber.js";
 import { Module, OrderType } from "../types";
 import { normalizeAmount } from "./amounts";
 import { calculateOrderSchedule } from "./schedule";
+import { SWAP_ORDER_SLIPPAGE_BPS } from "./constants";
 import type {
   CalculateOrderValuesParams,
   CalculatedOrderValues,
@@ -47,7 +48,7 @@ const getTriggerOutputAmountPerTrade = (
   triggerPrice?: string,
   inputTokenDecimals?: number,
 ): string | undefined => {
-  if (module === Module.TWAP || module === Module.LIMIT) return "0";
+  if (module === Module.TWAP || module === Module.LIMIT || module === Module.SWAP) return "0";
   if (inputTokenDecimals == null || !inputAmountPerTrade || !triggerPrice) {
     return undefined;
   }
@@ -73,7 +74,7 @@ const getOrderType = (
   module: Module,
   isMarketOrder: boolean,
 ): OrderType => {
-  if (module === Module.LIMIT) return OrderType.LIMIT;
+  if (module === Module.LIMIT || module === Module.SWAP) return OrderType.LIMIT;
   if (module === Module.STOP_LOSS) {
     return isMarketOrder
       ? OrderType.STOP_LOSS_MARKET
@@ -101,6 +102,7 @@ const getTradePrice = ({
   | "limitPrice"
   | "triggerPrice"
 >): string => {
+  if (module === Module.SWAP) return normalizeAmount(marketPrice);
   if (module === Module.LIMIT || !isMarketOrder) {
     return normalizeAmount(limitPrice);
   }
@@ -122,9 +124,13 @@ export const calculateOrderValues = (
   params: CalculateOrderValuesParams,
 ): CalculatedOrderValues => {
   const schedule = calculateOrderSchedule(params);
-  const slippageBps = Number.isFinite(params.priceProtectionPercent)
-    ? params.priceProtectionPercent * 100
-    : 0;
+  // The host already applies UI slippage to the swap's minimum output.
+  // This separate signed field controls oracle protection.
+  const slippageBps = params.module === Module.SWAP
+    ? SWAP_ORDER_SLIPPAGE_BPS
+    : Number.isFinite(params.priceProtectionPercent)
+      ? params.priceProtectionPercent * 100
+      : 0;
   const displayFeePercent =
     typeof params.displayFeePercent === "number" &&
     Number.isFinite(params.displayFeePercent)
@@ -147,15 +153,18 @@ export const calculateOrderValues = (
     inputAmount,
     schedule.totalTrades,
   );
-  const outputAmount = normalizeAmount(
-    getOutputAmount(inputAmount, tradePrice, params.inputTokenDecimals),
-  );
-  const minOutputAmountPerTrade = getMinOutputAmountPerTrade(
-    inputAmountPerTrade,
-    limitPrice,
-    params.isMarketOrder,
-    params.inputTokenDecimals,
-  );
+  // A swap uses exact whole-quote amounts, avoiding per-token price rounding.
+  const outputAmount = params.module === Module.SWAP
+    ? normalizeAmount(params.quotedOutputAmountRaw)
+    : normalizeAmount(getOutputAmount(inputAmount, tradePrice, params.inputTokenDecimals));
+  const minOutputAmountPerTrade = params.module === Module.SWAP
+    ? normalizeAmount(params.minimumOutputAmountRaw) || "0"
+    : getMinOutputAmountPerTrade(
+        inputAmountPerTrade,
+        limitPrice,
+        params.isMarketOrder,
+        params.inputTokenDecimals,
+      );
   const minOutputAmountTotal = getTotalAmount(
     minOutputAmountPerTrade,
     schedule.totalTrades,

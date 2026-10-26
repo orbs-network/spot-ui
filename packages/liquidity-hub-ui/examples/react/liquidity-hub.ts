@@ -1,3 +1,4 @@
+/** @deprecated Legacy Liquidity Hub example. Use @orbs-network/spot-ui; see packages/spot-ui/examples/swap.ts. */
 import {
   createClient,
   isFreshQuote,

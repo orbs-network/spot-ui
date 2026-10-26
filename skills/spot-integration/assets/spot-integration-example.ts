@@ -1,25 +1,25 @@
 import {
-  calculateOrderForm,
+  Module,
+  calculateOrder,
+  executeOrder,
+  waitForOrder,
   createClient,
+  getQuote,
   isNativeAddress,
   isTxRejected,
-  type AllowanceRequest,
-  type ApprovalRequest,
   type CalculateOrderFormParams,
   type CalculatedOrderForm,
   type CancelOrderRequest,
   type Order,
-  type OrderSigningRequest,
+  type OrderWalletInteractions,
   type Partners,
   type SpotClient,
+  type SwapQuote,
+  type SwapQuoteParams,
   type Token,
 } from "@orbs-network/spot-ui";
 
-export interface SpotWalletPort {
-  getAllowance(request: AllowanceRequest): Promise<string>;
-  wrapNativeToken(amountRaw: string): Promise<`0x${string}`>;
-  approveToken(request: ApprovalRequest): Promise<`0x${string}`>;
-  signOrder(request: OrderSigningRequest): Promise<`0x${string}`>;
+export interface SpotWalletPort extends OrderWalletInteractions {
   cancelOrder(request: CancelOrderRequest): Promise<`0x${string}`>;
 }
 
@@ -35,6 +35,8 @@ export interface SubmitSpotOrderParams {
   inputToken: Token;
   outputToken: Token;
   account: string;
+  /** Create before starting wallet work; abort on account/chain changes or disposal. */
+  signal?: AbortSignal;
 }
 
 export interface SubmittedSpotOrder {
@@ -43,18 +45,6 @@ export interface SubmittedSpotOrder {
   wrapTxHash?: `0x${string}`;
 }
 
-const wait = (milliseconds: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
-
-const hasRequiredAllowance = async (
-  wallet: SpotWalletPort,
-  request: AllowanceRequest,
-  requiredAmountRaw: string,
-): Promise<boolean> => {
-  const allowance = await wallet.getAllowance(request);
-  return BigInt(allowance) >= BigInt(requiredAmountRaw);
-};
-
 export class SpotIntegration {
   private clientPromise?: Promise<SpotClient>;
   private isSubmitting = false;
@@ -62,10 +52,22 @@ export class SpotIntegration {
 
   public constructor(private readonly options: SpotIntegrationOptions) {}
 
+  /** Drive the host's loading state and automatic/manual quote pause from this. */
+  public get isExecuting(): boolean { return this.isSubmitting; }
+
+  public getQuote(
+    params: Omit<SwapQuoteParams, "chainId" | "partner">,
+  ): Promise<SwapQuote> {
+    if (this.isExecuting) return Promise.reject(new Error("Quotes are paused during execution"));
+    // Standalone quoting keeps disconnected previews independent of /config.
+    // With an initialized client, client.getQuote(params) supplies the same scope.
+    return getQuote({ ...params, chainId: this.options.chainId, partner: this.options.partner });
+  }
+
   public calculateForm(
     params: CalculateOrderFormParams,
   ): CalculatedOrderForm {
-    return calculateOrderForm(params);
+    return calculateOrder(params);
   }
 
   public getClient(): Promise<SpotClient> {
@@ -88,6 +90,7 @@ export class SpotIntegration {
     return this.getClient();
   }
 
+  /** For SWAP, resolves after a fill; other modules resolve at order acceptance. */
   public async submitOrder(
     params: SubmitSpotOrderParams,
   ): Promise<SubmittedSpotOrder> {
@@ -100,7 +103,9 @@ export class SpotIntegration {
 
     this.isSubmitting = true;
     try {
+      params.signal?.throwIfAborted();
       const client = await this.getClient();
+      params.signal?.throwIfAborted();
       const isNativeInput = isNativeAddress(params.inputToken.address);
       const orderInputToken = isNativeInput
         ? this.options.wrappedNativeToken
@@ -111,58 +116,20 @@ export class SpotIntegration {
         );
       }
 
-      const requiredAmountRaw = params.form.inputAmount.raw;
-      const allowanceRequest: AllowanceRequest = {
-        tokenAddress: orderInputToken.address,
-        spenderAddress: client.spenderAddress,
-      };
-      const approvalRequired = !(await hasRequiredAllowance(
-        this.options.wallet,
-        allowanceRequest,
-        requiredAmountRaw,
-      ));
-
-      const wrapTxHash = isNativeInput
-        ? await this.options.wallet.wrapNativeToken(requiredAmountRaw)
-        : undefined;
-
-      const approvalTxHash = approvalRequired
-        ? await this.options.wallet.approveToken({
-            ...allowanceRequest,
-            amount: requiredAmountRaw,
-          })
-        : undefined;
-
-      if (approvalRequired) {
-        let allowanceObserved = false;
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-          allowanceObserved = await hasRequiredAllowance(
-            this.options.wallet,
-            allowanceRequest,
-            requiredAmountRaw,
-          );
-          if (allowanceObserved) break;
-          await wait(3_000);
-        }
-        if (!allowanceObserved) {
-          throw new Error("The confirmed token approval was not observed by RPC");
-        }
-      }
-
-      // Prepare late so the signed start, deadline, and nonce stay fresh.
-      const preparedOrder = client.prepareOrder({
-        form: params.form,
-        inputTokenAddress: orderInputToken.address,
-        outputTokenAddress: params.outputToken.address,
-        swapperAddress: params.account,
+      const result = await executeOrder({
+        client, account: params.account,
+        inputTokenAddress: orderInputToken.address, inputAmountRaw: params.form.inputAmount.raw,
+        nativeInput: isNativeInput, walletInteractions: this.options.wallet,
+        signal: params.signal,
+        prepareOrder: () => client.prepareOrder({
+          form: params.form, inputTokenAddress: orderInputToken.address,
+          outputTokenAddress: params.outputToken.address, swapperAddress: params.account,
+        }),
       });
-
-      const signature = await this.options.wallet.signOrder(
-        preparedOrder.signingRequest,
-      );
-      const order = await client.submitOrder(preparedOrder.order, signature);
-
-      return { order, approvalTxHash, wrapTxHash };
+      const completedOrder = params.form.module === Module.SWAP
+        ? await waitForOrder({ order: result.order, signal: params.signal })
+        : result.order;
+      return { order: completedOrder, approvalTxHash: result.approvalTxHash as `0x${string}` | undefined, wrapTxHash: result.wrapTxHash as `0x${string}` | undefined };
     } catch (error: unknown) {
       if (isTxRejected(error)) {
         throw new Error("The wallet request was rejected");

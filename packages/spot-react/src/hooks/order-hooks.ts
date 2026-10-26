@@ -80,9 +80,17 @@ export const useOrdersResource = () => {
 /** Cache commands used by order creation and cancellation flows. */
 export const useAddNewOrder = () => {
   const store = useSpotStoreApi();
+  const { account, supportLegacyOrders } = useSpotTrading();
+  const { data: client } = useClient();
+  const key = getOrdersResourceKey(account, client, supportLegacyOrders);
   return useCallback(
-    (order: Order) => store.getState().addOrder(order),
-    [store],
+    (order: Order) => {
+      // Submission may be accepted after the account or client has changed.
+      // Its ID still reaches onOrderCreated, but belongs to the original cache.
+      if (!key || store.getState().orders.key !== key) return;
+      store.getState().addOrder(order);
+    },
+    [key, store],
   );
 };
 

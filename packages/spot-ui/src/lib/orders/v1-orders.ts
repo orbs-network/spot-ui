@@ -10,6 +10,7 @@ import {
   GetV1OrdersFilters,
 } from "../types";
 import BN from "bignumber.js";
+import { SpotError } from "../errors";
 import { getExchanges } from "../utils";
 import { THE_GRAPH_ORDERS_API } from "./legacy-twap-config";
 type RawStatus = "CANCELLED" | "COMPLETED" | null;
@@ -26,15 +27,15 @@ type GraphQLPageFetcher = (page: number, limit: number) => string;
 
 const extractGraphList = <T>(response: unknown, field: string): T[] => {
   if (!response || typeof response !== "object") {
-    throw new Error("Invalid subgraph response");
+    throw new SpotError("INVALID_RESPONSE", "Invalid subgraph response");
   }
   const data = (response as { data?: unknown }).data;
   if (!data || typeof data !== "object") {
-    throw new Error("Invalid subgraph response: missing data");
+    throw new SpotError("INVALID_RESPONSE", "Invalid subgraph response: missing data");
   }
   const results = (data as Record<string, unknown>)[field];
   if (!Array.isArray(results)) {
-    throw new Error(`Invalid subgraph response: missing ${field}`);
+    throw new SpotError("INVALID_RESPONSE", `Invalid subgraph response: missing ${field}`);
   }
   return results as T[];
 };
@@ -69,7 +70,7 @@ const fetchWithRetryPaginated = async <T>({
           signal,
           headers: { "Content-Type": "application/json" },
         });
-        if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+        if (!res.ok) throw new SpotError("HISTORY_FAILED", `HTTP error: ${res.status}`, { status: res.status });
 
         const json: unknown = await res.json();
         const errors =
@@ -82,7 +83,7 @@ const fetchWithRetryPaginated = async <T>({
             firstError && typeof firstError === "object"
               ? (firstError as { message?: unknown }).message
               : undefined;
-          throw new Error(
+          throw new SpotError("HISTORY_FAILED",
             typeof message === "string" ? message : "Subgraph request failed",
           );
         }
@@ -575,7 +576,8 @@ export const getOrders = async ({
     });
   } catch (error) {
     if (error instanceof NoGraphEndpointError) return [];
-    throw error;
+    if (signal?.aborted || (error instanceof Error && error.name === "AbortError") || error instanceof SpotError) throw error;
+    throw new SpotError("HISTORY_FAILED", error instanceof Error ? error.message : "Failed to fetch order history", { cause: error });
   }
 };
 

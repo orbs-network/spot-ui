@@ -114,6 +114,14 @@ export const calculatePriceDisplay = (
   };
 };
 
+/**
+ * Returns `1 / value` when switching a form's displayed price direction.
+ * Use UI price units here; this does not change a prepared or signed order.
+ *
+ * @returns The reciprocal as a decimal string. Empty and undefined inputs are
+ * preserved; zero and non-finite inputs return `"0"`.
+ * @example invertPriceInput("2") // "0.5"
+ */
 export const invertPriceInput = (value?: string): string | undefined => {
   if (value === undefined || value === "") return value;
   const amount = BN(value);
@@ -223,6 +231,7 @@ const getLimitPriceError = (
   limitPrice: string,
 ): InputError | undefined => {
   if (
+    params.module === Module.SWAP ||
     BN(params.inputAmountRaw || "0").isZero() ||
     !marketPrice ||
     params.isMarketOrder
@@ -300,16 +309,28 @@ export const calculateOrderPrices = (
     outputUsdPrice: params.outputTokenUsdPrice,
   });
   const isMarketOrder =
-    params.module === Module.LIMIT ? false : params.userInput.isMarketOrder;
+    params.module === Module.LIMIT || params.module === Module.SWAP
+      ? false
+      : params.userInput.isMarketOrder;
   const limitPrice = calculateLimitPriceValues({
     module: params.module,
     isMarketOrder,
     marketPrice,
     inputAmountRaw: inputAmount,
-    limitPrice: params.userInput.limitPriceUi,
-    limitPricePercent: params.userInput.limitPricePercent,
+    limitPrice: params.module === Module.SWAP
+      ? BN(inputAmount || 0).gt(0)
+        ? toAmountUI(
+            BN(params.minimumOutputAmountRaw || 0).div(inputAmount)
+              .times(BN(10).pow(params.inputTokenDecimals)).toFixed(),
+            params.outputTokenDecimals,
+          )
+        : ""
+      : params.userInput.limitPriceUi,
+    limitPricePercent: params.module === Module.SWAP
+      ? null
+      : params.userInput.limitPricePercent,
     triggerPrice: triggerPrice.raw,
-    isInverted: params.userInput.isPriceInverted,
+    isInverted: params.module === Module.SWAP ? false : params.userInput.isPriceInverted,
     inputTokenDecimals: params.inputTokenDecimals,
     outputTokenDecimals: params.outputTokenDecimals,
     inputUsdPrice: params.inputTokenUsdPrice,

@@ -8,7 +8,7 @@ import {
   type ApprovalRequest,
   type CalculatedOrderForm,
   type CancelOrderRequest,
-  type OrderSigningRequest,
+  type OrderWalletInteractions,
   type PreparedOrder,
   type Token,
 } from "@orbs-network/spot-ui";
@@ -26,6 +26,7 @@ export enum ExecutionPhase {
   APPROVING = "approving",
   SIGNING = "signing",
   SUBMITTING = "submitting",
+  SETTLING = "settling",
   SUCCESS = "success",
   FAILED = "failed",
   REJECTED = "rejected",
@@ -39,12 +40,9 @@ export type CancelOrderProps = CancelOrderRequest;
 
 export type ApproveTokenProps = ApprovalRequest;
 
-export type WalletInteractions = {
+/** Shared SDK wallet operations plus confirmed order cancellation for React history. */
+export type WalletInteractions = OrderWalletInteractions & {
   cancelOrder: (props: CancelOrderProps) => Promise<`0x${string}`>;
-  signOrder: (request: OrderSigningRequest) => Promise<`0x${string}`>;
-  wrapNativeToken: (amount: string) => Promise<`0x${string}`>;
-  approveToken:  (props: ApproveTokenProps) => Promise<`0x${string}`>;
-  getAllowance: (props: GetAllowanceProps) => Promise<string>;
 };
 
 export type GetAllowanceProps = AllowanceRequest;
@@ -126,6 +124,8 @@ export type Callbacks = {
 
 export type MarketQuote = {
   quotedOutputAmountRaw?: string;
+  /** Slippage-adjusted minimum, required for Module.SWAP; expressed in output-token base units. */
+  minimumOutputAmountRaw?: string;
   isLoading?: boolean;
   noLiquidity?: boolean;
 };

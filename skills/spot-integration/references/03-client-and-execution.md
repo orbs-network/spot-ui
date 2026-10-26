@@ -11,7 +11,9 @@ Keep the client promise, wallet adapter, and in-flight locks in a non-reactive s
 Do not separately fetch RePermit configuration or copy its addresses into application configuration. Use:
 
 - `client.spenderAddress` for allowance and approval;
+- `client.getQuote` for quotes bound to the client's partner and chain;
 - `client.getAccountOrders` for history scoped to the configured partner and chain;
+- `client.getOrder({ orderId, signal })` for one submitted swap, independently of account history;
 - `client.prepareOrder` for the exact protocol order, signing payload, and approval payload;
 - `client.getCancelOrderRequest` for version-aware cancellation.
 
@@ -21,17 +23,11 @@ Adapt the host wallet instead of making Spot depend on a wallet library:
 
 ```ts
 import type {
-  AllowanceRequest,
-  ApprovalRequest,
   CancelOrderRequest,
-  OrderSigningRequest,
+  OrderWalletInteractions,
 } from "@orbs-network/spot-ui";
 
-interface SpotWalletPort {
-  getAllowance(request: AllowanceRequest): Promise<string>;
-  wrapNativeToken(amountRaw: string): Promise<`0x${string}`>;
-  approveToken(request: ApprovalRequest): Promise<`0x${string}`>;
-  signOrder(request: OrderSigningRequest): Promise<`0x${string}`>;
+interface SpotWalletPort extends OrderWalletInteractions {
   cancelOrder(request: CancelOrderRequest): Promise<`0x${string}`>;
 }
 ```
@@ -57,7 +53,9 @@ Treat one click as one immutable attempt and reject concurrent attempts:
 8. Call `client.prepareOrder` with the captured form, normalized ERC-20 input address, output token address, and account.
 9. Call `wallet.signOrder(preparedOrder.signingRequest)`.
 10. Call `client.submitOrder(preparedOrder.order, signature)` once.
-11. Refresh balances and history on success.
+11. For swaps, keep loading and the execution lock while polling only the accepted order ID until a fill or terminal failure. For other modules, acceptance completes creation. Refresh balances/history at the appropriate lifecycle events.
+
+Create the lifecycle abort controller before wallet work begins so account/chain changes or unmount before submission resolves cannot start obsolete settlement polling. Pause automatic/manual quoting and cancel quote requests during execution. See [Swap and Migration](07-swap-and-migration.md).
 
 `prepareOrder` must run late in the sequence because it stamps `currentTimeMillis`, `deadlineMillis`, and a nonce. It does not recalculate the form and rejects `form.canSubmit === false`. Keep its returned `form` snapshot for the review/progress UI so the user sees the values that were signed.
 
@@ -65,6 +63,9 @@ The returned `preparedOrder.approvalRequest` documents the same token, amount, a
 
 ## Failure Semantics
 
+- Check SDK failures with `error instanceof SpotError` and stable `error.code`
+  values such as `EXECUTION_IN_PROGRESS` or `FORM_NOT_SUBMITTABLE`; preserve
+  `QuoteError`, `OrderSettlementError`, and wallet/abort contracts separately.
 - Use `isTxRejected(error)` to distinguish user rejection from operational failures.
 - Preserve the form after rejection or failure so the user can retry deliberately.
 - A rejected approval or signing request is safe to retry after a new user action.

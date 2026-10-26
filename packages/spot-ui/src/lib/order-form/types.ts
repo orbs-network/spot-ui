@@ -11,9 +11,16 @@ export interface CalculateOrderFormParams {
   outputTokenDecimals: number;
   /** Raw output-token quote for the complete `userInput.inputAmountUi`. */
   quotedOutputAmountRaw?: string;
+  /**
+   * Exact minimum output-token base units after the host applies UI slippage.
+   * Required for Module.SWAP; must be positive and no greater than quotedOutputAmountRaw.
+   * Other modules derive their minimum from the form's price controls.
+   */
+  minimumOutputAmountRaw?: string;
   inputTokenUsdPrice?: string;
   outputTokenUsdPrice?: string;
   minTradeSizeUsd: number;
+  /** Signed oracle protection percentage for other modules. Module.SWAP always uses 5% (500 bps). */
   priceProtectionPercent: number;
   /** Display-only estimate; fee collection is configured outside the SDK. */
   displayFeePercent?: number;
@@ -22,6 +29,7 @@ export interface CalculateOrderFormParams {
   userInput: {
     /** User-entered decimal amount, for example `"1.5"`. */
     inputAmountUi: string;
+    /** Ignored for SWAP and LIMIT, which always produce a limit order. */
     isMarketOrder: boolean;
     tradeCount?: number;
     tradeInterval?: TimeDuration;
@@ -35,8 +43,11 @@ export interface CalculateOrderFormParams {
 }
 
 export interface CalculatedAmount {
+  /** Token base units as a decimal string; integer for token amounts. */
   raw: string;
+  /** Token amount formatted using the token's decimals. */
   ui: string;
+  /** USD display value, or an empty string when unavailable. */
   usd: string;
 }
 
@@ -86,6 +97,7 @@ export interface CalculatedOrderValues extends CalculatedOrderSchedule {
   orderType: OrderType;
   isMarketOrder: boolean;
   isTriggerPrice: boolean;
+  /** Value signed as witness.slippage. Always 500 (5%) for Module.SWAP. */
   slippageBps: number;
   inputAmount: string;
   outputAmount: string;
@@ -123,6 +135,8 @@ export interface CalculatedOrderFormErrors {
   primary?: InputError;
   all: InputError[];
   minTradeSize?: InputError;
+  /** Invalid SWAP minimum, reported after the amount, quote, and USD price are available. */
+  swapMinimum?: InputError;
   triggerPrice?: InputError;
   limitPrice?: InputError;
   trades?: InputError;
@@ -225,6 +239,8 @@ export interface CalculateOrderValuesParams {
   module: Module;
   inputTokenDecimals: number;
   totalInputAmount: string;
+  quotedOutputAmountRaw?: string;
+  minimumOutputAmountRaw?: string;
   fillDelay?: TimeDuration;
   duration?: TimeDuration;
   totalTrades: number;

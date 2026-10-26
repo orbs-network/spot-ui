@@ -1,3 +1,5 @@
+"use client";
+
 import { setUIVersion } from "@orbs-network/spot-ui";
 import pkg from "../package.json";
 import { SpotProvider } from "./context/spot-provider";
@@ -35,6 +37,22 @@ export {
   type CreateClientOptions,
   type SpotAnalytics,
   type AccountOrdersResult,
+  type GetOrdersParams,
+  type QuoteErrorKind,
+  type SwapQuote,
+  type SwapQuoteParams,
+  type PrepareSwapParams,
+  type PreparedSwap,
+  type SubmitSwapParams,
+  type SubmittedSwap,
+  type SwapTradeType,
+  type ExecuteOrderParams,
+  type OrderExecutionUpdate,
+  type OrderExecutionPhase,
+  type OrderExecutionStep,
+  type OrderWalletInteractions,
+  type SignableOrder,
+  type WaitForOrderParams,
   type PrepareOrderParams,
   type PreparedOrder,
   type PreparedOrderValues,
@@ -44,6 +62,10 @@ export {
   type AllowanceRequest,
   type CancelOrderRequest,
   type ClientGetAccountOrdersParams,
+  type ClientGetOrderParams,
+  type ClientGetQuoteParams,
+  type SpotErrorCode,
+  type SpotErrorOptions,
   type Signature,
   type Address,
   type Hex,
@@ -74,7 +96,17 @@ export {
   InputErrors,
 
   // Functions
+  getQuote,
+  isQuoteFresh,
+  getMinimumOutputAmount,
+  isSwapSupported,
+  submitSwap,
+  executeOrder,
+  waitForOrder,
+  watchOrder,
+  getOrders,
   getTwapConfig,
+  calculateOrder,
   calculateOrderForm,
   toAmountRaw,
   toAmountUI,
@@ -88,13 +120,21 @@ export {
   getTriggerPriceRate,
   isTxRejected,
 
+  // Errors
+  QuoteError,
+  SpotError,
+  OrderSettlementError,
+
   // Constants
+  SWAP_CAPABILITIES,
   DISCLAIMER_URL,
   ORBS_TWAP_FAQ_URL,
   ORBS_SLTP_FAQ_URL,
   ORBS_LOGO,
   ORBS_WEBSITE_URL,
   // Analytics
+  analytics,
+  setUIVersion,
 } from "@orbs-network/spot-ui";
 
 export { SpotProvider };

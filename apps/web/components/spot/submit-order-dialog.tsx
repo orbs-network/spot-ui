@@ -1,7 +1,9 @@
 import { useCallback, useState } from "react";
 import {
   DISCLAIMER_URL,
+  ExecutionPhase,
   ExecutionStatus,
+  Module,
   useExecution,
   useOrderForm,
   useSubmitButton,
@@ -13,6 +15,7 @@ import { Button } from "../ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
@@ -23,17 +26,19 @@ import { useSpotFormContext } from "./spot-form-context";
 
 const OrderSubmissionError = ({
   code,
+  message,
   onClose,
 }: {
   code: number;
+  message: string;
   onClose: () => void;
 }) => (
   <div className="flex flex-col gap-4">
     <div className="flex flex-col gap-2 bg-destructive/50 p-2 rounded-md">
       <div className="flex flex-row gap-2">
         <AlertTriangleIcon className="size-4 text-foreground relative top-0.5" />
-        <p className="text-sm text-foreground flex-1 font-medium">
-          Error code: {code}
+        <p className="text-sm text-foreground flex-1 font-medium whitespace-pre-wrap break-words max-h-48 overflow-auto">
+          {message.split("\n")[0]} (code: {code})
         </p>
       </div>
     </div>
@@ -52,6 +57,8 @@ const OrderReview = ({
   isPreparingOrder: boolean;
   orderTitle: string;
 }) => {
+  const isSwap = useOrderForm().module === Module.SWAP;
+  const { disabled: submitDisabled } = useSubmitButton();
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(true);
 
   return (
@@ -72,17 +79,18 @@ const OrderReview = ({
               </a>
             </p>
             <Switch
+              aria-label="Accept disclaimer"
               checked={disclaimerAccepted}
               onCheckedChange={setDisclaimerAccepted}
             />
           </div>
           <Button
-            disabled={!disclaimerAccepted || isPreparingOrder}
+            disabled={!disclaimerAccepted || isPreparingOrder || submitDisabled}
             onClick={onSubmitOrder}
             isLoading={isPreparingOrder}
             aria-label={isPreparingOrder ? "Checking allowance" : undefined}
           >
-            {!isPreparingOrder ? "Create Order" : null}
+            {!isPreparingOrder ? (isSwap ? "Confirm Swap" : "Create Order") : null}
           </Button>
         </>
       }
@@ -93,13 +101,15 @@ const OrderReview = ({
 const OpenOrderReviewButton = ({ onClick }: { onClick: () => void }) => {
   const t = useTranslations();
   const { disabled, loading } = useSubmitButton();
+  const { isExecuting } = useExecution();
+  const isSwap = useOrderForm().module === Module.SWAP;
 
   return (
     <SubmitSwapButton
       onClick={onClick}
       disabled={disabled}
       isLoading={loading}
-      text={loading ? t("fetchingQuote") : t("placeOrder")}
+      text={isSwap && isExecuting ? "Executing swap…" : loading ? t("fetchingQuote") : isSwap ? "Review Swap" : t("placeOrder")}
     />
   );
 };
@@ -113,9 +123,12 @@ export const SubmitOrderDialog = () => {
     error,
     isPreparingOrder,
     isExecuting,
+    phase,
   } = useExecution();
   const { setInputAmount } = useSpotFormContext();
-  const orderTitle = getOrderTitle(useOrderForm().values.orderType);
+  const form = useOrderForm();
+  const isSwap = form.module === Module.SWAP;
+  const orderTitle = isSwap ? "Swap" : getOrderTitle(form.values.orderType);
   const [isOpen, setIsOpen] = useState(false);
   const onOpen = useCallback(() => setIsOpen(true), []);
   const onClose = useCallback(() => {
@@ -138,18 +151,22 @@ export const SubmitOrderDialog = () => {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <OpenOrderReviewButton onClick={onOpen} />
-      <DialogContent>
+      <DialogContent showCloseButton={!isExecuting}>
         <DialogHeader>
           <DialogTitle>
             {error
-              ? "Error Creating Order"
+              ? (isSwap ? "Swap not completed" : "Error Creating Order")
               : !status || isPreparingOrder
-                ? `${orderTitle} order`
-                : " "}
+                ? (isSwap ? "Review Swap" : `${orderTitle} order`)
+                : isSwap ? (isExecuting ? "Executing swap" : "Swap") : " "}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Review the amounts and minimum received before signing your order.
+          </DialogDescription>
         </DialogHeader>
+        {phase === ExecutionPhase.SETTLING && <p role="status" className="sr-only">Waiting for your swap to fill.</p>}
         {error ? (
-          <OrderSubmissionError code={error.code} onClose={onClose} />
+          <OrderSubmissionError code={error.code} message={error.message} onClose={onClose} />
         ) : (
           <OrderReview
             onSubmitOrder={submitOrder}

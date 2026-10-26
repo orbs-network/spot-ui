@@ -15,7 +15,7 @@ import {
   sonic,
 } from "viem/chains";
 import { TABS } from "./types";
-import { Partners } from "@orbs-network/spot-ui";
+import { Partners } from "@orbs-network/spot-react";
 import { robinhoodChain } from "./chains";
 
 export const DEFAULT_TOKENS = {
@@ -202,6 +202,7 @@ export const FORM_TABS = [
 ];
 
 export const SPOT_TABS = [
+  TABS.SWAP,
   TABS.LIMIT,
   TABS.STOP_LOSS,
   TABS.TAKE_PROFIT,

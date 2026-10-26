@@ -1,6 +1,7 @@
 import BN from "bignumber.js";
 import {
   DEFAULT_FILL_DELAY,
+  SWAP_ORDER_DURATION_MILLIS,
   MAX_ORDER_DURATION_MILLIS,
   MIN_FILL_DELAY_MILLIS,
   MIN_ORDER_DURATION_MILLIS,
@@ -20,6 +21,7 @@ export const getDuration = (
 ): TimeDuration => {
   const minDuration = getTimeDurationMillis(fillDelay) * 2 * totalTrades;
 
+  if (module === Module.SWAP) return { unit: TimeUnit.Minutes, value: SWAP_ORDER_DURATION_MILLIS / TimeUnit.Minutes };
   if (customDuration) return customDuration;
   if (module === Module.LIMIT) return { unit: TimeUnit.Days, value: 7 };
   if (module === Module.STOP_LOSS || module === Module.TAKE_PROFIT) {

@@ -76,12 +76,15 @@ export const notifyOrderUpdates = (
   for (const previousOrder of previousOrders) {
     if (previousOrder.version !== 2) continue;
     const currentOrder = currentOrdersByKey.get(previousOrder.historyKey);
-    if (!currentOrder || currentOrder.progress === previousOrder.progress) {
+    if (!currentOrder || (
+      currentOrder.progress === previousOrder.progress &&
+      currentOrder.status === previousOrder.status
+    )) {
       continue;
     }
 
     updatedOrders.push(currentOrder);
-    if (currentOrder.status === OrderStatus.Completed) {
+    if (currentOrder.status === OrderStatus.Completed && previousOrder.status !== OrderStatus.Completed) {
       observe(() => callbacks?.onOrderFilled?.(currentOrder));
     }
   }

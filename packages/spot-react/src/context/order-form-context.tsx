@@ -1,5 +1,5 @@
 import {
-  calculateOrderForm,
+  calculateOrder,
   type CalculateOrderFormParams,
   type CalculatedOrderForm,
 } from "@orbs-network/spot-ui";
@@ -16,6 +16,7 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
     outputToken,
     inputAmountUi,
     quotedOutputAmountRaw,
+    minimumOutputAmountRaw,
     inputTokenUsdPrice,
     outputTokenUsdPrice,
     minTradeSizeUsd,
@@ -55,6 +56,7 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
       inputTokenDecimals: inputToken?.decimals ?? 0,
       outputTokenDecimals: outputToken?.decimals ?? 0,
       quotedOutputAmountRaw,
+      minimumOutputAmountRaw,
       inputTokenUsdPrice,
       outputTokenUsdPrice,
       minTradeSizeUsd,
@@ -75,6 +77,7 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
       },
     }),
     [
+      minimumOutputAmountRaw,
       outputToken?.decimals,
       outputTokenUsdPrice,
       displayFeePercent,
@@ -99,7 +102,7 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
   );
   const form = useMemo(() => {
     if (frozenForm) return frozenForm;
-    const calculatedForm = calculateOrderForm(params);
+    const calculatedForm = calculateOrder(params);
     if (inputToken && outputToken) return calculatedForm;
 
     // Token decimals are required for meaningful base-unit calculations. Keep

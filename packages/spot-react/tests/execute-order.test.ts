@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  Module,
   type Address,
   type CalculatedOrderForm,
   type Order,
@@ -60,6 +61,8 @@ const createForm = (canSubmit = true): CalculatedOrderForm =>
 const createPreparedOrder = (form: CalculatedOrderForm): PreparedOrder =>
   ({
     form,
+    order: {},
+    approvalRequest: { tokenAddress: inputToken.address, amount: form.inputAmount.raw, spenderAddress: SPENDER },
     signingRequest: {
       signerAddress: ACCOUNT,
       typedData: {},
@@ -87,7 +90,7 @@ const createClient = (form: CalculatedOrderForm): SpotClient => {
       onWrapError: vi.fn(), onApproveError: vi.fn(),
     },
     spenderAddress: SPENDER,
-    prepareOrder: vi.fn(() => preparedOrder),
+    prepareOrder: vi.fn((params) => ({ ...preparedOrder, approvalRequest: { ...preparedOrder.approvalRequest, tokenAddress: params.inputTokenAddress } })),
     submitOrder: vi.fn(async () => order),
   } as unknown as SpotClient;
 };
@@ -112,7 +115,6 @@ const createParams = (
   return {
     account: ACCOUNT,
     chainId: 1,
-    hasChainId: true,
     inputToken,
     outputToken,
     wrappedNativeToken,
@@ -191,6 +193,50 @@ describe("execution store", () => {
 });
 
 describe("executeOrder", () => {
+  it("finishes limit-order creation without waiting for a fill", async () => {
+    const waitForOrderFill = vi.fn();
+    const params = createParams({ form: { ...createForm(), module: Module.LIMIT }, waitForOrderFill });
+    await expect(executeOrder(params)).resolves.toBe(order);
+    expect(params.getCurrentExecution().phase).toBe(ExecutionPhase.SUCCESS);
+    expect(waitForOrderFill).not.toHaveBeenCalled();
+  });
+
+  it("keeps swaps active until their order fills and prevents duplicate submissions", async () => {
+    const form = { ...createForm(), module: Module.SWAP };
+    let resolveFill!: (order: Order) => void;
+    const filledOrder = { ...order, progress: 100 };
+    const waitForOrderFill = vi.fn(() => new Promise<Order>(resolve => { resolveFill = resolve; }));
+    const onOrderCreated = vi.fn();
+    const params = createParams({ form, waitForOrderFill, callbacks: { onOrderCreated } });
+    const execution = executeOrder(params);
+    await vi.waitFor(() => expect(waitForOrderFill).toHaveBeenCalledOnce());
+
+    expect(params.getCurrentExecution().phase).toBe(ExecutionPhase.SETTLING);
+    expect(params.returnToOrderForm()).toBe(false);
+    expect(onOrderCreated).toHaveBeenCalledOnce();
+    expect(params.refetchActiveOrders).not.toHaveBeenCalled();
+    await expect(executeOrder(params)).resolves.toBeUndefined();
+    expect(params.client!.submitOrder).toHaveBeenCalledOnce();
+
+    resolveFill(filledOrder);
+    await expect(execution).resolves.toBe(filledOrder);
+    expect(params.getCurrentExecution().phase).toBe(ExecutionPhase.SUCCESS);
+  });
+
+  it("reports an expired swap without calling it a submission failure", async () => {
+    const onSubmitOrderFailed = vi.fn();
+    const params = createParams({
+      form: { ...createForm(), module: Module.SWAP },
+      waitForOrderFill: vi.fn(async () => { throw new Error("Swap order expired"); }),
+      callbacks: { onSubmitOrderFailed },
+    });
+    await expect(executeOrder(params)).rejects.toThrow("Swap order expired");
+    expect(params.getCurrentExecution().phase).toBe(ExecutionPhase.FAILED);
+    expect(params.getCurrentExecution().parsedError?.message).toBe("Swap order expired");
+    expect(onSubmitOrderFailed).not.toHaveBeenCalled();
+    expect(params.client!.submitOrder).toHaveBeenCalledOnce();
+  });
+
   it("admits only one submission when called twice", async () => {
     let resolveAllowance: ((allowance: string) => void) | undefined;
     const wallet = createWallet();
@@ -400,6 +446,14 @@ describe("executeOrder", () => {
     await Promise.resolve();
     expect(params.getCurrentExecution().phase).toBe(ExecutionPhase.SUCCESS);
     expect(addNewOrder).toHaveBeenCalledWith(order);
+  });
+
+  it.each([undefined, 0, -1, 1.5, NaN])("validates chain %s without a separate readiness flag", async chainId => {
+    const params = createParams({ chainId });
+    await expect(executeOrder(params)).rejects.toThrow("unavailable on the connected chain");
+    expect(params.client!.prepareOrder).not.toHaveBeenCalled();
+    expect(params.walletInteractions.getAllowance).not.toHaveBeenCalled();
+    expect(params.walletInteractions.signOrder).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid form before preparing or invoking the wallet", async () => {

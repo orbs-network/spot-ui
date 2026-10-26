@@ -435,6 +435,8 @@ function SubmitOrderSection({ supportedChains }: { supportedChains: number[] }) 
 
 Build your submit order UI using `useExecution()` for execution state and `useOrderForm()` for order review details. Use `@orbs-network/swap-ui` for the order creation/progress flow UI inside the modal. The host DEX can still provide the modal shell, backdrop, close button, and surrounding layout, but the execution state content should be driven by `SwapFlow`.
 
+For `Module.SWAP`, also follow [Swap and Migration](07-swap-and-migration.md): hide limit price and expiration, show minimum received, and keep loading through settlement. `onOrderCreated` is acceptance; use execution success or `onOrderFilled` for swap completion. Settlement errors are exposed in execution state, not `onSubmitOrderFailed`.
+
 ### Review details and defaults
 
 Use the following rules in the submit modal and for the corresponding fields when shown after submission:
@@ -445,8 +447,9 @@ Use the following rules in the submit modal and for the corresponding fields whe
 | Order ID | When an ID is available, shorten its display with the DEX's identifier utility or a middle ellipsis, for example `0x1234…abcd`. Keep the full value in a tooltip and copy action. Do not invent an ID before submission. |
 | Individual trade size | Show only when `form.trades.totalTrades > 1`, with the label **Individual trade size** and `form.trades.inputAmountPerTrade`. |
 | Number of trades | Show only when `form.trades.totalTrades > 1`. |
-| Expiry | Show a formatted calendar date and time using the DEX's date formatter, rather than a duration or milliseconds. Before submission, derive the estimated date from the current time plus `form.schedule.durationMillis`; after submission, use the order's actual deadline. Respect the timestamp units and the DEX's timezone convention. |
-| Minimum amount out | Show only for limit execution (`!form.values.isMarketOrder`), including TWAP-limit and SL/TP with a limit enabled. Use `form.trades.minOutputAmountPerTrade`; label it per trade only when there is more than one trade. Hide it for market execution. |
+| Expiry | Hide in the swap submit modal. For advanced orders, show a formatted calendar date and time using the DEX's date formatter, rather than a duration or milliseconds. Before submission, derive the estimated date from the current time plus `form.schedule.durationMillis`; after submission, use the order's actual deadline. Respect the timestamp units and the DEX's timezone convention. |
+| Limit price | Hide for `Module.SWAP`; show for other limit-order review modes as appropriate. |
+| Minimum amount out | Show for swaps and other limit execution (`!form.values.isMarketOrder`), including TWAP-limit and SL/TP with a limit enabled. Use `form.trades.minOutputAmountPerTrade`; label it per trade only when there is more than one trade. Hide it for market execution. |
 | Trigger price | Show only for Stop-Loss or Take-Profit (`form.values.isTriggerPrice`), not merely because a price field contains a value. |
 
 Use the DEX's existing amount parsing and formatting utilities for every token amount, price, fee, and USD value, including the main input/output summary. Convert `.raw` into the DEX amount type when supported, then format with its significant-digit/compact-number utilities. Avoid long decimal strings and avoid rounding tiny nonzero amounts to a misleading zero. Keep full precision for calculations, transactions, and copy actions; shortening applies only to display.
@@ -479,6 +482,8 @@ versioned independently.
 ```tsx
 import {
   ExecutionStatus,
+  ExecutionPhase,
+  Module,
   useExecution,
   useOrderForm,
 } from "@orbs-network/spot-react";
@@ -487,6 +492,7 @@ import { SwapFlow, SwapStatus as SwapUiStatus } from "@orbs-network/swap-ui";
 function SpotOrderFlow() {
   const {
     status,
+    phase,
     error,
     inputToken,
     outputToken,
@@ -518,7 +524,7 @@ function SpotOrderFlow() {
       inToken={{ symbol: inputToken?.symbol }}
       outToken={{ symbol: outputToken?.symbol }}
       swapStatus={swapStatus}
-      currentStep={{ title: currentStep ? t(`spot.step.${currentStep}`) : t("spot.step.createOrder") }}
+      currentStep={{ title: phase === ExecutionPhase.SETTLING ? t("spot.executingSwap") : currentStep ? t(`spot.step.${currentStep}`) : t("spot.step.createOrder") }}
       currentStepIndex={currentStepIndex}
       totalSteps={totalSteps}
       components={{
@@ -528,7 +534,7 @@ function SpotOrderFlow() {
         Main: <SwapFlow.Main inUsd={form.inputAmount.usd} outUsd={form.outputAmount.usd} />,
         Success: (
           <SwapFlow.Success
-            title={t("spot.orderCreated")}
+            title={t(form.module === Module.SWAP ? "spot.swapCompleted" : "spot.orderCreated")}
             footerLink={explorerUrl}
             footerText={explorerUrl ? t("viewOnExplorer") : undefined}
           />
@@ -545,7 +551,8 @@ Style the `SwapFlow` wrapper with the DEX theme. Do not copy the reference scree
 ### `useExecution()` provides:
 - `submitOrder` — trigger the order creation flow
 - `status` — `ExecutionStatus` (`LOADING`, `SUCCESS`, `FAILED`) or undefined
-- `isExecuting`, `isSuccess`, `isFailed` — convenience boolean flags derived from `status`
+- `isExecuting` — true through preparation, wallet steps, submission, and swap settlement; use it to pause quotes and block close/reset
+- `isSuccess`, `isFailed` — terminal flags; swap success requires a fill, while other modules succeed at acceptance
 - `currentStep` — current step: WRAP, APPROVE, CREATE
 - `currentStepIndex` / `totalSteps` — progress tracking
 - `executionSteps` — ordered steps required for this execution
@@ -554,7 +561,7 @@ Style the `SwapFlow` wrapper with the DEX theme. Do not copy the reference scree
 - `startNewOrder()` — resets Spot's form and retry state after a terminal execution; returns `false` during an active execution
 
 Use `phase` when the DEX needs precise progress. It transitions through `idle`,
-`preparing`, `wrapping`, `approving`, `signing`, `submitting`, and `success`,
+`preparing`, `wrapping`, `approving`, `signing`, `submitting`, swap-only `settling`, and `success`,
 with terminal `failed` and `rejected` branches. Map the coarser `status` to
 `swap-ui` as shown above. Keep the modal open while `isExecuting` is true; the
 SDK also rejects reset actions during those phases.
@@ -645,7 +652,7 @@ Each order's cancel status is tracked independently, so multiple cancellations c
 
 Build order history using `useOrders()` for the list and `useHistoryOrder()` for individual order display. The history query and polling are active only while a component using `useOrders()` is mounted:
 
-History starts after the Spot client configuration succeeds. V2 requests fetch all orders using `swapper`, `chainId`, and `partner`, without `exchange`, `page`, or `limit`; let `useOrders()` own this fetching rather than adding host-side pagination requests. When `supportLegacyOrders` is enabled, legacy v1 orders are fetched with the first successful history snapshot and retained while v2 history continues polling.
+History starts after the Spot client configuration succeeds. V2 account-history requests use `swapper`, `chainId`, and `exchange` (the partner's legacy adapters plus the configured Spot adapter), without v2 pagination; let `useOrders()` own this fetching. QuickSwap uses the history service's `quickswap` key. Swap execution independently polls only the submitted signed order ID and chain, without legacy exchange-name filters, and does not need a mounted `useOrders()` consumer. When `supportLegacyOrders` is enabled, legacy v1 orders are fetched with the first successful history snapshot and retained while v2 history continues polling.
 
 `useHistoryOrder` returns each amount as `{ raw, ui }`; historical USD values
 are intentionally omitted when the service response does not provide them.

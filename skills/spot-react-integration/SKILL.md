@@ -1,25 +1,27 @@
 ---
 name: spot-react-integration
-description: Integration guide for @orbs-network/spot-react into a DEX frontend. Covers SpotProvider setup, DEX swap-state adapters, walletInteractions, hook-driven panels (TWAP, Limit, Stop-Loss, Take-Profit), order submission with @orbs-network/swap-ui, lifecycle callbacks, order history, visual reference screenshots, and DEX-native styling. Produces a fully functional advanced orders UI that matches the host DEX look and feel.
+description: Integration guide for @orbs-network/spot-react into a DEX frontend, including migration from deprecated Liquidity Hub. Covers SpotProvider setup, DEX swap-state adapters, walletInteractions, hook-driven panels (Swap, TWAP, Limit, Stop-Loss, Take-Profit), order submission with @orbs-network/swap-ui, lifecycle callbacks, order history, visual reference screenshots, and DEX-native styling.
 ---
 
 # Spot React Integration
 
-Use this skill to integrate `@orbs-network/spot-react` into any DEX frontend. The library exposes focused named hooks for the authoritative calculated model, submission, and history across TWAP, Limit, Stop-Loss, and Take-Profit orders. The integration wraps the DEX's existing components so the result matches the DEX look and feel.
+Use this skill to integrate `@orbs-network/spot-react` into any DEX frontend. The library exposes focused named hooks for the authoritative calculated model, submission, and history across Swap, TWAP, Limit, Stop-Loss, and Take-Profit orders. The integration wraps the DEX's existing components so the result matches the DEX look and feel.
 
 ## Expected Result
+
+For swaps and migrations from the deprecated Liquidity Hub SDK, use the same `SpotProvider` with `module={Module.SWAP}`. Read [Swap and Migration](references/07-swap-and-migration.md) for quote/minimum wiring, quote pausing, settlement semantics, and swap-specific form/modal rules. No separate swap provider is needed.
 
 The completed integration should include:
 
 1. A `SpotProvider` wired to the DEX's tokens, wrapped native token, typed input amount, balances, USD prices, market quote, partner enum, account, chain, callbacks, `walletInteractions`, and a DEX-native `clientErrorFallback`; RePermit configuration is fetched by the SDK.
 2. A DEX-native order form with token inputs, price controls, TWAP duration/trade controls, validation errors, disclaimers, and a submit/order-flow modal using `@orbs-network/swap-ui`.
-3. Four module entry points or tabs: TWAP, Limit, Stop-Loss, and Take-Profit, using the DEX's existing navigation pattern.
+3. Entry points or tabs for the requested modules (Swap, TWAP, Limit, Stop-Loss, and Take-Profit), using the DEX's existing navigation pattern.
 4. Order history and cancellation UI built inside `SpotProvider` scope or rendered through a context-preserving portal.
 5. No direct dependency on a wallet library from `spot-react`; the DEX adapts its existing wallet stack through `walletInteractions`.
 
 ## Distribution
 
-This skill lives in `skills/spot-react-integration/` of the [`orbs-network/spot-ui`](https://github.com/orbs-network/spot-ui) repository, and is also available under `node_modules/@orbs-network/spot-react/.cursor/`.
+This skill and its references/templates live in `skills/spot-react-integration/` of the [`orbs-network/spot-ui`](https://github.com/orbs-network/spot-ui) repository. Do not assume they are included in the npm package.
 
 ## Reference Implementation
 
@@ -36,15 +38,17 @@ Working example: [`apps/web/components/spot/spot-form.tsx`](https://github.com/o
 7. Use [assets/spot-form-skeleton.tsx](assets/spot-form-skeleton.tsx) as a starting template.
 8. Before finalizing, verify current public exports/types in `@orbs-network/spot-react` and `@orbs-network/swap-ui`; do not assume internal hooks or `dist/*` paths exist.
 
+9. For a swap panel or Liquidity Hub migration, read [references/07-swap-and-migration.md](references/07-swap-and-migration.md) before wiring the quote adapter and submit modal.
+
 ## Guardrails
 
 1. Every DEX needs its own config. If one doesn't exist, contact **[@dTWAPSupportGroup](https://t.me/dTWAPSupportGroup)** on Telegram before starting.
-2. Install `@orbs-network/spot-react`, React, and—when using the documented progress modal—`@orbs-network/swap-ui`. Zustand and BigNumber are SDK internals and are not host dependencies.
+2. Install `@orbs-network/spot-react`, React, and—when using the documented progress modal—`@orbs-network/swap-ui`. Import SDK helpers such as `getQuote` from `@orbs-network/spot-react`; it includes `spot-ui` as a dependency, so no separate install is needed. Reuse the host numeric/query libraries; Zustand and BigNumber are SDK internals, not additional host requirements.
 3. Never import from `@orbs-network/spot-react/dist/*`. Always from `@orbs-network/spot-react`.
 4. Use DEX components as-is. Don't modify them. Create new ones using DEX styles when needed. For the order creation/progress flow inside the modal, use `@orbs-network/swap-ui` and adapt it to the host DEX colors, backgrounds, typography, and token-logo components.
 5. Wrap objects with `useMemo`, functions with `useCallback` in SpotProvider props. Pass values directly to `SpotProvider`; do not create a separate "provider props" hook just to forward values.
 6. Verify all imports exist in the package before using them.
-7. Balance refetch goes in callbacks (`onWrapSuccess`, `onOrderCreated`, `onOrderFilled`, `onOrdersProgressUpdate`, `onCancelOrderSuccess`), not as a prop. Avoid an "order created" toast unless the host DEX explicitly wants one; success is already shown in the submit modal.
+7. Balance refetch goes in callbacks (`onWrapSuccess`, `onOrderCreated`, `onOrderFilled`, `onOrdersProgressUpdate`, `onCancelOrderSuccess`), not as a prop. Avoid an "order created" toast unless the host DEX explicitly wants one; the modal owns the execution feedback and swaps only succeed after a fill.
 8. Input amount reset goes in the modal's `onClose` callback only when the order succeeds. Never close or reset while `isExecuting` is true. Clear the DEX input and call `startNewOrder()` on success; for failed/rejected submissions, keep the input and call `returnToOrderForm()`.
 9. Spot panel data comes from focused named hooks. Use `useOrderForm()` for the authoritative calculated form and hooks such as `useTrades()`, `useLimitPrice()`, and `useOutputAmount()` in leaf components. Use `useExecution()` for order creation state and `useOrders()` for history. The host owns the selected module and its partner/chain selectors. Client initialization uses the order-sink `/config` API to determine partner/chain availability. Child components should call their own focused hook instead of receiving values that the hook can return. Cancel orders use `useCancelOrder(order)`. Do not import package-internal hooks; only use exported hooks.
 10. The DEX must provide `walletInteractions` — an object with 5 methods for wallet operations (`wrapNativeToken`, `approveToken`, `cancelOrder`, `signOrder`, `getAllowance`). spot-react does not include viem or any wallet library, and write methods should wait for transaction receipts. `signOrder` receives `{ signerAddress, typedData }`; adapt those framework-neutral values to the host wallet and return its original `0x`-prefixed signature. Spot submits it unchanged, so do not split it into `{ v, r, s }` or normalize its bytes.

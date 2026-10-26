@@ -1,13 +1,13 @@
 # Form Calculation
 
-`calculateOrderForm` is synchronous, time-independent, and the only public order-calculation entry point. Keep the user's editable state under `userInput`; pass token, quote, balance, and product configuration at the top level.
+`calculateOrder` is synchronous, time-independent, and the only public order-calculation entry point. Keep the user's editable state under `userInput`; pass token, quote, balance, and product configuration at the top level.
 
 Create one memoized/computed form derivation in the application's existing state layer. Its dependency key should contain only the primitive values represented by `CalculateOrderFormParams`; do not recalculate because an unrelated app/store field changed. Existing components should select only the calculated fields they render rather than subscribing to the entire store.
 
 ```ts
 import {
   Module,
-  calculateOrderForm,
+  calculateOrder,
   type CalculateOrderFormParams,
   type CalculatedOrderForm,
 } from "@orbs-network/spot-ui";
@@ -15,7 +15,7 @@ import {
 export function calculateSpotForm(
   params: CalculateOrderFormParams,
 ): CalculatedOrderForm {
-  return calculateOrderForm(params);
+  return calculateOrder(params);
 }
 
 const form = calculateSpotForm({
@@ -49,7 +49,8 @@ const form = calculateSpotForm({
 | Input | Required meaning |
 | --- | --- |
 | `inputTokenDecimals` / `outputTokenDecimals` | Actual token decimals; zero is valid |
-| `quotedOutputAmountRaw` | Raw output-token amount quoted for the complete current input amount |
+| `quotedOutputAmountRaw` | Raw output-token amount quoted for the complete current input amount; use `getQuote().netAmountOut` for swaps |
+| `minimumOutputAmountRaw` | Required for `Module.SWAP`: exact raw net quote after UI slippage, rounded down; positive and no larger than the quote |
 | `inputTokenUsdPrice` / `outputTokenUsdPrice` | USD value of exactly one token, expressed as a decimal string |
 | `minTradeSizeUsd` | Positive host/partner policy threshold in USD |
 | `priceProtectionPercent` | Percentage units; `3` is 3%, not 3 basis points |
@@ -60,7 +61,7 @@ const form = calculateSpotForm({
 | price `Ui` fields | Current displayed price direction |
 | price `Percent` fields | Percentage relative to the current market price |
 
-Do not precompute raw order amounts, per-trade values, slippage, deadlines, or defaults in the host. The SDK derives them consistently for display and execution.
+The host computes the swap UI-slippage minimum from the net quote as described in [Swap and Migration](07-swap-and-migration.md). Let the SDK derive the remaining raw order amounts, per-trade values, oracle protection, deadlines, and defaults. `Module.SWAP` always uses one limit trade, 15-minute expiration, no inversion, and 500 bps signed oracle protection; price/duration overrides do not change those swap rules.
 
 For missing native-token USD values on a new chain, check the host's wrapped-native mapping and price normalization before changing SDK calculations. See [Chain Integration](06-chain-integration.md) for price-provider and cache checks. A token amount from a router quote and its USD valuation are separate inputs; one can succeed while the other is unavailable.
 
@@ -81,7 +82,7 @@ const quotedOutputAmountRaw = quoteIsCurrent
   : undefined;
 ```
 
-Omit `quotedOutputAmountRaw` while the replacement quote loads. Do not calculate with the old quote or treat it as a standalone one-token price; the SDK derives the market rate from the complete input/output quote pair.
+Omit `quotedOutputAmountRaw` and, for swaps, `minimumOutputAmountRaw` while the replacement quote loads. Do not calculate with the old quote or treat it as a standalone one-token price; the SDK derives the market rate from the complete input/output quote pair.
 
 ## Authoritative Output
 

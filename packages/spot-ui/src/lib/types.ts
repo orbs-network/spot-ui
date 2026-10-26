@@ -21,6 +21,8 @@ export type Token = {
 };
 
 export enum Module {
+  /** One limit order from a live quote; fixed 5% signed protection, host-owned minimum output. */
+  SWAP = "SWAP",
   TWAP = "TWAP",
   LIMIT = "LIMIT",
   STOP_LOSS = "STOP_LOSS",
@@ -28,9 +30,13 @@ export enum Module {
 }
 
 export enum OrderStatus {
+  /** Accepted and awaiting execution; may already contain partial fills. */
   Open = "OPEN",
+  /** Cancelled before full completion; inspect `fills` for any partial execution. */
   Cancelled = "CANCELLED",
+  /** Fully executed, as reported by the order service. */
   Completed = "COMPLETED",
+  /** Expired before full completion; inspect `fills` for any partial execution. */
   Expired = "EXPIRED",
 }
 
@@ -79,45 +85,68 @@ export type FillV1 = {
   transactionHash: string;
 };
 
+/** One successful execution of part or all of an order. */
 export type OrderFill = {
+  /** Input-token amount spent, in integer base units. */
   inAmount: string;
+  /** Output-token amount received, in integer base units. */
   outAmount: string;
+  /** Execution time as Unix milliseconds. */
   timestamp: number;
+  /** On-chain transaction hash for this fill. */
   txHash: string;
 };
 
+/** Normalized order from submission, a status lookup, or account history. */
 export type Order = {
+  /** V2 digest used for on-chain cancellation; empty for legacy V1 orders. */
   repermitDigest: string;
+  /** Protocol version: 1 for legacy TWAP contracts, 2 for signed RePermit orders. */
   version: number;
   /** Stable history identity across versions and legacy contract deployments. */
   historyKey: string;
+  /** Full signed hash for V2 lookups; legacy V1 orders use a contract-local numeric ID. */
   id: string;
+  /** Signed hash for V2; empty for legacy V1 orders. */
   hash: string;
   type: OrderType;
   exchangeAddress?: string;
   twapAddress?: string;
+  /** Account that owns the order's input tokens. */
   maker: string;
+  /** Reported execution progress from 0 to 100. Use `status` to confirm completion. */
   progress: number;
+  /** Total input spent by successful fills, in input-token base units. */
   srcAmountFilled: string;
+  /** Total output received from successful fills, in output-token base units. */
   dstAmountFilled: string;
+  /** Successful fills, including any partial execution before cancellation or expiration. */
   fills: OrderFill[];
   srcTokenAddress: string;
   dstTokenAddress: string;
   orderDollarValueIn: string;
   fillDelay: number;
+  /** Signed expiration as Unix milliseconds; used by `waitForOrder` and `watchOrder`. */
   deadline: number;
+  /** Order-service creation time as Unix milliseconds. */
   createdAt: number;
+  /** Total requested input amount in integer input-token base units. */
   srcAmount: string;
   dstMinAmountPerTrade: string;
   triggerPricePerTrade: string;
   dstMinAmountTotal: string;
   srcAmountPerTrade: string;
   txHash?: string;
+  /** Expected number of executions; swaps have one. */
   totalTradesAmount: number;
   isMarketPrice: boolean;
+  /** EVM chain on which the order executes. */
   chainId: number;
+  /** Last fill time as Unix milliseconds when fully filled, otherwise zero. */
   filledOrderTimestamp: number;
+  /** Service-reported lifecycle state; submission alone does not imply `Completed`. */
   status: OrderStatus;
+  /** Original service payload. Its protocol fields retain their original units. */
   rawOrder: OrderV2 | OrderV1;
   isTriggerPrice: boolean;
 };
@@ -125,6 +154,7 @@ export type Order = {
 export type Address = `0x${string}`;
 export type Hex = `0x${string}`;
 
+/** Unsigned protocol payload returned by preparation and submitted with its original signature. */
 export interface RePermitOrder {
   permitted: {
     token: Address;
@@ -132,6 +162,7 @@ export interface RePermitOrder {
   };
   spender: Address;
   nonce: string;
+  /** Protocol expiration as Unix seconds, unlike normalized `Order.deadline` in milliseconds. */
   deadline: string;
   witness: {
     reactor: Address;
@@ -328,6 +359,8 @@ export enum InputErrors {
   EMPTY_TRIGGER_PRICE = "emptyTriggerPrice",
   INSUFFICIENT_BALANCE = "insufficientFunds",
   MAX_ORDER_SIZE = "maxOrderSize",
+  /** A swap minimum is missing, invalid, or greater than the quoted output. */
+  INVALID_SWAP_MINIMUM = "invalidSwapMinimum",
 }
 
 export type InputError = {

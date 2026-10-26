@@ -8,6 +8,7 @@ import {
 import { safeBNString } from "./utils";
 import { getRePermitConfigEndpoint } from "./api-config";
 import BN from "bignumber.js";
+import { SpotError } from "./errors";
 
 export type BuildRePermitOrderDataParams = {
   inputTokenAddress: string;
@@ -35,16 +36,39 @@ export const fetchRePermitData = async (
     partner,
     chain: chainId.toString(),
   });
-  const response = await fetch(`${getRePermitConfigEndpoint()}?${query}`);
+  let response: Response;
+  try {
+    response = await fetch(`${getRePermitConfigEndpoint()}?${query}`);
+  } catch (cause) {
+    if (cause instanceof Error && cause.name === "AbortError") throw cause;
+    throw new SpotError("CONFIGURATION_FAILED", cause instanceof Error ? cause.message : "Failed to fetch RePermit data", { cause });
+  }
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
+    let message = "";
+    try {
+      message = await response.text();
+    } catch (cause) {
+      if (cause instanceof Error && cause.name === "AbortError") throw cause;
+      throw new SpotError("CONFIGURATION_FAILED", cause instanceof Error ? cause.message : "Failed to read RePermit data", { cause, status: response.status });
+    }
+    let serviceCode: string | number | undefined;
+    try {
+      const data = JSON.parse(message) as { code?: unknown } | null;
+      if (typeof data?.code === "string" || typeof data?.code === "number") serviceCode = data.code;
+    } catch { /* Plain-text configuration errors have no service code. */ }
+    throw new SpotError("CONFIGURATION_FAILED",
       `Failed to fetch RePermit data for partner "${partner}" on chain ${chainId}: ${response.status}${message ? ` ${message}` : ""}`,
+      { status: response.status, serviceCode },
     );
   }
 
-  return response.json() as Promise<RePermitData>;
+  try {
+    return await response.json() as RePermitData;
+  } catch (cause) {
+    if (cause instanceof Error && cause.name === "AbortError") throw cause;
+    throw new SpotError("CONFIGURATION_FAILED", cause instanceof Error ? cause.message : "Failed to read RePermit data", { cause, status: response.status });
+  }
 };
 
 export const buildRePermitOrderData = ({
@@ -68,7 +92,9 @@ export const buildRePermitOrderData = ({
     !totalTrades || totalTrades === 1
       ? 0
       : parseInt((fillDelayMillis / 1000).toFixed(0));
-  const deadline = safeBNString(deadlineMillis / 1000);
+  const deadline = module === Module.SWAP
+    ? Math.floor(deadlineMillis / 1000).toString()
+    : safeBNString(deadlineMillis / 1000);
   const freshness = 60;
   const start = Math.floor(currentTimeMillis / 1000).toString();
   const limit = BN(minOutputAmountPerTrade || 0).toFixed();

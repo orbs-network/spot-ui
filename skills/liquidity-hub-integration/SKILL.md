@@ -1,40 +1,32 @@
 ---
 name: liquidity-hub-integration
-description: Integration guide for @orbs-network/liquidity-hub-sdk into a DEX. Enables DEXes to offer better swap prices by routing through Orbs Liquidity Hub — a decentralized optimization layer that sources liquidity from on-chain and off-chain solvers. Covers SDK setup, quote fetching, price comparison, swap execution, and analytics.
+description: Migrate the deprecated @orbs-network/liquidity-hub-sdk to @orbs-network/spot-ui. Use for Liquidity Hub migration or maintenance of an existing legacy integration; new swap integrations use Spot quotes and limit orders.
 ---
 
-# Liquidity Hub Integration
+# Migrate Liquidity Hub to Spot
 
-Use this skill to integrate `@orbs-network/liquidity-hub-sdk` into any DEX. Liquidity Hub is a decentralized optimization layer that finds better swap prices by sourcing liquidity from multiple on-chain and off-chain solvers. When Liquidity Hub offers a better price than the DEX's own router, the swap is executed through Liquidity Hub instead — giving users better rates at no extra cost.
+`@orbs-network/liquidity-hub-sdk` is deprecated. Use `@orbs-network/spot-ui` for new swap integrations and migrate existing Liquidity Hub integrations to Spot.
 
-## How It Works
+For a new Spot integration, use the [TypeScript swap workflow](https://github.com/orbs-network/spot-ui/blob/master/skills/spot-integration/references/07-swap-and-migration.md) or [React swap workflow](https://github.com/orbs-network/spot-ui/blob/master/skills/spot-react-integration/references/07-swap-and-migration.md).
 
-1. User initiates a swap on the DEX.
-2. DEX fetches a quote from its own router **and** from Liquidity Hub in parallel.
-3. If the Liquidity Hub quote is better (higher output amount), execute through Liquidity Hub.
-4. If the DEX quote is better, fall back to the normal DEX swap.
-5. The user always gets the best available price.
+Read the [Spot migration guide](https://github.com/orbs-network/spot-ui/blob/master/packages/spot-ui/README.md#migrating-from-liquidity-hub) and [typed swap example](https://github.com/orbs-network/spot-ui/blob/master/packages/spot-ui/examples/swap.ts). Use the [framework-neutral integration guide](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-integration), or the [React integration guide](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-react-integration) for an existing React frontend.
 
-## Distribution
+Migration changes the execution flow, not just the import:
 
-This skill lives in `skills/liquidity-hub-integration/` of the [`orbs-network/spot-ui`](https://github.com/orbs-network/spot-ui) repository.
+1. Fetch `getQuote` from Spot, mapping the chain, partner, tokens, raw amount, connected account, UI slippage percentage, DEX minimum, and abort signal.
+2. Apply UI slippage to `netAmountOut` with `getMinimumOutputAmount`. Existing DEX routers use the raw `client.prepareSwap` path; provider-based forms use `Module.SWAP` with the exact raw quote and minimum.
+3. Wrap native input when required and use the configured Spot client's approval spender. Do not reuse the Liquidity Hub Permit2 spender.
+4. Prepare a fresh Spot order immediately before signing. Sign the prepared order, not the legacy quote payload, and submit with the wallet's unchanged signature.
+5. Pass the submitted order to `waitForOrder({ order })` until it fills or reaches a terminal or uncertain outcome; it derives the ID, chain, and deadline from the order and supports optional cancellation. No client is needed for tracking. Submission acceptance does not mean execution completed. In React, `SpotProvider module={Module.SWAP}` handles this lifecycle and progress/cache updates; use `isExecuting` to pause quotes and keep the progress UI active.
 
-## Workflow
+## Archived Liquidity Hub maintenance references
 
-1. Read [references/01-quickstart.md](references/01-quickstart.md) for install, supported chains, and the minimum integration steps.
-2. Read [references/02-sdk.md](references/02-sdk.md) for SDK initialization, quote fetching, price comparison, and swap execution.
-3. Read [references/03-swap-flow.md](references/03-swap-flow.md) for the complete swap flow including approval, wrapping, signing, receipt confirmation, and analytics callbacks.
-4. Read [references/04-best-practices.md](references/04-best-practices.md) for error handling, quote freshness, native token wrapping, and debugging.
-5. Use [assets/liquidity-hub-example.ts](assets/liquidity-hub-example.ts) as a starting template.
+Read these only when the user is maintaining an existing legacy integration during migration:
 
-## Guardrails
+- [Quickstart](references/01-quickstart.md)
+- [SDK API](references/02-sdk.md)
+- [Swap flow](references/03-swap-flow.md)
+- [Best practices](references/04-best-practices.md)
+- [Legacy example](assets/liquidity-hub-example.ts)
 
-1. Set the `partner` field to the DEX name (lowercase, e.g. `"mydex"`).
-2. Only install `@orbs-network/liquidity-hub-sdk`. No other Orbs packages needed.
-3. Never skip the price comparison — always compare Liquidity Hub quote against the DEX quote and use whichever is better.
-4. Always check quote freshness with `isFreshQuote` before executing a swap.
-5. Native tokens (ETH, BNB, MATIC, etc.) must be wrapped before swapping through Liquidity Hub.
-6. Treat `swap()` as transaction-hash submission only. Confirm the hash with the DEX's existing `waitForTransactionReceipt` implementation and reject reverted receipts.
-7. Never submit the DEX fallback after an LH transaction hash has been returned. Receipt/RPC errors must be reconciled instead of creating a second swap.
-8. Do not automatically retry wallet mutations or `swap()`.
-9. Report host-controlled analytics stages (approval, wrap, signature, confirmed swap, and DEX fallback). The SDK reports quote and swap-submission events itself.
+Keep existing legacy execution behavior when making maintenance fixes. Do not mix a Liquidity Hub quote or signature with Spot order submission.

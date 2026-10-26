@@ -15,6 +15,8 @@ import type {
 export interface SpotTradingState {
   walletInteractions: WalletInteractions;
   quotedOutputAmountRaw?: string;
+  /** Slippage-adjusted minimum, required for Module.SWAP; expressed in output-token base units. */
+  minimumOutputAmountRaw?: string;
   marketPriceLoading?: boolean;
   account?: Address;
   noLiquidity?: boolean;

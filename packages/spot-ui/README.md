@@ -1,386 +1,489 @@
 # Spot SDK
 
-`@orbs-network/spot-ui` is the framework-agnostic Spot SDK. Use it from Vue,
-Angular, Svelte, React, vanilla JavaScript, or a server-side TypeScript
-application. It has no React dependency.
+`@orbs-network/spot-ui` quotes swaps, calculates order forms, and prepares and
+submits Spot orders. It supports Swap, TWAP, Limit, Stop-Loss, and Take-Profit.
+It works with any TypeScript application and has no React or wallet-library
+dependency. Despite its name, `spot-ui` is a framework-neutral SDK with no rendered components.
+React applications can use `@orbs-network/spot-react` for provider
+state, wallet-step orchestration, and settlement tracking. It includes this SDK
+as a dependency and re-exports its full public API, so those applications can
+install only `spot-react` and import SDK helpers and types from it.
 
-For the complete framework-neutral TypeScript workflow, see the
-[`spot-integration` skill](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-integration).
+| I'm building… | Use… |
+| --- | --- |
+| A React order form | `spot-react`: `SpotProvider` with `Module.SWAP` or an advanced module, then `useExecution()` |
+| A DEX router with an existing wallet flow | `client.getQuote` → `client.prepareSwap` → DEX signing → `client.submitOrder` → `waitForOrder` |
+| A custom flow that needs SDK wallet orchestration | `submitSwap` for swaps; `calculateOrder` + `executeOrder` with `client.prepareOrder` for advanced orders |
 
-`createClient(partner, chainId)` initializes analytics after validating the
-order-sink configuration. No separate analytics initialization or `appId` is
-needed. Minimum trade size is used for form calculations only, not analytics.
-Telemetry delivery does not block client creation, and initialization works
-without a browser `window`.
+```sh
+npm install @orbs-network/spot-ui
+```
 
-Pass `{ disableAnalytics: true }` as the third argument to disable all analytics
-events for that client, including initialization and order execution:
+Use a runtime with `fetch`, `AbortController`, and `BigInt` support, such as a
+modern browser or Node.js 18+. Import from the package root.
+
+## API at a glance
+
+| API | Purpose | Network or wallet work |
+| --- | --- | --- |
+| `createClient(partner, chainId)` | Load validated configuration for one partner and chain | Fetches `/config`; no wallet interaction |
+| `client.getQuote(params)` | Quote using the client's partner and chain | Same quote request and result as `getQuote` |
+| `getQuote(params)` | Quote the full input amount for a swap | Fetches `/quote` directly from order-sink v2 |
+| `getMinimumOutputAmount(netAmountOut, slippage)` | Exact raw minimum after UI percentage slippage (rounded to service bps) | Synchronous; integer math |
+| `client.prepareSwap(params)` | Prepare a raw exact-input swap without UI, decimals, balances, or USD inputs | No wallet/network work |
+| `submitSwap(params)` | Wrap/approve/verify/sign/submit through the host wallet | Returns a submitted intent, not a fill |
+| `executeOrder(params)` | Shared wallet orchestration for a prepared order factory | Resolves at acceptance; host owns UI state |
+| `waitForOrder(params)` | Track a submitted order until filled or a terminal/uncertain outcome | Serial, bounded polling with cancellation |
+| `watchOrder(params)` | Stream matching order snapshots for progress/history consumers | Same tracking loop and minimal inputs as `waitForOrder` |
+| `isSwapSupported(params)` / `SWAP_CAPABILITIES` | Gate unsupported exact-output/custom-recipient requests | Synchronous |
+| `calculateOrder(params)` | Calculate display values, validation, and execution amounts | Synchronous; no requests |
+| `client.prepareOrder(params)` | Build a fresh order and its signing/approval requests from a valid form | No requests; stamps timestamps and nonce |
+| `client.submitOrder(order, signature)` | Submit an already signed order | Resolves when accepted, before it fills |
+| `client.getOrder({ orderId, signal })` | Look up one v2 order by its full ID | One hash-filtered request; no automatic polling |
+| `client.getAccountOrders({ account, ... })` | Load account history on the client's partner and chain | Fetches configured history sources |
+| `client.getAccountOrdersResult(params)` | Load history with legacy-source completion information | Returns `{ orders, legacyLoaded }` |
+| `client.getCancelOrderRequest(order)` | Build the cancellation contract call | Host sends and confirms the transaction |
+| `getOrders(filters)` | Search history without initializing a client | Filters can span accounts, chains, and exchanges |
+
+The SDK owns protocol configuration and order calculations. The host owns token
+metadata, wrapped native tokens, balances, USD prices, form state, wallet
+operations, client caching, and polling lifecycles. Use `waitForOrder` for bounded
+swap settlement tracking. Keep one current form model for both review and signing.
+
+`calculateOrderForm` remains available as a deprecated alias of `calculateOrder`
+for existing integrations.
+
+## Existing DEX routers: use the SDK directly
+
+A DEX can add Spot as one candidate in its existing quote competition without a
+`SpotProvider`. Keep the DEX's form, route selector, approval UI, wallet library,
+and modal. Compare like-for-like protected minima for the same raw input, token
+pair, chain, and account, retaining the DEX's gas/fee ranking policy.
+
+For existing DEX wallet flows, prefer `client.prepareSwap` → DEX signing →
+`client.submitOrder`. No `walletInteractions` object is required.
 
 ```ts
-const client = await createClient(Partners.Quick, 137, {
-  disableAnalytics: true,
+import { getMinimumOutputAmount, waitForOrder } from "@orbs-network/spot-ui";
+// React hosts can import the same APIs from @orbs-network/spot-react instead.
+
+// The DEX completes native wrapping if needed, then confirms ERC-20 approval
+// for quote.request.inToken/inAmount to client.spenderAddress.
+// Keep the reviewed route frozen and check the current account/chain/balance.
+const minimumOutputAmountRaw = getMinimumOutputAmount(quote.netAmountOut, 0.5);
+const prepared = client.prepareSwap({
+  quote, minimumOutputAmountRaw, swapperAddress: account,
+  maxQuoteAgeMillis: 60_000, // Optional local policy; stale quotes need review.
+});
+const signature = await dexWallet.signOrder(prepared.signingRequest);
+// Recheck the active context before submitting. Do not reprepare after signing.
+const order = await client.submitOrder(prepared.order, signature);
+// Persist the returned order in the app-level intent tracker.
+const filled = await waitForOrder({
+  order,
+  signal: settlementController.signal,
 });
 ```
 
-Analytics remains enabled by default. When disabled, `client.analytics` methods
-remain safe to call and do not send telemetry or schedule analytics timers.
+`dexWallet.signOrder` above represents the DEX's existing EIP-712 signing code;
+pass the returned `signerAddress` and `typedData` to that wallet. Forward the
+original signature unchanged. Prepare after wrapping and confirmed approval,
+immediately before signing, so start/deadline/nonce are fresh.
+`prepared.approvalRequest` also exposes the configured token, amount, and spender.
+`prepareSwap` constructs locally; `submitOrder` only posts the signed order and
+returns the accepted order. Neither performs wallet operations or starts polling.
 
-## Client configuration
+See the complete typed [router adapter](examples/router-swap.ts), including DEX
+minimum comparison, capability gating, preparation, signed submission, and tracking.
+The host implements balance/minimum-trade checks, live account/chain validation,
+abort handling, and a duplicate-submit lock through settlement. Recheck context
+before every wallet step and submission; once submission starts, retain any
+accepted order ID even if the form unmounts. Pause/cancel quote requests while
+executing and preserve the reviewed minimum. Raw protocol preparation needs no
+USD prices; form integrations can retain `calculateOrder` for display/validation.
 
-`createClient(partner, chainId)` loads and validates the order-sink `/config`
-response directly. The SDK does not fetch a partner registry or depend on the
-Spot npm package. Handle initialization errors when the API rejects a pair or
-is unavailable. Partner and chain selectors belong to the host application;
-the demo web app fetches the GitHub Spot JSON for its picker.
+### Optional wallet orchestration
 
-Analytics configuration comes exclusively from the validated `/config` response.
-Initialization logs the returned partner name, chain ID, contract addresses,
-signing-domain name/version, primary type, spender, exchange reference/share/data,
-and execution defaults. Fields absent from the response are omitted; no synthetic
-Spot version is logged. Each client owns its analytics instance and logs its
-initialization. Use `client.analytics` for execution events; the global analytics
-export is deprecated. Delayed events retain their original client configuration.
+Use `submitSwap({ client, quote, minimumOutputAmountRaw, swapperAddress,
+walletInteractions, ... })` when the host wants the SDK to coordinate wallet
+steps. It reuses the executor used by `spot-react`: confirmed native wrapping,
+allowance checks, confirmed approval, up to three allowance reads, late preparation,
+unchanged signature forwarding, and one submission. The DEX still implements
+wallet callbacks. Quotes name the wrapped ERC-20 input token; `nativeInput: true`
+opts into wrapping. `completedWrapTxHash` is retry metadata for an already
+confirmed wrap of this exact account/chain/token/amount.
 
-`client.getAccountOrders(params)` still returns an order array. Use
-`client.getAccountOrdersResult(params)` when you also need `legacyLoaded` to
-distinguish a successful legacy fetch from a partial result during an outage.
+Progress updates include `phase`, `event`, `steps`, `stepIndex`, transaction hashes,
+and the prepared payload. Observers are best-effort; use `signal` and
+`validateContext` to stop obsolete work before the next wallet request/submission.
+The executor prevents concurrent wallet submissions per client/account. The host
+owns the longer lock/loading state through settlement. `SpotProvider` continues
+to use this shared orchestration for its form lifecycle.
 
-Order history queries both `order-sink-v2.orbs.network` and
-`order-sink.orbs.network` by default. Pass `getv1orders: false` to query only
-`order-sink-v2.orbs.network`:
+`submitSwap` returns `{ type: "intent", status: "submitted", orderId, order,
+deadlineMillis, wrapTxHash?, approvalTxHash? }`. For DEX-controlled submission,
+build equivalent intent metadata from the returned `order.id` and prepared
+deadline, retaining any confirmed transaction hashes in the host's state.
+Neither path invents a transaction hash or reports a fill at acceptance.
+`type: "intent"` lets a router distinguish this signed-order route from routes
+that return an on-chain transaction hash. `status: "submitted"` records acceptance,
+so this result cannot be mistaken for settlement success. These fields remain
+constant because `SubmittedSwap` describes that specific lifecycle stage.
+If the DEX calls this identifier `intentId`, assign `orderId` to that existing field;
+otherwise retain `orderId`. Build display summaries in the host.
+
+`waitForOrder({ order })` requires only the submitted order. No initialized client
+or configuration request is needed. It derives the lookup identity from `order.id`
+and `order.chainId`, and the expiration from `order.deadline`
+(milliseconds), polls serially about every two seconds, and stops at that
+deadline plus 60 seconds for indexing. `signal` is optional for cancellation.
+The promise resolves with the completed order. Progress/history consumers can
+iterate `watchOrder({ order, signal })` with `for await`; React uses that same
+stream to update its cache, with no second polling loop. `OrderSettlementError.reason` is
+`cancelled`, `expired`, `aborted`, or `unconfirmed`; the last two are not proof that
+the on-chain order failed. Never execute a DEX fallback automatically after a
+signed order might have been accepted.
+
+Capabilities currently declare exact input and signer-as-recipient only. Gate
+exact-output or alternate-recipient trades with `isSwapSupported` before wallet
+work. `prepareSwap` and the optional `submitSwap` both validate these capabilities.
+
+### Quote identity, errors, and comparison units
+
+Quotes include a frozen `request` identity and local `receivedAt` timestamp. Match
+all request inputs before using a cached quote; `isQuoteFresh(quote, maxAgeMillis)`
+is an optional local age policy, not a server expiry guarantee. An optional
+`maxQuoteAgeMillis` on swap preparation/submission is checked again after approval.
+A stale quote requires a new review; wallet steps never silently replace its minimum.
+
+SDK validation, configuration, and execution failures use `SpotError` with a
+stable `code`. Check `error instanceof SpotError`, then `error.code` (for example,
+`"EXECUTION_IN_PROGRESS"`), rather than matching message text. `cause` preserves
+an underlying failure; `status` and `serviceCode` retain HTTP/service details
+when available. A `"SUBMISSION_FAILED"` error can still mean acceptance is
+uncertain: reconcile the signed order before starting another swap.
+
+`QuoteError` preserves `kind`, HTTP `status`, server `code`, and `retryable`.
+Network failures, HTTP 429, and 5xx responses are retryable. A 204 empty offer uses
+`kind: "no-quote"`. Other service rejections retain their actual status/code;
+classify supported server codes in the adapter rather than guessing from message
+text or treating every failure as "no offer". Caller cancellation is preserved.
+`QuoteError`, `OrderSettlementError`, wallet rejections, and abort errors retain
+their existing contracts; they are not replaced by `SpotError`.
+
+`netAmountOut` is the service's reported net output and `feeAmount` its reported
+raw fee; the SDK does not invent USD gas costs or equate these fields with legacy
+Liquidity Hub gas-adjusted fields. Keep the host's gas comparison policy explicit.
+`getMinimumOutputAmount` uses the same rounded integer-bps percentage conversion
+as `getQuote`, then floors raw token units.
+
+## Order lifecycle
+
+For a form-driven UI (the raw router path above does not require a form):
+
+1. Reuse a client for the selected partner and chain. Quote the current amount.
+2. Calculate the form and display its amounts and validation errors. Submit only
+   when `form.canSubmit` is true.
+3. Wrap native input if necessary, check allowance, and approve the wrapped/ERC-20
+   token against `client.spenderAddress`. Wallet writes must wait for confirmation.
+4. Call `prepareOrder` immediately before signing. Sign its `signingRequest` with
+   the host wallet, then pass the original signature to `submitOrder`.
+5. For swap UX, keep loading until `getOrder` returns `OrderStatus.Completed`.
+   Order acceptance alone is not swap completion.
+
+Disable concurrent submissions. If submission fails ambiguously, reconcile the
+order's status before creating another signed order; the service may already
+have accepted the first request.
+
+## Swaps: quote plus one limit order
+
+A swap is `Module.SWAP` in the form and `OrderType.LIMIT` in the protocol. It has
+one trade, no trigger, and a fixed 15-minute expiration, ignoring duration overrides.
+The signed deadline is 15 minutes after preparation. The host supplies the
+minimum output using the current quote and the user's UI slippage. User-entered
+limit prices and trade counts do not override the swap quote.
+
+These values have different jobs:
+
+| Value | Units and meaning |
+| --- | --- |
+| `getQuote.slippage` | Percentage: `0.5` means 0.5%; the SDK sends `50` integer basis points to the quote service (rounded to the nearest bps) |
+| `quote.netAmountOut` | Raw output-token amount used as `quotedOutputAmountRaw` |
+| `quote.minimumAmountOut` | Minimum returned by the service; kept separately from the host's chosen minimum |
+| `minimumOutputAmountRaw` | Exact raw minimum after the host applies UI slippage to `netAmountOut` |
+| `form.values.slippageBps` | Signed oracle-protection field; always `500` (5%) for swaps |
+| `priceProtectionPercent` | Configurable signed protection for other modules; ignored for swaps |
+
+For example, a net quote of `1000000` output base units with 0.5% UI slippage
+produces a minimum of `995000`. That minimum becomes `witness.output.limit`.
+The same order signs `witness.slippage = 500`; the UI setting does not replace
+that fixed 5% field.
+
+Use integer or decimal arithmetic and round the minimum down. Never convert raw
+token amounts to JavaScript `Number`. A missing minimum, a minimum below one
+base unit, or a minimum above the net quote blocks submission. Once the other
+required inputs are ready, the form reports `InputErrors.INVALID_SWAP_MINIMUM`
+through `form.errors.primary` and `form.errors.swapMinimum`; display that error
+and refresh or correct the host quote/minimum pair.
+
+### Read-only quote example
 
 ```ts
-const orders = await client.getAccountOrders({ account, getv1orders: false });
-```
+import { createClient, Partners } from "@orbs-network/spot-ui";
 
-This option defaults to `true` and is independent of `legacyOrders`, which
-controls legacy TWAP subgraph history and defaults to `true`. Both options also
-apply to `client.getAccountOrdersResult`.
-
-Use the standalone `getOrders` function to fetch order-sink history without
-creating a client. `chainId`, `swapper`, and `exchange` are optional; omitted
-filters include all chains, swappers, or exchanges. `exchange` accepts a
-`Partners` value. Results are deduplicated and sorted newest first, without a
-legacy TWAP subgraph lookup.
-
-```ts
-import { getOrders, Partners } from "@orbs-network/spot-ui";
-
-const allOrders = await getOrders();
-const chainOrders = await getOrders({ chainId: 137 });
-const swapperOrders = await getOrders({ swapper: account });
-const exchangeOrders = await getOrders({ exchange: Partners.Quick });
-const orders = await getOrders({
-  chainId: 137,
-  swapper: account,
-  exchange: Partners.Quick,
-  page: 0,
-  limit: 20,
+const client = await createClient(Partners.Thena, 56);
+const quote = await client.getQuote({
+  inToken: "0x55d398326f99059fF775485246999027B3197955", // USDT
+  inAmount: "200000000000000000000", // 200 tokens with 18 decimals
+  outToken: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", // WBNB
+  user: "0x0000000000000000000000000000000000000001", // Preview account
+  slippage: 0.5,
+  dexMinAmountOut: "-1",
 });
+console.log(quote.netAmountOut);
 ```
 
-Optional `page` (a zero-based, non-negative integer) and `limit` (a positive
-integer) are forwarded to each queried order-sink service. Omitted pagination
-parameters are left out of the request. With both services enabled, the merged
-result can contain more than `limit` orders.
+`client.getQuote` supplies its configured chain and partner, so the caller passes
+only quote inputs. Use standalone `getQuote({ chainId, partner, ...inputs })` when
+quoting without initialized client configuration.
 
-It also accepts `signal` for cancellation and `getv1orders: false` to query
-only `order-sink-v2.orbs.network`.
+For a disconnected preview, `user` remains required: pass a nonzero preview
+account such as the one above and include it in the quote cache key. Refetch with
+the actual connected account before review and submission; a preview-account
+quote cannot be prepared for another signer. Use the wrapped-token address when
+quoting native input. `dexMinAmountOut` is optional,
+defaults to `"-1"`, and is sent as `outAmount` in the request body. `signal`
+cancels the quote request. This function does not open the wallet, return a
+prepared order, or submit anything.
 
-Legacy TWAP deployment configuration and the contract ABI are bundled locally
-from version 2.7.28; the SDK does not require the TWAP npm package.
+### Complete typed swap example
 
-## Complete form calculation
+Copy [`examples/swap.ts`](./examples/swap.ts) into the host application. It uses
+only public SDK exports and contains two separate operations (the router example above avoids a calculated form entirely):
 
-Use `calculateOrderForm` as the primary calculation API. Pass the DEX-owned
-form state and market data; the SDK returns one authoritative model for both
-display and order execution.
+- `createSwapPreview(params)` fetches a quote and returns its calculated form.
+  Supply host token metadata, the connected account, balance, USD prices, and
+  minimum trade size. Its example default `slippage: 0.5` means 0.5%, matching
+  `getQuote` and `getMinimumOutputAmount`.
+- `submitReviewedSwap(preview, wallet)` wraps, checks/approves allowance, prepares
+  the order, signs, and submits. Its `SwapWallet` interface describes the four
+  methods the host adapts to its wallet library and delegates execution to `submitSwap`. It returns the accepted order
+  and the exact signed deadline, before settlement.
+
+Render `preview.form` for review, then pass that same snapshot to submission.
+Refresh the preview after an amount, token, account, chain, partner, or UI
+slippage change. Keep pending wallet operations tied to the reviewed account
+and chain. The example is reference code, not another SDK export. It is checked
+against the built public API on every SDK build.
+
+## Tracking one order
+
+Use the `order.id` returned by submission:
 
 ```ts
-import {
-  calculateOrderForm,
-  Module,
-} from "@orbs-network/spot-ui";
+import { OrderStatus } from "@orbs-network/spot-ui";
 
-const form = calculateOrderForm({
-  module: Module.TWAP,
-  inputTokenDecimals: inputToken.decimals,
-  outputTokenDecimals: outputToken.decimals,
-
-  // Raw output-token amount quoted for the complete input amount.
-  quotedOutputAmountRaw,
-  inputTokenUsdPrice,
-  outputTokenUsdPrice,
-  minTradeSizeUsd,
-  priceProtectionPercent: 3,
-  displayFeePercent,
-  inputBalanceRaw,
-
-  userInput: {
-    inputAmountUi,
-    isMarketOrder: true,
-
-    // Optional user overrides. Omit them to use SDK defaults.
-    tradeCount,
-    tradeInterval,
-    orderDuration,
-    limitPriceUi,
-    limitPricePercent,
-    triggerPriceUi,
-    triggerPricePercent,
-    isPriceInverted,
-  },
+const current = await client.getOrder({
+  orderId: order.id,
+  signal: abortController.signal,
 });
-```
-
-The result includes:
-
-```ts
-form.inputAmount; // raw, UI, and USD input amounts
-form.outputAmount; // raw, UI, and USD output amounts
-form.isInverted; // current price-display direction
-form.trades; // trade count and structured per-trade input/output amounts
-form.schedule; // resolved fill delay, duration, milliseconds, and errors
-form.triggerPrice; // canonical raw value, display values, defaults, and validation
-form.limitPrice; // canonical raw value, display values, defaults, and validation
-form.minOutputAmountTotal; // raw, UI, and USD minimum total output
-form.tradePrice; // raw, UI, and USD execution price
-form.fees; // raw, UI, USD, and percentage fee values
-form.values; // raw execution values used to build the order
-form.errors; // structured errors, ordered list, and primary error
-form.isReady;
-form.canSubmit;
-```
-
-Display amounts use `{ raw, ui, usd }` objects and
-trade-direction terminology. For `limitPrice` and `triggerPrice`, `amount`
-is now named `raw` and remains the canonical protocol rate, while
-`display.raw`, `display.ui`, and `display.usd` follow the current `isInverted`
-display direction. `form.values` intentionally contains no `UI` or `Usd`
-fields. Integration-facing calculation and client APIs use input/output names.
-Existing source/destination names remain only on low-level protocol helpers and
-protocol response models such as `Order`.
-
-This calculation is synchronous and does not fetch configuration. Optional
-fields can be passed while the user edits the form; the result always contains
-the currently derivable values. Editable fields live under `userInput`, while
-token, quote, balance, and configuration data stay at the top level.
-`userInput.inputAmountUi` is the single input amount. The SDK derives its raw
-and USD representations from the token decimals and USD price.
-`quotedOutputAmountRaw` is the raw output-token amount quoted for that complete
-input amount; the SDK derives the per-token market rate from the two values.
-Omit a stale quote while a replacement quote is loading.
-
-`calculateOrderForm` is time-independent. Recalculate only when its form or
-market inputs change. `prepareOrder` stamps the current start and deadline from
-the calculated duration immediately before signing; those exact timestamps are
-returned on `preparedOrder.values`.
-
-`calculateOrderForm` is the only public order-calculation entry point. Its
-smaller calculators are internal implementation details, so every integration
-uses the same defaults, validation, and derived-value rules.
-
-`minTradeSizeUsd` is a positive USD threshold owned by the integrating DEX.
-Use the minimum approved for that partner/product; the SDK deliberately does
-not guess protocol policy. `priceProtectionPercent` uses percentage units, so
-`3` means 3% (300 basis points), not 3 bps. `displayFeePercent` is also a
-percentage, but it only calculates `form.fees` for display. It does not collect
-or subtract a fee; collection must be configured by the partner/backend.
-
-## Client and order submission
-
-`createClient` loads RePermit configuration and returns a new initialized
-client. It does not retain a module-level cache; the hosting application owns
-client reuse, request deduplication, and refresh policy. Initialization rejects
-chain mismatches and malformed or zero RePermit and exchange-adapter addresses
-before exposing approval or cancellation values.
-
-### Migrating from 1.x
-
-Version 2 uses `calculateOrderForm` as the single calculation entry point and
-an initialized `createClient` for order preparation, signing, submission,
-cancellation requests, and configured history. Legacy low-level order-building
-and submission exports were removed so integrations cannot bypass the shared
-validated form and client configuration.
-
-```ts
-import {
-  calculateOrderForm,
-  createClient,
-  isNativeAddress,
-  isTxRejected,
-  Module,
-  Partners,
-} from "@orbs-network/spot-ui";
-
-const client = await createClient(Partners.Quick, 137);
-
-const form = calculateOrderForm({
-  module: Module.TWAP,
-  inputTokenDecimals: inputToken.decimals,
-  outputTokenDecimals: outputToken.decimals,
-  quotedOutputAmountRaw,
-  inputTokenUsdPrice,
-  outputTokenUsdPrice,
-  minTradeSizeUsd,
-  priceProtectionPercent: 3,
-  displayFeePercent,
-  inputBalanceRaw,
-  userInput: {
-    inputAmountUi,
-    isMarketOrder: true,
-    tradeCount,
-    tradeInterval,
-    orderDuration,
-    limitPriceUi,
-    limitPricePercent,
-    triggerPriceUi,
-    triggerPricePercent,
-    isPriceInverted,
-  },
-});
-
-const amount = form.inputAmount.raw;
-const orderInputToken = isNativeAddress(inputToken.address)
-  ? wrappedNativeToken
-  : inputToken;
-if (!orderInputToken) {
-  throw new Error("The host must provide the chain's wrapped native token");
+if (current?.status === OrderStatus.Completed) {
+  console.log("Swap completed", current.fills);
 }
-const approvalRequest = {
-  tokenAddress: orderInputToken.address,
-  amount,
-  spenderAddress: client.spenderAddress,
-};
-const { tokenAddress, spenderAddress } = approvalRequest;
-const hasAllowance = async () =>
-  BigInt(await wallet.getAllowance({ tokenAddress, spenderAddress })) >=
-  BigInt(amount);
-
-try {
-  const approvalRequired = !(await hasAllowance());
-
-  // The signed order spends wrapped native tokens, so wrap before approval.
-  if (isNativeAddress(inputToken.address)) {
-    await wallet.wrapNativeToken(amount);
-  }
-
-  if (approvalRequired) {
-    await wallet.approveToken(approvalRequest);
-
-    // Allow RPC allowance state to catch up after the confirmed approval.
-    for (let attempt = 0; attempt < 3 && !(await hasAllowance()); attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 3_000));
-    }
-    if (!(await hasAllowance())) throw new Error("Approval was not observed");
-  }
-
-  const preparedOrder = client.prepareOrder({
-    form,
-    inputTokenAddress: orderInputToken.address,
-    outputTokenAddress: outputToken.address,
-    swapperAddress: account,
-  });
-  const { signerAddress, typedData } = preparedOrder.signingRequest;
-  const signature = await wallet.signTypedData(typedData, signerAddress);
-  const order = await client.submitOrder(preparedOrder.order, signature);
-  console.info("Order submitted", order);
-} catch (error) {
-  if (isTxRejected(error)) console.info("The wallet request was rejected");
-  else throw error;
-}
 ```
 
-The client prepares the framework-neutral signing payload but does not interact
-with the wallet. The host signs `preparedOrder.signingRequest`, then passes the
-signature to `submitOrder`. The complete sequence is allowance check, native
-wrapping when required, approval when required, allowance verification,
-signing, and submission.
+`getOrder` queries `/orders?hash=<orderId>&chainId=...` on order-sink v2 using
+the client's chain. It omits legacy exchange-name filters because the full
+signed hash already binds the exchange. It checks the full ID and chain before
+returning a normalized `Order`. Pass the full v2 `order.id`, not `historyKey`, a
+legacy numeric ID, or a digest from another field.
 
-`prepareOrder` does not recalculate form amounts, prices, trades, or schedules,
-and it rejects a form whose `canSubmit` value is `false`.
-It stamps the current start and deadline from the calculated duration, then
-converts the supplied form into RePermit, signing, and approval data. The
-returned `PreparedOrder` contains:
+- `undefined` means the order is not found or not indexed yet. Keep waiting.
+- `OrderStatus.Open` means accepted and awaiting execution.
+- `OrderStatus.Completed` confirms execution. Read actual fills from the order.
+- `OrderStatus.Cancelled` and `OrderStatus.Expired` are terminal without a full fill.
+- A request or malformed-response error throws. Retry temporary lookup failures
+  without resubmitting the signed order.
 
-- `form`, the complete calculated form snapshot shown to the user;
-- `values`, `form.values` plus the exact preparation-time timestamps used by the
-  signed order;
-- `order`, the resulting protocol order;
-- `signingRequest`, containing a framework-neutral `signerAddress` and
-  `typedData` EIP-712 payload;
-- `approvalRequest`, ready for the wallet approval adapter.
+`client.getOrder` performs one request per call. Use `waitForOrder` for swap
+settlement: it polls serially about every two seconds, stops at a terminal status,
+supports cancellation, and bounds confirmation at the signed `order.deadline`
+plus 60 seconds for indexing. The host owns when tracking starts and stops. If
+confirmation remains unavailable, direct the user to order history instead of
+claiming the swap completed.
 
-Each `prepareOrder` call assigns a fresh monotonic nonce within that client
-instance, so two orders prepared by the same instance cannot reuse a nonce. A
-new client instance starts again from the current wall-clock value. The call
-also assigns fresh `currentTimeMillis` and `deadlineMillis` values for that
-submission attempt. Call it after wrapping and approval, immediately before
-signing, so those time-dependent values remain fresh.
+`spot-react` already manages this settlement step for `Module.SWAP`. Its
+`useExecution().isExecuting` stays true throughout preparation, wallet steps,
+submission, and settlement. For swaps, `isSuccess` becomes true only after the
+order fills. Use `phase === ExecutionPhase.SETTLING` for settlement-specific
+messages. Other modules report creation success after submission.
 
-The signing request does not depend on Viem, Wagmi, Ethers, or another wallet
-library. Viem adapters can spread `typedData` and map `signerAddress` to
-`account`; Ethers adapters can pass `typedData.domain`, `typedData.types`, and
-`typedData.message` to the signer.
+## Form calculation and units
 
-`minTradeSizeUsd` is required calculation input owned by the integrating
-application. The client does not read or infer it from partner configuration.
+`calculateOrder` is the single public calculation entry point. It is
+synchronous and independent of client configuration and time. Pass editable
+values under `userInput`; token decimals, quotes, balances, and USD prices belong
+at the top level.
 
-The complete form calculation remains a package-level function because it does
-not depend on partner or chain configuration. The client exposes only
-configured operations:
+| Module | Main inputs |
+| --- | --- |
+| `Module.SWAP` | Full-input quote plus `minimumOutputAmountRaw`; one limit trade |
+| `Module.LIMIT` | Quote and optional `userInput.limitPriceUi`; one limit trade |
+| `Module.TWAP` | Quote, market/limit mode, optional trade count, interval, and duration |
+| `Module.STOP_LOSS` | Quote, trigger/limit controls, market/limit mode |
+| `Module.TAKE_PROFIT` | Quote, trigger/limit controls, market/limit mode |
+
+`quotedOutputAmountRaw` must cover the complete `userInput.inputAmountUi`.
+Omit stale quotes while a replacement is loading. Swap forms also require
+`minimumOutputAmountRaw`; the other modules derive minimum output from their
+price controls. `minTradeSizeUsd` is a positive threshold owned by the host.
+Supply the input token's USD price for form readiness and the raw balance for
+balance validation. Minimum-trade-size validation applies to swaps as well as
+advanced modules. Swap forms ignore `priceProtectionPercent` and
+`userInput.isMarketOrder`; the shared form shape still accepts them.
+
+| Model field | Meaning |
+| --- | --- |
+| `amount.raw` | Token base units as a string, used for protocol/wallet operations |
+| `amount.ui` | Decimal token amount for display or editable input |
+| `amount.usd` | USD display value; empty when unavailable |
+| `form.values` | Authoritative raw execution values consumed by `prepareOrder` |
+| `form.errors.primary` / `form.errors.all` | Primary and ordered validation errors |
+| `form.isReady` / `form.canSubmit` | Whether enough inputs exist / validation allows submission |
+
+`form.inputAmount`, `outputAmount`, `minOutputAmountTotal`, `tradePrice`, and
+`fees` use structured amounts. `trades` contains per-trade amounts; `schedule`
+contains duration, interval, and validation. Price `raw` values are canonical
+rates, and their `display` values follow `isPriceInverted`. Use `toAmountRaw`
+and `toAmountUI` to convert with the correct token decimals.
+
+Percentages use percentage units (`3` means 3%); `slippageBps` uses basis points
+(`300` means 3%). Time durations use `{ value, unit: TimeUnit.Minutes }` or the
+other exported `TimeUnit` values. Normalized duration fields ending in `Millis`
+are milliseconds.
+
+`displayFeePercent` calculates a display estimate only. It does not collect or
+subtract a fee. Protocol fee configuration belongs to the partner/backend.
+
+## Preparing, signing, and cancellation
+
+`prepareOrder` rejects forms whose `canSubmit` is false. It returns:
+
+| Field | Purpose |
+| --- | --- |
+| `form` | The reviewed form snapshot |
+| `values` | Form values plus `currentTimeMillis` and `deadlineMillis` |
+| `order` | Protocol order to sign and submit |
+| `signingRequest` | `{ signerAddress, typedData }` for the host wallet adapter |
+| `approvalRequest` | `{ tokenAddress, amount, spenderAddress }` for the signed input |
+
+Call it after wrapping and approval, immediately before signing. It assigns a
+monotonic nonce within the client and fresh start/deadline values. The deadline
+includes a one-minute margin for advanced orders; swaps use exactly 15 minutes
+with no added margin. Use the returned timestamps rather than reconstructing
+them. Reuse the client across
+submissions rather than creating a new client for each operation.
+
+Return the wallet's original `0x`-prefixed signature. Do not split it into
+`{ v, r, s }`, normalize its bytes, or replace it with the quote API's payload.
+`submitOrder` sends the prepared order and signature unchanged. `spot-ui` does
+not invoke a wallet itself.
+
+For cancellation, call `client.getCancelOrderRequest(order)`. Send its
+`contractAddress`, `abi`, and `args` using the host wallet on the client's chain
+and wait for confirmation. The client selects the correct v1/v2 contract and
+call. Refresh the affected order afterward; indexing can lag transaction
+confirmation. Build explorer links using host chain metadata.
+
+## Account history and identity
+
+Use `client.getAccountOrders({ account })` for the account-history UI and
+`waitForOrder({ order })` for swap settlement. Keep these polling lifecycles
+separate. Use `order.historyKey` for list/cache identity: legacy numeric IDs can
+repeat across deployments. `order.id` is the protocol/display ID; only v2 IDs
+are supported by `getOrder`.
+
+History normalizes v1/v2 orders while retaining protocol names such as
+`srcAmount`, `dstAmountFilled`, and fill `inAmount`/`outAmount`. These are raw
+integer strings. Format them with the relevant token's decimals. `OrderFilter`
+provides `All`, `Open`, `Completed`, `Cancelled`, and `Expired`.
+
+Account history queries both order-sink v2 and the older order-sink service by
+default, including the client's configured Spot adapter alongside the partner's
+legacy adapters. `Partners.Quick` maps to the history service's `quickswap` key.
+`getv1orders: false` limits it to order-sink v2. Separately,
+`legacyOrders: false` excludes legacy TWAP subgraph history. Both default to
+true. Use `getAccountOrdersResult` and its `legacyLoaded` flag to recognize a
+partial legacy-source result during an outage. Account-history `page` and
+`limit` apply to legacy history; the configured v2 lookup does not forward them.
+
+For standalone order-sink searches, use `getOrders({ chainId, swapper, exchange,
+page, limit, signal, getv1orders })`. Omitted filters include all values.
+`exchange` accepts a `Partners` value. Its `page` is zero-based, `limit` is a
+positive integer, and pagination is forwarded to each selected service. Merged
+results can exceed one service's limit. Standalone searches do not query legacy
+TWAP subgraphs.
+
+## Client configuration and analytics
+
+`createClient` fetches and validates `/config` on every call. It rejects chain
+mismatches and malformed or zero RePermit and exchange-adapter addresses. The
+client supplies configured spender, exchange, signing data, and cancellation
+requests. The host supplies wrapped native tokens and other chain metadata;
+the SDK has no network registry. Cache clients/promises in the host data layer
+and allow rejected initialization attempts to be retried.
+
+Analytics initializes from validated configuration and is enabled by default.
+Use `client.analytics` for lifecycle events when orchestrating operations in a
+host adapter. `spot-react` wires those events already. To disable analytics:
 
 ```ts
-calculateOrderForm(formParams);
-client.getCancelOrderRequest(order);
-client.getAccountOrders({ account });
+const client = await createClient(Partners.Thena, 56, { disableAnalytics: true });
 ```
 
-Omitting `page` fetches every available history page. To fetch one page, pass
-a zero-based `page` and an optional positive `limit`. Use `order.historyKey`
-as the stable list/cache identity: legacy v1 numeric IDs can repeat across TWAP
-contract deployments, while `order.id` remains the protocol order ID used for
-display and cancellation.
+Telemetry delivery does not block client creation. Disabled analytics methods
+remain safe to call and send no telemetry or analytics timers. The deprecated
+global `analytics` export is retained for compatibility; new integrations use
+the client-owned instance. Initialization also works without `window`.
 
-The normalized history model keeps protocol response names (`src`/`dst` and
-fill `in`/`out`) because it combines v1 and v2 payloads. Form and calculation
-inputs use `input`/`output`. `OrderType` maps the selected module and execution
-mode into `LIMIT`, `TWAP_LIMIT`, `TWAP_MARKET`, `STOP_LOSS_LIMIT`,
-`STOP_LOSS_MARKET`, `TAKE_PROFIT_LIMIT`, or `TAKE_PROFIT_MARKET`.
-`OrderFilter` provides `ALL`, `OPEN`, `COMPLETED`, `CANCELLED`, and `EXPIRED`
-history filter values.
+## Migrating from Liquidity Hub
 
-There is no authoritative single-order endpoint in the current service API.
-To track an order, call `client.getAccountOrders({ account, page, limit })` on
-the host's polling schedule and find it by `historyKey`. Supplying a page and
-limit avoids fetching every history page when only a recent status window is
-needed.
+`@orbs-network/liquidity-hub-sdk` is deprecated. Use `@orbs-network/spot-ui`
+for all new swap integrations and migrate existing integrations to Spot. Existing
+DEX route adapters should start with `client.prepareSwap`, DEX-owned signing,
+`client.submitOrder`, and `waitForOrder`, without a provider or calculated UI form.
+`submitSwap` remains an optional convenience when SDK wallet orchestration is desired.
+This changes the execution flow as well as the package import.
 
-Use `client.spenderAddress` for allowance reads and approvals. When the input
-is native, the host must pass its chain's wrapped native token address to
-`prepareOrder`; approve `form.inputAmount.raw` against that same token.
-The `approvalRequest` returned by `prepareOrder` records the same normalized
-token, spender, and exact amount used by the signed order.
+| Liquidity Hub | Spot replacement |
+| --- | --- |
+| `createClient({ partner, chainId })` | `await createClient(partner, chainId)`; reuse the client for that partner and chain |
+| `sdk.getQuote({ fromToken, toToken, account, ... })` | `client.getQuote({ inToken, outToken, user, ... })`; the client supplies chain and partner |
+| `quote.outAmount` / `quote.minAmountOut` | `quote.netAmountOut` / the UI-slippage-adjusted raw minimum |
+| `slippage: 0.5` | Still `0.5` for 0.5%; Spot converts to integer basis points for the service |
+| `dexMinAmountOut` and `signal` | Forward both to `getQuote`; use `"-1"` when no DEX minimum is available |
+| Fixed Permit2 spender | Read allowance and approve using `client.spenderAddress`; `prepared.approvalRequest` exposes the configured approval data |
+| Sign `quote.eip712` | Call `client.prepareSwap` immediately before signing `prepared.signingRequest` |
+| `sdk.swap(quote, signature)` returning a transaction hash | `client.submitOrder(prepared.order, signature)` returning an accepted order |
+| Wait for the swap transaction receipt | Poll `client.getOrder({ orderId: order.id })` until filled, cancelled, expired, or confirmation times out |
 
-`spot-ui` deliberately has no network registry and does not infer wrapped-token
-or explorer metadata. The host DEX owns that chain data. Protocol configuration
-fetching, RePermit order
-construction, submission, cancellation request construction, and configured
-history access are intentionally exposed only through `SpotClient`. This keeps
-partner- and chain-derived values on one authoritative path.
+See the complete [typed swap example](examples/swap.ts). Keep input and output
+amounts as integer strings, wrap native input before approval, and preserve the
+wallet's original signature. Spot swap orders use a fixed 15-minute expiration
+and sign 500 bps (5%) oracle protection independently of the UI-slippage minimum.
+Do not reuse legacy Liquidity Hub quotes or signatures for Spot orders.
 
-Framework-neutral helpers such as `isNativeAddress` and `isTxRejected` remain
-available to Vue, Angular, Svelte, vanilla JavaScript, and server integrations.
+For React, use `@orbs-network/spot-react` with the existing `SpotProvider` and
+`Module.SWAP`. The provider tracks settlement; `useExecution().isExecuting`
+covers wallet steps, submission, and settlement. Pause quote requests during
+execution and show success only after the order fills.
 
-Every `createClient` call performs a new configuration request. Cache the
-returned promise or client in the host application's normal data layer when it
-should be reused. `spot-react` keeps one provider-scoped client resource keyed
-by partner and chain; it does not require React Query. Vue, Angular, Svelte,
-vanilla JavaScript, and server applications should apply their own lifecycle
-and refresh policy.
+## Migrating from 1.x
 
-```ts
-// Illustrative host-owned cache; use the host framework's data layer where possible.
-const clientPromise = createClient(Partners.Quick, 137);
-const client = await clientPromise;
-```
+Use `calculateOrder` for calculation and an initialized client for order
+preparation, submission, cancellation requests, and configured history. Version 2
+removed the legacy low-level order-building and submission exports. Internal
+calculators and `dist/*` imports are not public entry points.
+
+For the broader framework-neutral integration workflow, see the
+[`spot-integration` guide](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-integration).

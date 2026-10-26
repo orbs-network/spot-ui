@@ -1,5 +1,7 @@
 import {
+  executeOrder as executeWalletOrder,
   isNativeAddress,
+  Module,
   isTxRejected,
   toAmountUI,
   type Address,
@@ -24,9 +26,6 @@ import {
   parseExecutionError,
 } from "./execution-state";
 
-const APPROVAL_CHECK_ATTEMPTS = 3;
-const APPROVAL_CHECK_DELAY_MS = 3_000;
-
 interface ExecutionStoreActions {
   getCurrentExecution: () => SwapExecution;
   beginExecution: (
@@ -41,7 +40,6 @@ interface ExecutionStoreActions {
 export interface ExecuteOrderParams extends ExecutionStoreActions {
   account?: Address;
   chainId?: number;
-  hasChainId: boolean;
   inputToken?: Token;
   outputToken?: Token;
   wrappedNativeToken?: Token;
@@ -52,6 +50,8 @@ export interface ExecuteOrderParams extends ExecutionStoreActions {
   addNewOrder: (order: Order) => void;
   refetchActiveOrders: () => unknown;
   wait?: (milliseconds: number) => Promise<void>;
+  signal?: AbortSignal;
+  waitForOrderFill?: (order: Order, executionId: number) => Promise<Order>;
 }
 
 const waitFor = (milliseconds: number): Promise<void> =>
@@ -64,29 +64,6 @@ const parseBaseUnitAmount = (value: string, label: string): bigint => {
     );
   }
   return BigInt(value);
-};
-
-const hasAllowance = async ({
-  client,
-  walletInteractions,
-  tokenAddress,
-  inputAmountRaw,
-}: {
-  client: SpotClient;
-  walletInteractions: WalletInteractions;
-  tokenAddress: string;
-  inputAmountRaw: string;
-}): Promise<boolean> => {
-  const allowance = await walletInteractions.getAllowance({
-    tokenAddress,
-    spenderAddress: client.spenderAddress,
-  });
-  // Allowances and order amounts are base-unit integers, so native BigInt is
-  // exact here and avoids exposing a decimal-math dependency from spot-react.
-  return (
-    parseBaseUnitAmount(allowance || "0", "Allowance") >=
-    parseBaseUnitAmount(inputAmountRaw, "Input amount")
-  );
 };
 
 interface ValidatedExecutionInputs {
@@ -103,7 +80,7 @@ const validateExecutionInputs = (
   params: ExecuteOrderParams,
 ): ValidatedExecutionInputs => {
   if (!params.client) throw new Error("Spot client is unavailable");
-  if (!params.hasChainId || !params.chainId) {
+  if (!params.chainId || !Number.isSafeInteger(params.chainId) || params.chainId <= 0) {
     throw new Error("Spot is unavailable on the connected chain");
   }
   if (!params.account) throw new Error("missing account");
@@ -119,6 +96,9 @@ const validateExecutionInputs = (
     throw new Error("Order form is not submittable");
   }
 
+  if (params.form.module === Module.SWAP && !params.waitForOrderFill) {
+    throw new Error("Swap settlement tracking is unavailable");
+  }
   const inputAmountRaw = params.form.inputAmount.raw;
   parseBaseUnitAmount(inputAmountRaw, "Input amount");
   return {
@@ -268,141 +248,60 @@ export const executeOrder = async (
   };
 
   try {
-    const wrapRequired = isNativeAddress(inputToken.address) && !completedWrap;
-    const approvalRequired = !(await hasAllowance({
-      client,
-      walletInteractions,
-      tokenAddress: orderInputToken.address,
-      inputAmountRaw,
-    }));
-    const executionSteps: Steps[] = [];
-    if (wrapRequired) executionSteps.push(Steps.WRAP);
-    if (approvalRequired) executionSteps.push(Steps.APPROVE);
-    executionSteps.push(Steps.CREATE);
-    let currentStepIndex = 0;
-
-    transition(ExecutionPhase.PREPARING, {
-      pendingSteps: executionSteps,
-      totalSteps: executionSteps.length,
-      stepIndex: currentStepIndex,
-      hasApproval: !approvalRequired,
-    });
-    if (wrapRequired) {
-      transition(ExecutionPhase.WRAPPING);
-      observe(() => analytics.onWrapRequest());
-      observe(callbacks?.onWrapRequest);
-      const wrapTxHash = await walletInteractions.wrapNativeToken(
-        inputAmountRaw,
-      );
-      if (!wrapTxHash) throw new Error("failed to wrap input token");
-      const nextCompletedWrap = {
-        account,
-        chainId,
-        inputTokenAddress: inputToken.address,
-        inputAmountRaw,
-        txHash: wrapTxHash,
-      };
-      currentStepIndex++;
-      transition(ExecutionPhase.WRAPPING, {
-        wrapTxHash,
-        completedWrap: nextCompletedWrap,
-        stepIndex: currentStepIndex,
-      });
-      observe(() => analytics.onWrapSuccess(wrapTxHash));
-      observe(() =>
-        callbacks?.onWrapSuccess?.({
-          txHash: wrapTxHash,
-          amount: toAmountUI(inputAmountRaw, orderInputToken.decimals),
-        }),
-      );
-    }
-
-    if (approvalRequired) {
-      transition(ExecutionPhase.APPROVING);
-      observe(() => analytics.onApproveRequest());
-      observe(callbacks?.onApproveRequest);
-      const approveTxHash = await walletInteractions.approveToken({
-        tokenAddress: orderInputToken.address,
-        amount: inputAmountRaw,
-        spenderAddress: client.spenderAddress,
-      });
-      if (!approveTxHash) throw new Error("failed to approve token");
-      transition(ExecutionPhase.APPROVING, { approveTxHash });
-
-      let approved = false;
-      for (let attempt = 0; attempt < APPROVAL_CHECK_ATTEMPTS; attempt++) {
-        approved = await hasAllowance({
-          client,
-          walletInteractions,
-          tokenAddress: orderInputToken.address,
-          inputAmountRaw,
+    const { order } = await executeWalletOrder({
+      client, account, inputTokenAddress: orderInputToken.address, inputAmountRaw,
+      nativeInput: isNativeAddress(inputToken.address), completedWrapTxHash: completedWrap?.txHash,
+      walletInteractions, wait, signal: params.signal,
+      prepareOrder: () => client.prepareOrder({
+        form, inputTokenAddress: orderInputToken.address,
+        outputTokenAddress: outputToken.address, swapperAddress: account,
+      }),
+      validateContext: () => {
+        if (getCurrentExecution().executionId !== executionId) throw new Error("Execution is no longer current");
+      },
+      onUpdate: (update) => {
+        const pendingSteps = update.steps.map(step => ({ wrap: Steps.WRAP, approve: Steps.APPROVE, create: Steps.CREATE })[step]);
+        const phase = update.phase as ExecutionPhase;
+        transition(phase, {
+          pendingSteps, totalSteps: pendingSteps.length, stepIndex: update.stepIndex,
+          hasApproval: update.hasApproval, wrapTxHash: update.wrapTxHash,
+          approveTxHash: update.approvalTxHash,
+          ...(update.preparedOrder ? { preparedOrder: update.preparedOrder } : {}),
+          ...(update.phase === "wrapping" && update.event === "success" && update.wrapTxHash ? {
+            completedWrap: { account, chainId, inputTokenAddress: inputToken.address, inputAmountRaw, txHash: update.wrapTxHash },
+          } : {}),
         });
-        if (approved) break;
-        if (attempt < APPROVAL_CHECK_ATTEMPTS - 1) {
-          await wait(APPROVAL_CHECK_DELAY_MS);
+        if (update.phase === "wrapping") {
+          if (update.event === "request") observe(callbacks?.onWrapRequest);
+          if (update.event === "success" && update.wrapTxHash) observe(() => callbacks?.onWrapSuccess?.({ txHash: update.wrapTxHash!, amount: toAmountUI(inputAmountRaw, orderInputToken.decimals) }));
         }
-      }
-      if (!approved) {
-        throw new Error(
-          `Insufficient ${orderInputToken.symbol} allowance to perform the swap. Please approve the token first.`,
-        );
-      }
-
-      currentStepIndex++;
-      transition(ExecutionPhase.APPROVING, {
-        hasApproval: true,
-        stepIndex: currentStepIndex,
-      });
-      observe(() => analytics.onApproveSuccess(approveTxHash));
-      observe(() =>
-        callbacks?.onApproveSuccess?.({
-          txHash: approveTxHash,
-          token: orderInputToken,
-          amount: toAmountUI(inputAmountRaw, orderInputToken.decimals),
-        }),
-      );
-    }
-
-    transition(ExecutionPhase.SIGNING);
-    const preparedOrder = client.prepareOrder({
-      form,
-      inputTokenAddress: orderInputToken.address,
-      outputTokenAddress: outputToken.address,
-      swapperAddress: account,
+        if (update.phase === "approving") {
+          if (update.event === "request") observe(callbacks?.onApproveRequest);
+          if (update.event === "success" && update.approvalTxHash) observe(() => callbacks?.onApproveSuccess?.({ txHash: update.approvalTxHash!, token: orderInputToken, amount: toAmountUI(inputAmountRaw, orderInputToken.decimals) }));
+        }
+        if (update.phase === "signing") {
+          if (update.event === "prepared" && update.preparedOrder) {
+            trackOrderRequest({ analytics, account, chainId, inputToken, outputToken, preparedOrder: update.preparedOrder });
+            observe(callbacks?.onSignOrderRequest);
+          }
+          if (update.event === "success" && update.signature) observe(() => callbacks?.onSignOrderSuccess?.(update.signature!));
+          if (update.event === "error") observe(() => callbacks?.onSignOrderError?.(normalizeError(update.error)));
+        }
+      },
     });
-    transition(ExecutionPhase.SIGNING, { preparedOrder });
-    trackOrderRequest({
-      analytics,
-      account,
-      chainId,
-      inputToken,
-      outputToken,
-      preparedOrder,
-    });
-    observe(() => analytics.onSignOrderRequest(preparedOrder.order));
-    observe(callbacks?.onSignOrderRequest);
-    let signature: `0x${string}`;
-    try {
-      signature = await walletInteractions.signOrder(
-        preparedOrder.signingRequest,
-      );
-      observe(() => analytics.onSignOrderSuccess(signature));
-      observe(() => callbacks?.onSignOrderSuccess?.(signature));
-    } catch (error) {
-      observe(() => analytics.onSignOrderError(error));
-      observe(() => callbacks?.onSignOrderError?.(normalizeError(error)));
-      throw error;
-    }
-
-    transition(ExecutionPhase.SUBMITTING);
-    const order = await client.submitOrder(preparedOrder.order, signature);
-    transition(ExecutionPhase.SUCCESS, {
+    const isSwap = form.module === Module.SWAP;
+    transition(isSwap ? ExecutionPhase.SETTLING : ExecutionPhase.SUCCESS, {
       orderId: order.id.toString(),
     });
 
     observe(() => addNewOrder(order));
-    observe(() => refetchActiveOrders());
+    if (!isSwap) observe(() => refetchActiveOrders());
     observe(() => callbacks?.onOrderCreated?.(order));
+    if (isSwap) {
+      const filledOrder = await params.waitForOrderFill!(order, executionId);
+      transition(ExecutionPhase.SUCCESS);
+      return filledOrder;
+    }
     return order;
   } catch (error) {
     const failedPhase = execution.phase;
@@ -418,14 +317,9 @@ export const executeOrder = async (
       },
     );
 
-    if (failedPhase === ExecutionPhase.WRAPPING) {
-      observe(() => analytics.onWrapError(error));
-    } else if (failedPhase === ExecutionPhase.APPROVING) {
-      observe(() => analytics.onApproveError(error));
-    }
     if (rejected) {
       observe(callbacks?.onSubmitOrderRejected);
-    } else {
+    } else if (failedPhase !== ExecutionPhase.SETTLING) {
       observe(() => callbacks?.onSubmitOrderFailed?.(parseExecutionError(error)));
     }
     throw normalizedError;

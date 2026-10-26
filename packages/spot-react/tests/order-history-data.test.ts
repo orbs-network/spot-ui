@@ -81,7 +81,7 @@ describe("order history data", () => {
     expect(shared[1]).toBe(previous[1]);
   });
 
-  it("notifies only for changed v2 progress", () => {
+  it("notifies only for changed v2 progress or status", () => {
     const previous = [createOrder("order", OrderStatus.Open, 1, 50)];
     const completed = createOrder(
       "order",
@@ -99,5 +99,18 @@ describe("order history data", () => {
 
     expect(onOrderFilled).toHaveBeenCalledWith(completed);
     expect(onOrdersProgressUpdate).toHaveBeenCalledWith([completed]);
+  });
+
+  it("notifies completion even when indexed progress has not changed", () => {
+    const previous = createOrder("order", OrderStatus.Open, 1);
+    const completed = { ...previous, status: OrderStatus.Completed };
+    const callbacks = { onOrderFilled: vi.fn(), onOrdersProgressUpdate: vi.fn() };
+
+    notifyOrderUpdates([previous], [completed], callbacks);
+    expect(callbacks.onOrderFilled).toHaveBeenCalledExactlyOnceWith(completed);
+    expect(callbacks.onOrdersProgressUpdate).toHaveBeenCalledExactlyOnceWith([completed]);
+
+    notifyOrderUpdates([completed], [{ ...completed, progress: 100 }], callbacks);
+    expect(callbacks.onOrderFilled).toHaveBeenCalledOnce();
   });
 });

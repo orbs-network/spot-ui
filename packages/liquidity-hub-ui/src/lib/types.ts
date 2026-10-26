@@ -1,3 +1,4 @@
+/** @deprecated Use SwapQuoteParams from @orbs-network/spot-ui. */
 export interface QuoteArgs {
   /** Input token address. Use the wrapped-token address for native input. */
   fromToken: string;
@@ -55,6 +56,7 @@ export interface QuoteEip712 {
   message: Record<string, unknown>;
 }
 
+/** @deprecated Use SwapQuote from @orbs-network/spot-ui. Its quote is not a signing payload. */
 export interface Quote {
   inToken: string;
   outToken: string;
@@ -81,6 +83,7 @@ export interface Quote {
   timestamp: number;
 }
 
+/** @deprecated Use createClient(partner, chainId) from @orbs-network/spot-ui. */
 export interface LiquidityHubClientOptions {
   /** Active EVM chain ID. */
   chainId: number;

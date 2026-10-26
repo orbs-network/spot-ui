@@ -22,6 +22,8 @@ import { usePublicClient, useWalletClient } from "wagmi";
 
 import TokensPair from "@/components/tokens-pair";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
+import { useSelectedFormTab } from "./use-tabs";
+import { TABS } from "../types";
 import { DEFAULT_PARTNER } from "../consts";
 import { useRefetchSelectedCurrenciesBalances } from "./use-balances";
 
@@ -31,6 +33,7 @@ export const useCallbacks = () => {
   const createOrderToastId = useRef<number>(null);
   const { inputCurrency, outputCurrency } = useDerivedSwap();
   const chainId = useActiveChainId();
+  const isSwap = useSelectedFormTab()?.value === TABS.SWAP;
   const { mutateAsync: refetchBalances } =
     useRefetchSelectedCurrenciesBalances();
 
@@ -146,6 +149,10 @@ export const useCallbacks = () => {
   }, []);
 
   const onOrderCreated = useCallback((order: Order) => {
+    if (isSwap) {
+      toast.dismiss(createOrderToastId.current as number);
+      return;
+    }
     toast.success(
       <TokensPair
         prefix="Order created"
@@ -159,7 +166,7 @@ export const useCallbacks = () => {
         description: "",
       },
     );
-  }, []);
+  }, [isSwap]);
 
   const onOrdersProgressUpdate = useCallback(() => {
     void refetchBalances([]).catch(() => undefined);
@@ -196,6 +203,8 @@ export const useSpotMarketQuote = () => {
   return useMemo(() => {
     return {
       quotedOutputAmountRaw: trade?.outAmount,
+      minimumOutputAmountRaw: trade?.minAmountOut,
+      noLiquidity: !isLoadingTrade && !trade,
       isLoading: isLoadingTrade,
     };
   }, [trade, isLoadingTrade]);

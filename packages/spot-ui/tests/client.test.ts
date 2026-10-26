@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Module,
-  calculateOrderForm,
+  calculateOrder,
   createClient,
   Partners,
+  QuoteError,
+  SpotError,
   type RePermitData,
 } from "../src";
 import {
@@ -11,13 +13,15 @@ import {
   ADDRESS_2,
   ADDRESS_3,
   createRePermitData,
+  createV2Order,
 } from "./fixtures";
+import { buildV2Order } from "../src/lib/orders/v2-orders";
 
 const partner = Partners.Thena;
 const chainId = 56;
 
 const createForm = () =>
-  calculateOrderForm({
+  calculateOrder({
     module: Module.TWAP,
     inputTokenDecimals: 6,
     outputTokenDecimals: 18,
@@ -52,6 +56,100 @@ describe("createClient", () => {
     vi.unstubAllGlobals();
   });
 
+  it("quotes with the client's chain and partner and forwards the remaining inputs", async () => {
+    const client = await createClient(partner, chainId, { disableAnalytics: true });
+    const signal = new AbortController().signal;
+    const params = {
+      inToken: ADDRESS_2, outToken: ADDRESS_3, inAmount: "1000000",
+      user: ADDRESS_1, slippage: 0.5, dexMinAmountOut: "900", signal,
+      // A JavaScript caller cannot override configuration captured by the client.
+      chainId: 137, partner: Partners.Quick,
+    };
+    vi.mocked(fetch).mockClear();
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({
+      amountOut: "1000", netAmountOut: "990", minimumAmountOut: "940", feeAmount: "10",
+    }));
+
+    const quote = await client.getQuote(params);
+    expect(quote.request).toEqual({
+      inToken: ADDRESS_2, outToken: ADDRESS_3, inAmount: "1000000",
+      user: ADDRESS_1, slippage: 0.5, dexMinAmountOut: "900", chainId, partner,
+    });
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(
+      "https://order-sink-v2.orbs.network/quote?chainId=56&partner=thena",
+      expect.objectContaining({
+        signal,
+        body: JSON.stringify({ inToken: ADDRESS_2, inAmount: "1000000", outToken: ADDRESS_3, user: ADDRESS_1, slippage: 50, outAmount: "900" }),
+      }),
+    );
+  });
+
+  it("preserves quote error classification and abort identity through the bound method", async () => {
+    const client = await createClient(partner, chainId, { disableAnalytics: true });
+    const params = { inToken: ADDRESS_2, outToken: ADDRESS_3, inAmount: "1000000", user: ADDRESS_1, slippage: 0.5 };
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ message: "No liquidity", code: "NO_LIQUIDITY" }, { status: 422 }));
+    const error = await client.getQuote(params).catch(error => error);
+    expect(error).toBeInstanceOf(QuoteError);
+    expect(error).toMatchObject({ kind: "http", status: 422, code: "NO_LIQUIDITY", retryable: false });
+
+    const abort = new DOMException("Quote cancelled", "AbortError");
+    vi.mocked(fetch).mockRejectedValueOnce(abort);
+    await expect(client.getQuote(params)).rejects.toBe(abort);
+  });
+
+  it("classifies transport, HTTP, and invalid-payload lookup failures", async () => {
+    const client = await createClient(partner, chainId, { disableAnalytics: true });
+    const cause = new TypeError("Offline");
+    vi.mocked(fetch).mockRejectedValueOnce(cause);
+    await expect(client.getOrder({ orderId: "0x1234" })).rejects.toMatchObject({ code: "ORDER_LOOKUP_FAILED", cause });
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("Unavailable", { status: 503 }));
+    await expect(client.getOrder({ orderId: "0x1234" })).rejects.toMatchObject({ code: "ORDER_LOOKUP_FAILED", status: 503 });
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({}));
+    await expect(client.getOrder({ orderId: "0x1234" })).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
+
+  it("preserves cancellation while reading an order response", async () => {
+    const client = await createClient(partner, chainId, { disableAnalytics: true });
+    const abort = new DOMException("Lookup cancelled", "AbortError");
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 200, json: async () => { throw abort; } } as Response);
+    await expect(client.getOrder({ orderId: "0x1234" })).rejects.toBe(abort);
+  });
+
+  it("exposes stable SDK errors for invalid forms and unavailable cancellation contracts", async () => {
+    const client = await createClient(partner, chainId, { disableAnalytics: true });
+    expect(() => client.prepareOrder({
+      form: { ...createForm(), canSubmit: false }, inputTokenAddress: ADDRESS_2,
+      outputTokenAddress: ADDRESS_3, swapperAddress: ADDRESS_1,
+    })).toThrowError(expect.objectContaining({ name: "SpotError", code: "FORM_NOT_SUBMITTABLE" }));
+    const order = buildV2Order(createV2Order(chainId, "0x1234"));
+    expect(() => client.getCancelOrderRequest({ ...order, version: 1, twapAddress: undefined }))
+      .toThrowError(expect.objectContaining({ code: "CANCELLATION_UNAVAILABLE" }));
+  });
+
+  it("fetches a single order by full hash and chain without a legacy exchange filter", async () => {
+    const client = await createClient(partner, chainId, { disableAnalytics: true });
+    const rawOrder = createV2Order(chainId, "0x1234");
+    vi.mocked(fetch).mockClear();
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ orders: [rawOrder] }));
+    const signal = new AbortController().signal;
+    const result = await client.getOrder({ orderId: rawOrder.hash, signal });
+    expect(result?.id).toBe(rawOrder.hash);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(
+      "https://order-sink-v2.orbs.network/orders?hash=0x1234&chainId=56",
+      { signal, cache: "no-store" },
+    );
+  });
+
+  it.each([
+    { orders: [] },
+    { orders: [createV2Order(chainId, "0x123456")] },
+    { orders: [createV2Order(chainId + 1, "0x1234")] },
+  ])("does not match missing, partial-hash, or different-chain orders: %j", async ({ orders }) => {
+    const client = await createClient(partner, chainId, { disableAnalytics: true });
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json({ orders }));
+    await expect(client.getOrder({ orderId: "0x1234" })).resolves.toBeUndefined();
+  });
+
   it("uses order-sink directly for a new partner/chain pair", async () => {
     const newChainId = 123456;
     responseData = createRePermitData(newChainId);
@@ -72,7 +170,9 @@ describe("createClient", () => {
   });
 
   it.each([0, -1, 1.5, NaN, Infinity])("rejects invalid chain ID %s before fetching", async (invalidChainId) => {
-    await expect(createClient(partner, invalidChainId)).rejects.toThrow("chainId must be a positive safe integer");
+    await expect(createClient(partner, invalidChainId)).rejects.toMatchObject({
+      name: "SpotError", code: "INVALID_ARGUMENT", message: "chainId must be a positive safe integer",
+    });
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -108,8 +208,16 @@ describe("createClient", () => {
     ],
   ])("rejects an invalid %s", async (_label, mutate, expectedField) => {
     mutate(responseData);
-    await expect(createClient(partner, chainId)).rejects.toThrow(expectedField);
+    const error = await createClient(partner, chainId).catch(error => error);
+    expect(error).toBeInstanceOf(SpotError);
+    expect(error).toMatchObject({ code: "INVALID_CONFIGURATION", message: expect.stringContaining(expectedField) });
     expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+  });
+
+  it.each([null, []])("classifies malformed configuration %j before analytics initialization", async (config) => {
+    vi.mocked(fetch).mockResolvedValueOnce(Response.json(config));
+    await expect(createClient(partner, chainId)).rejects.toMatchObject({ name: "SpotError", code: "INVALID_CONFIGURATION" });
+    expect(fetch).toHaveBeenCalledOnce();
   });
 
   it("initializes analytics from validated config without window or appId", async () => {
@@ -195,5 +303,33 @@ describe("createClient", () => {
         swapperAddress: ADDRESS_1,
       }),
     ).toThrow("pass the host-provided wrapped native token");
+  });
+
+  it("signs the exact swap minimum as a single limit order", async () => {
+    const client = await createClient(partner, chainId, { disableAnalytics: true });
+    const form = calculateOrder({
+      module: Module.SWAP,
+      inputTokenDecimals: 6,
+      outputTokenDecimals: 18,
+      quotedOutputAmountRaw: "270311015092003391",
+      minimumOutputAmountRaw: "268959460016543374",
+      inputTokenUsdPrice: "1",
+      minTradeSizeUsd: 1,
+      priceProtectionPercent: 0.5,
+      userInput: { inputAmountUi: "200", isMarketOrder: true },
+    });
+    const prepared = client.prepareOrder({
+      form, inputTokenAddress: ADDRESS_2, outputTokenAddress: ADDRESS_3, swapperAddress: ADDRESS_1,
+    });
+    expect(prepared.order.witness.epoch).toBe(0);
+    expect(prepared.values.deadlineMillis - prepared.values.currentTimeMillis).toBe(900_000);
+    expect(Number(prepared.order.witness.deadline) - Number(prepared.order.witness.start)).toBe(900);
+    expect(prepared.signingRequest.typedData.message.witness.slippage).toBe(500);
+    expect(prepared.order.witness.input.amount).toBe("200000000");
+    expect(prepared.order.witness.output).toMatchObject({
+      limit: "268959460016543374", triggerLower: "0", triggerUpper: "0",
+    });
+    expect(prepared.signingRequest.typedData.message).toBe(prepared.order);
+    expect(prepared.approvalRequest.amount).toBe("200000000");
   });
 });

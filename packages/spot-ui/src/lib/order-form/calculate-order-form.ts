@@ -1,4 +1,5 @@
 import BN from "bignumber.js";
+import { Module } from "../types";
 import {
   calculateAmountValues,
   calculateMarketPriceValues,
@@ -120,7 +121,18 @@ const calculateOrderFormSchedule = (
   ),
 });
 
-export const calculateOrderForm = (
+/**
+ * Calculates display amounts, prices, trade schedules, and validation for an order form.
+ * This is a local calculation: the host supplies the quote, token data, and user inputs.
+ * Recalculate when those inputs change and check `canSubmit` before `client.prepareOrder`.
+ *
+ * @param params Form inputs in UI units, with quotes and balances in token base units.
+ * @returns A form snapshot with `errors` for input validation. `isReady` means the
+ * required amount, market quote, and input-token USD price are available (plus a
+ * valid minimum output for SWAP); `canSubmit` also requires the form to pass validation.
+ * Neither checks wallet state or allowance.
+ */
+export const calculateOrder = (
   params: CalculateOrderFormParams,
 ): CalculatedOrderForm => {
   const inputAmountValues = calculateOrderInputAmount(params);
@@ -142,6 +154,8 @@ export const calculateOrderForm = (
     module: params.module,
     inputTokenDecimals: params.inputTokenDecimals,
     totalInputAmount: inputAmount,
+    quotedOutputAmountRaw: params.quotedOutputAmountRaw,
+    minimumOutputAmountRaw: params.minimumOutputAmountRaw,
     fillDelay: params.userInput.tradeInterval,
     duration: params.userInput.orderDuration,
     totalTrades: tradePlan.totalTrades,
@@ -170,7 +184,7 @@ export const calculateOrderForm = (
 
   return {
     module: params.module,
-    isInverted: Boolean(params.userInput.isPriceInverted),
+    isInverted: params.module === Module.SWAP ? false : Boolean(params.userInput.isPriceInverted),
     inputAmount: inputAmountValues,
     outputAmount: calculateAmountValues(
       values.outputAmount,
@@ -204,3 +218,6 @@ export const calculateOrderForm = (
     ...validation,
   };
 };
+
+/** @deprecated Use calculateOrder. Retained for existing DEX integrations. */
+export const calculateOrderForm = calculateOrder;

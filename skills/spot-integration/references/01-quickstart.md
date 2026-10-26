@@ -14,8 +14,9 @@ Import only from the package root:
 import {
   Module,
   Partners,
-  calculateOrderForm,
+  calculateOrder,
   createClient,
+  getQuote,
 } from "@orbs-network/spot-ui";
 ```
 
@@ -27,11 +28,11 @@ Do not import from `@orbs-network/spot-ui/dist/*`. The package does not require 
 | --- | --- |
 | Root/order-form layout and all visual controls | Existing host `App` and existing components |
 | Selected input/output tokens and typed input | Host DEX |
-| Current market quote and quote freshness | Host DEX/router |
+| Current market quote and quote freshness | Host query lifecycle; use Spot `getQuote` for swaps |
 | Token balances and one-token USD prices | Host DEX |
 | Connected account and chain | Host wallet state |
 | Wrapped-native token and explorer metadata | Host chain configuration |
-| Form defaults, derived values, schedules, and validation | `calculateOrderForm` |
+| Form defaults, derived values, schedules, and validation | `calculateOrder` |
 | RePermit configuration and configured protocol addresses | `createClient` / `SpotClient` |
 | EIP-712 signing and transaction writes | Host wallet adapter |
 | Prepared order, approval request, submission, history, cancellation request | `SpotClient` |
@@ -46,12 +47,12 @@ Confirm these inputs before implementation:
 - The application's current state container and the narrow selectors/computed values used by those components have been identified.
 - The host can provide input/output token addresses, symbols, and decimals.
 - The host chain configuration supplies the wrapped-native token.
-- The router exposes a raw output amount and enough request metadata to reject stale quotes.
+- For swaps, the host calls Spot `getQuote` with all token, amount, account, chain, partner, slippage, DEX minimum, and abort inputs. Other modules can use the current DEX raw output quote. Request metadata identifies stale results.
 - The host can provide a raw input-token balance and the USD price of one input and output token.
 - The integration has a positive partner-approved `minTradeSizeUsd` and a percentage-unit `priceProtectionPercent` (`3` means 3%).
 - The wallet layer can read allowance, wrap native tokens, approve ERC-20 tokens, sign EIP-712 typed data, and send cancellation contract calls.
 - Wallet writes can wait for confirmed receipts and return transaction hashes.
-- The product has UI/state for all requested modules: `TWAP`, `LIMIT`, `STOP_LOSS`, and `TAKE_PROFIT`.
+- The product has UI/state for all requested modules: `SWAP`, `TWAP`, `LIMIT`, `STOP_LOSS`, and `TAKE_PROFIT`.
 
 For a new chain, validate the host's wallet, read clients, native-token list, wrapped-token mapping, and price lookups together using [Chain Integration](06-chain-integration.md). A successful Spot config lookup alone does not establish host support.
 
@@ -61,12 +62,12 @@ If the partner/chain is absent, first check the runtime package and partner filt
 
 1. Extend the existing app/order-form component in place and map Spot states into its existing controls. Do not create a separate Spot component or page.
 2. Validate the partner/chain and initialize `createClient(partner, chainId)` through the host's data lifecycle.
-3. Recalculate `calculateOrderForm(params)` only when controlled form or current market inputs change.
+3. Recalculate `calculateOrder(params)` only when controlled form or current market inputs change.
 4. Render defaults and derived values through existing components; render validation from `form.errors` and gate submission with `form.canSubmit`.
 5. On submit, capture the current form, tokens, account, chain, and client as one immutable attempt.
 6. Normalize native input to the host's wrapped-native token, check allowance, wrap if needed, approve if needed, and verify allowance.
 7. Call `client.prepareOrder(...)` immediately before `wallet.signOrder(preparedOrder.signingRequest)`.
-8. Submit once with `client.submitOrder(preparedOrder.order, signature)` and refresh balances/history after success.
-9. Poll history through `client.getAccountOrders(...)`; cancel through `client.getCancelOrderRequest(order)` and the host wallet.
+8. Submit once with `client.submitOrder(preparedOrder.order, signature)`. For swaps, keep loading and the execution lock until `client.getOrder({ orderId: order.id })` confirms a fill; acceptance alone is not swap success. Pause quote requests throughout the attempt.
+9. Use `client.getAccountOrders(...)` for the independent account-history UI; cancel through `client.getCancelOrderRequest(order)` and the host wallet. Read [Swap and Migration](07-swap-and-migration.md) for the quote contract and settlement lifecycle.
 
 Use the host's established state/data primitives—such as computed selectors, derived stores, services, signals, or a small TypeScript controller—to implement the lifecycle without introducing another UI component or global store.

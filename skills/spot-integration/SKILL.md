@@ -1,23 +1,25 @@
 ---
 name: spot-integration
-description: Integrate @orbs-network/spot-ui into an existing DEX application's TypeScript state and component tree. Use with any frontend framework or custom TypeScript adapter that needs Spot form calculation, wallet execution, history, and cancellation while reusing the app's existing components and state architecture.
+description: Integrate @orbs-network/spot-ui into an existing DEX application's TypeScript state and component tree, including swap quotes and migration from deprecated Liquidity Hub. Use with any frontend framework or custom TypeScript adapter that needs Spot form calculation, wallet execution, history, and cancellation while reusing the app's existing components and state architecture.
 ---
 
 # Spot TypeScript Integration
 
-Use this skill to integrate `@orbs-network/spot-ui` into an existing TypeScript application regardless of its frontend framework. The SDK supports TWAP, Limit, Stop-Loss, and Take-Profit orders. It calculates one authoritative form model and exposes a configured client for order preparation, signing, submission, history, and cancellation requests.
+Use this skill to integrate `@orbs-network/spot-ui` into an existing TypeScript application regardless of its frontend framework. The SDK supports Swap, TWAP, Limit, Stop-Loss, and Take-Profit orders. It calculates one authoritative form model and exposes a configured client for order preparation, signing, submission, history, and cancellation requests.
+
+The Liquidity Hub SDK is deprecated. For swaps or migration, read [Swap and Migration](references/07-swap-and-migration.md), including quote units, exact minimum output, execution locking, and single-order settlement. Legacy Liquidity Hub quotes and signatures cannot be submitted as Spot orders.
 
 ## Expected Result
 
 The completed integration should include:
 
 1. Spot added inside the application's existing `App`/order-form component tree, using the app's current components and design-system primitives rather than a new Spot component hierarchy.
-2. DEX-owned form and quote state mapped into `calculateOrderForm` for every supported order module.
+2. DEX-owned form and quote state mapped into `calculateOrder` for calculated forms, or raw `prepareSwap` inputs for existing swap routers.
 3. Optimized state ownership: minimal editable source state, memoized/computed derivations, narrow subscriptions, keyed async resources, and no mirrored calculated state.
 4. One host-managed `SpotClient` resource per partner and chain, with loading, retry, and invalidation behavior appropriate to the host application.
 5. A wallet adapter that handles native wrapping, allowance reads, approval, EIP-712 signing, contract cancellation, and confirmed transaction receipts.
 6. A submission flow that prepares the order immediately before signing and forwards the wallet's original signature unchanged.
-7. Full v2 order history scoped by partner and chain, without exchange or pagination parameters, keyed by `order.historyKey`, plus cancellation and refresh behavior.
+7. Configured account history keyed by `order.historyKey`, plus cancellation and refresh behavior. Swap settlement polls the submitted full order ID separately from account history.
 8. Chain names, wrapped-native tokens, explorer links, notifications, and visual components supplied by the host DEX.
 
 ## Distribution
@@ -35,15 +37,17 @@ This skill lives in `skills/spot-integration/` of the [`orbs-network/spot-ui`](h
 7. Before finalizing, verify all imports against the installed package's root exports and types. Never assume an internal file or `dist/*` path is public.
 8. When adding a chain or diagnosing missing partners, balances, native tokens, or USD values, read [references/06-chain-integration.md](references/06-chain-integration.md) and run its read-only checks before declaring the integration complete.
 
+9. For `Module.SWAP` or Liquidity Hub migration, read [references/07-swap-and-migration.md](references/07-swap-and-migration.md) before adapting quotes, signing, or settlement UI.
+
 ## Guardrails
 
 1. Every DEX needs an enabled Spot partner configuration. Validate the requested partner and chain through `createClient(partner, chainId)`, which reads the order-sink `/config` response. If initialization fails, check that response and the package and source/build resolution actually used by the app as described in [references/06-chain-integration.md](references/06-chain-integration.md). If support is absent, direct the user to **[@dTWAPSupportGroup](https://t.me/dTWAPSupportGroup)** on Telegram rather than inventing configuration.
 2. Locate and extend the existing `App`/order-form component that owns the swap flow. Reuse the app's existing inputs, selectors, dialogs, buttons, rows, and styling. Do not create a new UI component, parallel Spot page, replacement form, component library, or wrapper component unless the user explicitly changes this requirement; non-visual TypeScript adapters may be added when needed.
 3. Use the application's existing state solution. Do not introduce a second global store for Spot. Keep only user-editable/source values in reactive state, calculate the form once per relevant input snapshot, subscribe existing components to narrow slices, and keep clients/wallet adapters outside render-reactive state.
 4. Install and import only `@orbs-network/spot-ui` for the framework-neutral integration. Do not introduce another frontend framework, wallet library, state library, or numeric library; adapt the libraries the host application already uses.
-5. Use `calculateOrderForm` as the only order-calculation entry point. Do not recreate defaults, validation, schedules, price protection, or protocol order values in host code.
+5. For form/display calculation use `calculateOrder`. For an existing swap router prefer `client.prepareSwap`, DEX-owned wrapping/approval/signing, `client.submitOrder`, and `waitForOrder`. No wallet callback object is required; `submitSwap` is optional SDK orchestration. Keep balance and minimum-trade policy checks in the host. Do not reimplement SDK defaults, protocol validation, schedules, oracle protection, or raw order construction in host code.
 6. Treat `form.values` as execution data and `{ raw, ui, usd }` objects as display/form data. Never send `.ui` or `.usd` values to wallet or protocol calls.
-7. `quotedOutputAmountRaw` must be the current raw output-token quote for the complete `userInput.inputAmountUi`. Omit a stale quote while its replacement is loading.
+7. `quotedOutputAmountRaw` must be the current raw output-token quote for the complete `userInput.inputAmountUi`. For swaps use `getQuote().netAmountOut` and provide `minimumOutputAmountRaw` after applying UI slippage. Omit both while stale or loading. Quote slippage uses percentages; signed swap oracle protection is fixed at 500 bps.
 8. Preserve explicitly selected `tradeCount` values across input edits. If the amount lowers `maxTrades`, surface `InputErrors.MAX_TRADES` and block submission; do not silently clamp the user's choice.
 9. `createClient` fetches configuration on every call and has no global cache. Reuse or invalidate its promise/client in the host's normal lifecycle, and remove rejected promises so retry can work.
 10. Do not fetch, validate, or reconstruct RePermit configuration in the host. Use the addresses, signing payloads, order data, cancellation requests, and history methods exposed by `SpotClient`.

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
@@ -9,7 +10,8 @@ import { InfoIcon, SettingsIcon } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { NumericInput } from "./ui/numeric-input";
-import { useIsSpotTab } from "@/lib/hooks/use-tabs";
+import { useSelectedFormTab } from "@/lib/hooks/use-tabs";
+import { TABS } from "@/lib/types";
 import { DEFAULT_PRICE_PROTECTION, DEFAULT_SLIPPAGE } from "@/lib/consts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -61,6 +63,7 @@ const SpotSettings = () => {
       >
         <div className="flex flex-row gap-2 items-center justify-end flex-1">
           <NumericInput
+            ariaLabel="Price protection percent"
             value={priceProtection ? priceProtection.toString() : ""}
             onChange={(value) => setPriceProtection(Number(value))}
             className="text-center text-[16px] bg-accent/80 p-2 rounded-md max-w-[100px] w-full"
@@ -83,6 +86,7 @@ const SwapSettings = () => {
       <FormItem label="Slippage">
         <div className="flex flex-row gap-2 items-center justify-end flex-1">
           <NumericInput
+            ariaLabel="Slippage percent"
             value={slippage ? slippage.toString() : ""}
             onChange={(value) => setSlippage(Number(value))}
             className="text-center text-[16px] bg-accent/80 p-2 rounded-md max-w-[100px] w-full"
@@ -97,18 +101,21 @@ const SwapSettings = () => {
 };
 
 export const SettingsModal = () => {
-  const isSpotTab = useIsSpotTab();
+  const isSwap = useSelectedFormTab()?.value === TABS.SWAP;
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button variant="outline" aria-label="Settings" onClick={() => setOpen(true)}>
         <SettingsIcon className="size-4" />
       </Button>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
+          <DialogDescription className="sr-only">Adjust execution protection for your order.</DialogDescription>
         </DialogHeader>
-        {isSpotTab ? <SpotSettings /> : <SwapSettings />}
+        <div className="flex flex-col gap-4">
+          {isSwap ? <SwapSettings /> : <SpotSettings />}
+        </div>
       </DialogContent>
     </Dialog>
   );

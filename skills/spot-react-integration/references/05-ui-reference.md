@@ -4,6 +4,8 @@ Use these screenshots as structural references for the Spot UI. Preserve the hie
 
 Do not copy the dark/pink palette literally unless the host DEX uses it. The accent color should map to the DEX primary/action color, and surfaces should map to the DEX card/modal backgrounds.
 
+For `Module.SWAP`, follow [Swap and Migration](07-swap-and-migration.md). The screenshots below show advanced order modules: their limit-price, trigger, and expiration controls are not swap requirements. Hide limit price and expiration in the swap submit modal and keep progress visible until the order fills.
+
 ## Form States
 
 ![TWAP form reference](../assets/images/twap-form-reference.png)

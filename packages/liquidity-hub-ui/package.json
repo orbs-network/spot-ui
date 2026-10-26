@@ -32,5 +32,7 @@
     "vite": "^5.4.1",
     "vite-plugin-dts": "^4.0.3",
     "vitest": "^3.2.7"
-  }
+  },
+  "description": "Deprecated Liquidity Hub SDK. Use @orbs-network/spot-ui for swap quotes and execution.",
+  "deprecated": "Deprecated. Use @orbs-network/spot-ui instead. Migration: https://github.com/orbs-network/spot-ui/blob/master/packages/spot-ui/README.md#migrating-from-liquidity-hub"
 }

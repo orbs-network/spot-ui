@@ -11,7 +11,7 @@ import {
   NATIVE_TOKENS_LOGO_URLS,
   POPULAR_TOKENS,
 } from "./consts";
-import { OrderType, Partners } from "@orbs-network/spot-ui";
+import { OrderType, Partners } from "@orbs-network/spot-react";
 import { getChain } from "./chains";
 
 export const getBaseCurrencies = (chainId?: number) => {

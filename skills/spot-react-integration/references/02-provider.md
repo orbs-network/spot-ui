@@ -186,7 +186,7 @@ const walletInteractions = useMemo<WalletInteractions>(() => ({
 
 const callbacks = useMemo<Callbacks>(() => ({
   // Order lifecycle
-  // Usually keep creation silent because the submit modal already shows success.
+  // Acceptance only. Keep it silent; swap completion follows settlement.
   onOrderCreated: () => refetchBalances(),
   onSubmitOrderFailed: ({ message }) => toast.error(message),
   onSubmitOrderRejected: () => toast.error("Order rejected"),
@@ -274,11 +274,11 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 | Prop | Type | Required | Description |
 | --- | --- | --- | --- |
 | `partner` | `Partners` | Yes | DEX partner enum |
-| `module` | `Module` | Yes | `TWAP`, `LIMIT`, `STOP_LOSS`, or `TAKE_PROFIT` |
+| `module` | `Module` | Yes | `SWAP`, `TWAP`, `LIMIT`, `STOP_LOSS`, or `TAKE_PROFIT` |
 | `inputAmountUi` | `string` | Yes | User-entered input-token amount |
-| `priceProtectionPercent` | `number` | Yes | Price Protection percentage |
+| `priceProtectionPercent` | `number` | Yes | Price Protection percentage for advanced orders; ignored for fixed-protection swaps |
 | `minTradeSizeUsd` | `number` | Yes | Minimum individual trade size in USD |
-| `marketQuote` | `MarketQuote` | Yes | `{ quotedOutputAmountRaw?: string, isLoading?: boolean, noLiquidity?: boolean }` |
+| `marketQuote` | `MarketQuote` | Yes | `{ quotedOutputAmountRaw?: string, minimumOutputAmountRaw?: string, isLoading?: boolean, noLiquidity?: boolean }`; swaps require both raw amounts |
 | `walletInteractions` | `WalletInteractions` | Yes | Wallet interaction handlers implemented by the DEX |
 | `chainId` | `number` | No | Connected chain ID |
 | `account` | `Address` | No | Connected wallet address |
@@ -317,7 +317,7 @@ standard representations.
 
 ## Quote, Balance, and Price Inputs
 
-- `marketQuote.quotedOutputAmountRaw` should be the DEX quote output amount for the current `inputAmountUi`, not a standalone token price. The provider converts it into a per-unit market price internally.
+- `marketQuote.quotedOutputAmountRaw` is the full-input current raw quote, not a standalone token price. For swaps use Spot `getQuote().netAmountOut` and supply `marketQuote.minimumOutputAmountRaw` after applying UI slippage with exact raw-unit math. Withhold both while stale/loading. See [Swap and Migration](07-swap-and-migration.md).
 - `inputBalanceRaw` is a required provider prop whose value is a raw integer string. Pass `undefined` only while the wallet is disconnected or the balance is loading so submission state and validation match the swap form.
 - `inputTokenUsdPrice` is a required provider prop because loading state and minimum-trade validation depend on it; pass `undefined` only while the price is loading. `outputTokenUsdPrice` remains optional because it is used for display details only.
 - Get `chainId` from the connected account/wallet hook wherever Spot needs chain identity. Avoid mixing router, quote, and account chain sources.
@@ -381,14 +381,16 @@ Balance refetching is handled via callbacks, not a prop. Wire `refetchBalances` 
 - `onOrdersProgressUpdate` — when one or more observed orders change fill progress
 - `onCancelOrderSuccess` — after cancellation transaction confirms
 
-Avoid showing a toast for `onOrderCreated` unless the host DEX explicitly asks for one. The submit flow success state already tells the user the order was created. Fill and cancel toasts are still useful because they can happen outside the modal.
+Avoid showing a toast for `onOrderCreated` unless the host DEX explicitly asks for one. Advanced order creation is shown in the modal; swaps stay in progress after acceptance until filled. Fill and cancel toasts can also be useful outside the modal.
 
 ## Price Protection
 
 - Resolve the host setting explicitly; the recommended starting value is 3%
 - The unit is percentage: `3` means 3% / 300 basis points, not 3 bps
 - This is price protection, not swap slippage
-- When Spot is active: hide DEX slippage setting, show only Price Protection
+- For advanced order modules: hide DEX slippage and show Price Protection.
+- For `Module.SWAP`: show UI Slippage and hide Price Protection. The signed swap oracle-protection field is fixed at 500 bps (5%); UI slippage instead determines the raw minimum output. Duration is fixed at 15 minutes and is not editable.
+- Pause automatic/manual quotes while `isExecuting`, cancel active quote requests, and resume after terminal execution/cleanup. The loading state includes swap settlement, not just submission.
 - Persist the same way DEX stores slippage (zustand/redux/localStorage)
 
 `minTradeSizeUsd` must be a positive USD threshold approved for the partner.

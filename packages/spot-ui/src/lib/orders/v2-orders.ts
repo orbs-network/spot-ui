@@ -2,6 +2,7 @@
 /* eslint-disable no-constant-condition */
 import {
   getOrderApiEndpoints,
+  getApiEndpoint,
 } from "../api-config";
 import { MAX_UINT_256 } from "../evm-constants";
 import {
@@ -13,6 +14,7 @@ import {
   Partners,
 } from "../types";
 import BN from "bignumber.js";
+import { SpotError } from "../errors";
 
 const getOrderType = (order: OrderV2) => {
   const isLimit = BN(order.order.witness.output.limit || 0).gt(1);
@@ -215,12 +217,55 @@ const parseOrdersPayload = (
     typeof payload !== "object" ||
     !Array.isArray((payload as { orders?: unknown }).orders)
   ) {
-    throw new Error("Invalid order history response: missing orders array");
+    throw new SpotError("INVALID_RESPONSE", "Invalid order history response: missing orders array");
   }
 
   return {
     orders: (payload as { orders: unknown[] }).orders,
   };
+};
+
+/** Fetches one v2 order by its full hash, without loading account history. */
+export const getOrder = async ({ orderId, chainId, signal }: {
+  orderId: string;
+  chainId: number;
+  signal?: AbortSignal;
+}): Promise<Order | undefined> => {
+  if (!orderId.trim()) throw new SpotError("INVALID_ARGUMENT", "An order ID is required");
+  // The full order hash already binds the signed exchange. Partner aliases can
+  // resolve to legacy adapters and hide new Spot orders (Quick uses "quickswap").
+  const query = new URLSearchParams({ hash: orderId, chainId: String(chainId) });
+  let response: Response;
+  try {
+    response = await fetch(`${getApiEndpoint()}/orders?${query}`, { signal, cache: "no-store" });
+  } catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
+    throw new SpotError("ORDER_LOOKUP_FAILED", error instanceof Error ? error.message : "Failed to fetch order", { cause: error });
+  }
+  if (!response.ok) throw new SpotError("ORDER_LOOKUP_FAILED", `Failed to fetch order: ${response.status}`, { status: response.status });
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
+    throw new SpotError("INVALID_RESPONSE", "Invalid order history response: unable to decode JSON", { cause: error, status: response.status });
+  }
+  signal?.throwIfAborted();
+  const { orders } = parseOrdersPayload(payload);
+  // The service's hash filter accepts substrings. Require an exact identity
+  // match before a response can complete the submitted swap.
+  for (const raw of orders) {
+    if (!raw || typeof raw !== "object" ||
+      typeof (raw as OrderV2).hash !== "string" ||
+      (raw as OrderV2).hash.toLowerCase() !== orderId.toLowerCase()) continue;
+    try {
+      const order = buildV2Order(raw as OrderV2);
+      if (order.chainId === chainId) return order;
+    } catch (error) {
+      throw new SpotError("INVALID_RESPONSE", "Invalid order lookup response", { cause: error, status: response.status });
+    }
+  }
+  return undefined;
 };
 
 const fetchOrdersForTarget = async ({
@@ -229,6 +274,7 @@ const fetchOrdersForTarget = async ({
   signal,
   account,
   partner,
+  exchangeAddress,
   page,
   limit,
 }: {
@@ -237,24 +283,42 @@ const fetchOrdersForTarget = async ({
   signal?: AbortSignal;
   account?: string;
   partner?: Partners;
+  exchangeAddress?: string;
   page?: number;
   limit?: number;
 }): Promise<Order[]> => {
   const query = new URLSearchParams();
   if (account !== undefined) query.set("swapper", account);
   if (chainId !== undefined) query.set("chainId", chainId.toString());
-  if (partner !== undefined) query.set("exchange", partner);
+  const exchange = [partner === Partners.Quick ? "quickswap" : partner, exchangeAddress]
+    .filter(Boolean).join(",");
+  if (exchange) query.set("exchange", exchange);
   if (page !== undefined) query.set("page", page.toString());
   if (limit !== undefined) query.set("limit", limit.toString());
 
-  const response = await fetch(`${endpoint}/orders${query.size ? `?${query}` : ""}`, { signal });
+  let response: Response;
+  try {
+    response = await fetch(`${endpoint}/orders${query.size ? `?${query}` : ""}`, { signal });
+  } catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
+    throw new SpotError("HISTORY_FAILED", error instanceof Error ? error.message : "Failed to fetch order history", { cause: error });
+  }
   if (!response.ok) {
-    throw new Error(
+    throw new SpotError("HISTORY_FAILED",
       `Failed to fetch order history from ${endpoint}: ${response.status}`,
+      { status: response.status },
     );
   }
 
-  const payload = parseOrdersPayload(await response.json());
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
+    throw new SpotError("INVALID_RESPONSE", "Invalid order history response: unable to decode JSON", { cause: error, status: response.status });
+  }
+  signal?.throwIfAborted();
+  const payload = parseOrdersPayload(data);
   let invalidOrders = 0;
   const orders = payload.orders.flatMap((rawOrder) => {
     try {
@@ -280,6 +344,7 @@ export const getOrders = async ({
   signal,
   account,
   partner,
+  exchangeAddress,
   page,
   limit,
   getv1orders = true,
@@ -288,6 +353,7 @@ export const getOrders = async ({
   signal?: AbortSignal;
   account?: string;
   partner?: Partners;
+  exchangeAddress?: string;
   page?: number;
   limit?: number;
   getv1orders?: boolean;
@@ -300,6 +366,7 @@ export const getOrders = async ({
         signal,
         account,
         partner,
+        exchangeAddress,
         page,
         limit,
       }),
@@ -319,7 +386,7 @@ export const getOrders = async ({
     );
     throw firstFailure?.reason instanceof Error
       ? firstFailure.reason
-      : new Error("Failed to fetch order history");
+      : new SpotError("HISTORY_FAILED", "Failed to fetch order history", { cause: firstFailure?.reason });
   }
 
   const ordersByHistoryKey = new Map<string, Order>();

@@ -1,6 +1,6 @@
 {
   "name": "spot-integration",
-  "description": "Framework-neutral TypeScript integration guide for @orbs-network/spot-ui. Reuses the host application's existing components and optimized state layer while covering form calculation, client lifecycle, wallet execution, history, and cancellation.",
+  "description": "Framework-neutral Spot SDK integration for swap quotes, limit-order execution and settlement, advanced orders, and migration from deprecated Liquidity Hub. Reuses the host application state, components, and wallet stack.",
   "entrypoint": "SKILL.md",
   "references": [
     "references/01-quickstart.md",
@@ -8,10 +8,12 @@
     "references/03-client-and-execution.md",
     "references/04-history-and-cancellation.md",
     "references/05-integration-principles.md",
-    "references/06-chain-integration.md"
+    "references/06-chain-integration.md",
+    "references/07-swap-and-migration.md"
   ],
   "assets": [
-    "assets/spot-integration-example.ts"
+    "assets/spot-integration-example.ts",
+    "assets/spot-router-swap-example.ts"
   ],
   "package": "@orbs-network/spot-ui"
 }

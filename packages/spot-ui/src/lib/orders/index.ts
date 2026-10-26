@@ -1,8 +1,10 @@
 import { Order, Partners } from "../types";
+import { SpotError } from "../errors";
 import { getTwapConfig } from "./legacy-twap-config";
 import { getOrders as getV1Orders } from "./v1-orders";
 import { getOrders as getV2Orders } from "./v2-orders";
 
+/** Optional filters for a standalone order-sink history search. */
 export interface GetOrdersParams {
   /** Omit to fetch orders across all chains. */
   chainId?: number;
@@ -10,16 +12,28 @@ export interface GetOrdersParams {
   swapper?: string;
   /** Omit to fetch orders across all exchanges. */
   exchange?: Partners;
-  /** Zero-based order-sink history page. */
+  /** Zero-based page sent to each order-sink service; omitted uses the service default. */
   page?: number;
-  /** Positive number of orders requested per service page. */
+  /** Positive page size per service, rather than a limit on the merged result. */
   limit?: number;
+  /** Cancels the history requests; it does not cancel any orders. */
   signal?: AbortSignal;
   /** Include orders from order-sink.orbs.network. Defaults to true. */
   getv1orders?: boolean;
 }
 
-/** Fetches order-sink history without requiring an initialized client. */
+/**
+ * Searches order-sink history without creating a client, newest orders first.
+ * By default this merges the current and older order-sink services and removes
+ * duplicate history identities. It does not query the legacy TWAP subgraph.
+ *
+ * @param params Optional account, chain, exchange, and per-service page filters.
+ * @returns Normalized orders. A successful service can supply partial results
+ * when the other service is unavailable.
+ * @throws If pagination is invalid, the request is aborted, or all requested services fail.
+ * @example
+ * const orders = await getOrders({ chainId: 137, swapper: account, exchange: Partners.Quick });
+ */
 export const getOrders = async ({
   chainId,
   swapper,
@@ -42,7 +56,9 @@ export const getOrders = async ({
   return orders.sort((a, b) => b.createdAt - a.createdAt);
 };
 
+/** Account history filters. Client methods provide the chain, partner, and current adapter. */
 export interface GetAccountOrdersParams {
+  /** Cancels the history requests; it does not cancel any orders. */
   signal?: AbortSignal;
   /** Zero-based legacy history page. V2 always fetches all orders. */
   page?: number;
@@ -50,7 +66,11 @@ export interface GetAccountOrdersParams {
   limit?: number;
   chainId: number;
   partner: Partners;
+  /** Current configured adapter, included alongside the partner's legacy adapters. */
+  exchangeAddress?: string;
+  /** Wallet address that created the orders. */
   account: string;
+  /** Include legacy TWAP subgraph history where configured. Defaults to true. */
   legacyOrders?: boolean;
   /** Include orders from order-sink.orbs.network. Defaults to true. */
   getv1orders?: boolean;
@@ -58,25 +78,39 @@ export interface GetAccountOrdersParams {
 
 const assertValidPagination = (page?: number, limit?: number): void => {
   if (page !== undefined && (!Number.isInteger(page) || page < 0)) {
-    throw new Error("Order history page must be a non-negative integer");
+    throw new SpotError("INVALID_ARGUMENT", "Order history page must be a non-negative integer");
   }
   if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
-    throw new Error("Order history limit must be a positive integer");
+    throw new SpotError("INVALID_ARGUMENT", "Order history limit must be a positive integer");
   }
 };
 
+/** Account history plus the availability of its optional legacy TWAP source. */
 export interface AccountOrdersResult {
+  /** Normalized orders, sorted newest first. Results can be partial if a source fails. */
   orders: Order[];
-  /** True only when the requested legacy source completed successfully. */
+  /**
+   * True only when a configured and requested legacy TWAP source succeeded.
+   * False when unavailable, disabled, or failed; this does not describe current-service completeness.
+   */
   legacyLoaded: boolean;
 }
 
+/**
+ * Loads account history from order-sink services and the optional legacy TWAP subgraph.
+ * Chain, partner, and current exchange-adapter filters are normally supplied by a client.
+ *
+ * @returns Newest-first orders and `legacyLoaded`, allowing a host to retry a failed
+ * legacy source. Successful sources are retained when another source fails.
+ * @throws If pagination is invalid, the request is aborted, or no requested source succeeds.
+ */
 export const getAccountOrdersResult = async ({
   signal,
   page,
   chainId,
   limit,
   partner,
+  exchangeAddress,
   account,
   legacyOrders = true,
   getv1orders = true,
@@ -103,6 +137,7 @@ export const getAccountOrdersResult = async ({
       signal,
       account,
       partner,
+      exchangeAddress,
       getv1orders,
     }),
   ]);
@@ -129,6 +164,12 @@ export const getAccountOrdersResult = async ({
   };
 };
 
+/**
+ * Loads normalized account history, newest first, with the same filters as
+ * `getAccountOrdersResult`. Use that method when the host needs `legacyLoaded`
+ * to distinguish unavailable legacy history from a successful empty response.
+ * Successful sources can supply partial results when another source fails.
+ */
 export const getAccountOrders = async (
   params: GetAccountOrdersParams,
 ): Promise<Order[]> => (await getAccountOrdersResult(params)).orders;

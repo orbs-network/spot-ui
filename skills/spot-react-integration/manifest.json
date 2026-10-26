@@ -1,13 +1,15 @@
 {
   "name": "spot-react-integration",
-  "description": "Integration guide for @orbs-network/spot-react into a DEX frontend. Covers SpotProvider setup, DEX swap-state adapters, walletInteractions, hook-driven panels for TWAP, Limit, Stop-Loss, and Take-Profit orders, @orbs-network/swap-ui order flow modal content, lifecycle callbacks, order history, visual reference screenshots, and DEX-native styling.",
+  "description": "Spot React integration for Swap, TWAP, Limit, Stop-Loss and Take-Profit panels. Covers quotes, shared SpotProvider, wallet adapters, settlement UX, history, and migration from deprecated Liquidity Hub.",
   "entrypoint": "SKILL.md",
   "references": [
     "references/01-quickstart.md",
     "references/02-provider.md",
     "references/03-panels.md",
     "references/04-principles.md",
-    "references/05-ui-reference.md"
+    "references/05-ui-reference.md",
+    "references/06-tooltips.md",
+    "references/07-swap-and-migration.md"
   ],
   "assets": [
     "assets/spot-form-skeleton.tsx",

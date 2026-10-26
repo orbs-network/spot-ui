@@ -48,7 +48,7 @@ Classify state before wiring it:
 - Treat caught values as `unknown`; narrow with `isTxRejected` and the host's error formatter.
 - Use `satisfies` when defining constant calculation inputs or wallet ports so literal enum values remain precise.
 - Exhaustively map `Module`, `OrderStatus`, and `InputErrors` when the host presents module-specific UI or translations.
-- Do not cast UI decimal strings into raw values. Let `calculateOrderForm` perform decimal conversion and validation.
+- Do not cast UI decimal strings into raw values. Let `calculateOrder` perform decimal conversion and validation.
 
 ## Final Checklist
 
@@ -64,9 +64,12 @@ Classify state before wiring it:
 - [ ] The host provides the chain's wrapped-native token and explorer metadata.
 - [ ] For new chains, the [chain integration checks](06-chain-integration.md) pass through the app's actual read client, token loader, and price adapter, including native-token balance and USD values; unavailable external checks are reported explicitly.
 - [ ] A current raw output quote is passed for the complete current input amount; stale quotes are omitted.
+- [ ] Swaps use `getQuote`, exact net output/minimum, a fixed 15-minute expiration, and 500 bps signed protection; they do not reuse Liquidity Hub payloads.
+- [ ] Swap quotes pause and in-flight quotes are cancelled during execution; duplicate submissions stay blocked through single-order settlement polling.
+- [ ] Swap success is shown only after a fill; terminal failures, uncertain confirmation, and lifecycle cleanup are handled as described in [Swap and Migration](07-swap-and-migration.md).
 - [ ] `inputTokenUsdPrice` and `outputTokenUsdPrice` are one-token USD prices, and `inputBalanceRaw` is raw.
 - [ ] `minTradeSizeUsd`, `priceProtectionPercent`, and optional `displayFeePercent` use the documented units.
-- [ ] All form defaults, validation, prices, trades, schedule, and raw execution values come from `calculateOrderForm`.
+- [ ] All form defaults, validation, prices, trades, schedule, and raw execution values come from `calculateOrder`.
 - [ ] Field errors and `form.errors.primary` are localized, and submission uses `form.canSubmit`.
 - [ ] Explicit `tradeCount` is not silently clamped after amount changes.
 - [ ] The client is reused per partner/chain, and rejected initialization can be retried.

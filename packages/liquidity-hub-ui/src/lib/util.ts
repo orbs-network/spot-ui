@@ -95,11 +95,13 @@ export function eqIgnoreCase(a: string, b: string): boolean {
   return a === b || a.toLowerCase() === b.toLowerCase();
 }
 
+/** @deprecated Import isNativeAddress from @orbs-network/spot-ui instead. */
 export const isNativeAddress = (address?: string): boolean =>
   nativeTokenAddresses.some((candidate) =>
     eqIgnoreCase(candidate, address ?? ""),
   );
 
+/** @deprecated Track Spot quote freshness in the host before reviewing and signing an order. */
 export const isFreshQuote = (quote: Quote, maxAgeSeconds = 60): boolean => {
   if (!Number.isFinite(maxAgeSeconds) || maxAgeSeconds < 0) return false;
 
@@ -111,6 +113,7 @@ export const isFreshQuote = (quote: Quote, maxAgeSeconds = 60): boolean => {
   );
 };
 
+/** @deprecated Compare the Spot slippage-adjusted minimum with the DEX minimum in the host. */
 export const isLiquidityHubBetter = (
   quote: Quote | null | undefined,
   dexMinAmountOut?: string,
