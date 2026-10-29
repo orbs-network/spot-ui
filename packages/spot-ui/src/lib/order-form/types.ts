@@ -12,7 +12,8 @@ export interface CalculateOrderFormParams {
   /** Raw output-token quote for the complete `userInput.inputAmountUi`. */
   quotedOutputAmountRaw?: string;
   /**
-   * Exact minimum output-token base units after the host applies UI slippage.
+   * Exact minimum output-token base units from the current quote's minimumAmountOut.
+   * The quote already applies the requested slippage; do not apply it again.
    * Required for Module.SWAP; must be positive and no greater than quotedOutputAmountRaw.
    * Other modules derive their minimum from the form's price controls.
    */

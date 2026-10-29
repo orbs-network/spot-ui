@@ -3,9 +3,11 @@ import {
   Steps,
   ExecutionStatus,
   type CompletedWrap,
-  type ParsedError,
   type SwapExecution,
 } from "./types";
+import { OrderSettlementError, SpotError } from "@orbs-network/spot-ui";
+
+export { getErrorMessage, normalizeError, parseExecutionError } from "./parse-execution-error";
 
 const ACTIVE_PHASES = new Set<ExecutionPhase>([
   ExecutionPhase.PREPARING,
@@ -50,8 +52,16 @@ const ALLOWED_TRANSITIONS: Record<ExecutionPhase, ReadonlySet<ExecutionPhase>> =
     ExecutionPhase.SUCCESS,
     ExecutionPhase.FAILED,
     ExecutionPhase.REJECTED,
+    ExecutionPhase.UNCONFIRMED,
   ]),
   [ExecutionPhase.SETTLING]: new Set([
+    ExecutionPhase.SETTLING,
+    ExecutionPhase.SUCCESS,
+    ExecutionPhase.FAILED,
+    ExecutionPhase.UNCONFIRMED,
+  ]),
+  [ExecutionPhase.UNCONFIRMED]: new Set([
+    ExecutionPhase.SETTLING,
     ExecutionPhase.SUCCESS,
     ExecutionPhase.FAILED,
   ]),
@@ -70,10 +80,27 @@ export const createIdleExecution = (
 export const isExecutionActive = (phase: ExecutionPhase): boolean =>
   ACTIVE_PHASES.has(phase);
 
+/** An uncertain intent must be reconciled before its state can be reset or replaced. */
+export const isExecutionLocked = (phase: ExecutionPhase): boolean =>
+  isExecutionActive(phase) || phase === ExecutionPhase.UNCONFIRMED;
+
 export const canBeginExecution = (phase: ExecutionPhase): boolean =>
   phase === ExecutionPhase.IDLE ||
   phase === ExecutionPhase.FAILED ||
   phase === ExecutionPhase.REJECTED;
+
+/** A stopped lookup or lost submission response does not establish that the order failed. */
+export const isUnconfirmedExecutionError = (error: unknown, phase: ExecutionPhase): boolean => {
+  if (phase === ExecutionPhase.SETTLING) {
+    return !(error instanceof OrderSettlementError && (error.reason === "cancelled" || error.reason === "expired"));
+  }
+  if (phase !== ExecutionPhase.SUBMITTING) return false;
+  if (error instanceof SpotError && error.code === "SUBMISSION_FAILED" &&
+      error.status !== undefined && error.status < 500 && error.status !== 408 && !error.cause) {
+    return false;
+  }
+  return true;
+};
 
 export const canTransitionExecution = (
   from: ExecutionPhase,
@@ -85,7 +112,7 @@ export const getExecutionStatus = (
 ): ExecutionStatus | undefined => {
   if (isExecutionActive(phase)) return ExecutionStatus.LOADING;
   if (phase === ExecutionPhase.SUCCESS) return ExecutionStatus.SUCCESS;
-  if (phase === ExecutionPhase.FAILED || phase === ExecutionPhase.REJECTED) {
+  if (phase === ExecutionPhase.FAILED || phase === ExecutionPhase.REJECTED || phase === ExecutionPhase.UNCONFIRMED) {
     return ExecutionStatus.FAILED;
   }
   return undefined;
@@ -101,41 +128,6 @@ export const getExecutionStep = (phase: ExecutionPhase): Steps | undefined => {
     return Steps.CREATE;
   }
   return undefined;
-};
-
-export const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  if (typeof error === "object" && error !== null) {
-    const message = Reflect.get(error, "message");
-    if (typeof message === "string") return message;
-  }
-  return "Unknown error";
-};
-
-const getErrorCode = (error: unknown): number => {
-  if (typeof error !== "object" || error === null) return 0;
-  const code = Reflect.get(error, "code");
-  if (typeof code === "number" && Number.isFinite(code)) return code;
-  if (typeof code === "string" && /^-?\d+$/.test(code)) return Number(code);
-  return 0;
-};
-
-export const normalizeError = (error: unknown): Error =>
-  error instanceof Error ? error : new Error(getErrorMessage(error));
-
-export const parseExecutionError = (error: unknown): ParsedError => {
-  const input = getErrorMessage(error);
-  const codeMatch = input.match(/,\s*code\s*:\s*(-?\d+)/i);
-  const message = input
-    .replace(/^error\s*:/i, "")
-    .replace(/,\s*code\s*:\s*-?\d+/i, "")
-    .trim();
-
-  return {
-    message: message || "Unknown error",
-    code: getErrorCode(error) || (codeMatch ? Number(codeMatch[1]) : 0),
-  };
 };
 
 export const observe = (callback: (() => unknown) | undefined): void => {

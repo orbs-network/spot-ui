@@ -29,7 +29,8 @@ The adapter should answer these questions explicitly:
 The provider store stays mounted when tokens or modules change. Spot reapplies
 form defaults without refetching the same partner/chain client or discarding
 history/cancellation resources. A scope change during execution is deferred
-until the frozen attempt reaches a terminal phase.
+until the frozen attempt reaches a definitive terminal outcome. Unconfirmed
+attempts retain their snapshot until reconciliation.
 
 ```tsx
 function SpotOrderForm({ module }: { module: Module }) {
@@ -182,6 +183,9 @@ const walletInteractions = useMemo<WalletInteractions>(() => ({
   getAllowance: async ({ tokenAddress, spenderAddress }) => {
     return dexWallet.getAllowance({ tokenAddress, spenderAddress });
   },
+  getTokenBalance: async ({ tokenAddress }) => {
+    return dexWallet.getTokenBalance({ tokenAddress });
+  },
 }), [dexWallet]);
 
 const callbacks = useMemo<Callbacks>(() => ({
@@ -296,7 +300,9 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 
 ## WalletInteractions
 
-`spot-react` is wallet-library agnostic. The DEX must pass a `walletInteractions` object that adapts the DEX's existing wallet stack (viem, ethers, web3.js, or another library) to these five methods:
+`spot-react` is wallet-library agnostic. The DEX must pass a `walletInteractions`
+object that adapts its existing wallet stack to five required methods and an
+optional balance reader for completed-wrap retries:
 
 | Method | What to do |
 | --- | --- |
@@ -305,8 +311,12 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 | `cancelOrder({ order, contractAddress, args, abi })` | Call `cancel` on `contractAddress` using the supplied `abi` and `args`. Wait for confirmation, throw if reverted, return the transaction hash. |
 | `signOrder({ signerAddress, typedData })` | Adapt the framework-neutral EIP-712 request to the host wallet and return its original `0x`-prefixed signature. |
 | `getAllowance({ tokenAddress, spenderAddress })` | Read ERC-20 allowance for the connected account and return the raw wei value as a string. |
+| `getTokenBalance({ tokenAddress })` | Optional for fresh attempts; required when reusing completed-wrap metadata. Return the captured account's current raw ERC-20 balance as a string on the captured chain. |
 
 The write methods should not return immediately after wallet submission. Wait for the transaction receipt so Spot can show correct progress and surface reverted transactions as failures.
+Before reusing a previous native wrap, the executor checks the current wrapped
+balance and wraps only a shortfall. `onWrapSuccess.amount` is the amount actually
+wrapped in that step.
 
 `typedData` contains the standard EIP-712 `domain`, `types`, `primaryType`, and
 `message` fields. `signerAddress` is separate because signer selection is not
@@ -317,7 +327,7 @@ standard representations.
 
 ## Quote, Balance, and Price Inputs
 
-- `marketQuote.quotedOutputAmountRaw` is the full-input current raw quote, not a standalone token price. For swaps use Spot `getQuote().netAmountOut` and supply `marketQuote.minimumOutputAmountRaw` after applying UI slippage with exact raw-unit math. Withhold both while stale/loading. See [Swap and Migration](07-swap-and-migration.md).
+- `marketQuote.quotedOutputAmountRaw` is the full-input current raw quote, not a standalone token price. For swaps use `quote.netAmountOut` and set `marketQuote.minimumOutputAmountRaw` directly to the authoritative `quote.minimumAmountOut`. Do not apply slippage again. Withhold both while stale/loading. See [Swap and Migration](07-swap-and-migration.md).
 - `inputBalanceRaw` is a required provider prop whose value is a raw integer string. Pass `undefined` only while the wallet is disconnected or the balance is loading so submission state and validation match the swap form.
 - `inputTokenUsdPrice` is a required provider prop because loading state and minimum-trade validation depend on it; pass `undefined` only while the price is loading. `outputTokenUsdPrice` remains optional because it is used for display details only.
 - Get `chainId` from the connected account/wallet hook wherever Spot needs chain identity. Avoid mixing router, quote, and account chain sources.
@@ -325,7 +335,7 @@ standard representations.
 - `chainId` and `account` may be missing while disconnected. Keep the form rendered; only swap the submit area to the DEX's connect-wallet or switch-network control.
 - When `chainId` is missing or unsupported, `SpotProvider` does not initialize a client and submission remains disabled. The DEX UI should show its connect/switch-network control.
 - `spot-ui` initializes a client internally using `partner` and the connected supported `chainId`. Do not add a separate configuration fetch or pass the response through DEX context.
-- The client owns RePermit-derived order, signing, approval, cancellation, submission, and history values. `SpotProvider` scopes and deduplicates client initialization internally; neither the React package nor the underlying `createClient` factory uses a global cache. A missing client on a supported chain represents initialization loading; pass a localized, DEX-native `clientErrorFallback` so failures remain retryable without passing configuration state through child contexts.
+- The client owns RePermit-derived order, signing, approval, cancellation, submission, and history values. `SpotProvider` scopes client objects; configuration templates/in-flight requests share a 60-second, 32-entry LRU cache with validated deep copies and failure eviction. A missing client represents initialization loading; pass a localized `clientErrorFallback` for retryable errors.
 - The SDK rejects configuration chain mismatches and malformed or zero RePermit/adapter addresses. The response still supplies the approval spender, v2 cancellation contract, adapter, reactor, and executor without deployed-bytecode verification, so only use the trusted Orbs endpoint over TLS.
 - If the DEX quote result exposes the input amount used for the quote, treat a mismatch with the current typed amount as stale. While stale, omit `marketQuote.quotedOutputAmountRaw` and set `isLoading` to `true`.
 - Compute `inputTokenUsdPrice` and `outputTokenUsdPrice` as the USD value of one token. Prefer the DEX's direct one-token USD hook. If unavailable, derive it as `usdAmount / tokenAmount` from the current swap form amounts. Pass strings; use `undefined` for the required input price while no valid positive value is available, and omit the optional output price in that state.
@@ -348,12 +358,13 @@ function getUsdValuePerToken(tokenAmount?: CurrencyAmount<Currency>, usdAmount?:
 spot-react does not reset the DEX input amount internally. Handle the DEX input and Spot execution state in the submit modal's `onClose`:
 
 ```tsx
-const { returnToOrderForm, startNewOrder, status, isSuccess, isExecuting } =
+const { returnToOrderForm, startNewOrder, status, isSuccess, isUnconfirmed, canDismiss } =
   useExecution();
 
 const onClose = useCallback(() => {
-  if (isExecuting) return;
+  if (!canDismiss) return;
   setIsModalOpen(false);
+  if (isUnconfirmed) return;
   if (isSuccess) {
     setInputAmount("");
     setTimeout(() => {
@@ -364,13 +375,50 @@ const onClose = useCallback(() => {
       returnToOrderForm();
     }, 500);
   }
-}, [isExecuting, isSuccess, returnToOrderForm, setInputAmount, startNewOrder, status]);
+}, [canDismiss, isSuccess, isUnconfirmed, returnToOrderForm, setInputAmount, startNewOrder, status]);
 ```
 
-- `returnToOrderForm()` — dismisses a failed/rejected execution while preserving the form and completed wrap metadata for retry; active executions reject the reset
-- `startNewOrder()` — resets Spot's internal form and retry state after a terminal execution; active executions reject the reset
+- `returnToOrderForm()` — dismisses a definitive failure/rejection while preserving the form and completed-wrap metadata for retry; active and unconfirmed executions reject the reset
+- `startNewOrder()` — resets Spot's internal form and retry state after a confirmed terminal outcome; active and unconfirmed executions reject the reset
 - `setInputAmount("")` — only clear the DEX input when the order was successful
 - Delay resets briefly so the close animation can finish before state changes
+
+`ExecutionPhase.UNCONFIRMED` retains the existing order/prepared payload and its
+captured account/chain after ambiguous submission or stopped/unconfirmed tracking.
+It sets `isUnconfirmed: true`, `isExecuting: false`, and `canDismiss: true`.
+Closing this view must preserve the input and execution snapshot; fresh
+submission and reset stay blocked. Render a `resumeTracking` recovery action
+instead of a new confirm button:
+
+```tsx
+const { isUnconfirmed, resumeTracking, orderId, account, chainId } = useExecution();
+if (isUnconfirmed) {
+  return (
+    <div role="status">
+      <p>Check the previous order before starting another.</p>
+      {orderId && <p>Order: {orderId}</p>}
+      <p>Account: {account} · Chain: {chainId}</p>
+      <button type="button" onClick={resumeTracking}>Check order status</button>
+    </div>
+  );
+}
+```
+
+`useExecution().order` holds the accepted order when available. Recovery checks
+that order or finds the exact previous prepared payload in the original account
+and chain's history; it never signs again. For swaps, a confirmed fill becomes
+`SUCCESS`; confirmed cancellation/expiry becomes `FAILED` and permits retry.
+Advanced order creation succeeds once acceptance is confirmed. Missing results
+and network errors remain `UNCONFIRMED`. `ParsedError.code` retains string SDK
+codes or numeric wallet codes, with `0` as fallback; optional `reason`, `orderId`,
+HTTP `status`, and `serviceCode` preserve classification details.
+
+After wrapping/approval, swap execution re-quotes before preparation. Fresh net
+output below the reviewed minimum rejects with `INVALID_QUOTE` and requires a
+new review; otherwise the original minimum stays signed. Submission uses a fixed
+30-second timeout covering fetch/body reads and forwards the lifecycle signal.
+Pre-abort prevents the POST; abort/timeout after sending requires reconciliation,
+with no automatic POST retry.
 
 ## Balance Refetch
 
@@ -389,8 +437,8 @@ Avoid showing a toast for `onOrderCreated` unless the host DEX explicitly asks f
 - The unit is percentage: `3` means 3% / 300 basis points, not 3 bps
 - This is price protection, not swap slippage
 - For advanced order modules: hide DEX slippage and show Price Protection.
-- For `Module.SWAP`: show UI Slippage and hide Price Protection. The signed swap oracle-protection field is fixed at 500 bps (5%); UI slippage instead determines the raw minimum output. Duration is fixed at 15 minutes and is not editable.
-- Pause automatic/manual quotes while `isExecuting`, cancel active quote requests, and resume after terminal execution/cleanup. The loading state includes swap settlement, not just submission.
+- For `Module.SWAP`: show UI Slippage and hide Price Protection. Send the UI slippage percentage in the quote request and use the returned `quote.minimumAmountOut` unchanged. The signed swap oracle-protection field is fixed at 500 bps (5%). Duration is fixed at 3 minutes from preparation and is not editable.
+- Pause automatic/manual quotes while `isExecuting`, cancel active quote requests, and resume when it becomes false or on cleanup. An unconfirmed order stays frozen and blocks fresh submission while recovery is available.
 - Persist the same way DEX stores slippage (zustand/redux/localStorage)
 
 `minTradeSizeUsd` must be a positive USD threshold approved for the partner.

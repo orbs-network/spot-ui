@@ -13,7 +13,15 @@ const orders = await client.getAccountOrders({
 
 V2 account history uses one request per configured endpoint. The SDK supplies `swapper`, `chainId`, and `exchange` (the partner's legacy adapters plus the client's current configured Spot adapter). `Partners.Quick` uses the history service's `quickswap` key. The public `page` and `limit` options apply only to legacy history. Use `AbortSignal` when the host lifecycle can cancel an obsolete request. `legacyOrders` defaults to `true`; disable it only when the product intentionally excludes legacy TWAP orders.
 
-The method merges configured v1 and v2 history and sorts it newest first. For swap settlement, use `waitForOrder({ order, signal })`. It derives the full signed hash, chain, and deadline from the submitted order and calls the shared single-order lookup directly, without an initialized client or account-history polling. It omits legacy exchange-name filters that can hide current Spot orders. Only `OrderStatus.Completed` confirms a fill; cancelled and expired are terminal errors for swap UX. The poller retries temporary lookup errors without submitting the order again, waits about two seconds after each request, and bounds confirmation at `order.deadline` plus 60 seconds for indexing. React consumes `watchOrder` for intermediate snapshots from the same tracking loop.
+The method merges configured v1 and v2 history and sorts it newest first. For swap
+settlement, use `waitForOrder({ order, signal })`. It derives the full signed hash,
+chain, and deadline from the submitted order and performs direct single-order
+lookups, without an initialized client or account-history polling. Only
+`OrderStatus.Completed` confirms a fill. Requests are serial with a normal
+two-second delay; errors/missing snapshots back off at 2, 4, 8, 16, then 30 seconds,
+resetting after a matching snapshot. Tracking ends by `order.deadline` plus 60
+seconds for indexing. Unknown statuses remain open; explicit expiry is terminal
+only after the deadline. React consumes the same `watchOrder` stream.
 
 Use the host data layer's polling, visibility, retry, and invalidation rules. Avoid overlapping polls, stop polling when the view is no longer active, and refetch after submission or cancellation. Do not call `createClient` for every poll.
 

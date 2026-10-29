@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { isExecutionActive } from "../execution-state";
+import { isExecutionLocked } from "../execution-state";
 import type { SpotFormDefaults } from "./create-spot-store";
 import { useSpotStore, useSpotStoreApi } from "./spot-store-context";
 
@@ -25,7 +25,7 @@ export const SpotFormSynchronizer = ({
   const appliedScopeKey = useRef(scopeKey);
 
   useEffect(() => {
-    if (appliedScopeKey.current === scopeKey || isExecutionActive(phase)) {
+    if (appliedScopeKey.current === scopeKey || isExecutionLocked(phase)) {
       return;
     }
     if (store.getState().syncFormDefaults(defaults)) {

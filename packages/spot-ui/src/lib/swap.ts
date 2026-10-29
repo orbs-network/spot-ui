@@ -1,30 +1,22 @@
 import { executeOrder, type OrderExecutionUpdate, type OrderWalletInteractions } from "./execute-order";
 import type { ApprovalRequest, OrderSigningRequest, SpotClient } from "./client";
 import type { SwapQuote } from "./quote";
-import { isQuoteFresh } from "./quote";
 import type { Order, Partners, RePermitOrder } from "./types";
 import { eqIgnoreCase, isNativeAddress } from "./utils";
 import { SpotError } from "./errors";
+import { getSlippageBps } from "./swap-amounts";
 
 /** Supported routing features: exact input with the signer receiving the output. */
 export const SWAP_CAPABILITIES = Object.freeze({ exactInput: true, exactOutput: false, customRecipient: false } as const);
 /** Trade direction requested by a router. Spot currently supports only `"exact-input"`. */
 export type SwapTradeType = "exact-input" | "exact-output";
 
-/** Reviewed quote and minimum output used by `client.prepareSwap` and {@link submitSwap}. */
+/** Reviewed quote and connected account shared by swap validation and {@link submitSwap}. */
 export interface PrepareSwapParams {
-  /** Quote for the same client chain, partner, and signer. */
+  /** Quote for the same client chain and partner; its request supplies the pair, input, and slippage. */
   quote: SwapQuote;
-  /** Exact reviewed minimum in output-token base units. */
-  minimumOutputAmountRaw: string;
-  /** Connected account that signs the order and receives the output. */
-  swapperAddress: string;
-  /** Defaults to the signer. A different recipient is unsupported. */
-  recipient?: string;
-  /** Defaults to `"exact-input"`; exact-output requests are unsupported. */
-  tradeType?: SwapTradeType;
-  /** Maximum quote age in milliseconds. Checked during preparation, including after wallet steps in `submitSwap`. */
-  maxQuoteAgeMillis?: number;
+  /** Connected account that signs the order and receives the output, independent of the quote's preview user. */
+  userAddress: string;
 }
 
 /** Locally prepared signing payload and approval requirements; no order has been submitted. */
@@ -54,34 +46,38 @@ export function isSwapSupported({ tradeType = "exact-input", swapperAddress, rec
 }
 
 /**
- * Validates a quote's chain, partner, signer, tokens, amounts, and optional age limit.
+ * Validates a quote's chain, partner, tokens, and amounts, plus the connected signer.
  * The host remains responsible for balance, USD-value, and minimum-trade product checks.
  *
  * @throws If the request cannot be prepared as an exact-input Spot swap.
  */
 export function validateSwap(params: PrepareSwapParams, chainId: number, partner: Partners): void {
-  if (!isSwapSupported(params)) throw new SpotError("UNSUPPORTED_SWAP", "Spot swaps support exact input and the signer as recipient only");
-  const { quote } = params;
-  if (!quote.request || quote.request.chainId !== chainId || quote.request.partner !== partner ||
-      !eqIgnoreCase(quote.request.user, params.swapperAddress)) {
-    throw new SpotError("QUOTE_CONTEXT_MISMATCH", "Swap quote does not match the client chain, partner, or signer");
+  if ("deadlineMillis" in params) {
+    throw new SpotError("INVALID_ARGUMENT", "Swap expiration is fixed at 3 minutes; remove deadlineMillis");
   }
-  for (const address of [quote.request.inToken, quote.request.outToken, params.swapperAddress]) {
-    if (!/^0x[0-9a-f]{40}$/i.test(address)) throw new SpotError("INVALID_ARGUMENT", "Invalid swap token or signer address");
+  if (["minimumOutputAmountRaw", "swapperAddress", "recipient", "tradeType"].some(field => field in params)) {
+    throw new SpotError("INVALID_ARGUMENT", "Swap preparation uses the quote's minimumAmountOut and userAddress as the signer. Remove minimumOutputAmountRaw, swapperAddress, recipient, and tradeType; use isSwapSupported before quoting.");
   }
-  if (isNativeAddress(quote.request.inToken) || isNativeAddress(params.swapperAddress)) {
+  const { quote, userAddress } = params;
+  if (!quote?.request || quote.request.chainId !== chainId || quote.request.partner !== partner) {
+    throw new SpotError("QUOTE_CONTEXT_MISMATCH", "Swap quote does not match the client chain or partner");
+  }
+  for (const address of [quote.request.inToken, quote.request.outToken, userAddress]) {
+    if (typeof address !== "string" || !/^0x[0-9a-f]{40}$/i.test(address)) throw new SpotError("INVALID_ARGUMENT", "Invalid swap token or signer address");
+  }
+  if (isNativeAddress(quote.request.inToken) || isNativeAddress(userAddress)) {
     throw new SpotError("UNSUPPORTED_SWAP", "Swap input must be the host's wrapped token and the signer must be nonzero");
   }
   if (eqIgnoreCase(quote.request.inToken, quote.request.outToken)) {
     throw new SpotError("UNSUPPORTED_SWAP", "Swap input and output tokens must be different");
   }
-  for (const amount of [quote.request.inAmount, quote.netAmountOut, params.minimumOutputAmountRaw]) {
-    if (!/^\d+$/.test(amount) || BigInt(amount) <= BigInt(0)) throw new SpotError("INVALID_AMOUNT", "Swap amounts must be positive integer base-unit amounts");
+  for (const amount of [quote.request.inAmount, quote.netAmountOut, quote.minimumAmountOut]) {
+    if (typeof amount !== "string" || !/^\d+$/.test(amount) || BigInt(amount) <= BigInt(0)) throw new SpotError("INVALID_AMOUNT", "Swap amounts must be positive integer base-unit amounts");
   }
-  if (BigInt(params.minimumOutputAmountRaw) > BigInt(quote.netAmountOut)) throw new SpotError("INVALID_QUOTE", "Swap minimum exceeds the net quote");
-  if (params.maxQuoteAgeMillis !== undefined && !isQuoteFresh(quote, params.maxQuoteAgeMillis)) {
-    throw new SpotError("STALE_QUOTE", "Swap quote is stale; request a new quote and review it before signing");
+  if (BigInt(quote.minimumAmountOut) > BigInt(quote.netAmountOut)) {
+    throw new SpotError("INVALID_QUOTE", "Swap minimum exceeds the net quote");
   }
+  getSlippageBps(quote.request.slippage);
 }
 
 /** Reviewed swap inputs plus the host's connected wallet adapter. */
@@ -109,7 +105,7 @@ export interface SubmittedSwap {
   orderId: string;
   /** Accepted order snapshot suitable for `waitForOrder` or `watchOrder`. */
   order: Order;
-  /** Preparation-time expiration as Unix milliseconds; `order.deadline` reflects protocol rounding to seconds. */
+  /** Accepted order expiration as Unix milliseconds, including protocol rounding to seconds; equals `order.deadline`. */
   deadlineMillis: number;
   /** Confirmed native wrapping transaction, when wrapping was required or reused. */
   wrapTxHash?: string;
@@ -122,35 +118,45 @@ export interface SubmittedSwap {
  * Checks allowance, wraps native input when requested, approves when needed, then
  * prepares fresh signing data, signs, and submits the order once.
  *
- * @param params - Quote, reviewed raw minimum, signer, reused client, and wallet adapter.
+ * @param params - Reviewed quote, connected account, reused client, and wallet adapter.
  * @returns An accepted intent. Await `waitForOrder({ order: result.order })` for a completed fill.
  * @throws If validation, a wallet operation, signing, or submission fails.
  * Aborting stops later steps; it does not cancel transactions or an accepted order.
  * @example
  * const result = await submitSwap({
- *   client, quote, swapperAddress: account, walletInteractions,
- *   minimumOutputAmountRaw: getMinimumOutputAmount(quote.netAmountOut, 0.5),
+ *   client, quote, userAddress: account, walletInteractions,
  * });
  * const completed = await waitForOrder({ order: result.order });
  */
 export async function submitSwap(params: SubmitSwapParams): Promise<SubmittedSwap> {
   const { client, walletInteractions, onUpdate, signal, nativeInput, completedWrapTxHash, validateContext } = params;
-  // Snapshot before the first await; prepareSwap checks age again after wallet transactions.
+  validateSwap(params, client.chainId, client.partner);
+  // Snapshot the reviewed quote and execution account before the first wallet await.
   const input: PrepareSwapParams = {
     quote: Object.freeze({ ...params.quote, request: Object.freeze({ ...params.quote.request }) }),
-    minimumOutputAmountRaw: params.minimumOutputAmountRaw, swapperAddress: params.swapperAddress,
-    recipient: params.recipient, tradeType: params.tradeType, maxQuoteAgeMillis: params.maxQuoteAgeMillis,
+    userAddress: params.userAddress,
   };
-  validateSwap(input, client.chainId, client.partner);
   const result = await executeOrder({
-    client, account: input.swapperAddress, inputTokenAddress: input.quote.request.inToken,
+    client, account: input.userAddress, inputTokenAddress: input.quote.request.inToken,
     inputAmountRaw: input.quote.request.inAmount, nativeInput, completedWrapTxHash,
-    walletInteractions, signal, validateContext, onUpdate,
-    prepareOrder: () => client.prepareSwap(input),
+    walletInteractions, signal, onUpdate, validateContext,
+    prepareOrder: async () => {
+      const fresh = await client.getQuote({
+        inToken: input.quote.request.inToken, outToken: input.quote.request.outToken,
+        inAmount: input.quote.request.inAmount, user: input.userAddress,
+        slippage: input.quote.request.slippage, dexMinAmountOut: "-1", signal,
+      });
+      signal?.throwIfAborted();
+      if (BigInt(fresh.netAmountOut) < BigInt(input.quote.minimumAmountOut)) {
+        throw new SpotError("INVALID_QUOTE", "Swap price changed. Review a fresh quote before signing.");
+      }
+      // Preserve the exact minimum reviewed by the user; never weaken it on refresh.
+      return client.prepareSwap(input.quote, input.userAddress);
+    },
   });
   return {
     type: "intent", status: "submitted", orderId: result.order.id, order: result.order,
-    deadlineMillis: result.preparedOrder.values.deadlineMillis,
+    deadlineMillis: result.order.deadline,
     wrapTxHash: result.wrapTxHash, approvalTxHash: result.approvalTxHash,
   };
 }

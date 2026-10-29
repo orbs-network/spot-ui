@@ -27,6 +27,7 @@ export enum ExecutionPhase {
   SIGNING = "signing",
   SUBMITTING = "submitting",
   SETTLING = "settling",
+  UNCONFIRMED = "unconfirmed",
   SUCCESS = "success",
   FAILED = "failed",
   REJECTED = "rejected",
@@ -89,7 +90,11 @@ export type OnCancelOrderSuccess = {
 
 export type ParsedError = {
   message: string;
-  code: number;
+  code: number | string;
+  reason?: "cancelled" | "expired" | "unconfirmed" | "aborted";
+  orderId?: string;
+  status?: number;
+  serviceCode?: string | number;
 };
 
 export type ObserverResult = void | PromiseLike<unknown>;
@@ -124,7 +129,7 @@ export type Callbacks = {
 
 export type MarketQuote = {
   quotedOutputAmountRaw?: string;
-  /** Slippage-adjusted minimum, required for Module.SWAP; expressed in output-token base units. */
+  /** Current quote.minimumAmountOut unchanged, required for Module.SWAP; output-token base units. */
   minimumOutputAmountRaw?: string;
   isLoading?: boolean;
   noLiquidity?: boolean;
@@ -190,6 +195,8 @@ export interface CompletedWrap {
 export type SwapExecution = {
   executionId?: number;
   phase: ExecutionPhase;
+  account?: Address;
+  partner?: Partners;
   parsedError?: ParsedError;
   error?: Error;
   stepIndex?: number;
@@ -201,6 +208,8 @@ export type SwapExecution = {
   outputToken?: Token;
   chainId?: number;
   orderId?: string;
+  /** Accepted order retained for status recovery without submitting another intent. */
+  order?: Order;
   hasApproval?: boolean;
   form?: CalculatedOrderForm;
   preparedOrder?: PreparedOrder;

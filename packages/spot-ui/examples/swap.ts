@@ -2,7 +2,6 @@
 // Existing DEX wallet flows should start with router-swap.ts instead.
 import {
   calculateOrder,
-  getMinimumOutputAmount,
   submitSwap,
   type OrderWalletInteractions,
   type SubmittedSwap,
@@ -68,7 +67,7 @@ export async function createSwapPreview(params: {
     dexMinAmountOut: "-1",
     signal: params.signal,
   });
-  const minimumOutputAmountRaw = getMinimumOutputAmount(quote.netAmountOut, slippage);
+  const minimumOutputAmountRaw = quote.minimumAmountOut;
   const form = calculateOrder({
     module: Module.SWAP,
     inputTokenDecimals: inputToken.decimals,
@@ -91,9 +90,11 @@ export async function submitReviewedSwap(preview: SwapPreview, wallet: SwapWalle
   if (form.module !== Module.SWAP || !form.canSubmit) {
     throw new Error(form.errors.primary?.type ?? "Swap form is not submittable");
   }
+  if (form.values.minOutputAmountTotal !== quote.minimumAmountOut) {
+    throw new Error("Swap quote does not match the reviewed minimum");
+  }
   return submitSwap({
-    client, quote, swapperAddress: account,
-    minimumOutputAmountRaw: form.values.minOutputAmountTotal,
+    client, quote, userAddress: account,
     nativeInput: isNativeAddress(inputToken.address), walletInteractions: wallet,
   });
 }

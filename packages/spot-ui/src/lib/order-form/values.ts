@@ -124,12 +124,12 @@ export const calculateOrderValues = (
   params: CalculateOrderValuesParams,
 ): CalculatedOrderValues => {
   const schedule = calculateOrderSchedule(params);
-  // The host already applies UI slippage to the swap's minimum output.
+  // The swap quote already includes UI slippage in its minimum output.
   // This separate signed field controls oracle protection.
   const slippageBps = params.module === Module.SWAP
     ? SWAP_ORDER_SLIPPAGE_BPS
     : Number.isFinite(params.priceProtectionPercent)
-      ? params.priceProtectionPercent * 100
+      ? Math.round(params.priceProtectionPercent * 100)
       : 0;
   const displayFeePercent =
     typeof params.displayFeePercent === "number" &&

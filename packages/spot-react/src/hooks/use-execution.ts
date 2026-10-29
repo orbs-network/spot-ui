@@ -2,13 +2,15 @@ import {
   ExecutionPhase,
   ExecutionStatus,
   type ParsedError,
+  type Order,
   type Steps,
   type Token,
 } from "../types";
-import { isNativeAddress } from "@orbs-network/spot-ui";
+import { isNativeAddress, type Address } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import { useSubmitOrder } from "./use-submit-order";
 import { useSwapExecution } from "./use-swap-execution";
+import { useResumeExecution } from "./use-resume-execution";
 import { createSpotFormDefaults } from "../context/create-spot-store";
 import { useSpotTrading } from "../context/spot-trading-context";
 import { useSpotStore } from "../context/spot-store-context";
@@ -18,6 +20,7 @@ import {
   getExecutionStatus,
   getExecutionStep,
   isExecutionActive,
+  isExecutionLocked,
 } from "../execution-state";
 
 export interface SpotExecutionData {
@@ -33,7 +36,12 @@ export interface SpotExecutionData {
   inputToken?: Token;
   outputToken?: Token;
   chainId?: number;
+  account?: Address;
+  orderId?: string;
+  order?: Order;
   submitOrder: () => void;
+  /** Checks the saved attempt without signing or submitting a replacement. */
+  resumeTracking: () => void;
   startNewOrder: () => boolean;
   returnToOrderForm: () => boolean;
   /** True throughout preparation, wallet steps, submission, and swap settlement. */
@@ -42,6 +50,7 @@ export interface SpotExecutionData {
   isSuccess: boolean;
   isFailed: boolean;
   isRejected: boolean;
+  isUnconfirmed: boolean;
   isPreparingOrder: boolean;
   canDismiss: boolean;
 }
@@ -58,6 +67,7 @@ export const useExecution = (): SpotExecutionData => {
   } = useSpotTrading();
   const { data: client, isLoading: isClientLoading } = useClient();
   const submitOrder = useSubmitOrder();
+  const resumeTracking = useResumeExecution();
   const resetOrderState = useSpotStore((state) => state.startNewOrder);
   const submit = useCallback((): void => submitOrder(), [submitOrder]);
   const startNewOrder = useCallback(
@@ -82,13 +92,18 @@ export const useExecution = (): SpotExecutionData => {
       inputToken: swapExecution.inputToken ?? currentInputToken,
       outputToken: swapExecution.outputToken ?? currentOutputToken,
       chainId: swapExecution.chainId ?? currentChainId,
+      account: swapExecution.account,
+      orderId: swapExecution.orderId,
+      order: swapExecution.order,
       submitOrder: submit,
+      resumeTracking,
       startNewOrder,
       returnToOrderForm: swapExecution.returnToOrderForm,
       isExecuting,
       isSuccess: swapExecution.phase === ExecutionPhase.SUCCESS,
       isFailed: swapExecution.phase === ExecutionPhase.FAILED,
       isRejected: swapExecution.phase === ExecutionPhase.REJECTED,
+      isUnconfirmed: swapExecution.phase === ExecutionPhase.UNCONFIRMED,
       isPreparingOrder:
         swapExecution.phase === ExecutionPhase.PREPARING ||
         (hasChainId && isClientLoading && !client),
@@ -105,6 +120,7 @@ export const useExecution = (): SpotExecutionData => {
     hasChainId,
     startNewOrder,
     submit,
+    resumeTracking,
     status,
     swapExecution,
   ]);
@@ -144,7 +160,7 @@ export const useSubmitButton = () => {
     Boolean(inputToken && outputToken && inputAmountUi && isPropsLoading);
   const disabled = Boolean(
     !form.canSubmit ||
-      isExecuting ||
+      isExecutionLocked(executionPhase) ||
       !hasChainId ||
       !client ||
       noLiquidity ||

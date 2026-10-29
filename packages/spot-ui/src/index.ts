@@ -52,6 +52,7 @@ export type {
 export {
   createClient,
   type CreateClientOptions,
+  type SubmitOrderOptions,
   type SpotClient,
   type PrepareOrderParams,
   type Eip712TypedData,
@@ -94,7 +95,6 @@ export {
 
 export { getQuote, isQuoteFresh, QuoteError, type QuoteErrorKind, type SwapQuote, type SwapQuoteParams } from "./lib/quote";
 
-export { getMinimumOutputAmount } from "./lib/swap-amounts";
 export { SWAP_CAPABILITIES, isSwapSupported, submitSwap, type PrepareSwapParams, type PreparedSwap, type SubmitSwapParams, type SubmittedSwap, type SwapTradeType } from "./lib/swap";
 export { executeOrder, type ExecuteOrderParams, type OrderExecutionUpdate, type OrderExecutionPhase, type OrderExecutionStep, type OrderWalletInteractions, type SignableOrder } from "./lib/execute-order";
 export { waitForOrder, watchOrder, OrderSettlementError, type WaitForOrderParams } from "./lib/wait-for-order";

@@ -106,6 +106,8 @@ export const calculateDurationError = (
   marketPrice: string | undefined,
   schedule: CalculatedOrderSchedule,
 ): InputError | undefined => {
+  // Swaps use the SDK's fixed duration rather than advanced-order duration limits.
+  if (module === Module.SWAP) return undefined;
   if (BN(inputAmount || "0").isZero() || !marketPrice) return undefined;
 
   const maxError = getMaxOrderDurationError(module, schedule.duration);

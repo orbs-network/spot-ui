@@ -14,7 +14,7 @@ Read the [Spot migration guide](https://github.com/orbs-network/spot-ui/blob/mas
 Migration changes the execution flow, not just the import:
 
 1. Fetch `getQuote` from Spot, mapping the chain, partner, tokens, raw amount, connected account, UI slippage percentage, DEX minimum, and abort signal.
-2. Apply UI slippage to `netAmountOut` with `getMinimumOutputAmount`. Existing DEX routers use the raw `client.prepareSwap` path; provider-based forms use `Module.SWAP` with the exact raw quote and minimum.
+2. Use Spot `quote.netAmountOut` and its authoritative `quote.minimumAmountOut` unchanged; do not apply slippage again. Existing DEX routers use `client.prepareSwap`; provider forms use `Module.SWAP` with `minimumOutputAmountRaw: quote.minimumAmountOut`.
 3. Wrap native input when required and use the configured Spot client's approval spender. Do not reuse the Liquidity Hub Permit2 spender.
 4. Prepare a fresh Spot order immediately before signing. Sign the prepared order, not the legacy quote payload, and submit with the wallet's unchanged signature.
 5. Pass the submitted order to `waitForOrder({ order })` until it fills or reaches a terminal or uncertain outcome; it derives the ID, chain, and deadline from the order and supports optional cancellation. No client is needed for tracking. Submission acceptance does not mean execution completed. In React, `SpotProvider module={Module.SWAP}` handles this lifecycle and progress/cache updates; use `isExecuting` to pause quotes and keep the progress UI active.

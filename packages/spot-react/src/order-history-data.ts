@@ -61,19 +61,46 @@ export const mergeCachedLegacyOrders = (
   return [...orders, ...cachedLegacyOrders];
 };
 
+/** Preserve accepted snapshots while older history requests finish indexing. */
+export const mergeOrderSnapshots = (
+  previousOrders: Order[] | undefined,
+  orders: Order[],
+): Order[] => {
+  if (!previousOrders) return orders;
+  const previousByKey = new Map(previousOrders.map(order => [order.historyKey, order]));
+  const incomingKeys = new Set(orders.map(order => order.historyKey));
+  const merged = orders.map(order => {
+    const previous = previousByKey.get(order.historyKey);
+    if (previous && (
+      (previous.status === OrderStatus.Completed && order.status !== OrderStatus.Completed) ||
+      (previous.status !== OrderStatus.Open && order.status === OrderStatus.Open)
+    )) return previous;
+    return order;
+  });
+  return [...merged, ...previousOrders.filter(order => !incomingKeys.has(order.historyKey))];
+};
+
 export const notifyOrderUpdates = (
   previousOrders: Order[] | undefined,
   orders: Order[],
   callbacks?: Callbacks,
+  notifiedFilledOrders?: Set<string>,
+  trackedOrder?: Order,
 ): void => {
-  if (!previousOrders) return;
+  const filledOrderKeys = notifiedFilledOrders ?? new Set<string>();
+  const notifyFilled = (order: Order): boolean => {
+    if (filledOrderKeys.has(order.historyKey)) return false;
+    filledOrderKeys.add(order.historyKey);
+    observe(() => callbacks?.onOrderFilled?.(order));
+    return true;
+  };
 
   const currentOrdersByKey = new Map(
     orders.map((order) => [order.historyKey, order]),
   );
   const updatedOrders: Order[] = [];
 
-  for (const previousOrder of previousOrders) {
+  for (const previousOrder of previousOrders ?? []) {
     if (previousOrder.version !== 2) continue;
     const currentOrder = currentOrdersByKey.get(previousOrder.historyKey);
     if (!currentOrder || (
@@ -85,8 +112,19 @@ export const notifyOrderUpdates = (
 
     updatedOrders.push(currentOrder);
     if (currentOrder.status === OrderStatus.Completed && previousOrder.status !== OrderStatus.Completed) {
-      observe(() => callbacks?.onOrderFilled?.(currentOrder));
+      notifyFilled(currentOrder);
     }
+  }
+
+  // A recovered/instant fill can already be completed when it is first tracked.
+  if (trackedOrder?.status === OrderStatus.Completed && notifyFilled(trackedOrder) &&
+    !updatedOrders.some(order => order.historyKey === trackedOrder.historyKey)) {
+    updatedOrders.push(trackedOrder);
+  }
+
+  // Loading completed history alone is not a new fill in this provider session.
+  for (const order of orders) {
+    if (order.status === OrderStatus.Completed) filledOrderKeys.add(order.historyKey);
   }
 
   if (updatedOrders.length > 0) {
@@ -147,7 +185,7 @@ export const structurallyShareOrders = (
 
 /** A partial SDK result must not suppress the next legacy-history retry. */
 export const loadOrderHistory = async ({
-  client, account, signal, supportLegacyOrders, previousOrders, legacyLoaded, callbacks,
+  client, account, signal, supportLegacyOrders, previousOrders, legacyLoaded,
 }: {
   client: Pick<SpotClient, "getAccountOrdersResult">;
   account: string;
@@ -155,13 +193,11 @@ export const loadOrderHistory = async ({
   supportLegacyOrders: boolean;
   previousOrders?: Order[];
   legacyLoaded: boolean;
-  callbacks?: Callbacks;
 }): Promise<{ orders: Order[]; legacyLoaded: boolean }> => {
   const result = await client.getAccountOrdersResult({
     signal, account, legacyOrders: supportLegacyOrders && !legacyLoaded,
   });
   if (signal.aborted) throw signal.reason;
-  notifyOrderUpdates(previousOrders, result.orders, callbacks);
   return {
     orders: supportLegacyOrders && !result.legacyLoaded
       ? mergeCachedLegacyOrders(result.orders, previousOrders)

@@ -2,6 +2,9 @@ import { getOrder } from "./orders/v2-orders";
 import { OrderStatus, type Order } from "./types";
 import { SpotError } from "./errors";
 
+const INITIAL_POLL_DELAY_MILLIS = 2_000;
+const MAX_POLL_DELAY_MILLIS = 30_000;
+
 /**
  * Tracking ended without a confirmed completed order.
  * `reason` distinguishes a reported cancellation/expiry from stopped (`aborted`)
@@ -48,6 +51,8 @@ function isSettled(order: Order): boolean {
  * Streams order snapshots until completion for progress displays or history caches.
  * Uses the order's ID and chain directly; no client or wallet is needed.
  * Lookups run serially, retrying missing/indexing results and request failures.
+ * Missing or failed lookups back off from two to thirty seconds; a matching
+ * snapshot resets the interval to two seconds.
  * Tracking ends one minute after the order's millisecond deadline if completion
  * cannot be confirmed. Breaking out of the loop releases timers and requests.
  *
@@ -96,6 +101,7 @@ export async function* watchOrder({ order, signal }: WaitForOrderParams): AsyncG
       if (isSettled(order)) return;
     }
     armDeadline();
+    let pollDelayMillis = INITIAL_POLL_DELAY_MILLIS;
     while (true) {
       controller.signal.throwIfAborted();
       let current: Order | undefined;
@@ -106,12 +112,18 @@ export async function* watchOrder({ order, signal }: WaitForOrderParams): AsyncG
         controller.signal.throwIfAborted();
       }
       controller.signal.throwIfAborted();
-      if (current && current.id.toLowerCase() === orderId.toLowerCase() && current.historyKey === historyKey) {
+      const matchesOrder = current && current.id.toLowerCase() === orderId.toLowerCase() && current.historyKey === historyKey;
+      if (current && matchesOrder) {
+        pollDelayMillis = INITIAL_POLL_DELAY_MILLIS;
         yield current;
         controller.signal.throwIfAborted();
         if (isSettled(current)) return;
       }
-      await abortable(new Promise<void>(resolve => { poll = setTimeout(resolve, 2_000); }), controller.signal);
+      const delayMillis = pollDelayMillis;
+      if (!matchesOrder) {
+        pollDelayMillis = Math.min(MAX_POLL_DELAY_MILLIS, pollDelayMillis * 2);
+      }
+      await abortable(new Promise<void>(resolve => { poll = setTimeout(resolve, delayMillis); }), controller.signal);
     }
   } finally {
     clearTimeout(poll);

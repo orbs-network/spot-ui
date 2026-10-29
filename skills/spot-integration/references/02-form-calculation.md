@@ -50,7 +50,7 @@ const form = calculateSpotForm({
 | --- | --- |
 | `inputTokenDecimals` / `outputTokenDecimals` | Actual token decimals; zero is valid |
 | `quotedOutputAmountRaw` | Raw output-token amount quoted for the complete current input amount; use `getQuote().netAmountOut` for swaps |
-| `minimumOutputAmountRaw` | Required for `Module.SWAP`: exact raw net quote after UI slippage, rounded down; positive and no larger than the quote |
+| `minimumOutputAmountRaw` | Required for `Module.SWAP`: `quote.minimumAmountOut` unchanged; positive and no larger than the net quote |
 | `inputTokenUsdPrice` / `outputTokenUsdPrice` | USD value of exactly one token, expressed as a decimal string |
 | `minTradeSizeUsd` | Positive host/partner policy threshold in USD |
 | `priceProtectionPercent` | Percentage units; `3` is 3%, not 3 basis points |
@@ -61,7 +61,12 @@ const form = calculateSpotForm({
 | price `Ui` fields | Current displayed price direction |
 | price `Percent` fields | Percentage relative to the current market price |
 
-The host computes the swap UI-slippage minimum from the net quote as described in [Swap and Migration](07-swap-and-migration.md). Let the SDK derive the remaining raw order amounts, per-trade values, oracle protection, deadlines, and defaults. `Module.SWAP` always uses one limit trade, 15-minute expiration, no inversion, and 500 bps signed oracle protection; price/duration overrides do not change those swap rules.
+The host passes the authoritative `quote.minimumAmountOut` unchanged, as described
+in [Swap and Migration](07-swap-and-migration.md). Do not apply slippage again.
+Let the SDK derive remaining order values, protection, deadlines, and defaults.
+`Module.SWAP` uses one limit trade, fixed 3-minute expiration from preparation,
+no inversion, and 500 bps signed oracle protection; price/duration overrides do
+not change those rules. Raw `prepareSwap`/`submitSwap` uses the same expiration.
 
 For missing native-token USD values on a new chain, check the host's wrapped-native mapping and price normalization before changing SDK calculations. See [Chain Integration](06-chain-integration.md) for price-provider and cache checks. A token amount from a router quote and its USD valuation are separate inputs; one can succeed while the other is unavailable.
 

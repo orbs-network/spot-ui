@@ -1,12 +1,11 @@
 import {
-  getMinimumOutputAmount, isSwapSupported, waitForOrder,
+  isSwapSupported, waitForOrder,
   type PreparedSwap,
   type SpotClient, type SubmittedSwap, type SwapQuote, type SwapTradeType,
 } from "@orbs-network/spot-ui";
 
 export interface SpotRoute {
   quote: SwapQuote;
-  minimumOutputAmountRaw: string;
   nativeInput: boolean;
 }
 
@@ -31,27 +30,22 @@ export async function quoteSpotRoute(params: {
     user: params.account, slippage: params.slippage,
     dexMinAmountOut: params.dexMinimumOutputRaw ?? "-1", signal: params.signal,
   });
-  const minimumOutputAmountRaw = getMinimumOutputAmount(quote.netAmountOut, params.slippage);
+  const minimumOutputAmountRaw = quote.minimumAmountOut;
   if (params.dexMinimumOutputRaw !== undefined && BigInt(minimumOutputAmountRaw) <= BigInt(params.dexMinimumOutputRaw)) return undefined;
-  return { quote, minimumOutputAmountRaw, nativeInput: params.nativeInput };
+  return { quote, nativeInput: params.nativeInput };
 }
 
 /**
  * Call after the DEX confirms wrapping/approval to client.spenderAddress.
  * The DEX owns its execution lock and live account/chain/balance checks.
- * Prepare immediately before signing; a stale quote requires a new review.
+ * Prepare immediately before signing; the host owns quote freshness policy.
  */
 export function prepareSpotRoute(params: {
   client: SpotClient;
   route: SpotRoute;
   account: string;
 }): PreparedSwap {
-  return params.client.prepareSwap({
-    quote: params.route.quote,
-    minimumOutputAmountRaw: params.route.minimumOutputAmountRaw,
-    swapperAddress: params.account,
-    maxQuoteAgeMillis: 60_000, // Example local policy, not a server expiry claim.
-  });
+  return params.client.prepareSwap(params.route.quote, params.account);
 }
 
 /**
@@ -67,7 +61,7 @@ export async function submitSignedSpotRoute(params: {
   const order = await params.client.submitOrder(params.prepared.order, params.signature);
   return {
     type: "intent", status: "submitted", orderId: order.id, order,
-    deadlineMillis: params.prepared.values.deadlineMillis,
+    deadlineMillis: order.deadline,
   };
 }
 

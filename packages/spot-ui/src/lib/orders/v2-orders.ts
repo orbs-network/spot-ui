@@ -70,13 +70,15 @@ const getProgress = (order: OrderV2) => {
 };
 
 const getStatus = (order: OrderV2, progress: number) => {
-  const status = (order.metadata.status || "").toLowerCase();
-  const description = order.metadata.description?.toLowerCase();
+  const status = typeof order.metadata.status === "string"
+    ? order.metadata.status.trim().toLowerCase()
+    : "";
+  const description = typeof order.metadata.description === "string"
+    ? order.metadata.description.trim().toLowerCase()
+    : "";
 
   if (status === "completed" || progress === 100)
     return OrderStatus.Completed;
-  if (["pending", "eligible"].includes(status))
-    return OrderStatus.Open;
   if (
     ["cancelled", "canceled"].includes(status) ||
     description === "cancelled by contract" ||
@@ -84,7 +86,13 @@ const getStatus = (order: OrderV2, progress: number) => {
   )
     return OrderStatus.Cancelled;
 
-  return OrderStatus.Expired;
+  const deadlineMillis = Number(order.order.deadline) * 1000;
+  if (status === "expired" && Number.isFinite(deadlineMillis) && deadlineMillis <= Date.now()) {
+    return OrderStatus.Expired;
+  }
+  // Missing or new service statuses are not proof of expiry. A later lookup
+  // may still index a fill that executed before the signed deadline.
+  return OrderStatus.Open;
 };
 
 const getFills = (order: OrderV2): OrderFill[] => {

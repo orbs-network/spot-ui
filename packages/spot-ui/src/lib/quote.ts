@@ -15,10 +15,10 @@ export interface SwapQuoteParams {
   /** Output token address on the selected chain. */
   outToken: string;
   /**
-   * Account that will sign the order. Before connection, a host can use
-   * `0x0000000000000000000000000000000000000001` for a display-only preview.
-   * Refetch with the connected account after connection or an account change;
-   * a preview quote cannot be submitted for a different signer.
+   * Account supplied to the quote service. Before connection, a host can use
+   * `0x0000000000000000000000000000000000000001` for a preview.
+   * Pass the connected account separately as `userAddress` when preparing or
+   * submitting the swap; this quote field does not determine the signer.
    */
   user: string;
   /** Percentage: 0.5 means 0.5%. Sent to the API as integer basis points, rounded to the nearest bps. Does not set the signed order's slippage field. */
@@ -39,7 +39,7 @@ export interface SwapQuote {
   amountOut: string;
   /** Net output-token base units. Pass as calculateOrder.quotedOutputAmountRaw. */
   netAmountOut: string;
-  /** Service-provided minimum. The host may derive its own UI-slippage minimum from netAmountOut. */
+  /** Service-provided minimum for the requested slippage. Use unchanged for review and the signed swap minimum. */
   minimumAmountOut: string;
   /** Raw fee amount reported by the quote service. */
   feeAmount: string;
@@ -47,22 +47,35 @@ export interface SwapQuote {
 
 const isAmount = (value: unknown): value is string =>
   typeof value === "string" && /^\d+$/.test(value);
+const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/i;
 
 /**
- * Fetches an exact-input swap quote for a token pair and signer.
+ * Fetches an exact-input swap quote for a token pair and quote user.
  * Use the result with `submitSwap` or `client.prepareSwap`, or pass
  * `netAmountOut` to `calculateOrder` with `Module.SWAP` for a form preview.
  * This request does not open the wallet or create an order.
  *
- * @param params - Chain, partner, tokens, raw input amount, signer, and slippage percentage.
+ * @param params - Chain, partner, tokens, raw input amount, quote user or preview address, and slippage percentage.
  * @returns The service amounts and a frozen copy of the request, all amounts in base units.
- * @throws {@link QuoteError} for invalid slippage, unavailable quotes, or request/response failures.
+ * @throws {@link QuoteError} for invalid inputs, unavailable quotes, or request/response failures.
  * Request cancellation propagates the abort error instead of a QuoteError.
  */
 export const getQuote = async ({
   chainId, partner, inToken, inAmount, outToken, user, slippage,
   dexMinAmountOut = "-1", signal,
 }: SwapQuoteParams): Promise<SwapQuote> => {
+  signal?.throwIfAborted();
+  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+    throw new QuoteError("chainId must be a positive safe integer", "invalid-request");
+  }
+  for (const [field, address] of [["inToken", inToken], ["outToken", outToken], ["user", user]] as const) {
+    if (typeof address !== "string" || !ADDRESS_PATTERN.test(address)) {
+      throw new QuoteError(`Invalid ${field} address`, "invalid-request");
+    }
+  }
+  if (!isAmount(inAmount) || BigInt(inAmount) <= BigInt(0)) {
+    throw new QuoteError("inAmount must be a positive integer base-unit amount", "invalid-request");
+  }
   let slippageBps: number;
   try { slippageBps = getSlippageBps(slippage); }
   catch (error) { throw new QuoteError(error instanceof Error ? error.message : "Invalid slippage", "invalid-request"); }

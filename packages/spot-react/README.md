@@ -35,20 +35,38 @@ Every DEX needs a member of the exported `Partners` enum and a server-side Orbs 
 
 The `/config` endpoint is a security boundary. The SDK rejects configurations whose domain or order chain differs from the requested chain, and rejects zero or malformed RePermit and exchange-adapter addresses. It uses `domain.verifyingContract` as the ERC-20 approval spender and the v2 cancellation contract, and uses the returned adapter, reactor, and executor when constructing orders. The SDK does not independently verify deployed bytecode or contract identity, so deployments must use the trusted Orbs endpoint over TLS and contract-address changes require explicit approval from the protocol/security owner.
 
-`SpotProvider` initializes the `spot-ui` client when a valid connected chain ID is available; the order-sink API determines whether the selected partner/chain is supported. It never substitutes another chain. Client state and order history are scoped to that provider, with no global cache or host query provider required. The framework-neutral `createClient` factory does not cache clients. It initializes analytics after validating configuration; no `appId` or React analytics effect is needed. The client owns configuration-dependent order preparation, signing/approval/cancellation request values, submission, and configured history access; calculations remain package-level functions. Form previews and order construction share the framework-agnostic `calculateOrder` model, so defaults, prices, trades, schedules, errors, raw/token-formatted/USD values, and signed execution values cannot diverge. Form calculation is time-independent; `prepareOrder` assigns fresh start, deadline, and nonce values after wrapping and approval, immediately before signing. Initialization is retried twice. After those retries, the provider keeps its children mounted and renders the retryable `clientErrorFallback` alongside them. Supply that component to localize and style the error for the host DEX.
+`SpotProvider` initializes the `spot-ui` client when a valid connected chain ID is
+available; the service determines partner/chain support. Client and history state
+are provider-scoped and require no host query provider. `createClient` returns a
+new client while sharing validated configuration templates and in-flight requests
+through a 60-second, 32-entry LRU cache. Each client receives a deep copy; failures
+are evicted. Analytics initialize after validation, without an `appId` or React
+effect. Nonce allocation is shared across clients in the loaded SDK instance.
+
+The client owns configuration-dependent preparation, signing/approval/cancellation
+requests, submission, and history access. Package-level `calculateOrder` provides
+the shared form model. `prepareOrder` assigns fresh start, deadline, and nonce
+after wrapping/approval, immediately before signing. Swap execution first
+re-quotes: net output below the reviewed minimum rejects with `INVALID_QUOTE` and
+requires fresh review; otherwise the exact reviewed minimum remains signed.
+
+Initialization is retried twice. After those retries, the provider keeps children
+mounted and renders `clientErrorFallback` alongside them. Supply that component
+to localize and style retryable initialization errors.
 
 The authoritative shared model is available from `useOrderForm()`.
 
 Each mounted `SpotProvider` owns one stable store. Changing the module or token
 pair reapplies form defaults without recreating the partner/chain client,
 history cache, or cancellation state. If that scope changes during execution,
-the reset waits until the frozen execution reaches a terminal phase. Changing
+the reset waits until the frozen execution reaches a definitive terminal outcome;
+unconfirmed attempts retain their snapshot until reconciliation. Changing
 partner or chain reconfigures only the resources whose keys actually changed.
 
 The completed integration should:
 
 - keep tokens, typed amount, balances, USD prices, and quote state in the DEX's existing swap store or context;
-- provide all five `walletInteractions` methods using the DEX's existing wallet stack;
+- provide the five required `walletInteractions` methods using the DEX's existing wallet stack, plus `getTokenBalance` for completed-wrap retries;
 - render TWAP, Limit, Stop-Loss, and Take-Profit entry points using DEX-native navigation and components;
 - use `@orbs-network/swap-ui` for the order review/progress flow inside the DEX's modal shell;
 - render order history and cancellation inside `SpotProvider` scope or through a context-preserving portal.
@@ -106,7 +124,7 @@ Keep the DEX swap form as the source of truth. Pass the following adapted values
 | Selected tokens | `Token` objects with `address`, `symbol`, `decimals`, and optional `logoUrl` |
 | Wrapped native token | The connected chain's wrapped-native `Token`, supplied by the DEX |
 | Typed source amount | User-facing decimal string, for example `"1.25"` |
-| Quote output | Raw destination-token amount for the current typed input; swaps also require `minimumOutputAmountRaw` after UI slippage |
+| Quote output | Raw destination-token amount for the current typed input; swaps map `quote.minimumAmountOut` unchanged to `minimumOutputAmountRaw` |
 | Input balance | Raw integer string |
 | USD prices | USD value of exactly one whole source/destination token |
 | Chain and account | Values from the connected wallet/account state |
@@ -261,7 +279,12 @@ function SpotOrderForm({ module }: { module: Module }) {
 }
 ```
 
-`marketQuote.quotedOutputAmountRaw` is the quote's raw output amount for the current `inputAmountUi`, not a standalone per-token price. For swaps, use `quote.netAmountOut` and also pass `minimumOutputAmountRaw` after UI slippage. If the quote belongs to an older input, token pair, account, chain, partner, or slippage setting, omit both amounts and report `isLoading: true` until a current quote arrives.
+`marketQuote.quotedOutputAmountRaw` is the quote's raw output amount for the current
+`inputAmountUi`, not a standalone per-token price. For swaps, pass
+`quote.netAmountOut` and `minimumOutputAmountRaw: quote.minimumAmountOut`.
+The returned minimum is authoritative; do not apply slippage again. If the quote
+belongs to older inputs, omit both amounts and report `isLoading: true` until a
+current quote arrives.
 
 `spot-react` has no network registry. Always pass the `wrappedNativeToken` prop
 from the DEX's own chain configuration; its value may be `undefined` only until
@@ -281,7 +304,7 @@ Use the connected wallet chain as the source of truth. When it is absent or unsu
 | `inputAmountUi` | `string` | Yes | User-entered input-token amount |
 | `priceProtectionPercent` | `number` | Yes | Price Protection percentage for advanced orders; ignored for `SWAP`, which signs 500 bps oracle protection |
 | `minTradeSizeUsd` | `number` | Yes | Minimum individual trade size in USD |
-| `marketQuote` | `MarketQuote` | Yes | `{ quotedOutputAmountRaw?, minimumOutputAmountRaw?, isLoading?, noLiquidity? }` for the current quote; swaps require the raw minimum after UI slippage |
+| `marketQuote` | `MarketQuote` | Yes | `{ quotedOutputAmountRaw?, minimumOutputAmountRaw?, isLoading?, noLiquidity? }`; swaps use `quote.netAmountOut` and `quote.minimumAmountOut` unchanged |
 | `walletInteractions` | `WalletInteractions` | Yes | Five wallet methods implemented by the DEX |
 | `chainId` | `number` | No | Connected wallet chain ID |
 | `account` | `Address` | No | Connected wallet address |
@@ -318,7 +341,10 @@ partner and backend.
 history. The `ApproveTokenProps`, `GetAllowanceProps`, and `CancelOrderProps`
 aliases remain available for existing adapters.
 
-The DEX must implement all five methods. Write methods must wait for the transaction receipt, throw when the transaction reverts, and then return the transaction hash.
+The DEX must implement the five required methods. Add `getTokenBalance` when
+retrying an attempt with completed native-wrap metadata. Write methods must wait
+for the transaction receipt, throw when the transaction reverts, and then return
+the transaction hash.
 
 ```tsx
 const walletInteractions: WalletInteractions = {
@@ -354,6 +380,9 @@ const walletInteractions: WalletInteractions = {
 
   getAllowance: ({ tokenAddress, spenderAddress }) =>
     dexWallet.getAllowance({ tokenAddress, spenderAddress }),
+
+  getTokenBalance: ({ tokenAddress }) =>
+    dexWallet.getTokenBalance({ tokenAddress }),
 };
 ```
 
@@ -364,8 +393,13 @@ const walletInteractions: WalletInteractions = {
 | `cancelOrder({ order, contractAddress, args, abi })` | Call `cancel` with the supplied ABI and args, wait for confirmation, return tx hash |
 | `signOrder({ signerAddress, typedData })` | Adapt the framework-neutral EIP-712 request to the host wallet and return its original `0x`-prefixed signature |
 | `getAllowance({ tokenAddress, spenderAddress })` | Return the connected account's raw allowance as a string |
+| `getTokenBalance({ tokenAddress })` | Optional; return the captured account's current raw ERC-20 balance as a string. Required when reusing completed wrap metadata |
 
 The signature returned by `signOrder` is submitted unchanged. Do not split it into `{ v, r, s }`, rewrite its recovery byte, or otherwise normalize the wallet's byte representation.
+On a native-input retry, a previous wrap receipt alone does not prove the tokens
+are still available. The executor checks the current wrapped-token balance and
+wraps only a shortfall. `onWrapSuccess.amount` reports the amount actually wrapped
+in that step.
 
 ## Building with focused hooks
 
@@ -406,7 +440,7 @@ const history = useOrders();
 | `useDisclaimer()` | Disclaimer translation key or `undefined` |
 | `useInputErrors()` | `{ type, args }` or `undefined` |
 | `useSubmitButton()` | `disabled` and `loading` |
-| `useExecution()` | Submission, status, steps, errors, resets, resolved tokens, and tx hashes |
+| `useExecution()` | Submission/recovery, status, steps, errors, retained order/account, resets, resolved tokens, and tx hashes |
 | `useOrders()` | Provider-scoped categorized order lists and polling state |
 | `useHistoryOrder()` | Display-ready values for one history order |
 | `useCancelOrder()` | Per-order cancellation state and action |
@@ -476,8 +510,20 @@ function SpotOrderFlow() {
     outputToken,
     currentStepIndex,
     totalSteps,
+    isUnconfirmed,
+    resumeTracking,
+    orderId,
   } = useExecution();
   const form = useOrderForm();
+  if (isUnconfirmed) {
+    return (
+      <div role="status">
+        <p>{error?.message || "Order status needs confirmation."}</p>
+        {orderId && <p>Order: {orderId}</p>}
+        <button type="button" onClick={resumeTracking}>Check order status</button>
+      </div>
+    );
+  }
   const swapStatus =
     status === ExecutionStatus.SUCCESS
       ? SwapUiStatus.SUCCESS
@@ -512,20 +558,21 @@ Wrap `SwapFlow` in the DEX's modal shell and skin it with DEX colors, surfaces, 
 
 `useExecution()` returns:
 
-- `submitOrder`, `phase`, `status`, `isExecuting`, `isSuccess`, `isFailed`, `isRejected`, `isPreparingOrder`, and `canDismiss`;
+- `submitOrder`, `resumeTracking`, `phase`, `status`, `isExecuting`, `isUnconfirmed`, `isSuccess`, `isFailed`, `isRejected`, `isPreparingOrder`, and `canDismiss`;
 - `currentStep`, `currentStepIndex`, `totalSteps`, and `executionSteps`;
-- `error`, `inputToken`, `outputToken`, `chainId`, `wrapTxHash`, and `approvalTxHash`;
+- `error`, `order`, `orderId`, `account`, `inputToken`, `outputToken`, `chainId`, `wrapTxHash`, and `approvalTxHash`;
 - `returnToOrderForm()` and `startNewOrder()`.
 
 `spot-react` does not clear the DEX input. Do that only when a successful modal closes:
 
 ```tsx
-const { status, isSuccess, isExecuting, returnToOrderForm, startNewOrder } =
+const { status, isSuccess, isUnconfirmed, canDismiss, returnToOrderForm, startNewOrder } =
   useExecution();
 
 const onClose = useCallback(() => {
-  if (isExecuting) return;
+  if (!canDismiss) return;
   setIsModalOpen(false);
+  if (isUnconfirmed) return;
 
   if (isSuccess) {
     setInputAmount("");
@@ -533,16 +580,65 @@ const onClose = useCallback(() => {
   } else if (status) {
     setTimeout(returnToOrderForm, 500);
   }
-}, [isExecuting, isSuccess, returnToOrderForm, setInputAmount, startNewOrder, status]);
+}, [canDismiss, isSuccess, isUnconfirmed, returnToOrderForm, setInputAmount, startNewOrder, status]);
 ```
 
-`isExecuting` covers preparation, wrapping, approval, signing, submission, and swap settlement. For `Module.SWAP`, it stays true until the submitted order reaches a terminal result, and `isSuccess` becomes true only after the order fills. Other modules report success after submission. Use `phase === ExecutionPhase.SETTLING` when the UI needs settlement-specific messages.
+`isExecuting` covers preparation, wrapping, approval, signing, submission, and
+active swap settlement tracking. `isSuccess` becomes true only after a swap fills;
+other modules report success after submission. Use
+`phase === ExecutionPhase.SETTLING` for settlement-specific messages.
 
-Neither reset action can clear an active execution: both return `false` while `isExecuting` is true. Keep the modal open during execution. `returnToOrderForm()` dismisses a failed or rejected execution while preserving the form and a completed native-token wrap for a safe retry. `startNewOrder()` resets Spot's internal form state and all retry metadata after a terminal execution; the host must still clear its own input amount. The short delay lets the close animation finish before state resets.
+Ambiguous submission, stopped tracking, and unconfirmed settlement use
+`ExecutionPhase.UNCONFIRMED`. In that phase, `isUnconfirmed` and `canDismiss` are
+true and `isExecuting` is false. The order snapshot, captured account/chain, and
+available order ID remain in execution state. Closing the modal preserves them.
+Fresh submissions and both reset actions remain blocked until reconciliation.
+Render a recovery action before mapping the coarse `status` to generic failure UI.
 
-`phase` is the precise execution state: `idle → preparing → wrapping → approving → signing → submitting`, followed by `settling → success` for swaps or immediate `success` for advanced order creation. Wrapping and approval are skipped when unnecessary. `failed` and `rejected` are terminal branches; settlement can end in `failed`. `status` is the coarser `ExecutionStatus` value. Map it explicitly to the separately versioned `@orbs-network/swap-ui` `SwapStatus` enum as shown above. Each attempt has an internal identity, duplicate starts are rejected atomically, and stale async writes cannot replace a newer attempt. Host callbacks are observational: synchronous throws and rejected callback promises never change a wallet or API result.
+`resumeTracking()` checks the existing order without signing again. When
+submission acceptance was ambiguous, it can discover the exact previously
+prepared payload in the original account and chain's history. For swaps, a
+confirmed fill becomes `SUCCESS`; a confirmed cancellation or expiry becomes
+`FAILED` and permits a new attempt. Advanced order creation succeeds once
+acceptance is confirmed. Missing/indexing results and network failures remain
+`UNCONFIRMED`.
 
-Once submission begins, `useOrderForm()` exposes the frozen form and `useExecution()` exposes the frozen tokens and chain associated with that execution. The prepared order is frozen internally and reused through approval, wrapping, signing, and submission. Host quote, token, chain, or time updates cannot change the active order.
+Submission uses one POST with an optional lifecycle signal and a fixed 30-second
+timeout covering fetch and body reads. Pre-abort prevents the POST; abort/timeout
+after sending leaves acceptance uncertain and enters recovery. No POST is retried
+automatically. Settlement normally polls every two seconds; errors/missing
+snapshots back off at 2, 4, 8, 16, then 30 seconds and reset after a matching
+snapshot. Unknown statuses stay open even past the deadline; an explicit expired
+status becomes terminal only after its deadline has passed.
+
+Both reset actions return `false` during active or unconfirmed execution. Keep
+the modal open while `isExecuting`. `returnToOrderForm()` dismisses a definitive
+failure or rejection while preserving the form and completed-wrap metadata;
+reusing that metadata requires `getTokenBalance` to verify funds again.
+`startNewOrder()` resets Spot's internal form and retry metadata after a confirmed
+terminal outcome. The host still clears its own input only after success. The
+short delay lets the close animation finish before state resets.
+
+`phase` is the precise execution state: `idle → preparing → wrapping → approving
+→ signing → submitting`, followed by `settling → success` for swaps or immediate
+`success` for advanced order creation. Wrapping and approval are skipped when
+unnecessary. Definitive failures and wallet rejections use `failed` and `rejected`;
+uncertain submission or settlement uses `unconfirmed`. `status` is the coarser
+`ExecutionStatus` value. Map it explicitly to the separately versioned
+`@orbs-network/swap-ui` `SwapStatus` enum as shown above. Each attempt has an
+internal identity, duplicate starts are rejected atomically, and stale async
+writes cannot replace a newer attempt. Host callbacks are observational:
+synchronous throws and rejected callback promises never change a wallet or API result.
+
+Once an attempt begins, `useOrderForm()` exposes its frozen form and
+`useExecution()` exposes its captured tokens, account, and chain. Preparation runs
+after wrapping and approval; the resulting payload is retained through signing,
+submission, and recovery. Host quote, token, chain, or time updates cannot replace
+an unresolved order.
+
+`error` is a `ParsedError`: `code` retains string SDK classifications or numeric
+wallet codes, with `0` as the fallback. Optional `reason`, `orderId`, HTTP `status`,
+and `serviceCode` preserve settlement and service details for host error UI.
 
 ## Callbacks
 
@@ -712,7 +808,7 @@ import the framework-neutral SDK helpers from `@orbs-network/spot-react`:
 
 ```ts
 import {
-  createClient, getMinimumOutputAmount, isSwapSupported,
+  createClient, isSwapSupported,
   waitForOrder, QuoteError, type SwapQuote,
 } from "@orbs-network/spot-react";
 ```
@@ -720,13 +816,22 @@ import {
 Use `client.getQuote({ inToken, outToken, inAmount, user, slippage, signal })`
 to inherit the initialized client's partner and chain. The standalone `getQuote`
 export remains available for quoting without a client. Slippage is a percentage:
-`0.5` means 0.5%. Before a wallet connects, a nonzero preview account such as
-`0x0000000000000000000000000000000000000001` can satisfy `user`; include it in
-the quote key and refetch for the connected signer before review and execution.
+`0.5` means 0.5%. Before a wallet connects, a preview account
+such as `0x0000000000000000000000000000000000000001` can satisfy `user`;
+include it in the quote key. This is quote-request metadata; pass the connected
+account as `userAddress` for preparation and execution. A refetch solely to bind
+the signer is unnecessary; the host owns its quote cache policy and live wallet
+context checks.
 
 Keep wrapping, approval, and EIP-712 signing in the DEX's existing wallet flow.
-After confirmed approval to `client.spenderAddress`, call `client.prepareSwap`,
-sign its `signingRequest`, then call `client.submitOrder(prepared.order, signature)`.
+After confirmed approval to `client.spenderAddress`, call
+`client.prepareSwap(quote, account)`,
+sign its `signingRequest`, then call `client.submitOrder(prepared.order, signature, { signal })`.
+The manual router flow fetches a current quote after wrapping/approval and checks
+its net output against the original `quote.minimumAmountOut` before pure preparation. A lower
+quote requires fresh review; keep the reviewed minimum when it is still covered.
+All swaps have a fixed 3-minute expiration from preparation, immediately before
+signing.
 Call `waitForOrder({ order })`; it derives the ID, chain, and deadline from the
 returned order. Tracking needs no initialized client. No `walletInteractions` object,
 React provider, or calculated form is required for this path.
@@ -734,6 +839,8 @@ React provider, or calculated form is required for this path.
 No separate `spot-ui` installation is needed. See the [router example](../spot-ui/examples/router-swap.ts).
 The optional `submitSwap` convenience function remains available from `spot-react`
 when SDK wallet orchestration through callbacks is preferred.
+The 3-minute window starts at final preparation after wrapping and approval.
+Calculated form swaps in `SpotProvider` use the same fixed expiration.
 `spot-react` reuses the SDK wallet executor and `watchOrder` stream underlying
 `waitForOrder`; both tracking helpers take only `order` and optional `signal`. Its provider
 adds React state, frozen review data, history updates, and modal lifecycle.

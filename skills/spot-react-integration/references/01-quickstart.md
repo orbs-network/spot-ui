@@ -18,7 +18,7 @@ Verify `@orbs-network/spot-react` and `@orbs-network/swap-ui` appear in `package
 
 ### Swap and Liquidity Hub migration
 
-Liquidity Hub is deprecated. For swaps, import `getQuote` from `@orbs-network/spot-react` without a separate `spot-ui` install and follow [Swap and Migration](07-swap-and-migration.md). Use the same provider with `Module.SWAP`; supply the net quote and exact UI-slippage minimum, pause quotes while executing, and show success after the fill.
+Liquidity Hub is deprecated. For swaps, import `getQuote` from `@orbs-network/spot-react` without a separate `spot-ui` install and follow [Swap and Migration](07-swap-and-migration.md). Use the same provider with `Module.SWAP`; supply `quote.netAmountOut` and the authoritative `quote.minimumAmountOut` unchanged, pause quotes while executing, and show success after the fill.
 
 ### Peer Dependencies
 

@@ -15,7 +15,11 @@ The findings below record the SDK before this follow-up. The required fixes and 
 
 Validation corrected two recommendations: swaps enforce `minTradeSizeUsd`, and signed 500-bps oracle protection is separate from UI slippage. Public naming, shared form inputs, and intent metadata remain compatible; their behavior is documented.
 
-Verification: 377 workspace tests pass; package builds, typed examples, consumer and skill typechecks pass. Built packages share all 41 SDK runtime exports. Editor checks confirm hover documentation for all eight client methods through both imports. Lint has no errors and three existing warnings.
+The 26 October review recorded passing tests, package builds, typed examples,
+consumer/skill typechecks, runtime exports, editor hovers, and lint. These are
+historical results. All test files and test scripts were later intentionally
+removed, so no automated regression coverage is retained. Current builds,
+typechecks, and temporary in-memory probes provide point-in-time validation only.
 
 ## Original findings
 
@@ -66,7 +70,7 @@ Developers can't handle these without matching on the message.
 
 ### 5. Slippage uses different units in different places
 
-- `getQuote` and `getMinimumOutputAmount` take a percent number, where `0.5` means 0.5%.
+- `getQuote` takes a percentage, where `0.5` means 0.5%; the service returns the authoritative `quote.minimumAmountOut`, which is passed unchanged.
 - The signed order's `slippage` field is in basis points.
 - `examples/swap.ts` takes a bigint `uiSlippageBps` and converts it with `Number(uiSlippageBps) / 100`.
 

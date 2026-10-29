@@ -52,12 +52,14 @@ Use `@orbs-network/spot-ui` directly to add Spot as a candidate in an existing D
 quote competition. React integrations that already install `@orbs-network/spot-react`
 can import all the same SDK functions and types from it, without separately
 installing `spot-ui`. No React provider is required for these functions. `getQuote` carries request
-identity, `getMinimumOutputAmount` derives the protected minimum, and
+identity and the authoritative `minimumAmountOut`, and
 `client.prepareSwap` builds from raw amounts without a UI form. The DEX can
 keep its wrapping, approval, and signing flow, then post the signed order with
 `client.submitOrder`. Use `waitForOrder({ order })` for settlement tracking; the
 order contains its ID, chain, and deadline, so tracking needs no client.
 `submitSwap` remains optional for integrations wanting SDK wallet orchestration.
+Call `client.prepareSwap(quote, account)` immediately before signing. All swaps
+have a fixed 3-minute expiration from preparation, including calculated form swaps.
 
 See the [typed router adapter](packages/spot-ui/examples/router-swap.ts) and
 [SDK guide](packages/spot-ui/README.md#existing-dex-routers-use-the-sdk-directly).
@@ -74,11 +76,12 @@ and defaults to `"-1"` when no DEX quote is available. The caller's abort signal
 is forwarded to fetch.
 
 For `Module.SWAP`, pass the quote's `netAmountOut` as
-`quotedOutputAmountRaw` and the UI-slippage-adjusted net amount (rounded down)
-as `minimumOutputAmountRaw`. In React, provide both through
+`quotedOutputAmountRaw` and its `minimumAmountOut` unchanged as
+`minimumOutputAmountRaw`. In React, provide both through
 `SpotProvider.marketQuote`. Missing or invalid amounts block submission.
+Do not apply slippage again to the returned minimum.
 The form creates one limit order with that exact minimum and a
-fixed 15-minute expiration. Native input is wrapped before approval; signing,
+fixed 3-minute expiration. Native input is wrapped before approval; signing,
 submission, history, and cancellation use the existing Spot flow.
 The demo pauses quote requests during execution, including settlement, and
 resumes quoting after execution finishes.
@@ -88,8 +91,8 @@ only that order in the local cache and is independent of account-history polling
 Expired or cancelled orders show an error. Temporary lookup failures are retried;
 if confirmation remains unavailable past the order
 deadline and indexing grace period, the user is directed to check order history.
-Swap orders always sign `witness.slippage` as `500` (5%). The UI slippage
-setting independently determines the minimum output from the net quote.
+Swap orders always sign `witness.slippage` as `500` (5%). Send the UI slippage
+setting in the quote request and use the returned `quote.minimumAmountOut` unchanged.
 
 The demo calls the order-sink v2 quote API directly from the browser and refreshes
 quotes every ten seconds. Token, input amount, wallet, network, partner, or slippage changes
@@ -119,7 +122,7 @@ compatibility during migration.
 Publish each package with its repository script. After confirming the release
 version, the scripts check npm authentication and open `npm login --auth-type=web`
 when credentials are missing or expired. Existing authenticated sessions are reused.
-After login is verified, they run the relevant package tests, build, and request an OTP:
+After login is verified, they build the relevant packages and request an OTP:
 
 ```bash
 pnpm publish:spot-ui
@@ -138,11 +141,10 @@ The React publisher checks that the exact local SDK version exists in the
 registry before proceeding, because `workspace:*` becomes an exact version in
 the published package. A failed registry lookup stops the release.
 
-Test failures, build failures, and cancellation at the OTP prompt restore the
+Build failures and cancellation at the OTP prompt restore the
 original package manifest. Once the publish command starts, failures retain
 the selected version because the registry may already have accepted the upload;
-check npm before retrying. Run `pnpm test:publish` to verify these release paths
-without publishing packages.
+check npm before retrying.
 
 To mark all existing Liquidity Hub releases deprecated on npm, sign in as a
 package maintainer and run `pnpm deprecate:liquidity-hub-sdk`. This updates the
@@ -189,7 +191,14 @@ web
 
 ## RePermit Configuration
 
-`@orbs-network/spot-react` initializes a `@orbs-network/spot-ui` client as soon as the `partner` and `chainId` are available. Client and history state are scoped to each `SpotProvider`; no host query provider is required. The framework-neutral `createClient(partner, chainId)` factory performs a fresh RePermit request on every call and retains no global state, so Vue, Angular, Svelte, vanilla JavaScript, and server consumers can apply their own cache and refresh policy.
+`@orbs-network/spot-react` initializes a `@orbs-network/spot-ui` client as soon as
+the `partner` and `chainId` are available. Client and history state are scoped to
+each `SpotProvider`; no host query provider is required. The framework-neutral
+`createClient(partner, chainId)` factory returns a new client while sharing
+validated configuration requests/templates through a 60-second, 32-entry LRU
+cache. Each client receives a deep copy, failed requests are evicted, and nonce
+allocation is shared within the loaded SDK instance. Hosts still own client
+resource lifetime and invalidation.
 
 The client owns the configuration-derived spender, exchange, signing payload, approval/cancellation requests, submission, and configured order history. Pure calculations remain package-level functions. The `calculateOrder` helper accepts raw DEX form state and produces defaults, prices, trades, schedules, validation, raw/token-formatted/USD values, and the execution values shared by order construction and React displays. Form calculation is time-independent; `prepareOrder` assigns the exact start and deadline immediately before signing. A missing client represents initialization loading; after automatic retries, `SpotProvider` keeps the host form mounted and renders a retryable, host-customizable `clientErrorFallback` alongside it.
 

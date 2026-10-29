@@ -429,7 +429,14 @@ function SubmitOrderSection({ supportedChains }: { supportedChains: number[] }) 
 }
 ```
 
-`useClient` reads provider-scoped client initialization state when `partner` and a valid connected chain ID are available. The React package requires no host query provider, and the underlying `spot-ui` factory has no global cache. While initialization is active, submit loading follows the client state; a missing chain disables submission, while remote configuration failures stop loading and keep submission disabled. After retries are exhausted, `SpotProvider` renders `clientErrorFallback` with `error`, `retry`, and `isRetrying`; provide a localized DEX-native component.
+`useClient` reads provider-scoped initialization state when `partner` and a valid
+connected chain ID are available. No host query provider is required. Client
+objects remain separate; validated configuration requests/templates share a
+60-second, 32-entry LRU cache, returning deep copies and evicting failures. While
+initialization runs, submit loading follows client state. A missing chain disables
+submission; configuration failures stop loading and retain disabled submission.
+After retries, `SpotProvider` renders `clientErrorFallback` with `error`, `retry`,
+and `isRetrying`; provide a localized DEX-native component.
 
 ## Submit Modal
 

@@ -7,6 +7,7 @@ import {
   useExecution,
   useOrderForm,
   useSubmitButton,
+  type ParsedError,
 } from "@orbs-network/spot-react";
 import { AlertTriangleIcon } from "lucide-react";
 import { getOrderTitle } from "@/lib/utils";
@@ -28,21 +29,24 @@ const OrderSubmissionError = ({
   code,
   message,
   onClose,
+  onResume,
 }: {
-  code: number;
+  code: ParsedError["code"];
   message: string;
   onClose: () => void;
+  onResume?: () => void;
 }) => (
-  <div className="flex flex-col gap-4">
+  <div className="flex flex-col gap-4" role="alert">
     <div className="flex flex-col gap-2 bg-destructive/50 p-2 rounded-md">
       <div className="flex flex-row gap-2">
-        <AlertTriangleIcon className="size-4 text-foreground relative top-0.5" />
+        <AlertTriangleIcon aria-hidden="true" className="size-4 text-foreground relative top-0.5" />
         <p className="text-sm text-foreground flex-1 font-medium whitespace-pre-wrap break-words max-h-48 overflow-auto">
           {message.split("\n")[0]} (code: {code})
         </p>
       </div>
     </div>
-    <div className="w-full flex justify-center">
+    <div className="w-full flex justify-center gap-2">
+      {onResume && <Button onClick={onResume}>Check order status</Button>}
       <Button onClick={onClose}>Close</Button>
     </div>
   </div>
@@ -101,15 +105,15 @@ const OrderReview = ({
 const OpenOrderReviewButton = ({ onClick }: { onClick: () => void }) => {
   const t = useTranslations();
   const { disabled, loading } = useSubmitButton();
-  const { isExecuting } = useExecution();
+  const { isExecuting, isUnconfirmed } = useExecution();
   const isSwap = useOrderForm().module === Module.SWAP;
 
   return (
     <SubmitSwapButton
       onClick={onClick}
-      disabled={disabled}
-      isLoading={loading}
-      text={isSwap && isExecuting ? "Executing swap…" : loading ? t("fetchingQuote") : isSwap ? "Review Swap" : t("placeOrder")}
+      disabled={disabled && !isUnconfirmed}
+      isLoading={loading && !isUnconfirmed}
+      text={isUnconfirmed ? "Check order status" : isSwap && isExecuting ? "Executing swap…" : loading ? t("fetchingQuote") : isSwap ? "Review Swap" : t("placeOrder")}
     />
   );
 };
@@ -124,6 +128,8 @@ export const SubmitOrderDialog = () => {
     isPreparingOrder,
     isExecuting,
     phase,
+    isUnconfirmed,
+    resumeTracking,
   } = useExecution();
   const { setInputAmount } = useSpotFormContext();
   const form = useOrderForm();
@@ -137,11 +143,12 @@ export const SubmitOrderDialog = () => {
     if (status === ExecutionStatus.SUCCESS) {
       setInputAmount("");
       setTimeout(startNewOrder, 500);
-    } else if (Boolean(status)) {
+    } else if (Boolean(status) && !isUnconfirmed) {
       setTimeout(returnToOrderForm, 500);
     }
   }, [
     isExecuting,
+    isUnconfirmed,
     returnToOrderForm,
     setInputAmount,
     startNewOrder,
@@ -154,7 +161,7 @@ export const SubmitOrderDialog = () => {
       <DialogContent showCloseButton={!isExecuting}>
         <DialogHeader>
           <DialogTitle>
-            {error
+            {isUnconfirmed ? "Order status unconfirmed" : error
               ? (isSwap ? "Swap not completed" : "Error Creating Order")
               : !status || isPreparingOrder
                 ? (isSwap ? "Review Swap" : `${orderTitle} order`)
@@ -166,7 +173,12 @@ export const SubmitOrderDialog = () => {
         </DialogHeader>
         {phase === ExecutionPhase.SETTLING && <p role="status" className="sr-only">Waiting for your swap to fill.</p>}
         {error ? (
-          <OrderSubmissionError code={error.code} message={error.message} onClose={onClose} />
+          <OrderSubmissionError
+            code={error.code}
+            message={isUnconfirmed ? `${error.message.split("\n")[0]} Check the original order's status before starting another swap.` : error.message}
+            onClose={onClose}
+            onResume={isUnconfirmed ? resumeTracking : undefined}
+          />
         ) : (
           <OrderReview
             onSubmitOrder={submitOrder}

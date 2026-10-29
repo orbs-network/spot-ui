@@ -4,6 +4,7 @@ import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  ExecutionPhase,
   Module,
   SpotProvider,
   TimeUnit,
@@ -31,6 +32,7 @@ import { Currency, SwapType } from "@/lib/types";
 import { getWrappedNativeCurrency } from "@/lib/utils";
 import { FormContainer } from "../form-container";
 import { ToggleCurrencies } from "../toggle-currencies";
+import { Button } from "../ui/button";
 import { Portal } from "../ui/portal";
 import { WrappedNativeButton } from "../wrapped-native-button";
 import { SpotFooter } from "./footer";
@@ -81,6 +83,45 @@ const PauseQuotesDuringExecution = () => {
   return null;
 };
 
+const UnsupportedNetworkNotice = ({
+  supported,
+  account,
+  partner,
+}: {
+  supported: boolean;
+  account?: string;
+  partner: string;
+}) => {
+  const { isUnconfirmed, phase, resumeTracking } = useExecution();
+  const isCheckingStatus = phase === ExecutionPhase.SETTLING;
+
+  if (supported) return null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p
+        role="status"
+        className="rounded-lg bg-muted p-4 text-sm text-muted-foreground"
+      >
+        {account
+          ? `Choose a supported network in the navbar for ${partner}.`
+          : `Connect your wallet, then choose a supported network for ${partner}.`}
+      </p>
+      {(isUnconfirmed || isCheckingStatus) && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={resumeTracking}
+          disabled={isCheckingStatus}
+          isLoading={isCheckingStatus}
+        >
+          {isCheckingStatus ? "Checking order status…" : "Check order status"}
+        </Button>
+      )}
+    </div>
+  );
+};
+
 export function SpotForm({ swapType }: { swapType: SwapType }) {
   const { inputCurrency, outputCurrency, inputAmount, wrappedNativeAction, quoteError, refetchTrade } =
     useDerivedSwap();
@@ -123,68 +164,62 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   return (
     <SpotFormContextProvider value={contextValue}>
       <FormContainer>
-        {!supported ? (
-          <p
-            role="status"
-            className="rounded-lg bg-muted p-4 text-sm text-muted-foreground"
-          >
-            {address
-              ? `Choose a supported network in the navbar for ${partner}.`
-              : `Connect your wallet, then choose a supported network for ${partner}.`}
-          </p>
-        ) : (
-          <SpotProvider
-            chainId={chainId}
-            inputAmountUi={inputAmount}
-            walletInteractions={walletInteractions}
-            account={address}
-            partner={partner}
-            inputBalanceRaw={inputBalanceRaw}
-            inputToken={inputToken}
-            outputToken={outputToken}
-            wrappedNativeToken={wrappedNativeToken}
-            priceProtectionPercent={priceProtectionPercent}
-            module={swapModule}
-            inputTokenUsdPrice={inputUsdPrice.data.toString()}
-            outputTokenUsdPrice={outputUsdPrice.data.toString()}
-            marketQuote={marketQuote}
-            minTradeSizeUsd={minTradeSizeUsd ?? 1}
-            overrides={overrides}
-            callbacks={callbacks}
-            supportLegacyOrders={true}
-            clientErrorFallback={ClientErrorFallback}
-            displayFeePercent={swapModule === Module.SWAP ? 0 : 0.25}
-          >
-            <PauseQuotesDuringExecution />
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-col gap-0">
-                <TokenPanel isInputToken />
-                <ToggleCurrencies />
-                <TokenPanel isInputToken={false} />
+        <SpotProvider
+          chainId={supported ? chainId : undefined}
+          inputAmountUi={inputAmount}
+          walletInteractions={walletInteractions}
+          account={address}
+          partner={partner}
+          inputBalanceRaw={inputBalanceRaw}
+          inputToken={inputToken}
+          outputToken={outputToken}
+          wrappedNativeToken={wrappedNativeToken}
+          priceProtectionPercent={priceProtectionPercent}
+          module={swapModule}
+          inputTokenUsdPrice={inputUsdPrice.data.toString()}
+          outputTokenUsdPrice={outputUsdPrice.data.toString()}
+          marketQuote={marketQuote}
+          minTradeSizeUsd={minTradeSizeUsd ?? 1}
+          overrides={overrides}
+          callbacks={callbacks}
+          supportLegacyOrders={true}
+          clientErrorFallback={ClientErrorFallback}
+          displayFeePercent={swapModule === Module.SWAP ? 0 : 0.25}
+        >
+          <PauseQuotesDuringExecution />
+          <UnsupportedNetworkNotice supported={supported} account={address} partner={partner} />
+          {supported && (
+            <>
+              <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-0">
+                  <TokenPanel isInputToken />
+                  <ToggleCurrencies />
+                  <TokenPanel isInputToken={false} />
+                </div>
+                {wrappedNativeAction ? (
+                  <WrappedNativeButton action={wrappedNativeAction} />
+                ) : (
+                  <>
+                    {swapModule !== Module.SWAP && <PriceSettings />}
+                    {swapModule !== Module.SWAP && <OrderSettings />}
+                    {quoteError && (
+                      <div role="alert" className="text-sm text-destructive">
+                        {quoteError.message} <button type="button" className="underline" onClick={() => void refetchTrade()}>Try again</button>
+                      </div>
+                    )}
+                    <InputsErrorPanel />
+                    <SubmitOrderDialog />
+                    <DisclaimerPanel />
+                  </>
+                )}
               </div>
-              {wrappedNativeAction ? (
-                <WrappedNativeButton action={wrappedNativeAction} />
-              ) : (
-                <>
-                  {swapModule !== Module.SWAP && <PriceSettings />}
-                  {swapModule !== Module.SWAP && <OrderSettings />}
-                  {quoteError && (
-                    <div role="alert" className="text-sm text-destructive">
-                      {quoteError.message} <button type="button" className="underline" onClick={() => void refetchTrade()}>Try again</button>
-                    </div>
-                  )}
-                  <InputsErrorPanel />
-                  <SubmitOrderDialog />
-                  <DisclaimerPanel />
-                </>
-              )}
-            </div>
-            <Portal containerId="spot-orders">
-              <SpotsOrders />
-            </Portal>
-            <SpotFooter />
-          </SpotProvider>
-        )}
+              <Portal containerId="spot-orders">
+                <SpotsOrders />
+              </Portal>
+              <SpotFooter />
+            </>
+          )}
+        </SpotProvider>
       </FormContainer>
     </SpotFormContextProvider>
   );

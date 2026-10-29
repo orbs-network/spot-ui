@@ -1,14 +1,15 @@
-import {
-  Address,
-  Module,
-  Partners,
-  RePermitData,
-  RePermitOrder,
-} from "./types";
-import { safeBNString } from "./utils";
-import { getRePermitConfigEndpoint } from "./api-config";
+import { Module, type Address, type RePermitData, type RePermitOrder } from "./types";
 import BN from "bignumber.js";
 import { SpotError } from "./errors";
+
+const MILLISECONDS_PER_SECOND = 1000;
+/** Signed oracle-data freshness, independent of the host's quote age policy. */
+const ORDER_FRESHNESS_SECONDS = 60;
+
+const floorToSeconds = (milliseconds: number): number =>
+  Math.floor(milliseconds / MILLISECONDS_PER_SECOND);
+const roundToSeconds = (milliseconds: number): number =>
+  Math.round(milliseconds / MILLISECONDS_PER_SECOND);
 
 export type BuildRePermitOrderDataParams = {
   inputTokenAddress: string;
@@ -28,49 +29,7 @@ export type BuildRePermitOrderDataParams = {
   module: Module;
 };
 
-export const fetchRePermitData = async (
-  partner: Partners,
-  chainId: number,
-): Promise<RePermitData> => {
-  const query = new URLSearchParams({
-    partner,
-    chain: chainId.toString(),
-  });
-  let response: Response;
-  try {
-    response = await fetch(`${getRePermitConfigEndpoint()}?${query}`);
-  } catch (cause) {
-    if (cause instanceof Error && cause.name === "AbortError") throw cause;
-    throw new SpotError("CONFIGURATION_FAILED", cause instanceof Error ? cause.message : "Failed to fetch RePermit data", { cause });
-  }
-
-  if (!response.ok) {
-    let message = "";
-    try {
-      message = await response.text();
-    } catch (cause) {
-      if (cause instanceof Error && cause.name === "AbortError") throw cause;
-      throw new SpotError("CONFIGURATION_FAILED", cause instanceof Error ? cause.message : "Failed to read RePermit data", { cause, status: response.status });
-    }
-    let serviceCode: string | number | undefined;
-    try {
-      const data = JSON.parse(message) as { code?: unknown } | null;
-      if (typeof data?.code === "string" || typeof data?.code === "number") serviceCode = data.code;
-    } catch { /* Plain-text configuration errors have no service code. */ }
-    throw new SpotError("CONFIGURATION_FAILED",
-      `Failed to fetch RePermit data for partner "${partner}" on chain ${chainId}: ${response.status}${message ? ` ${message}` : ""}`,
-      { status: response.status, serviceCode },
-    );
-  }
-
-  try {
-    return await response.json() as RePermitData;
-  } catch (cause) {
-    if (cause instanceof Error && cause.name === "AbortError") throw cause;
-    throw new SpotError("CONFIGURATION_FAILED", cause instanceof Error ? cause.message : "Failed to read RePermit data", { cause, status: response.status });
-  }
-};
-
+/** Builds an unsigned protocol payload from reviewed inputs without mutating its configuration. */
 export const buildRePermitOrderData = ({
   inputTokenAddress,
   outputTokenAddress,
@@ -87,16 +46,19 @@ export const buildRePermitOrderData = ({
   triggerOutputAmountPerTrade = "0",
   permitData,
   module,
-}: BuildRePermitOrderDataParams) => {
+}: BuildRePermitOrderDataParams): RePermitData => {
+  if (!Number.isSafeInteger(slippageBps) || slippageBps < 0) {
+    throw new SpotError("INVALID_ARGUMENT", "slippageBps must be a non-negative safe integer");
+  }
   const epoch =
     !totalTrades || totalTrades === 1
       ? 0
-      : parseInt((fillDelayMillis / 1000).toFixed(0));
-  const deadline = module === Module.SWAP
-    ? Math.floor(deadlineMillis / 1000).toString()
-    : safeBNString(deadlineMillis / 1000);
-  const freshness = 60;
-  const start = Math.floor(currentTimeMillis / 1000).toString();
+      : roundToSeconds(fillDelayMillis);
+  // Starts and swap deadlines floor; advanced deadlines retain nearest-second rounding.
+  const deadline = (module === Module.SWAP
+    ? floorToSeconds(deadlineMillis)
+    : roundToSeconds(deadlineMillis)).toString();
+  const start = floorToSeconds(currentTimeMillis).toString();
   const limit = BN(minOutputAmountPerTrade || 0).toFixed();
   const triggerLower = BN(
     module === Module.STOP_LOSS ? triggerOutputAmountPerTrade || 0 : 0,
@@ -122,7 +84,7 @@ export const buildRePermitOrderData = ({
       deadline,
       epoch,
       slippage: slippageBps,
-      freshness,
+      freshness: ORDER_FRESHNESS_SECONDS,
       input: {
         ...permitData.order.witness.input,
         token: inputTokenAddress as Address,

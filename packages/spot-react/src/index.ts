@@ -35,6 +35,7 @@ export {
   type RePermitOrder,
   type SpotClient,
   type CreateClientOptions,
+  type SubmitOrderOptions,
   type SpotAnalytics,
   type AccountOrdersResult,
   type GetOrdersParams,
@@ -98,7 +99,6 @@ export {
   // Functions
   getQuote,
   isQuoteFresh,
-  getMinimumOutputAmount,
   isSwapSupported,
   submitSwap,
   executeOrder,

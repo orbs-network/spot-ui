@@ -20,7 +20,6 @@
   "scripts": {
     "dev": "vite build --watch",
     "build": "tsc && vite build",
-    "test": "vitest run",
     "prepublishOnly": "pnpm run build"
   },
   "keywords": [

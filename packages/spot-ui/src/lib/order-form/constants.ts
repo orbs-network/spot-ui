@@ -4,7 +4,7 @@ export const MIN_FILL_DELAY_MILLIS = 5 * 60 * 1000;
 export const MAX_ORDER_DURATION_MILLIS = 60 * 24 * 60 * 60 * 1000;
 export const MIN_ORDER_DURATION_MILLIS = 5 * 60 * 1000;
 export const SWAP_ORDER_SLIPPAGE_BPS = 500;
-export const SWAP_ORDER_DURATION_MILLIS = 15 * 60_000;
+export const SWAP_ORDER_DURATION_MILLIS = 3 * 60_000;
 
 export const DEFAULT_FILL_DELAY: TimeDuration = {
   unit: TimeUnit.Minutes,

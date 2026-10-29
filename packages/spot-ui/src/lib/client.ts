@@ -1,9 +1,7 @@
 import { Analytics, type SpotAnalytics } from "./analytics";
 import { REPERMIT_ABI, TWAP_ABI } from "./abi";
-import {
-  buildRePermitOrderData,
-  fetchRePermitData,
-} from "./build-repermit-order-data";
+import { buildRePermitOrderData } from "./build-repermit-order-data";
+import { fetchRePermitData } from "./fetch-repermit-data";
 import type {
   CalculatedOrderForm,
   CalculatedOrderValues,
@@ -21,7 +19,7 @@ import { Module } from "./types";
 import { SpotError } from "./errors";
 import { getQuote, type SwapQuote, type SwapQuoteParams } from "./quote";
 import { MIN_FILL_DELAY_MILLIS, SWAP_ORDER_DURATION_MILLIS, SWAP_ORDER_SLIPPAGE_BPS } from "./order-form/constants";
-import { validateSwap, type PrepareSwapParams, type PreparedSwap } from "./swap";
+import { validateSwap, type PreparedSwap } from "./swap";
 import type {
   Address,
   Order,
@@ -127,6 +125,11 @@ export interface CreateClientOptions {
   disableAnalytics?: boolean;
 }
 
+/** Cancellation of a submission request; it cannot cancel an accepted order. */
+export interface SubmitOrderOptions {
+  signal?: AbortSignal;
+}
+
 /** Quote inputs; the selected chain and partner are supplied by the client. */
 export type ClientGetQuoteParams = Omit<SwapQuoteParams, "chainId" | "partner">;
 
@@ -150,7 +153,7 @@ export interface SpotClient {
    * Equivalent to standalone `getQuote` with those fields already supplied.
    * Amounts are integer token base units; slippage is a percentage (`0.5` means 0.5%).
    *
-   * @param params - Token pair, raw input amount, signing account, slippage, and optional abort signal.
+   * @param params - Token pair, raw input amount, quote user or preview address, slippage, and optional abort signal.
    * @returns Quote amounts, frozen request identity, and local receipt time.
    * @throws `QuoteError` on quote failures; request abort errors propagate unchanged.
    *
@@ -174,24 +177,23 @@ export interface SpotClient {
   prepareOrder(params: PrepareOrderParams): PreparedOrder;
 
   /**
-   * Builds an unsigned exact-input swap from a quote and the user's reviewed minimum.
+   * Builds an unsigned exact-input swap from a reviewed quote.
    * Requires no form, token decimals, balances, or USD prices. The quote must match
-   * this client's chain and partner and the signing account. Output goes to the signer.
+   * this client's chain and partner. The signed minimum is the quote's
+   * `minimumAmountOut`. `userAddress` supplies the signer and output recipient,
+   * including when the quote was fetched with a disconnected preview address.
    * Call after wrapping and confirmed approval, immediately before signing.
    *
-   * @param params - Quote, minimum output in raw token units, signer, and optional quote-age policy.
-   * @returns Order with a fresh 15-minute deadline, signing/approval requests, and reviewed amounts.
+   * @param quote - Reviewed quote for this client's chain and partner.
+   * @param userAddress - Connected account that will sign and receive the output.
+   * @returns Order expiring three minutes after preparation, signing/approval requests, and reviewed amounts.
    * Performs no network requests or wallet operations.
-   * @throws If the quote, minimum, account, or requested swap capabilities are invalid.
+   * @throws If the quote, returned minimum, or signer is invalid.
    *
    * @example
-   * const prepared = client.prepareSwap({
-   *   quote,
-   *   minimumOutputAmountRaw: getMinimumOutputAmount(quote.netAmountOut, 0.5),
-   *   swapperAddress: account,
-   * });
+   * const prepared = client.prepareSwap(quote, account);
    */
-  prepareSwap(params: PrepareSwapParams): PreparedSwap;
+  prepareSwap(quote: SwapQuote, userAddress: string): PreparedSwap;
 
   /**
    * Posts an already signed order to the order service.
@@ -200,6 +202,7 @@ export interface SpotClient {
    *
    * @param order - Prepared protocol order whose typed data the wallet signed.
    * @param signature - Original `0x`-prefixed wallet signature, unchanged.
+   * @param options - Optional abort signal. Requests time out after 30 seconds; reconcile uncertain acceptance before retrying.
    * @returns Accepted order with its full ID. Acceptance does not confirm a fill;
    * use `waitForOrder({ order })` to await completion.
    * @throws If the request fails, the service rejects it, or its response is invalid.
@@ -208,6 +211,7 @@ export interface SpotClient {
   submitOrder(
     order: RePermitOrder,
     signature: `0x${string}`,
+    options?: SubmitOrderOptions,
   ): Promise<Order>;
 
   /**
@@ -265,55 +269,11 @@ export interface SpotClient {
   ): Promise<AccountOrdersResult>;
 }
 
-const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/i;
-const ZERO_ADDRESS_PATTERN = /^0x0{40}$/i;
-
-function assertConfiguredAddress(
-  value: unknown,
-  field: string,
-): asserts value is Address {
-  if (
-    typeof value !== "string" ||
-    !ADDRESS_PATTERN.test(value) ||
-    ZERO_ADDRESS_PATTERN.test(value)
-  ) {
-    throw new SpotError("INVALID_CONFIGURATION",
-      `Invalid RePermit configuration: ${field} must be a non-zero EVM address`,
-    );
-  }
-}
-
-const assertRePermitConfiguration = (
-  data: RePermitData,
-  requestedChainId: number,
-): void => {
-  if (!data || typeof data !== "object") {
-    throw new SpotError("INVALID_CONFIGURATION", "Invalid RePermit configuration: expected an object");
-  }
-  const config = data as Partial<RePermitData>;
-  const domain = config.domain as Partial<RePermitData["domain"]> | undefined;
-  const order = config.order as Partial<RePermitOrder> | undefined;
-  const witness = order?.witness as Partial<RePermitOrder["witness"]> | undefined;
-
-  if (Number(domain?.chainId) !== requestedChainId) {
-    throw new SpotError("INVALID_CONFIGURATION",
-      `Invalid RePermit configuration: domain.chainId does not match requested chain ${requestedChainId}`,
-    );
-  }
-  if (Number(witness?.chainid) !== requestedChainId) {
-    throw new SpotError("INVALID_CONFIGURATION",
-      `Invalid RePermit configuration: order.witness.chainid does not match requested chain ${requestedChainId}`,
-    );
-  }
-
-  assertConfiguredAddress(
-    domain?.verifyingContract,
-    "domain.verifyingContract",
-  );
-  assertConfiguredAddress(
-    witness?.exchange?.adapter,
-    "order.witness.exchange.adapter",
-  );
+// Clients in this SDK instance share the allocator, including quote-only clients.
+let latestNonce = 0;
+const createNonce = (currentTimeMillis: number): string => {
+  latestNonce = Math.max(currentTimeMillis, latestNonce + 1);
+  return latestNonce.toString();
 };
 
 /**
@@ -341,21 +301,12 @@ export const createClient = async (
     throw new SpotError("INVALID_ARGUMENT", "chainId must be a positive safe integer");
   }
 
-  // Fetch the chain-specific RePermit configuration once for this client.
+  // Configuration requests/templates are shared; callers receive isolated copies.
   const rePermitData = await fetchRePermitData(partner, chainId);
-  assertRePermitConfiguration(rePermitData, chainId);
   const analytics = new Analytics(options.disableAnalytics);
   analytics.init(partner, rePermitData);
   const spenderAddress = rePermitData.domain.verifyingContract;
   const exchangeAddress = rePermitData.order.witness.exchange.adapter;
-  let latestNonce = 0;
-
-  // Keep nonces monotonic for this client instance. A newly created client
-  // starts again from the current wall-clock value.
-  const createNonce = (currentTimeMillis: number): string => {
-    latestNonce = Math.max(currentTimeMillis, latestNonce + 1);
-    return latestNonce.toString();
-  };
 
   /**
    * Stamps an existing calculated form with a fresh start, deadline, and nonce,
@@ -419,26 +370,27 @@ export const createClient = async (
     };
   };
 
-  const prepareSwap = (params: PrepareSwapParams): PreparedSwap => {
-    validateSwap(params, chainId, partner);
-    const quote = Object.freeze({ ...params.quote, request: Object.freeze({ ...params.quote.request }) });
+  const prepareSwap = (quote: SwapQuote, userAddress: string): PreparedSwap => {
     const currentTimeMillis = Date.now();
-    const deadlineMillis = currentTimeMillis + SWAP_ORDER_DURATION_MILLIS;
+    validateSwap({ quote, userAddress }, chainId, partner);
+    const preparedQuote = Object.freeze({ ...quote, request: Object.freeze({ ...quote.request }) });
+    const minimumOutputAmountRaw = preparedQuote.minimumAmountOut;
+    const orderDeadlineMillis = currentTimeMillis + SWAP_ORDER_DURATION_MILLIS;
     const permit = buildRePermitOrderData({
-      inputTokenAddress: quote.request.inToken, outputTokenAddress: quote.request.outToken,
-      totalInputAmount: quote.request.inAmount, inputAmountPerTrade: quote.request.inAmount,
-      minOutputAmountPerTrade: params.minimumOutputAmountRaw,
-      nonce: createNonce(currentTimeMillis), currentTimeMillis, deadlineMillis,
+      inputTokenAddress: preparedQuote.request.inToken, outputTokenAddress: preparedQuote.request.outToken,
+      totalInputAmount: preparedQuote.request.inAmount, inputAmountPerTrade: preparedQuote.request.inAmount,
+      minOutputAmountPerTrade: minimumOutputAmountRaw,
+      nonce: createNonce(currentTimeMillis), currentTimeMillis, deadlineMillis: orderDeadlineMillis,
       fillDelayMillis: MIN_FILL_DELAY_MILLIS, totalTrades: 1, slippageBps: SWAP_ORDER_SLIPPAGE_BPS,
-      swapperAddress: params.swapperAddress, permitData: rePermitData, module: Module.SWAP,
+      swapperAddress: userAddress, permitData: rePermitData, module: Module.SWAP,
     });
     return {
-      order: permit.order, quote,
-      signingRequest: { signerAddress: params.swapperAddress as Address, typedData: {
+      order: permit.order, quote: preparedQuote,
+      signingRequest: { signerAddress: userAddress as Address, typedData: {
         domain: permit.domain, types: permit.types, primaryType: permit.primaryType, message: permit.order,
       } },
-      approvalRequest: { tokenAddress: permit.order.permitted.token, amount: quote.request.inAmount, spenderAddress },
-      values: { inputAmount: quote.request.inAmount, minimumOutputAmountRaw: params.minimumOutputAmountRaw, currentTimeMillis, deadlineMillis },
+      approvalRequest: { tokenAddress: permit.order.permitted.token, amount: preparedQuote.request.inAmount, spenderAddress },
+      values: { inputAmount: preparedQuote.request.inAmount, minimumOutputAmountRaw, currentTimeMillis, deadlineMillis: orderDeadlineMillis },
     };
   };
 
@@ -449,7 +401,8 @@ export const createClient = async (
   const submitOrder = (
     order: RePermitOrder,
     signature: `0x${string}`,
-  ): Promise<Order> => submitOrderRequest(order, signature, analytics);
+    options?: SubmitOrderOptions,
+  ): Promise<Order> => submitOrderRequest(order, signature, analytics, options);
 
   /**
    * Builds the correct v1 or v2 cancellation contract request. It only returns

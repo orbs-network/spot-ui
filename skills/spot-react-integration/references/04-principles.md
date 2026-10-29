@@ -136,7 +136,7 @@ Keep focused Spot hook calls in the component that renders the data whenever pos
 - [ ] DEX swap state exposed through local context/hook where needed; no prop drilling of hook-returned values
 - [ ] Long child prop lists replaced with a focused local context/hook
 - [ ] Large integration files split into focused components, hooks, context, and utils files
-- [ ] The full-input raw quote is current; swaps use Spot net output and a UI-slippage-adjusted `minimumOutputAmountRaw`; balances/USD prices use raw units / one-token USD values
+- [ ] The full-input raw quote is current; swaps map Spot `quote.netAmountOut` and `quote.minimumAmountOut` unchanged to the form quote inputs; balances/USD prices use raw units / one-token USD values
 - [ ] Swap quotes pause (including manual refresh) and in-flight quotes are cancelled while `isExecuting`; account history stays independent of per-order settlement
 - [ ] Swap review hides limit price and expiration; success is shown only after a fill; UI Slippage remains separate from fixed 500 bps signed protection
 - [ ] `wrappedNativeToken` comes from the DEX's chain configuration

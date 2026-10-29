@@ -6,6 +6,8 @@ and `lib/spot-partners.ts` extracts partner/chain pairs for `useSpotPartners`.
 Successful responses are cached for five minutes and concurrent requests are
 shared; failed requests can be retried. This JSON is used only for the picker.
 SDK client configuration and analytics use the order-sink `/config` response.
+Those validated SDK templates use a separate 60-second, 32-entry LRU cache with
+shared in-flight requests and deep copies for each client; failed loads are evicted.
 
 The navbar opens RainbowKit's built-in network modal, including chain logos.
 Its trigger stays visible even when the partner supports only one network.
@@ -21,7 +23,9 @@ is unsupported, select a supported network from the navbar before creating an or
 The `partner` URL parameter now contains only the partner name. Older
 `partner=name_chainId` links still select the partner, but their chain suffix is ignored.
 
-Run the partner discovery and network-selection tests with `pnpm --filter web test`.
+The wallet adapter approves the requested raw token amount, using
+`BigInt(props.amount)`, and waits for confirmation. It does not request unlimited
+allowance by default.
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 

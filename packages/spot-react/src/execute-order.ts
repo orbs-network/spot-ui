@@ -2,6 +2,7 @@ import {
   executeOrder as executeWalletOrder,
   isNativeAddress,
   Module,
+  SpotError,
   isTxRejected,
   toAmountUI,
   type Address,
@@ -21,6 +22,7 @@ import {
 } from "./types";
 import {
   getReusableCompletedWrap,
+  isUnconfirmedExecutionError,
   normalizeError,
   observe,
   parseExecutionError,
@@ -169,6 +171,8 @@ export const executeOrder = async (
     const normalizedError = normalizeError(error);
     const parsedError = parseExecutionError(error);
     const failedExecution = beginExecution({
+      account: params.account,
+      partner: params.client?.partner,
       form,
       inputToken: params.inputToken,
       outputToken: params.outputToken,
@@ -206,6 +210,8 @@ export const executeOrder = async (
     inputAmountRaw,
   });
   const startedExecution = beginExecution({
+    account,
+    partner: client.partner,
     form,
     inputToken,
     outputToken,
@@ -252,10 +258,25 @@ export const executeOrder = async (
       client, account, inputTokenAddress: orderInputToken.address, inputAmountRaw,
       nativeInput: isNativeAddress(inputToken.address), completedWrapTxHash: completedWrap?.txHash,
       walletInteractions, wait, signal: params.signal,
-      prepareOrder: () => client.prepareOrder({
-        form, inputTokenAddress: orderInputToken.address,
-        outputTokenAddress: outputToken.address, swapperAddress: account,
-      }),
+      prepareOrder: async () => {
+        if (form.module === Module.SWAP) {
+          const fresh = await client.getQuote({
+            inToken: orderInputToken.address, outToken: outputToken.address,
+            inAmount: inputAmountRaw, user: account, slippage: 0,
+            dexMinAmountOut: "-1", signal: params.signal,
+          });
+          params.signal?.throwIfAborted();
+          // This is a feasibility check against the already reviewed signed floor.
+          // It never changes the form's minimum or its separate oracle protection.
+          if (BigInt(fresh.netAmountOut) < parseBaseUnitAmount(form.values.minOutputAmountPerTrade, "Minimum output")) {
+            throw new SpotError("INVALID_QUOTE", "Swap price changed. Review a fresh quote before signing.");
+          }
+        }
+        return client.prepareOrder({
+          form, inputTokenAddress: orderInputToken.address,
+          outputTokenAddress: outputToken.address, swapperAddress: account,
+        });
+      },
       validateContext: () => {
         if (getCurrentExecution().executionId !== executionId) throw new Error("Execution is no longer current");
       },
@@ -273,7 +294,7 @@ export const executeOrder = async (
         });
         if (update.phase === "wrapping") {
           if (update.event === "request") observe(callbacks?.onWrapRequest);
-          if (update.event === "success" && update.wrapTxHash) observe(() => callbacks?.onWrapSuccess?.({ txHash: update.wrapTxHash!, amount: toAmountUI(inputAmountRaw, orderInputToken.decimals) }));
+          if (update.event === "success" && update.wrapTxHash) observe(() => callbacks?.onWrapSuccess?.({ txHash: update.wrapTxHash!, amount: toAmountUI(update.wrapAmountRaw ?? inputAmountRaw, orderInputToken.decimals) }));
         }
         if (update.phase === "approving") {
           if (update.event === "request") observe(callbacks?.onApproveRequest);
@@ -292,6 +313,7 @@ export const executeOrder = async (
     const isSwap = form.module === Module.SWAP;
     transition(isSwap ? ExecutionPhase.SETTLING : ExecutionPhase.SUCCESS, {
       orderId: order.id.toString(),
+      order,
     });
 
     observe(() => addNewOrder(order));
@@ -299,18 +321,23 @@ export const executeOrder = async (
     observe(() => callbacks?.onOrderCreated?.(order));
     if (isSwap) {
       const filledOrder = await params.waitForOrderFill!(order, executionId);
-      transition(ExecutionPhase.SUCCESS);
+      transition(ExecutionPhase.SUCCESS, { order: filledOrder });
       return filledOrder;
     }
     return order;
   } catch (error) {
     const failedPhase = execution.phase;
     const normalizedError = normalizeError(error);
-    const rejected = isTxRejected(error);
+    // The shared runner checks cancellation after its "submitting" progress event,
+    // before starting the POST. That known preflight abort remains safe to retry.
+    const abortedBeforeSubmission = failedPhase === ExecutionPhase.SUBMITTING &&
+      params.signal?.aborted && error === params.signal.reason;
+    const unconfirmed = !abortedBeforeSubmission && isUnconfirmedExecutionError(error, failedPhase);
+    const rejected = !unconfirmed && isTxRejected(error);
     // Error reporting must not hide the original wallet/API error if the
     // execution was concurrently replaced by a host state change.
     tryTransition(
-      rejected ? ExecutionPhase.REJECTED : ExecutionPhase.FAILED,
+      unconfirmed ? ExecutionPhase.UNCONFIRMED : rejected ? ExecutionPhase.REJECTED : ExecutionPhase.FAILED,
       {
         error: normalizedError,
         parsedError: parseExecutionError(error),

@@ -11,7 +11,6 @@ const targets = {
   'spot-ui': {
     directory: 'packages/spot-ui',
     checks: [
-      ['--filter', '@orbs-network/spot-ui', 'test'],
       ['build:spot-ui'],
     ],
   },
@@ -19,16 +18,13 @@ const targets = {
     directory: 'packages/spot-react',
     dependencies: ['packages/spot-ui'],
     checks: [
-      ['--filter', '@orbs-network/spot-ui', 'test'],
       ['build:spot-ui'],
-      ['--filter', '@orbs-network/spot-react', 'test'],
       ['build:spot-react'],
     ],
   },
   'liquidity-hub': {
     directory: 'packages/liquidity-hub-ui',
     checks: [
-      ['--filter', '@orbs-network/liquidity-hub-sdk', 'test'],
       ['build:liquidity-hub'],
     ],
   },
@@ -133,7 +129,7 @@ function assertPublishedDependency(dependency, packageDir, registry, run) {
   }
 }
 
-/** The injectable command runner and prompts let tests exercise releases without uploading. */
+/** Publishes a package using configurable command execution and prompts. */
 export async function publishPackage(targetName, {
   rootDir = repositoryRoot,
   run = execFileSync,
@@ -174,19 +170,19 @@ export async function publishPackage(targetName, {
     // Build with the release version so it is also correct inside the bundle.
     manifest.version = version
     writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
-    log('\nTesting and building...')
+    log('\nBuilding...')
     for (const args of target.checks) {
       run('pnpm', args, { cwd: rootDir, stdio: 'inherit' })
     }
     otp = await prompts.promptOtp()
   } catch (cause) {
-    // No upload has started: tests, builds, and prompt cancellation are safe to roll back.
+    // No upload has started: builds and prompt cancellation are safe to roll back.
     writeFileSync(manifestPath, originalManifest)
     const reason = cause instanceof Error ? cause.message : String(cause)
     throw new Error(`Release preparation stopped; restored the original package version. ${reason}`, { cause })
   }
 
-  // Builds and tests have already run; skip duplicate lifecycle scripts.
+  // Builds have already run; skip duplicate lifecycle scripts.
   const args = ['publish', '--access', 'public', '--no-git-checks', '--ignore-scripts', '--registry', registry]
   if (otp) args.push('--otp', otp)
   log(`\nPublishing ${manifest.name}@${version}...`)

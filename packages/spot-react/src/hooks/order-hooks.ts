@@ -51,15 +51,15 @@ export const useConfigureOrdersResource = (): void => {
       }
       return loadOrderHistory({
         client, account, signal, supportLegacyOrders,
-        previousOrders, legacyLoaded, callbacks,
+        previousOrders, legacyLoaded,
       });
     },
-    [account, callbacks, client, supportLegacyOrders],
+    [account, client, supportLegacyOrders],
   );
 
   useEffect(() => {
-    store.getState().configureOrders(key, enabled ? loader : undefined);
-  }, [enabled, key, loader, store]);
+    store.getState().configureOrders(key, enabled ? loader : undefined, callbacks);
+  }, [callbacks, enabled, key, loader, store]);
 };
 
 export const useOrdersResource = () => {

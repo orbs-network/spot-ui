@@ -2,7 +2,12 @@
 
 ## Client Lifecycle
 
-`createClient(partner, chainId)` fetches RePermit configuration directly from order-sink `/config` for the requested partner/chain, validates its chain and addresses, initializes analytics, and returns a new frozen `SpotClient`. No separate analytics initialization or `appId` is needed. Clients are not globally cached.
+`createClient(partner, chainId)` returns a new frozen `SpotClient` with validated
+order-sink `/config` data for the requested partner/chain and initialized analytics.
+Client objects are not cached. Configuration templates share in-flight requests
+and a 60-second, 32-entry LRU cache; only validated templates are retained, and
+each client receives a deep copy. Failed requests are evicted. No separate
+analytics initialization or `appId` is needed.
 
 Key the host resource by both partner and chain. Reuse an in-flight promise to deduplicate initialization, and remove a rejected promise so a deliberate retry can initialize again. Invalidate the old resource when either key changes. Keep the previous form mounted while initialization loads or retries; the host should show its own retryable error state.
 
@@ -39,6 +44,14 @@ Write methods must resolve only after the transaction receipt is confirmed. The 
 
 Return the original `0x`-prefixed signature. Do not transform it.
 
+`OrderWalletInteractions.getTokenBalance({ tokenAddress })` is optional for a
+fresh attempt and required when reusing `completedWrapTxHash`. Read the captured
+account's current ERC-20 balance on the captured chain and return a raw integer
+string. A past wrap receipt does not establish the remaining balance: the
+executor verifies current funds and wraps only a shortfall. SDK progress updates
+expose that actual amount in raw units as `wrapAmountRaw`; React's
+`onWrapSuccess.amount` reports the same step in token UI units.
+
 ## Submission Sequence
 
 Treat one click as one immutable attempt and reject concurrent attempts:
@@ -50,14 +63,20 @@ Treat one click as one immutable attempt and reject concurrent attempts:
 5. If input is native, wrap `form.inputAmount.raw` and wait for confirmation.
 6. If the allowance was insufficient, approve the exact raw amount and wait for confirmation.
 7. Re-read allowance with a small bounded retry to tolerate RPC indexing lag. Stop if it is still insufficient.
-8. Call `client.prepareOrder` with the captured form, normalized ERC-20 input address, output token address, and account.
+8. For swaps, fetch a current quote and stop for fresh review if its net output is below the reviewed minimum; retain that exact minimum otherwise. Then call `client.prepareOrder` with the captured form, normalized ERC-20 input address, output token address, and account. The `submitSwap` and React swap executors perform this check after wrapping/approval.
 9. Call `wallet.signOrder(preparedOrder.signingRequest)`.
-10. Call `client.submitOrder(preparedOrder.order, signature)` once.
+10. Call `client.submitOrder(preparedOrder.order, signature, { signal })` once, using the attempt's lifecycle signal.
 11. For swaps, keep loading and the execution lock while polling only the accepted order ID until a fill or terminal failure. For other modules, acceptance completes creation. Refresh balances/history at the appropriate lifecycle events.
 
 Create the lifecycle abort controller before wallet work begins so account/chain changes or unmount before submission resolves cannot start obsolete settlement polling. Pause automatic/manual quoting and cancel quote requests during execution. See [Swap and Migration](07-swap-and-migration.md).
 
 `prepareOrder` must run late in the sequence because it stamps `currentTimeMillis`, `deadlineMillis`, and a nonce. It does not recalculate the form and rejects `form.canSubmit === false`. Keep its returned `form` snapshot for the review/progress UI so the user sees the values that were signed.
+Nonce allocation is shared across clients in the loaded SDK instance.
+
+Submission has a fixed 30-second timeout covering fetch and response-body reads.
+A pre-aborted signal prevents the POST. Abort/timeout after sending leaves
+acceptance uncertain; there is no automatic POST retry. Preserve the signed
+payload and reconcile it before another submission.
 
 The returned `preparedOrder.approvalRequest` documents the same token, amount, and spender embedded in the prepared order. If the host pre-checks allowance before preparation to keep timestamps fresh, construct the check from the normalized token, `form.inputAmount.raw`, and `client.spenderAddress`, then confirm it matches the returned approval request.
 

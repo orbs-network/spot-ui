@@ -3,13 +3,34 @@ import { getApiEndpoint } from "./api-config";
 import { buildV2Order } from "./orders/v2-orders";
 import type { Order, OrderV2, RePermitOrder } from "./types";
 import { SpotError } from "./errors";
+import type { SubmitOrderOptions } from "./client";
+
+const SUBMISSION_TIMEOUT_MILLIS = 30_000;
 
 export const submitOrder = async (
   order: RePermitOrder,
   signature: `0x${string}`,
   analytics: SpotAnalytics,
+  options: SubmitOrderOptions = {},
 ): Promise<Order> => {
-  try {
+  // A preflight abort establishes that this call never sent the signed order.
+  options.signal?.throwIfAborted();
+  const controller = new AbortController();
+  const onAbort = () => controller.abort(new SpotError("SUBMISSION_FAILED",
+    "Submission tracking stopped. Check order status before submitting another order.",
+    { cause: options.signal?.reason },
+  ));
+  options.signal?.addEventListener("abort", onAbort, { once: true });
+  const timeout = setTimeout(() => controller.abort(new SpotError("SUBMISSION_FAILED",
+    "Order submission timed out. Check order status before submitting another order.",
+    { cause: new Error("Submission exceeded 30 seconds") },
+  )), SUBMISSION_TIMEOUT_MILLIS);
+  let rejectAborted!: () => void;
+  const aborted = new Promise<never>((_, reject) => {
+    rejectAborted = () => reject(controller.signal.reason);
+    controller.signal.addEventListener("abort", rejectAborted, { once: true });
+  });
+  const send = async (): Promise<Order> => {
     const body = {
       signature,
       order,
@@ -27,8 +48,10 @@ export const submitOrder = async (
           Accept: "application/json",
         },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
     } catch (cause) {
+      controller.signal.throwIfAborted();
       if (cause instanceof Error && cause.name === "AbortError") throw cause;
       throw new SpotError("SUBMISSION_FAILED", cause instanceof Error ? cause.message : "Failed to submit order", { cause });
     }
@@ -37,6 +60,7 @@ export const submitOrder = async (
     try {
       data = await response.json();
     } catch (cause) {
+      controller.signal.throwIfAborted();
       if (cause instanceof Error && cause.name === "AbortError") throw cause;
       if (response.ok) {
         throw new SpotError("INVALID_RESPONSE", "Invalid API response: expected JSON", { cause, status: response.status });
@@ -44,6 +68,7 @@ export const submitOrder = async (
       responseError = cause;
       data = {};
     }
+    controller.signal.throwIfAborted();
     if (!response.ok || data?.success !== true) {
       const message = data?.message ?? response.statusText ?? "Request failed";
       const code = data?.code ?? response.status;
@@ -68,9 +93,15 @@ export const submitOrder = async (
     }
     analytics.onCreateOrderSuccess(newOrder.id);
     return newOrder;
+  };
+  try {
+    return await Promise.race([send(), aborted]);
   } catch (error) {
     analytics.onCreateOrderError(error);
-    console.error(error);
     throw error;
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", onAbort);
+    controller.signal.removeEventListener("abort", rejectAborted);
   }
 };

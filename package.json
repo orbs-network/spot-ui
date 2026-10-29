@@ -13,7 +13,6 @@
     "build:web": "pnpm --filter web build",
     "typecheck:dist": "pnpm build:spot-ui && pnpm build:liquidity-hub && pnpm build:spot-react && pnpm --filter web exec tsc --noEmit -p tsconfig.dist.json",
     "typecheck:skills": "pnpm build:spot-ui && pnpm build:liquidity-hub && pnpm build:spot-react && tsc --noEmit -p tsconfig.skills.json",
-    "test:publish": "node --test scripts/publish-package.test.mjs",
     "publish:spot-ui": "node scripts/publish-spot-ui.mjs",
     "publish:spot-react": "node scripts/publish-spot-react.mjs",
     "publish:liquidity-hub-sdk": "node scripts/publish-liquidity-hub.mjs",

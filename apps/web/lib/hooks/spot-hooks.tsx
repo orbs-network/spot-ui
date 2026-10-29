@@ -1,5 +1,4 @@
 import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
 import { getExplorerUrl, getWrappedNativeCurrency } from "@/lib/utils";
 import {
@@ -9,16 +8,9 @@ import {
   ParsedError,
   Partners,
   Order,
-  type WalletInteractions,
-  type OrderSigningRequest,
-  type CancelOrderProps,
-  type ApproveTokenProps,
-  type GetAllowanceProps,
 } from "@orbs-network/spot-react";
-import { erc20Abi } from "viem";
 import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { usePublicClient, useWalletClient } from "wagmi";
 
 import TokensPair from "@/components/tokens-pair";
 import { useSwapParams } from "@/lib/hooks/use-swap-params";
@@ -215,120 +207,4 @@ export const useSpotPartner = (): Partners => {
   return (parsedPartner as Partners | undefined) ?? DEFAULT_PARTNER;
 };
 
-export const useWalletInteractions = () => {
-  const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient();
-  const chainId = useActiveChainId();
-
-  const waitForTx = useCallback(
-    async (hash: `0x${string}`) => {
-      const result = await fetch(
-        `/api/transaction-receipt?chainId=${chainId}&hash=${hash}`,
-      );
-      if (!result.ok) {
-        throw new Error("Failed to get transaction receipt");
-      }
-      const receipt = await result.json();
-      if (receipt?.status === "reverted") {
-        throw new Error("Transaction reverted");
-      }
-      return hash;
-    },
-    [chainId],
-  );
-
-  return useMemo((): WalletInteractions => {
-    const wrappedNativeCurrency = getWrappedNativeCurrency(chainId);
-
-    return {
-      wrapNativeToken: async (amount: string) => {
-        if (!walletClient) {
-          throw new Error("Wallet client not found");
-        }
-        if (!wrappedNativeCurrency?.address) {
-          throw new Error("Wrapped native token not found for chain");
-        }
-        const hash = await walletClient.writeContract({
-          abi: [
-            {
-              name: "deposit",
-              type: "function",
-              stateMutability: "payable",
-              inputs: [],
-              outputs: [],
-            },
-          ],
-          functionName: "deposit",
-          address: wrappedNativeCurrency.address as `0x${string}`,
-          args: [],
-          value: BigInt(amount),
-          chain: walletClient.chain,
-          account: walletClient.account,
-        });
-        return waitForTx(hash);
-      },
-      approveToken: async (props: ApproveTokenProps) => {
-        const maxUint256 = BigInt(
-          "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-        );
-        if (!walletClient) {
-          throw new Error("Wallet client not found");
-        }
-        const hash = await walletClient.writeContract({
-          abi: erc20Abi,
-          functionName: "approve",
-          address: props.tokenAddress as `0x${string}`,
-          args: [props.spenderAddress as `0x${string}`, maxUint256],
-          chain: walletClient.chain,
-          account: walletClient.account,
-        });
-        return waitForTx(hash);
-      },
-      cancelOrder: async (props: CancelOrderProps) => {
-        if (!walletClient) {
-          throw new Error("Wallet client not found");
-        }
-        const hash = await walletClient.writeContract({
-          abi: props.abi,
-          functionName: "cancel",
-          address: props.contractAddress as `0x${string}`,
-          args: props.args,
-          chain: walletClient.chain,
-          account: walletClient.account,
-        });
-        return waitForTx(hash);
-      },
-      signOrder: async (request: OrderSigningRequest) => {
-        if (!walletClient) {
-          throw new Error("Wallet client not found");
-        }
-        const { signerAddress, typedData } = request;
-        return walletClient.signTypedData({
-          domain: typedData.domain as any,
-          types: typedData.types as any,
-          primaryType: typedData.primaryType,
-          message: typedData.message as any,
-          account: signerAddress,
-        });
-      },
-      getAllowance: async (props: GetAllowanceProps) => {
-        if (!publicClient) {
-          throw new Error("Public client not found");
-        }
-        if (!walletClient) {
-          throw new Error("Wallet client not found");
-        }
-        const result = await publicClient.readContract({
-          address: props.tokenAddress as `0x${string}`,
-          abi: erc20Abi,
-          functionName: "allowance",
-          args: [
-            walletClient.account?.address as `0x${string}`,
-            props.spenderAddress as `0x${string}`,
-          ],
-        });
-        return String(result);
-      },
-    };
-  }, [walletClient, publicClient, chainId, waitForTx]);
-};
+export { useWalletInteractions } from "./use-wallet-interactions";

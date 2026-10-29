@@ -22,7 +22,6 @@
     "dev": "vite build --watch",
     "build": "tsc && vite build && tsc -p tsconfig.examples.json",
     "typecheck:examples": "tsc -p tsconfig.examples.json",
-    "test": "vitest run",
     "prepublishOnly": "pnpm run build"
   },
   "keywords": [

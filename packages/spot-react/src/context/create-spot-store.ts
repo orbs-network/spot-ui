@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type {
+  Callbacks,
   SpotProps,
   State,
   StartedSwapExecution,
@@ -11,10 +12,10 @@ import {
   canBeginExecution,
   canTransitionExecution,
   createIdleExecution,
-  isExecutionActive,
+  isExecutionLocked,
 } from "../execution-state";
 import { REFETCH_ORDER_HISTORY } from "../consts";
-import { structurallyShareOrders } from "../order-history-data";
+import { mergeOrderSnapshots, notifyOrderUpdates, structurallyShareOrders } from "../order-history-data";
 
 export interface SpotFormDefaults {
   tradeCount?: number;
@@ -59,13 +60,14 @@ export interface SpotStore {
   orders: OrdersResourceState;
   configureClient: (key?: string, loader?: ClientLoader) => void;
   refetchClient: () => Promise<SpotClient | undefined>;
-  configureOrders: (key?: string, loader?: OrdersLoader) => void;
+  configureOrders: (key?: string, loader?: OrdersLoader, callbacks?: Callbacks) => void;
   registerOrdersConsumer: () => () => void;
   refetchOrders: (
     force?: boolean,
     refreshLegacy?: boolean,
   ) => Promise<Order[] | undefined>;
   addOrder: (order: Order) => void;
+  updateOrder: (order: Order, callbacks?: Callbacks) => void;
   setCancelOrder: (historyKey: string, value: State["cancelOrders"][string]) => void;
   clearCancelOrder: (historyKey: string) => void;
   beginExecution: (
@@ -127,6 +129,8 @@ export const createSpotStore = (
   let clientPromise: Promise<SpotClient | undefined> | undefined;
   let ordersKey: string | undefined;
   let ordersLoader: OrdersLoader | undefined;
+  let ordersCallbacks: Callbacks | undefined;
+  const notifiedFilledOrders = new Set<string>();
   let ordersLegacyLoaded = false;
   let ordersConsumers = 0;
   let ordersRequestId = 0;
@@ -135,6 +139,15 @@ export const createSpotStore = (
   let ordersInterval: ReturnType<typeof setInterval> | undefined;
 
   return createStore<SpotStore>((set, get) => {
+    const commitOrders = (orders: Order[], callbacks = ordersCallbacks, isFetching = get().orders.isFetching, trackedOrder?: Order): Order[] => {
+      const key = ordersKey;
+      const previousOrders = get().orders.data;
+      const sharedOrders = structurallyShareOrders(previousOrders, mergeOrderSnapshots(previousOrders, orders));
+      set((store) => ({ orders: { ...store.orders, data: sharedOrders, isFetching } }));
+      if (ordersKey === key) notifyOrderUpdates(previousOrders, sharedOrders, callbacks, notifiedFilledOrders, trackedOrder);
+      return sharedOrders;
+    };
+
     const refetchClient = async (): Promise<SpotClient | undefined> => {
       if (!clientKey || !clientLoader) return undefined;
       if (clientPromise) return clientPromise;
@@ -221,18 +234,7 @@ export const createSpotStore = (
         .then(({ orders, legacyLoaded }) => {
           if (requestId !== ordersRequestId) return undefined;
           ordersLegacyLoaded = legacyLoaded;
-          const sharedOrders = structurallyShareOrders(
-            get().orders.data,
-            orders,
-          );
-          set({
-            orders: {
-              key: ordersKey,
-              data: sharedOrders,
-              isFetching: false,
-            },
-          });
-          return sharedOrders;
+          return commitOrders(orders, ordersCallbacks, false);
         })
         .catch((error: unknown) => {
           if (requestId !== ordersRequestId || abortController.signal.aborted) {
@@ -312,7 +314,8 @@ export const createSpotStore = (
         if (key && loader) void refetchClient();
       },
       refetchClient,
-      configureOrders: (key, loader) => {
+      configureOrders: (key, loader, callbacks) => {
+        ordersCallbacks = callbacks;
         if (ordersKey === key) {
           ordersLoader = loader;
           return;
@@ -321,6 +324,7 @@ export const createSpotStore = (
         ordersKey = key;
         ordersLoader = loader;
         ordersLegacyLoaded = false;
+        notifiedFilledOrders.clear();
         set({
           orders: key ? { key, isFetching: false } : EMPTY_ORDERS_STATE,
         });
@@ -354,6 +358,13 @@ export const createSpotStore = (
             },
           };
         });
+      },
+      updateOrder: (order, callbacks) => {
+        const previousOrders = get().orders.data ?? [];
+        const exists = previousOrders.some(candidate => candidate.historyKey === order.historyKey);
+        commitOrders(exists
+          ? previousOrders.map(candidate => candidate.historyKey === order.historyKey ? order : candidate)
+          : [order, ...previousOrders], ordersCallbacks ?? callbacks, get().orders.isFetching, order);
       },
       setCancelOrder: (historyKey, value) => {
         set((store) => ({
@@ -414,7 +425,7 @@ export const createSpotStore = (
       returnToOrderForm: () => {
         const current = get().state.currentExecution;
         if (
-          isExecutionActive(current.phase) ||
+          isExecutionLocked(current.phase) ||
           current.phase === ExecutionPhase.SUCCESS
         ) {
           return false;
@@ -428,7 +439,7 @@ export const createSpotStore = (
         return true;
       },
       syncFormDefaults: (defaults) => {
-        if (isExecutionActive(get().state.currentExecution.phase)) {
+        if (isExecutionLocked(get().state.currentExecution.phase)) {
           return false;
         }
         set((store) => ({
@@ -442,7 +453,7 @@ export const createSpotStore = (
       },
       startNewOrder: (defaults) => {
         const { state: previousState } = get();
-        if (isExecutionActive(previousState.currentExecution.phase)) {
+        if (isExecutionLocked(previousState.currentExecution.phase)) {
           return false;
         }
         set((store) => ({

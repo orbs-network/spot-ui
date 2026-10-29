@@ -319,6 +319,12 @@ function SubmitOrderSection({
     error,
     isPreparingOrder,
     isExecuting,
+    isUnconfirmed,
+    canDismiss,
+    resumeTracking,
+    orderId,
+    account,
+    chainId,
     phase,
   } = useExecution();
   const isSwap = useOrderForm().module === Module.SWAP;
@@ -333,8 +339,9 @@ function SubmitOrderSection({
   // DEX: Replace with your ConnectWallet / SwitchNetwork checks
 
   const onClose = useCallback(() => {
-    if (isExecuting) return;
+    if (!canDismiss) return;
     setIsModalOpen(false);
+    if (isUnconfirmed) return;
     if (isSuccess) {
       setInputAmount("");
       setTimeout(() => {
@@ -346,8 +353,9 @@ function SubmitOrderSection({
       }, 500);
     }
   }, [
-    isExecuting,
+    canDismiss,
     isSuccess,
+    isUnconfirmed,
     returnToOrderForm,
     setInputAmount,
     startNewOrder,
@@ -358,19 +366,27 @@ function SubmitOrderSection({
     <>
       <button
         onClick={() => setIsModalOpen(true)}
-        disabled={disabled}
+        disabled={!isUnconfirmed && disabled}
       >
-        {isSwap && isExecuting ? "Executing swap..." : loading ? "Loading..." : isSwap ? "Review Swap" : "Place Order"}
+        {isUnconfirmed ? "Check previous order" : isSwap && isExecuting ? "Executing swap..." : loading ? "Loading..." : isSwap ? "Review Swap" : "Place Order"}
       </button>
 
       {isModalOpen && (
         <div className="modal">
           {/* DEX: Replace with your Dialog/Modal component */}
 
-          {error ? (
+          {isUnconfirmed ? (
+            <div role="status">
+              <p>{error?.message || "Order status needs confirmation."}</p>
+              {orderId && <p>Order: {orderId}</p>}
+              <p>Account: {account} · Chain: {chainId}</p>
+              <button type="button" onClick={resumeTracking}>Check order status</button>
+              <button type="button" onClick={onClose}>Close</button>
+            </div>
+          ) : error ? (
             <div>
               <p>Error: {error.message}</p>
-              <button onClick={onClose}>Close</button>
+              <button onClick={onClose} disabled={!canDismiss}>Close</button>
             </div>
           ) : (
             <>
@@ -418,7 +434,8 @@ function SubmitOrderSection({
               {/* DEX: Render SwapFlow when status is set and !isPreparingOrder.
                   Swap status stays LOADING through settlement; label success
                   "Swap completed" only after a fill. Hide close/dismiss while
-                  isExecuting. Other modules show creation success on acceptance. */}
+                  isExecuting. Render UNCONFIRMED above as recovery, with no fresh
+                  submit/reset. Other modules show creation success on acceptance. */}
             </>
           )}
         </div>
@@ -436,7 +453,7 @@ export function SpotForm({
   // DEX: Add your props (inputCurrency, outputCurrency, etc.)
 }: {
   module: Module;
-  /** DEX: Map getQuote.netAmountOut and the UI-slippage-adjusted raw minimum. */
+  /** DEX: Map quote.netAmountOut and quote.minimumAmountOut unchanged. */
   marketQuote: MarketQuote;
   /** DEX: Stable callback controlling automatic/manual refresh and cancellation. */
   onQuotePauseChange: (paused: boolean) => void;
@@ -465,6 +482,11 @@ export function SpotForm({
       // DEX: read ERC-20 allowance for tokenAddress/spenderAddress and return the raw wei string.
       getAllowance: async (_props) => {
         throw new Error("DEX: implement getAllowance");
+      },
+      // DEX: current raw ERC-20 balance for the captured account/chain.
+      // Required only when retrying with completed native-wrap metadata.
+      getTokenBalance: async (_props) => {
+        throw new Error("DEX: implement getTokenBalance");
       },
     }),
     [],
