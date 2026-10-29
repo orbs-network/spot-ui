@@ -6,6 +6,9 @@ import * as defaultPrompts from './publish-version.mjs'
 
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const defaultRegistry = 'https://registry.npmjs.org/'
+const dependencyTimeoutMillis = 5 * 60_000
+const dependencyPollIntervalMillis = 5_000
+const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis))
 
 const targets = {
   'spot-ui': {
@@ -108,25 +111,39 @@ function ensureNpmAuthentication(authDir, registry, run, interactive, log) {
   }
 }
 
-function assertPublishedDependency(dependency, packageDir, registry, run) {
+async function waitForPublishedDependency(dependency, packageDir, registry, { run, log, wait, now }) {
   const spec = `${dependency.name}@${dependency.version}`
-  let publishedVersion
-  try {
-    publishedVersion = JSON.parse(run('pnpm', ['view', spec, 'version', '--json', '--registry', registry], {
-      cwd: packageDir,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 30_000,
-    }))
-  } catch (cause) {
-    throw new Error(
-      `Could not verify ${spec} in the registry. Publish that dependency version first, or resolve registry access, then retry.`,
-      { cause },
-    )
+  const deadline = now() + dependencyTimeoutMillis
+  let lastError
+  while (now() < deadline) {
+    try {
+      const publishedVersion = JSON.parse(run('pnpm', ['view', spec, 'version', '--json', '--registry', registry, '--prefer-online'], {
+        cwd: packageDir,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: Math.max(1, Math.min(30_000, deadline - now())),
+      }))
+      if (publishedVersion === dependency.version) {
+        log(`Confirmed ${spec} in the registry.`)
+        return
+      }
+      lastError = new Error(`The registry did not confirm ${spec}.`)
+    } catch (cause) {
+      if (isAuthenticationFailure(cause)) {
+        throw new Error(`Could not access ${spec}. Check your registry credentials and retry.`, { cause })
+      }
+      lastError = cause
+    }
+    const delay = Math.min(dependencyPollIntervalMillis, deadline - now())
+    if (delay > 0) {
+      log(`${spec} is not available yet; retrying in ${delay / 1_000}s...`)
+      await wait(delay)
+    }
   }
-  if (publishedVersion !== dependency.version) {
-    throw new Error(`The registry did not confirm ${spec}. Publish that dependency version before continuing.`)
-  }
+  throw new Error(
+    `Timed out after 5 minutes waiting for ${spec}. The dependent package was not published. Confirm that version is available in its configured registry, then retry the dependent publisher.`,
+    { cause: lastError },
+  )
 }
 
 /** Publishes a package using configurable command execution and prompts. */
@@ -136,6 +153,8 @@ export async function publishPackage(targetName, {
   prompts = defaultPrompts,
   log = console.log,
   interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY) && !process.env.CI,
+  wait = sleep,
+  now = Date.now,
 } = {}) {
   const target = targets[targetName]
   if (!target) throw new Error(`Unknown publish target: ${targetName}`)
@@ -161,8 +180,8 @@ export async function publishPackage(targetName, {
   // A successful local build does not establish that consumers can install it.
   for (const directory of target.dependencies ?? []) {
     const dependency = JSON.parse(readFileSync(join(rootDir, directory, 'package.json'), 'utf8'))
-    log(`Checking published dependency ${dependency.name}@${dependency.version}...`)
-    assertPublishedDependency(dependency, packageDir, registry, run)
+    log(`Waiting for published dependency ${dependency.name}@${dependency.version}...`)
+    await waitForPublishedDependency(dependency, packageDir, registry, { run, log, wait, now })
   }
 
   let otp
@@ -193,11 +212,19 @@ export async function publishPackage(targetName, {
     throw new Error(`Publish command failed. Local version remains ${version}; see npm output above.`, { cause })
   }
   log('\nPublish command completed. See npm output above for release status.\n')
+  return { name: manifest.name, version, registry }
 }
 
-export async function runPublisher(targetName) {
+/** Publishes in order, stopping if a package is cancelled or fails. */
+export async function publishPackages(targetNames, options) {
+  for (const targetName of targetNames) {
+    if (!await publishPackage(targetName, options)) return
+  }
+}
+
+export async function runPublisher(targetNames) {
   try {
-    await publishPackage(targetName)
+    await publishPackages(Array.isArray(targetNames) ? targetNames : [targetNames])
   } catch (error) {
     console.error(`\n${error instanceof Error ? error.message : String(error)}\n`)
     process.exitCode = 1

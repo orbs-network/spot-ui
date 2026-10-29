@@ -15,6 +15,7 @@
     "typecheck:skills": "pnpm build:spot-ui && pnpm build:liquidity-hub && pnpm build:spot-react && tsc --noEmit -p tsconfig.skills.json",
     "publish:spot-ui": "node scripts/publish-spot-ui.mjs",
     "publish:spot-react": "node scripts/publish-spot-react.mjs",
+    "publish:spot": "node scripts/publish-spot.mjs",
     "publish:liquidity-hub-sdk": "node scripts/publish-liquidity-hub.mjs",
     "login-npm": "npm login --auth-type=web",
     "deprecate:liquidity-hub-sdk": "npm deprecate --registry=https://registry.npmjs.org '@orbs-network/liquidity-hub-sdk@*' 'Deprecated. Use @orbs-network/spot-ui instead. Migration: https://github.com/orbs-network/spot-ui/blob/master/packages/spot-ui/README.md#migrating-from-liquidity-hub'"

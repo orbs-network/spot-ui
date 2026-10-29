@@ -87,7 +87,12 @@ const getStatus = (order: OrderV2, progress: number) => {
     return OrderStatus.Cancelled;
 
   const deadlineMillis = Number(order.order.deadline) * 1000;
-  if (status === "expired" && Number.isFinite(deadlineMillis) && deadlineMillis <= Date.now()) {
+  // The service finalizes expired orders as failed or partially_completed,
+  // depending on whether any chunks filled before the deadline.
+  if (
+    ["expired", "failed", "partially_completed"].includes(status) &&
+    Number.isFinite(deadlineMillis) && deadlineMillis <= Date.now()
+  ) {
     return OrderStatus.Expired;
   }
   // Missing or new service statuses are not proof of expiry. A later lookup

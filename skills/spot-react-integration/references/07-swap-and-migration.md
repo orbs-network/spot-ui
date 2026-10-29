@@ -111,9 +111,10 @@ The provider polls only the submitted order ID, serially. Normal delay is two
 seconds; errors/missing snapshots back off at 2, 4, 8, 16, then 30 seconds and
 reset after a matching snapshot. Tracking stops on a confirmed fill/cancellation/
 expiry or at accepted `order.deadline` plus 60 seconds. Unknown service statuses
-remain open even past the deadline; explicit expired status is terminal only
-after that deadline. Account history is independent; do not mount `useOrders()`
-just to make settlement work.
+remain open even past the deadline. Service statuses `expired`, `failed`, and
+`partially_completed` become expired after that deadline, with completion and
+cancellation taking precedence. Account history is independent; do not mount
+`useOrders()` just to make settlement work.
 
 Keep the modal open, hide close/cancel controls, and block duplicate confirmation
 while `isExecuting`. In `UNCONFIRMED`, `isUnconfirmed` and `canDismiss` are true

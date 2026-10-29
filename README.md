@@ -129,6 +129,16 @@ pnpm publish:spot-ui
 pnpm publish:spot-react
 ```
 
+To release both in order, run:
+
+```bash
+pnpm publish:spot
+```
+
+This publishes `spot-ui` first, then starts the React publisher. Both packages
+keep their usual version and OTP prompts. Cancelling or failing the SDK release
+stops the sequence.
+
 Authentication, dependency checks, and publishing use the same registry, selected
 from the package scope's registry, `publishConfig.registry`, or the default registry.
 The login check uses the same package or workspace `.npmrc` as `pnpm publish`.
@@ -137,9 +147,12 @@ Without an interactive terminal, missing credentials produce login/token setup
 instructions. Connection failures stop without opening a login prompt.
 
 Publish `spot-ui` first when releasing a new SDK version alongside `spot-react`.
-The React publisher checks that the exact local SDK version exists in the
-registry before proceeding, because `workspace:*` becomes an exact version in
-the published package. A failed registry lookup stops the release.
+The React publisher polls for the exact local SDK version every five seconds
+for up to five minutes before building or publishing, because `workspace:*`
+becomes an exact version in the published package. Each lookup checks the registry
+online. This also applies to standalone `publish:spot-react` runs. A timeout or
+registry authentication failure stops the React release and keeps the already
+published SDK version. After resolving the issue, retry `pnpm publish:spot-react`.
 
 Build failures and cancellation at the OTP prompt restore the
 original package manifest. Once the publish command starts, failures retain

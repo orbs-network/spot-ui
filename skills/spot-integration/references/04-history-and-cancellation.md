@@ -20,8 +20,10 @@ lookups, without an initialized client or account-history polling. Only
 `OrderStatus.Completed` confirms a fill. Requests are serial with a normal
 two-second delay; errors/missing snapshots back off at 2, 4, 8, 16, then 30 seconds,
 resetting after a matching snapshot. Tracking ends by `order.deadline` plus 60
-seconds for indexing. Unknown statuses remain open; explicit expiry is terminal
-only after the deadline. React consumes the same `watchOrder` stream.
+seconds for indexing. Unknown statuses remain open. Service statuses `expired`,
+`failed`, and `partially_completed` map to `Expired` after the deadline, with
+completion and cancellation taking precedence. React consumes the same
+`watchOrder` stream.
 
 Use the host data layer's polling, visibility, retry, and invalidation rules. Avoid overlapping polls, stop polling when the view is no longer active, and refetch after submission or cancellation. Do not call `createClient` for every poll.
 

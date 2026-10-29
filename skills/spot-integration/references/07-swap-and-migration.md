@@ -115,8 +115,9 @@ snapshot resets the delay to two seconds.
 - `OrderStatus.Cancelled` or `OrderStatus.Expired`: stop loading and show the terminal failure.
 - No confirmation by `order.deadline` plus 60 seconds: stop tracking with an uncertain-status message directing the user to history. Do not claim the order was cancelled or resubmit it automatically.
 
-Unknown service statuses remain `Open`, including after the deadline. An explicit
-expired status is terminal only once its deadline has passed.
+Unknown service statuses remain `Open`, including after the deadline. Service
+statuses `expired`, `failed`, and `partially_completed` map to `Expired` once the
+signed deadline has passed, with completion and cancellation taking precedence.
 
 Create the lifecycle abort controller before wallet work begins. Abort tracking on account/chain/client changes or unmount, including when those changes happen before submission resolves. Clear timers and listeners on every exit. Do not replace the active controller on a duplicate submit attempt. Keep the full form/account/chain/client snapshot immutable throughout the attempt.
 

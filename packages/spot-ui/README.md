@@ -360,9 +360,10 @@ legacy numeric ID, or a digest from another field.
 - A request or malformed-response error throws. Retry temporary lookup failures
   without resubmitting the signed order.
 
-Unknown service statuses remain `Open`, even after the deadline. Only an explicit
-expired status with a passed deadline is mapped to `Expired`; elapsed time alone
-does not prove expiry or failure.
+Unknown service statuses remain `Open`, even after the deadline. Service statuses
+`expired`, `failed`, and `partially_completed` map to `Expired` once the signed
+deadline has passed, unless completion or cancellation takes precedence. Partial
+fills remain available on expired orders; elapsed time alone does not prove expiry.
 
 `client.getOrder` performs one request per call. Use `waitForOrder` for swap
 settlement: it polls serially, normally every two seconds with bounded backoff

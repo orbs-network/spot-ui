@@ -608,8 +608,9 @@ timeout covering fetch and body reads. Pre-abort prevents the POST; abort/timeou
 after sending leaves acceptance uncertain and enters recovery. No POST is retried
 automatically. Settlement normally polls every two seconds; errors/missing
 snapshots back off at 2, 4, 8, 16, then 30 seconds and reset after a matching
-snapshot. Unknown statuses stay open even past the deadline; an explicit expired
-status becomes terminal only after its deadline has passed.
+snapshot. Unknown statuses stay open even past the deadline. Service statuses
+`expired`, `failed`, and `partially_completed` become expired only after the signed
+deadline has passed, with completion and cancellation taking precedence.
 
 Both reset actions return `false` during active or unconfirmed execution. Keep
 the modal open while `isExecuting`. `returnToOrderForm()` dismisses a definitive
