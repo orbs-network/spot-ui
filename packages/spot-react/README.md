@@ -717,10 +717,15 @@ Amounts returned by `useHistoryOrder` and its `fills` use `{ raw, ui }`, matchin
 the form model without fabricating unavailable historical USD values.
 
 `OrderFilter` contains `ALL`, `OPEN`, `COMPLETED`, `CANCELLED`, and `EXPIRED`.
-`OrderType` identifies the calculated module/mode combination: limit, TWAP
+`OrderType` identifies the calculated module/mode combination: swap, limit, TWAP
 market/limit, stop-loss market/limit, or take-profit market/limit. Normalized
 `Order` and `OrderFill` retain `src`/`dst` and `in`/`out` names because those are
 protocol/history response models; form-facing APIs use `input`/`output`.
+
+Render `OrderType.SWAP` as “Swap” in history and details. V2 history recognizes
+single-trade swaps by their three-minute signed lifetime, zero epoch, positive
+minimum output, and absence of triggers; submission timestamps do not affect this
+label.
 
 Keep history, details, and modal portals under `SpotProvider` context. Details should include execution summary, order info, fills, explorer/copy actions, and cancellation for open orders.
 

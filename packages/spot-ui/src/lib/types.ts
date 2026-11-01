@@ -60,6 +60,8 @@ export enum TimeUnit {
 export type TimeDuration = { unit: TimeUnit; value: number };
 
 export enum OrderType {
+  /** Single-trade swap with a quoted minimum and a three-minute signed lifetime. */
+  SWAP = "swap",
   LIMIT = "limit",
   TWAP_LIMIT = "twap-limit",
   TWAP_MARKET = "twap-market",

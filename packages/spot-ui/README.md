@@ -251,11 +251,18 @@ have accepted the first request.
 
 ## Swaps: quote plus one limit order
 
-A calculated form swap is `Module.SWAP` in the form and `OrderType.LIMIT` in the protocol. It has
+A calculated form swap uses `Module.SWAP` and `OrderType.SWAP` for display while
+signing a minimum-output limit trade in the protocol. It has
 one trade, no trigger, and a fixed 3-minute expiration, ignoring duration overrides.
 The signed deadline is 3 minutes after preparation. The host supplies the
 minimum output from the current quote's `minimumAmountOut`. User-entered
 limit prices and trade counts do not override the swap quote.
+
+V2 order history identifies swaps by a signed lifetime of exactly three minutes,
+one trade, zero epoch, a positive minimum output, and no trigger. It uses the signed
+start and deadline rather than the service creation time, so wallet signing delays
+do not change the label. An otherwise identical manually constructed order also
+receives the Swap type; the protocol has no separate module marker.
 
 These values have different jobs:
 

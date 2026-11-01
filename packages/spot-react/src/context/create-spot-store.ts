@@ -78,8 +78,8 @@ export interface SpotStore {
     value: SwapExecution,
   ) => boolean;
   syncFormDefaults: (defaults: SpotFormDefaults) => boolean;
-  startNewOrder: (defaults: SpotFormDefaults) => boolean;
-  returnToOrderForm: () => boolean;
+  startNewOrder: (defaults: SpotFormDefaults, executionId: number | undefined) => boolean;
+  returnToOrderForm: (executionId: number | undefined) => boolean;
   updateState: (value: Partial<State>) => void;
   state: State;
 }
@@ -422,9 +422,10 @@ export const createSpotStore = (
         });
         return replaced;
       },
-      returnToOrderForm: () => {
+      returnToOrderForm: (executionId) => {
         const current = get().state.currentExecution;
         if (
+          current.executionId !== executionId ||
           isExecutionLocked(current.phase) ||
           current.phase === ExecutionPhase.SUCCESS
         ) {
@@ -451,9 +452,12 @@ export const createSpotStore = (
         }));
         return true;
       },
-      startNewOrder: (defaults) => {
+      startNewOrder: (defaults, executionId) => {
         const { state: previousState } = get();
-        if (isExecutionLocked(previousState.currentExecution.phase)) {
+        if (
+          previousState.currentExecution.executionId !== executionId ||
+          isExecutionLocked(previousState.currentExecution.phase)
+        ) {
           return false;
         }
         set((store) => ({

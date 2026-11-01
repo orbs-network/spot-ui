@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildV2Order, getOrder, getOrders } from "../src/lib/orders/v2-orders";
-import { OrderStatus, type OrderV2 } from "../src/lib/types";
+import { Module, OrderStatus, OrderType, type OrderV2 } from "../src/lib/types";
 import { watchOrder } from "../src/lib/wait-for-order";
+import { buildRePermitOrderData } from "../src/lib/build-repermit-order-data";
+import { calculateOrderValues } from "../src/lib/order-form/values";
+import { MAX_UINT_256 } from "../src/lib/evm-constants";
 
 const address = "0x0000000000000000000000000000000000000001";
 const deadline = "1789545045";
@@ -75,6 +78,35 @@ const successChunk: NonNullable<OrderV2["metadata"]["chunks"]>[number] = {
   swapper: address,
   timestamp: "2026-09-16T07:50:44Z",
   txHash: "0x123",
+};
+
+const makeSwapOrder = (subsecondMillis = 0, minimumOutput = "200"): OrderV2 => {
+  const raw = makeOrder("pending");
+  const currentTimeMillis = (Number(deadline) - 180) * 1000 + subsecondMillis;
+  raw.order = buildRePermitOrderData({
+    inputTokenAddress: address,
+    outputTokenAddress: address,
+    totalInputAmount: "100",
+    inputAmountPerTrade: "100",
+    minOutputAmountPerTrade: minimumOutput,
+    nonce: "1",
+    currentTimeMillis,
+    deadlineMillis: currentTimeMillis + 180_000,
+    fillDelayMillis: 300_000,
+    totalTrades: 1,
+    slippageBps: 500,
+    swapperAddress: address,
+    module: Module.SWAP,
+    permitData: {
+      order: raw.order,
+      domain: { name: "RePermit", version: "1", chainId: 56, verifyingContract: address },
+      primaryType: "Order",
+      types: {},
+    },
+  }).order;
+  // The service records acceptance after wallet signing, not preparation.
+  raw.timestamp = new Date(currentTimeMillis + 30_000).toISOString();
+  return raw;
 };
 
 beforeEach(() => {
@@ -174,5 +206,79 @@ describe("v2 order expiry", () => {
     await vi.advanceTimersByTimeAsync(2_000);
     expect((await update).value).toMatchObject({ status: OrderStatus.Completed });
     expect((await tracked.next()).done).toBe(true);
+  });
+});
+
+describe("swap order types", () => {
+  it.each([[0, "200"], [499, "200"], [999, "1"]] as const)(
+    "recognizes a prepared swap at subsecond %i with minimum %s despite delayed submission",
+    (subsecond, minimum) => {
+      const raw = makeSwapOrder(subsecond, minimum);
+      const order = buildV2Order(raw);
+      expect(order.type).toBe(OrderType.SWAP);
+      expect(raw.order.witness.output.limit).toBe(minimum);
+      expect(order.dstMinAmountPerTrade).toBe(minimum);
+      expect(order.dstMinAmountTotal).toBe(minimum);
+      expect(order.isMarketPrice).toBe(false);
+      expect(order.deadline - order.createdAt).toBeLessThan(180_000);
+    },
+  );
+
+  it("keeps single-trade limits with other lifetimes or no valid signed start as Limit", () => {
+    for (const seconds of [179, 181, 300, 86_400]) {
+      const raw = makeSwapOrder();
+      raw.order.witness.start = String(Number(raw.order.deadline) - seconds);
+      expect(buildV2Order(raw).type).toBe(OrderType.LIMIT);
+    }
+    for (const start of [undefined, "", "invalid", "Infinity", "1789544865.5"]) {
+      const raw = makeSwapOrder();
+      raw.order.witness.start = start;
+      expect(buildV2Order(raw).type).toBe(OrderType.LIMIT);
+    }
+  });
+
+  it("keeps TWAP orders and scheduled trades out of the Swap type", () => {
+    const raw = makeSwapOrder();
+    raw.order.witness.input.maxAmount = "200";
+    expect(buildV2Order(raw).type).not.toBe(OrderType.SWAP);
+    raw.metadata.expectedChunks = 2;
+    expect(buildV2Order(raw).type).toBe(OrderType.TWAP_LIMIT);
+    const scheduled = makeSwapOrder();
+    scheduled.order.witness.epoch = 60;
+    expect(buildV2Order(scheduled).type).not.toBe(OrderType.SWAP);
+    const market = makeSwapOrder();
+    market.order.witness.output.limit = "0";
+    expect(buildV2Order(market).type).toBe(OrderType.TWAP_MARKET);
+  });
+
+  it.each([
+    ["triggerLower", "100", OrderType.STOP_LOSS_LIMIT],
+    ["triggerUpper", "100", OrderType.TAKE_PROFIT_LIMIT],
+    ["stop", "100", OrderType.STOP_LOSS_LIMIT],
+    ["stop", MAX_UINT_256, OrderType.TAKE_PROFIT_LIMIT],
+  ] as const)("preserves triggered order type for %s=%s", (field, value, type) => {
+    const raw = makeSwapOrder();
+    raw.order.witness.output[field] = value;
+    expect(buildV2Order(raw).type).toBe(type);
+  });
+
+  it("identifies calculated swaps consistently while retaining the signed quote minimum", () => {
+    const params = {
+      module: Module.SWAP,
+      inputTokenDecimals: 0,
+      totalInputAmount: "100",
+      quotedOutputAmountRaw: "210",
+      minimumOutputAmountRaw: "200",
+      totalTrades: 1,
+      priceProtectionPercent: 5,
+      isMarketOrder: false,
+    };
+    expect(calculateOrderValues(params)).toMatchObject({
+      orderType: OrderType.SWAP,
+      minOutputAmountPerTrade: "200",
+      totalTrades: 1,
+      durationMillis: 180_000,
+    });
+    expect(calculateOrderValues({ ...params, module: Module.LIMIT }).orderType).toBe(OrderType.LIMIT);
   });
 });

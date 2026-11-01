@@ -15,8 +15,9 @@ import {
 } from "../types";
 import BN from "bignumber.js";
 import { SpotError } from "../errors";
+import { SWAP_ORDER_DURATION_MILLIS } from "../order-form/constants";
 
-const getOrderType = (order: OrderV2) => {
+const getOrderType = (order: OrderV2): OrderType => {
   const isLimit = BN(order.order.witness.output.limit || 0).gt(1);
   const { stop, triggerLower, triggerUpper } = order.order.witness.output;
 
@@ -39,6 +40,21 @@ const getOrderType = (order: OrderV2) => {
 
   if (isStopLoss) {
     return isLimit ? OrderType.STOP_LOSS_LIMIT : OrderType.STOP_LOSS_MARKET;
+  }
+
+  // Swap intents have no module marker in the protocol. Use their signed
+  // lifetime, rather than the service timestamp, which follows wallet signing.
+  const startSeconds = Number(order.order.witness.start);
+  const deadlineSeconds = Number(order.order.deadline);
+  if (
+    chunks === 1 && order.order.witness.epoch === 0 &&
+    chunkAmount.gt(0) && chunkAmount.eq(order.order.witness.input.maxAmount) &&
+    BN(order.order.witness.output.limit || 0).gt(0) &&
+    Number.isSafeInteger(startSeconds) && startSeconds > 0 &&
+    Number.isSafeInteger(deadlineSeconds) &&
+    (deadlineSeconds - startSeconds) * 1000 === SWAP_ORDER_DURATION_MILLIS
+  ) {
+    return OrderType.SWAP;
   }
 
   if (!isLimit) {
@@ -132,8 +148,8 @@ const getOrderDollarValueIn = (order: OrderV2) => {
   return amount.isFinite() ? amount.dividedBy(1e18).toFixed() : "0";
 };
 
-const getDstMinAmountPerTrade = (order: OrderV2) => {
-  return BN(order.order.witness.output.limit || 0).eq(1)
+const getDstMinAmountPerTrade = (order: OrderV2, type: OrderType) => {
+  return type !== OrderType.SWAP && BN(order.order.witness.output.limit || 0).eq(1)
     ? ""
     : order.order.witness.output.limit;
 };
@@ -144,10 +160,9 @@ type Amounts = {
   dstMinAmountTotal: string;
 };
 
-const getAmounts = (order: OrderV2): Amounts => {
+const getAmounts = (order: OrderV2, dstMinAmountPerTrade: string): Amounts => {
   const { triggerLower = "0", triggerUpper = "0" } = order.order.witness.output;
 
-  const dstMinAmountPerTrade = getDstMinAmountPerTrade(order);
   const totalTradesAmount = order.metadata.expectedChunks || 1;
   const isTakeProfitOrder = BN(triggerUpper || 0).gt(0);
 
@@ -162,11 +177,11 @@ const getAmounts = (order: OrderV2): Amounts => {
 
 export const buildV2Order = (order: OrderV2): Order => {
   const progress = getProgress(order);
+  const type = getOrderType(order);
 
-  const dstMinAmountPerTrade = getDstMinAmountPerTrade(order);
+  const dstMinAmountPerTrade = getDstMinAmountPerTrade(order, type);
   const totalTradesAmount = order.metadata.expectedChunks || 1;
   const fills = getFills(order);
-  const type = getOrderType(order);
   return {
     id: order.hash,
     hash: order.hash,
@@ -193,7 +208,7 @@ export const buildV2Order = (order: OrderV2): Order => {
     srcAmount: order.order.witness.input.maxAmount,
     srcAmountPerTrade: order.order.witness.input.amount,
     totalTradesAmount,
-    isMarketPrice: BN(dstMinAmountPerTrade || 0).lte(1),
+    isMarketPrice: type !== OrderType.SWAP && BN(dstMinAmountPerTrade || 0).lte(1),
     chainId: order.order.witness.chainid,
     filledOrderTimestamp: getFilledOrderTimestamp(fills, totalTradesAmount),
     status: getStatus(order, progress),
@@ -204,7 +219,7 @@ export const buildV2Order = (order: OrderV2): Order => {
       type === OrderType.STOP_LOSS_LIMIT ||
       type === OrderType.STOP_LOSS_MARKET,
     rawOrder: order,
-    ...getAmounts(order),
+    ...getAmounts(order, dstMinAmountPerTrade),
   };
 };
 

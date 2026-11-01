@@ -324,6 +324,8 @@ export const getSpotPartnerProdLink = (partner?: string) => {
 export const getOrderTitle = (type?: OrderType): string => {
   if (!type) return "";
   switch (type) {
+    case OrderType.SWAP:
+      return "Swap";
     case OrderType.LIMIT:
       return "Limit";
     case OrderType.TWAP_LIMIT:

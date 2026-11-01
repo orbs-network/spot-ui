@@ -42,7 +42,9 @@ export interface SpotExecutionData {
   submitOrder: () => void;
   /** Checks the saved attempt without signing or submitting a replacement. */
   resumeTracking: () => void;
+  /** Resets this execution's form and retry state; stale callbacks return false. */
   startNewOrder: () => boolean;
+  /** Dismisses this execution's failure; stale callbacks return false. */
   returnToOrderForm: () => boolean;
   /** True throughout preparation, wallet steps, submission, and swap settlement. */
   isExecuting: boolean;
@@ -71,8 +73,8 @@ export const useExecution = (): SpotExecutionData => {
   const resetOrderState = useSpotStore((state) => state.startNewOrder);
   const submit = useCallback((): void => submitOrder(), [submitOrder]);
   const startNewOrder = useCallback(
-    () => resetOrderState(createSpotFormDefaults({ module, overrides })),
-    [module, overrides, resetOrderState],
+    () => resetOrderState(createSpotFormDefaults({ module, overrides }), swapExecution.executionId),
+    [module, overrides, resetOrderState, swapExecution.executionId],
   );
   const status = getExecutionStatus(swapExecution.phase);
   const currentStep = getExecutionStep(swapExecution.phase);

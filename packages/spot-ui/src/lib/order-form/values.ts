@@ -74,7 +74,8 @@ const getOrderType = (
   module: Module,
   isMarketOrder: boolean,
 ): OrderType => {
-  if (module === Module.LIMIT || module === Module.SWAP) return OrderType.LIMIT;
+  if (module === Module.SWAP) return OrderType.SWAP;
+  if (module === Module.LIMIT) return OrderType.LIMIT;
   if (module === Module.STOP_LOSS) {
     return isMarketOrder
       ? OrderType.STOP_LOSS_MARKET

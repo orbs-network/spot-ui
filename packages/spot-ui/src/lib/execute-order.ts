@@ -73,11 +73,44 @@ const amount = (raw: string): bigint => {
   return BigInt(raw);
 };
 
+const signBeforeDeadline = async (wallet: OrderWalletInteractions, prepared: SignableOrder): Promise<`0x${string}`> => {
+  const deadlineMillis = Number(prepared.order.deadline) * 1000;
+  if (!Number.isFinite(deadlineMillis)) throw new SpotError("INVALID_ARGUMENT", "The order must have a finite deadline");
+  const expired = () => new SpotError("ORDER_EXPIRED", "Order expired before signing was completed. Please try again.");
+  if (Date.now() > deadlineMillis) throw expired();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const expiry = new Promise<never>((_, reject) => {
+      const checkDeadline = () => {
+        const remaining = deadlineMillis - Date.now();
+        if (remaining < 0) {
+          reject(expired());
+          return;
+        }
+        // Long-lived orders can exceed the maximum timer delay of about 24 days.
+        timeout = setTimeout(checkDeadline, Math.min(remaining + 1, 2_147_483_647));
+      };
+      checkDeadline();
+    });
+    const signing = Promise.resolve().then(() => {
+      if (Date.now() > deadlineMillis) throw expired();
+      return wallet.signOrder(prepared.signingRequest);
+    });
+    const signature = await Promise.race([signing, expiry]);
+    // A suspended tab can receive the wallet result before its expiry timer runs.
+    if (Date.now() > deadlineMillis) throw expired();
+    return signature;
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+};
+
 /**
  * Runs wrapping, allowance approval, fresh order preparation, signing, and submission.
  * Only missing wallet steps are requested. Concurrent executions for the same account
  * and client are rejected. The prepared order must match the reviewed signer, input
- * token, amount, and client spender.
+ * token, amount, and client spender. Signing fails if the order deadline passes
+ * while waiting for the wallet; a later signature is ignored.
  *
  * @param params - Reviewed spending inputs, reused client, wallet adapter, and late preparation callback.
  * @returns The accepted order, exact prepared payload, and any confirmed transaction hashes.
@@ -172,7 +205,7 @@ export async function executeOrder<T extends SignableOrder>(params: ExecuteOrder
     observe(() => client.analytics.onSignOrderRequest(prepared.order));
     let signature: `0x${string}`;
     try {
-      signature = await wallet.signOrder(prepared.signingRequest);
+      signature = await signBeforeDeadline(wallet, prepared);
       observe(() => client.analytics.onSignOrderSuccess(signature));
       emit({ event: "success", signature });
     } catch (error) { observe(() => client.analytics.onSignOrderError(error)); emit({ event: "error", error }); throw error; }
