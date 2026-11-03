@@ -43,8 +43,8 @@ abort signal. Normalize native input to its wrapped address. The SDK calls `/quo
 Before connection, use a preview account such as
 `0x0000000000000000000000000000000000000001` for the required `user` field.
 Include it in the query key as quote-request metadata. For raw SDK execution,
-pass the connected account as `userAddress`; it may differ from the quote-request
-user. A refetch solely to bind the signer is unnecessary. The host owns quote
+re-quote for the connected account before passing it as `userAddress`; it must
+match the relay order signer. The host owns quote
 cache policy and must validate the live wallet context before wallet steps and
 submission.
 

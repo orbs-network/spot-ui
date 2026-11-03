@@ -6,7 +6,7 @@ import type {
   CalculatedOrderForm,
   CalculatedOrderValues,
 } from "./order-form/types";
-import { isNativeAddress } from "./utils";
+import { eqIgnoreCase, isNativeAddress } from "./utils";
 import {
   getAccountOrders,
   getAccountOrdersResult,
@@ -18,7 +18,7 @@ import { getOrder } from "./orders/v2-orders";
 import { Module } from "./types";
 import { SpotError } from "./errors";
 import { getQuote, type SwapQuote, type SwapQuoteParams } from "./quote";
-import { MIN_FILL_DELAY_MILLIS, SWAP_ORDER_DURATION_MILLIS, SWAP_ORDER_SLIPPAGE_BPS } from "./order-form/constants";
+import { SWAP_ORDER_DURATION_MILLIS } from "./order-form/constants";
 import { validateSwap, type PreparedSwap } from "./swap";
 import type {
   Address,
@@ -177,11 +177,10 @@ export interface SpotClient {
   prepareOrder(params: PrepareOrderParams): PreparedOrder;
 
   /**
-   * Builds an unsigned exact-input swap from a reviewed quote.
+   * Refreshes the start and 2 deadlines in the relay's reviewed swap order.
    * Requires no form, token decimals, balances, or USD prices. The quote must match
    * this client's chain and partner. The signed minimum is the quote's
-   * `minimumAmountOut`. `userAddress` supplies the signer and output recipient,
-   * including when the quote was fetched with a disconnected preview address.
+   * `minimumAmountOut`. The quote must belong to the connected `userAddress`.
    * Call after wrapping and confirmed approval, immediately before signing.
    *
    * @param quote - Reviewed quote for this client's chain and partner.
@@ -373,23 +372,39 @@ export const createClient = async (
   const prepareSwap = (quote: SwapQuote, userAddress: string): PreparedSwap => {
     const currentTimeMillis = Date.now();
     validateSwap({ quote, userAddress }, chainId, partner);
-    const preparedQuote = Object.freeze({ ...quote, request: Object.freeze({ ...quote.request }) });
+    const preparedQuote = Object.freeze(structuredClone(quote));
     const minimumOutputAmountRaw = preparedQuote.minimumAmountOut;
     const orderDeadlineMillis = currentTimeMillis + SWAP_ORDER_DURATION_MILLIS;
-    const permit = buildRePermitOrderData({
-      inputTokenAddress: preparedQuote.request.inToken, outputTokenAddress: preparedQuote.request.outToken,
-      totalInputAmount: preparedQuote.request.inAmount, inputAmountPerTrade: preparedQuote.request.inAmount,
-      minOutputAmountPerTrade: minimumOutputAmountRaw,
-      nonce: createNonce(currentTimeMillis), currentTimeMillis, deadlineMillis: orderDeadlineMillis,
-      fillDelayMillis: MIN_FILL_DELAY_MILLIS, totalTrades: 1, slippageBps: SWAP_ORDER_SLIPPAGE_BPS,
-      swapperAddress: userAddress, permitData: rePermitData, module: Module.SWAP,
-    });
+    const typedData = structuredClone(preparedQuote.typedData);
+    const order = typedData?.message;
+    const witness = order?.witness;
+    if (!typedData?.domain || !typedData.types || !witness ||
+      typedData.domain.chainId !== chainId || typedData.domain.name !== rePermitData.domain.name ||
+      typedData.domain.version !== rePermitData.domain.version ||
+      !eqIgnoreCase(typedData.domain.verifyingContract, spenderAddress) ||
+      typedData.primaryType !== rePermitData.primaryType ||
+      Object.keys(typedData.types).length !== Object.keys(rePermitData.types).length ||
+      Object.entries(rePermitData.types).some(([name, fields]) => JSON.stringify(typedData.types[name]) !== JSON.stringify(fields)) ||
+      !eqIgnoreCase(order.spender, rePermitData.order.spender) ||
+      !eqIgnoreCase(witness.reactor, rePermitData.order.witness.reactor) ||
+      !eqIgnoreCase(witness.executor, rePermitData.order.witness.executor) ||
+      !eqIgnoreCase(witness.exchange.adapter, exchangeAddress) ||
+      witness.chainid !== chainId || !eqIgnoreCase(witness.swapper, userAddress) ||
+      !eqIgnoreCase(witness.output.recipient, userAddress) ||
+      !eqIgnoreCase(order.permitted.token, quote.request.inToken) ||
+      !eqIgnoreCase(witness.input.token, quote.request.inToken) ||
+      !eqIgnoreCase(witness.output.token, quote.request.outToken) ||
+      order.permitted.amount !== quote.request.inAmount || witness.input.amount !== quote.request.inAmount ||
+      witness.input.maxAmount !== quote.request.inAmount || witness.output.limit !== minimumOutputAmountRaw ||
+      order.nonce !== witness.nonce) {
+      throw new SpotError("INVALID_QUOTE", "Relay order does not match the reviewed swap");
+    }
+    witness.start = String(Math.floor(currentTimeMillis / 1000));
+    order.deadline = witness.deadline = String(Math.floor(orderDeadlineMillis / 1000));
     return {
-      order: permit.order, quote: preparedQuote,
-      signingRequest: { signerAddress: userAddress as Address, typedData: {
-        domain: permit.domain, types: permit.types, primaryType: permit.primaryType, message: permit.order,
-      } },
-      approvalRequest: { tokenAddress: permit.order.permitted.token, amount: preparedQuote.request.inAmount, spenderAddress },
+      order, quote: preparedQuote,
+      signingRequest: { signerAddress: userAddress as Address, typedData },
+      approvalRequest: { tokenAddress: order.permitted.token, amount: preparedQuote.request.inAmount, spenderAddress },
       values: { inputAmount: preparedQuote.request.inAmount, minimumOutputAmountRaw, currentTimeMillis, deadlineMillis: orderDeadlineMillis },
     };
   };

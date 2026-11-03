@@ -94,19 +94,19 @@ const filled = await waitForOrder({
 `dexWallet.signOrder` above represents the DEX's existing EIP-712 signing code;
 pass the returned `signerAddress` and `typedData` to that wallet. Forward the
 original signature unchanged. Prepare after wrapping and confirmed approval,
-immediately before signing, so start/deadline/nonce are fresh.
+immediately before signing, so start and deadlines are fresh.
 `prepared.approvalRequest` also exposes the configured token, amount, and spender.
-`prepareSwap` uses `userAddress` for the signer and recipient, and signs the
+`prepareSwap` requires a relay order for `userAddress` and signs the
 quote's authoritative `minimumAmountOut`. Display that exact value in review;
 the service has already applied the requested slippage. Pass it unchanged and
 do not apply slippage a second time.
-`quote.request.user` records the quote request and may be a disconnected preview
-address; it does not bind the signing account.
-`prepareSwap` constructs locally; `submitOrder` only posts the signed order and
+`quote.request.user` must match the connected signer. Re-quote disconnected previews
+for that account before preparation.
+`prepareSwap` preserves `quote.typedData` and refreshes its start and 2 deadlines; `submitOrder` only posts the signed order and
 returns the accepted order. Neither performs wallet operations or starts polling.
 The manual router flow must fetch a current quote after wrapping/approval and
-compare its net output against the original quote's `minimumAmountOut` before pure preparation.
-Preserve the original reviewed minimum when the fresh quote still covers it;
+compare its `minimumAmountOut` against the reviewed minimum before preparation.
+Sign the fresh relay order when its minimum is at least the reviewed minimum;
 a lower result requires a fresh review.
 
 `submitOrder` accepts an optional `{ signal }` and has a fixed 30-second timeout
@@ -144,9 +144,9 @@ checks that balance and wraps only a shortfall; progress updates expose the
 actual wrapped base-unit amount as `wrapAmountRaw`.
 The fixed 3-minute window starts at final preparation after wrapping and approval,
 immediately before signing.
-`submitSwap` and React's form executor re-quote at that point. If fresh net output
-is below the original reviewed `quote.minimumAmountOut`, they reject with `INVALID_QUOTE` and require a new
-review. Otherwise they sign the exact reviewed minimum. The host's paused quote
+`submitSwap` re-quotes at that point. If its fresh `minimumAmountOut`
+is below the reviewed minimum, it rejects with `INVALID_QUOTE` and requires a new
+review. Otherwise it signs the fresh relay order with refreshed timestamps. The host's paused quote
 UI remains frozen during this controlled execution check.
 
 Progress updates include `phase`, `event`, `steps`, `stepIndex`, transaction hashes,
@@ -197,8 +197,7 @@ Remove `minimumOutputAmountRaw`, `swapperAddress`, `recipient`, and `tradeType`
 from swap execution calls. Route capability checks stay in
 `isSwapSupported`; live wallet identity checks stay in the host's wallet flow.
 Refresh quotes when their amount, pair, chain, partner, or slippage changes.
-A disconnected preview quote can be prepared for the connected account without
-refetching solely to change its quote-request user.
+Re-quote a disconnected preview for the connected account before preparation.
 `PreparedSwap.values.minimumOutputAmountRaw` still exposes the signed minimum.
 
 ### Quote identity, errors, and comparison units
@@ -207,8 +206,8 @@ Quotes include a frozen `request` identity and local `receivedAt` timestamp. Mat
 all request inputs before using a cached quote; `isQuoteFresh(quote, maxAgeMillis)`
 is an optional local age policy, not a server expiry guarantee. The host owns
 quote age checks and any refresh/review policy. Wallet steps never silently
-replace the reviewed minimum. The quote-request user is metadata; execution uses
-the separately supplied `userAddress` and live wallet context checks.
+replace the reviewed minimum. The quote-request user must match `userAddress`; validate live wallet context
+before signing and submission.
 
 SDK validation, configuration, and execution failures use `SpotError` with a
 stable `code`. Check `error instanceof SpotError`, then `error.code` (for example,

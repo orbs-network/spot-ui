@@ -15,11 +15,11 @@ export type SwapTradeType = "exact-input" | "exact-output";
 export interface PrepareSwapParams {
   /** Quote for the same client chain and partner; its request supplies the pair, input, and slippage. */
   quote: SwapQuote;
-  /** Connected account that signs the order and receives the output, independent of the quote's preview user. */
+  /** Connected account matching the relay order's signer and recipient. */
   userAddress: string;
 }
 
-/** Locally prepared signing payload and approval requirements; no order has been submitted. */
+/** Relay signing payload with refreshed timestamps and approval requirements. */
 export interface PreparedSwap {
   /** Protocol order to submit with its original wallet signature. */
   order: RePermitOrder;
@@ -133,7 +133,7 @@ export async function submitSwap(params: SubmitSwapParams): Promise<SubmittedSwa
   validateSwap(params, client.chainId, client.partner);
   // Snapshot the reviewed quote and execution account before the first wallet await.
   const input: PrepareSwapParams = {
-    quote: Object.freeze({ ...params.quote, request: Object.freeze({ ...params.quote.request }) }),
+    quote: Object.freeze(structuredClone(params.quote)),
     userAddress: params.userAddress,
   };
   const result = await executeOrder({
@@ -147,11 +147,10 @@ export async function submitSwap(params: SubmitSwapParams): Promise<SubmittedSwa
         slippage: input.quote.request.slippage, dexMinAmountOut: "-1", signal,
       });
       signal?.throwIfAborted();
-      if (BigInt(fresh.netAmountOut) < BigInt(input.quote.minimumAmountOut)) {
+      if (BigInt(fresh.minimumAmountOut) < BigInt(input.quote.minimumAmountOut)) {
         throw new SpotError("INVALID_QUOTE", "Swap price changed. Review a fresh quote before signing.");
       }
-      // Preserve the exact minimum reviewed by the user; never weaken it on refresh.
-      return client.prepareSwap(input.quote, input.userAddress);
+      return client.prepareSwap(fresh, input.userAddress);
     },
   });
   return {
