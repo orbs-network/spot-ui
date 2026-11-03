@@ -9,13 +9,13 @@ assembling `CalculateOrderFormParams`. Read/copy the [router example](../assets/
 
 1. Fetch `client.getQuote` as a candidate and use its authoritative `minimumAmountOut` unchanged for review and comparison.
 2. Gate exact-output/custom-recipient requests using `isSwapSupported`; compare only matching input/pair/account/chain minima, preserving the host gas policy.
-3. Keep wrapping, confirmed approval to `client.spenderAddress`, and signing in the DEX wallet flow. After verifying allowance, call `client.prepareSwap(quote, account)` immediately before signing its `signingRequest`, then forward the original signature to `client.submitOrder`. Input, output, and protected minimum are derived from the quote; the positional `userAddress` argument supplies the signer and recipient. No wallet callback object is required. Create the abort controller and execution lock before wallet work; validate the live account/chain/balance/minimum-trade policy before wallet steps and submission.
+3. Keep wrapping, confirmed approval to `client.spenderAddress`, and signing in the DEX wallet flow. After verifying allowance, call `client.prepareSwap(quote, account)` immediately before signing its `signingRequest`, then forward the original signature to `client.submitOrder`. The relay supplies the signing payload; `userAddress` must match its signer and recipient. No wallet callback object is required. Create the abort controller and execution lock before wallet work; validate the live account/chain/balance/minimum-trade policy before wallet steps and submission.
 4. Persist the returned `order` snapshot; use `waitForOrder({ order, signal })` at app/store scope when tracking must outlive modal closure. It derives the ID, chain, and deadline from the order, with no client or configuration request. It resolves with the completed order and supports optional cancellation and typed terminal/uncertain errors. React consumes the shared `watchOrder({ order, signal })` stream for progress/cache updates.
 
-`client.prepareSwap` constructs the protocol order locally; `client.submitOrder`
+`client.prepareSwap` preserves the relay order and refreshes its start and 2 deadlines; `client.submitOrder`
 posts that exact order and its signature without wallet work or automatic polling.
 Manual router flows must fetch a current quote after wrapping/approval, before
-pure `prepareSwap`, and compare net output against the reviewed minimum.
+pure `prepareSwap`, and compare its minimum output against the reviewed minimum.
 The optional `submitSwap` convenience function accepts `walletInteractions` when
 SDK orchestration is desired. It and `spot-react` share the `executeOrder` runner;
 `waitForOrder` is shared with React settlement. Submission is
@@ -41,15 +41,15 @@ A local API proxy is not required by the reference integration.
 | `chainId`, `partner` | The connected chain and selected Spot partner |
 | `inToken`, `outToken` | Token addresses; normalize native input to the host's wrapped-native address |
 | `inAmount` | Complete input amount as an integer string in token base units |
-| `user` | Quote-request account metadata; disconnected previews may use a preview address independently of the execution account |
+| `user` | Relay order signer; re-quote disconnected previews for the connected account |
 | `slippage` | Percentage, e.g. `0.5` for 0.5%. The SDK sends `50` integer bps, rounding to the nearest bps |
 | `dexMinAmountOut` | Raw DEX minimum when available, otherwise `"-1"`; maps to the HTTP `outAmount` field |
 | `signal` | Abort signal owned by the host's request lifecycle |
 
 For disconnected previews, pass a preview account such as
 `0x0000000000000000000000000000000000000001` as `user` and include it in the query
-key. At execution, pass the connected account as `userAddress`; it may differ
-from `quote.request.user`. No refetch is required solely to bind the signer.
+key. Before execution, re-quote for the connected account and pass it as `userAddress`;
+it must match `quote.request.user`.
 The host must validate the live connected account and chain before preparation,
 wallet steps, and submission.
 
@@ -94,10 +94,9 @@ The SDK enforces one limit trade, zero triggers, `isInverted: false`, fixed 3-mi
 ## Execution and settlement
 
 Use the normal configured Spot client: wrap native input when needed, read/approve allowance using `client.spenderAddress`, verify confirmed allowance with bounded retry, prepare immediately before signing, and forward the original signature unchanged to `client.submitOrder`.
-Both `submitSwap` and React's form executor re-quote after wrapping/approval,
-immediately before preparation. Fresh net output below the original `quote.minimumAmountOut`
-rejects with `INVALID_QUOTE` and requires a new review; otherwise the exact
-reviewed minimum remains signed. Pausing host quote refresh does not disable this
+`submitSwap` re-quotes after wrapping/approval, immediately before preparation.
+A fresh `minimumAmountOut` below the reviewed minimum rejects with `INVALID_QUOTE`;
+otherwise it signs that fresh relay order with refreshed timestamps. Pausing host quote refresh does not disable this
 controlled execution check.
 
 `client.submitOrder(order, signature, { signal })` has a fixed 30-second timeout

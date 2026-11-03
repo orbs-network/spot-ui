@@ -1,6 +1,7 @@
 import { getApiEndpoint } from "./api-config";
 import type { Partners } from "./types";
 import { getSlippageBps } from "./swap-amounts";
+import type { Eip712TypedData } from "./client";
 
 /** Inputs for an exact-input quote. Token amounts use integer base-unit strings. */
 export interface SwapQuoteParams {
@@ -17,8 +18,7 @@ export interface SwapQuoteParams {
   /**
    * Account supplied to the quote service. Before connection, a host can use
    * `0x0000000000000000000000000000000000000001` for a preview.
-   * Pass the connected account separately as `userAddress` when preparing or
-   * submitting the swap; this quote field does not determine the signer.
+   * Fetch a new quote for the connected account before signing.
    */
   user: string;
   /** Percentage: 0.5 means 0.5%. Sent to the API as integer basis points, rounded to the nearest bps. Does not set the signed order's slippage field. */
@@ -31,10 +31,12 @@ export interface SwapQuoteParams {
 
 /** Quote response with the request identity needed to validate later preparation. */
 export interface SwapQuote {
-  /** Frozen identity of the request that produced this quote. Never a signing payload. */
+  /** Frozen identity of the request that produced this quote. */
   readonly request: Readonly<Omit<SwapQuoteParams, "signal">>;
   /** Local receipt time in milliseconds, not a server guarantee of expiry. */
   readonly receivedAt: number;
+  /** Relay signing payload; preparation refreshes its start and 2 deadlines. */
+  readonly typedData: Eip712TypedData;
   /** Raw output amount reported by the quote service. */
   amountOut: string;
   /** Net output-token base units. Pass as calculateOrder.quotedOutputAmountRaw. */
@@ -122,6 +124,7 @@ export const getQuote = async ({
     netAmountOut: data.netAmountOut,
     minimumAmountOut: data.minimumAmountOut,
     feeAmount: data.feeAmount,
+    typedData: { domain: data.domain, types: data.types, primaryType: data.primaryType, message: data.message },
   });
 };
 
