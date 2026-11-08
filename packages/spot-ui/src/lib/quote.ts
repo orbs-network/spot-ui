@@ -39,14 +39,22 @@ export interface SwapQuote {
   amountOut: string;
   /** Net output-token base units. Pass as calculateOrder.quotedOutputAmountRaw. */
   netAmountOut: string;
+  /** Service-reported USD value of netAmountOut as a decimal string, when available. */
+  netAmountOutUsd?: string;
   /** Service-provided minimum for the requested slippage. Use unchanged for review and the signed swap minimum. */
   minimumAmountOut: string;
+  /** Service-reported USD value of minimumAmountOut as a decimal string, when available. */
+  minimumAmountOutUsd?: string;
+  /** Service-reported signed price impact in percent as a decimal string, when available. */
+  priceImpactPercentage?: string;
   /** Raw fee amount reported by the quote service. */
   feeAmount: string;
 }
 
 const isAmount = (value: unknown): value is string =>
   typeof value === "string" && /^\d+$/.test(value);
+const isDecimal = (value: unknown): value is string =>
+  typeof value === "string" && /^-?\d+(?:\.\d+)?$/.test(value);
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/i;
 
 /**
@@ -56,7 +64,7 @@ const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/i;
  * This request does not open the wallet or create an order.
  *
  * @param params - Chain, partner, tokens, raw input amount, quote user or preview address, and slippage percentage.
- * @returns The service amounts and a frozen copy of the request, all amounts in base units.
+ * @returns The service's base-unit amounts, optional USD/price-impact metadata, and a frozen copy of the request.
  * @throws {@link QuoteError} for invalid inputs, unavailable quotes, or request/response failures.
  * Request cancellation propagates the abort error instead of a QuoteError.
  */
@@ -115,12 +123,20 @@ export const getQuote = async ({
   ) {
     throw new QuoteError("No executable swap quote available", "invalid-response", response.status);
   }
+  for (const field of ["minimumAmountOutUsd", "netAmountOutUsd", "priceImpactPercentage"] as const) {
+    if (data[field] !== undefined && !isDecimal(data[field])) {
+      throw new QuoteError(`Invalid quote ${field}`, "invalid-response", response.status);
+    }
+  }
   return Object.freeze({
     request: Object.freeze({ chainId, partner, inToken, inAmount, outToken, user, slippage, dexMinAmountOut }),
     receivedAt: Date.now(),
     amountOut: data.amountOut,
     netAmountOut: data.netAmountOut,
+    netAmountOutUsd: data.netAmountOutUsd,
     minimumAmountOut: data.minimumAmountOut,
+    minimumAmountOutUsd: data.minimumAmountOutUsd,
+    priceImpactPercentage: data.priceImpactPercentage,
     feeAmount: data.feeAmount,
   });
 };

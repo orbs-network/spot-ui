@@ -53,7 +53,7 @@ swap settlement tracking. Keep one current form model for both review and signin
 for existing integrations.
 
 `createClient` returns a new client. Validated configuration templates share
-in-flight requests and a 60-second, 32-entry LRU cache keyed by partner/chain;
+in-flight requests and a 60-second, 32-entry LRU cache keyed by API endpoint/partner/chain;
 each caller receives a deep copy, and failed requests are evicted. Nonces are
 allocated across clients within the loaded SDK instance. The host still owns
 client resource lifetime and invalidation.
@@ -230,6 +230,13 @@ raw fee; the SDK does not invent USD gas costs or equate these fields with legac
 Liquidity Hub gas-adjusted fields. Keep the host's gas comparison policy explicit.
 `quote.minimumAmountOut` is the service's authoritative protected minimum in raw
 output-token units. Use it unchanged for review, form input, and signing.
+
+`quote.netAmountOutUsd` and `quote.minimumAmountOutUsd` expose the service's USD
+values as decimal strings. `quote.priceImpactPercentage` is a signed decimal
+percentage string (for example, `"-0.0333"`). These fields preserve the service's
+values and are optional when omitted by the service. They are display metadata;
+use the raw token amounts above for order calculation and signing. The same
+fields are available through the `@orbs-network/spot-react` reexports.
 
 ## Order lifecycle
 
@@ -496,6 +503,12 @@ results can exceed one service's limit. Standalone searches do not query legacy
 TWAP subgraphs.
 
 ## Client configuration and analytics
+
+In the browser, add `?devurl=true` to the page URL (or `&devurl=true` when it
+already has query parameters) to use `https://order-sink-dev.orbs.network` for
+configuration, quotes, order submission, and order lookups. Order-sink history
+uses only the dev service in this mode. Other values, an absent flag, and
+environments without `window` use the production services.
 
 `createClient` fetches and validates `/config` on every call. It rejects chain
 mismatches and malformed or zero RePermit and exchange-adapter addresses. The

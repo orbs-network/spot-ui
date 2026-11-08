@@ -94,8 +94,8 @@ and `useSwapExecution` interfaces with focused hooks such as `useOrderForm`,
 `useExecution`, `useSubmitButton`, and `useOrders`. Provider values now use
 `input`/`output` terminology (`inputToken`, `outputToken`, `inputBalanceRaw`,
 and `minTradeSizeUsd`), and the host supplies wallet operations through
-`walletInteractions`. Debug query parameters and the `isDev` option are no
-longer supported.
+`walletInteractions`. The `isDev` option is no longer supported. In the browser,
+`?devurl=true` selects the Spot SDK's development order service.
 
 `@orbs-network/swap-ui` is a recommended companion for the documented order
 progress modal, but it is not imported by `spot-react` and is not required for
@@ -828,6 +828,10 @@ include it in the quote key. This is quote-request metadata; pass the connected
 account as `userAddress` for preparation and execution. A refetch solely to bind
 the signer is unnecessary; the host owns its quote cache policy and live wallet
 context checks.
+
+`SwapQuote` also includes optional `netAmountOutUsd`, `minimumAmountOutUsd`, and
+`priceImpactPercentage` display metadata from the service. USD values are decimal
+strings; price impact is a signed decimal percentage string such as `"-0.0333"`.
 
 Keep wrapping, approval, and EIP-712 signing in the DEX's existing wallet flow.
 After confirmed approval to `client.spenderAddress`, call

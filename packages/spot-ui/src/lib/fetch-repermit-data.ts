@@ -14,6 +14,7 @@ const configurationCache = new Map<string, ConfigCacheEntry>();
 const loadRePermitData = async (
   partner: Partners,
   chainId: number,
+  endpoint: string,
 ): Promise<RePermitData> => {
   const query = new URLSearchParams({
     partner,
@@ -21,7 +22,7 @@ const loadRePermitData = async (
   });
   let response: Response;
   try {
-    response = await fetch(`${getRePermitConfigEndpoint()}?${query}`);
+    response = await fetch(`${endpoint}?${query}`);
   } catch (cause) {
     if (cause instanceof Error && cause.name === "AbortError") throw cause;
     throw new SpotError("CONFIGURATION_FAILED", cause instanceof Error ? cause.message : "Failed to fetch RePermit data", { cause });
@@ -59,7 +60,8 @@ const loadRePermitData = async (
 
 /** Share requests and validated templates for one minute; each caller owns its deep copy. */
 export const fetchRePermitData = async (partner: Partners, chainId: number): Promise<RePermitData> => {
-  const key = JSON.stringify([partner, chainId]);
+  const endpoint = getRePermitConfigEndpoint();
+  const key = JSON.stringify([endpoint, partner, chainId]);
   const now = Date.now();
   for (const [cachedKey, entry] of configurationCache) {
     if (entry.expiresAt <= now) configurationCache.delete(cachedKey);
@@ -70,7 +72,7 @@ export const fetchRePermitData = async (partner: Partners, chainId: number): Pro
     configurationCache.set(key, entry);
   } else {
     const pending: ConfigCacheEntry = {
-      promise: loadRePermitData(partner, chainId),
+      promise: loadRePermitData(partner, chainId, endpoint),
       // A hung request also expires, so later client attempts can recover.
       expiresAt: now + CONFIG_CACHE_TTL_MILLIS,
     };
