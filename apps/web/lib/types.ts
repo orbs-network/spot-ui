@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
+import type { SwapQuote } from "@orbs-network/spot-react";
 
 export type Currency = {
     address: string;
@@ -9,10 +8,6 @@ export type Currency = {
     balance?: string;
     name: string
     imported?: boolean;
-}
-
-export type USDPrices = {
-    [key: string]: number;
 }
 
 export type Balances = {
@@ -53,5 +48,5 @@ export enum TABS {
     outToken: string;
     inAmount: string;
     gas: string;
-    originalQuote: any;
+    originalQuote?: SwapQuote;
   }

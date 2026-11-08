@@ -27,7 +27,6 @@ import {
   useSpotPartner,
   useWalletInteractions,
 } from "@/lib/hooks/spot-hooks";
-import { useUSDPrice } from "@/lib/hooks/use-usd-price";
 import { Currency, SwapType } from "@/lib/types";
 import { getWrappedNativeCurrency } from "@/lib/utils";
 import { FormContainer } from "../form-container";
@@ -68,17 +67,18 @@ const useSpotToken = (currency?: Currency): Token | undefined =>
   }, [currency]);
 
 const PauseQuotesDuringExecution = () => {
-  const { isExecuting } = useExecution();
+  const { phase } = useExecution();
+  const pauseQuote = phase !== ExecutionPhase.IDLE;
   const setPauseQuote = useSwapStore((state) => state.setPauseQuote);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    setPauseQuote(isExecuting);
-    if (isExecuting) {
+    setPauseQuote(pauseQuote);
+    if (pauseQuote) {
       void queryClient.cancelQueries({ queryKey: SWAP_QUOTE_QUERY_KEY });
     }
     return () => setPauseQuote(false);
-  }, [isExecuting, queryClient, setPauseQuote]);
+  }, [pauseQuote, queryClient, setPauseQuote]);
 
   return null;
 };
@@ -123,8 +123,10 @@ const UnsupportedNetworkNotice = ({
 };
 
 export function SpotForm({ swapType }: { swapType: SwapType }) {
-  const { inputCurrency, outputCurrency, inputAmount, wrappedNativeAction, quoteError, refetchTrade } =
-    useDerivedSwap();
+  const {
+    inputCurrency, outputCurrency, inputAmount, inputTokenUsdPrice,
+    outputTokenUsdPrice, wrappedNativeAction, quoteError, refetchTrade,
+  } = useDerivedSwap();
   const { setInputAmount } = useActionHandlers();
   const chainId = useActiveChainId();
   const { address } = useConnection();
@@ -134,8 +136,6 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
     () => ({ swapModule, setInputAmount }),
     [setInputAmount, swapModule],
   );
-  const inputUsdPrice = useUSDPrice({ token: inputCurrency?.address });
-  const outputUsdPrice = useUSDPrice({ token: outputCurrency?.address });
   const { wei: inputBalanceRaw } = useBalance(inputCurrency);
   const inputToken = useSpotToken(inputCurrency);
   const outputToken = useSpotToken(outputCurrency);
@@ -176,8 +176,8 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           wrappedNativeToken={wrappedNativeToken}
           priceProtectionPercent={priceProtectionPercent}
           module={swapModule}
-          inputTokenUsdPrice={inputUsdPrice.data.toString()}
-          outputTokenUsdPrice={outputUsdPrice.data.toString()}
+          inputTokenUsdPrice={inputTokenUsdPrice}
+          outputTokenUsdPrice={outputTokenUsdPrice}
           marketQuote={marketQuote}
           minTradeSizeUsd={minTradeSizeUsd ?? 1}
           overrides={overrides}

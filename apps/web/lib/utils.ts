@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { Currency, type USDPrices, type WrappedNativeAction } from "./types";
+import { Currency, type WrappedNativeAction } from "./types";
 import { Balances } from "./types";
 import BN from "bignumber.js";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
@@ -80,23 +80,13 @@ export const sortByBaseAssets = (currencies: Currency[], chainId?: number) => {
 
 export const sortTokens = (
   currencies: Currency[],
-  usdPrices?: USDPrices,
   balances?: Balances
 ) => {
-  const valueMap = new Map<string, number>();
   const hasBalanceMap = new Map<string, boolean>();
 
   for (const currency of currencies) {
     const raw = balances?.[currency.address] ?? "0";
     hasBalanceMap.set(currency.address, BN(raw.toString()).gt(0));
-
-    const balance = Number(
-      BN(formatUnits(BigInt(raw.toString()), currency.decimals))
-        .decimalPlaces(6)
-        .toString()
-    );
-    const usdPrice = usdPrices?.[currency.address] ?? 0;
-    valueMap.set(currency.address, balance * usdPrice);
   }
 
   const res = [...currencies].sort((a, b) => {
@@ -104,9 +94,7 @@ export const sortTokens = (
     const hasBalanceB = hasBalanceMap.get(b.address) ?? false;
     if (hasBalanceA !== hasBalanceB) return hasBalanceA ? -1 : 1;
 
-    const valueA = valueMap.get(a.address) ?? 0;
-    const valueB = valueMap.get(b.address) ?? 0;
-    return valueB - valueA;
+    return 0;
   });
 
   const uniqueRes = _.uniqBy(res, (t) => t.address.toLowerCase());

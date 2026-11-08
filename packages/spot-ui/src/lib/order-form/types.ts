@@ -18,6 +18,12 @@ export interface CalculateOrderFormParams {
    * Other modules derive their minimum from the form's price controls.
    */
   minimumOutputAmountRaw?: string;
+  /** Service-reported USD total for the complete current input amount. */
+  inputAmountUsd?: string;
+  /** Service-reported USD total for quotedOutputAmountRaw. Used unchanged for SWAP output display. */
+  quotedOutputAmountUsd?: string;
+  /** Service-reported USD total for minimumOutputAmountRaw. Used unchanged for SWAP minimum display. */
+  minimumOutputAmountUsd?: string;
   inputTokenUsdPrice?: string;
   outputTokenUsdPrice?: string;
   minTradeSizeUsd: number;

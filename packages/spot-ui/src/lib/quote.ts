@@ -35,6 +35,8 @@ export interface SwapQuote {
   readonly request: Readonly<Omit<SwapQuoteParams, "signal">>;
   /** Local receipt time in milliseconds, not a server guarantee of expiry. */
   readonly receivedAt: number;
+  /** Service-reported USD value of the input amount as a decimal string, when available. */
+  inputAmountUsd?: string;
   /** Raw output amount reported by the quote service. */
   amountOut: string;
   /** Net output-token base units. Pass as calculateOrder.quotedOutputAmountRaw. */
@@ -123,14 +125,22 @@ export const getQuote = async ({
   ) {
     throw new QuoteError("No executable swap quote available", "invalid-response", response.status);
   }
-  for (const field of ["minimumAmountOutUsd", "netAmountOutUsd", "priceImpactPercentage"] as const) {
-    if (data[field] !== undefined && !isDecimal(data[field])) {
+  // Normalize the service's legacy field name at the SDK boundary.
+  const inputAmountUsd = data.inputAmountUsd === undefined ? data.usdValue : data.inputAmountUsd;
+  for (const [field, value] of [
+    ["inputAmountUsd", inputAmountUsd],
+    ["minimumAmountOutUsd", data.minimumAmountOutUsd],
+    ["netAmountOutUsd", data.netAmountOutUsd],
+    ["priceImpactPercentage", data.priceImpactPercentage],
+  ] as const) {
+    if (value !== undefined && !isDecimal(value)) {
       throw new QuoteError(`Invalid quote ${field}`, "invalid-response", response.status);
     }
   }
   return Object.freeze({
     request: Object.freeze({ chainId, partner, inToken, inAmount, outToken, user, slippage, dexMinAmountOut }),
     receivedAt: Date.now(),
+    inputAmountUsd,
     amountOut: data.amountOut,
     netAmountOut: data.netAmountOut,
     netAmountOutUsd: data.netAmountOutUsd,

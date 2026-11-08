@@ -1,26 +1,22 @@
 import { Skeleton } from "./skeleton";
-import { useUSDPrice } from "@/lib/hooks/use-usd-price";
+import { useFormatNumber } from "@/lib/hooks/common";
 
 export const USD = ({
-    address,
-    amount,
-  }: {
-    address?: string;
-    amount: string;
-  }) => {
-    const { formatted: usdPrice, isLoading } = useUSDPrice({
-      token: address,
-      amount: amount,
-    });
-  
-    return (
-      <div className="flex items-center gap-2">
-        {isLoading ? (
-          <Skeleton className="h-4 w-[50px]" />
-        ) : (
-          <p className="text-sm text-muted-foreground">${usdPrice || "0"}</p>
-        )}
-      </div>
-    );
-  };
-  
+  value,
+  isLoading = false,
+}: {
+  value?: string;
+  isLoading?: boolean;
+}) => {
+  const formatted = useFormatNumber({ value, decimalScale: 2 });
+
+  return (
+    <div className="flex items-center gap-2">
+      {isLoading ? (
+        <Skeleton className="h-4 w-[50px]" />
+      ) : (
+        <p className="text-sm text-muted-foreground">{formatted ? `$${formatted}` : "—"}</p>
+      )}
+    </div>
+  );
+};

@@ -70,6 +70,9 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
       minimumOutputAmountRaw: props.marketQuote.isLoading
         ? undefined
         : props.marketQuote.minimumOutputAmountRaw,
+      inputAmountUsd: props.marketQuote.isLoading ? undefined : props.marketQuote.inputAmountUsd,
+      quotedOutputAmountUsd: props.marketQuote.isLoading ? undefined : props.marketQuote.quotedOutputAmountUsd,
+      minimumOutputAmountUsd: props.marketQuote.isLoading ? undefined : props.marketQuote.minimumOutputAmountUsd,
       marketPriceLoading,
       noLiquidity,
       priceProtectionPercent: props.priceProtectionPercent,
@@ -91,6 +94,9 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
     [
       props.marketQuote.isLoading,
       props.marketQuote.minimumOutputAmountRaw,
+      props.marketQuote.inputAmountUsd,
+      props.marketQuote.quotedOutputAmountUsd,
+      props.marketQuote.minimumOutputAmountUsd,
       props.account,
       props.callbacks,
       props.chainId,

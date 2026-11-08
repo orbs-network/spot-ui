@@ -16,6 +16,7 @@ import {
 import { calculateOrderValues } from "./values";
 import type {
   CalculateOrderFormParams,
+  CalculatedAmount,
   CalculatedOrderForm,
   CalculatedOrderFormSchedule,
   CalculatedOrderInputAmount,
@@ -24,6 +25,17 @@ import type {
   CalculatedOrderValues,
 } from "./types";
 
+const normalizeUsdAmount = (value?: string): string | undefined => {
+  if (typeof value !== "string" || !/^\d+(?:\.\d+)?$/.test(value)) return undefined;
+  const amount = BN(value);
+  return amount.isFinite() && amount.gte(0) ? value : undefined;
+};
+
+const withUsdAmount = (amount: CalculatedAmount, usd?: string): CalculatedAmount => ({
+  ...amount,
+  usd: amount.raw ? normalizeUsdAmount(usd) ?? amount.usd : amount.usd,
+});
+
 const calculateOrderInputAmount = (
   params: CalculateOrderFormParams,
 ): CalculatedOrderInputAmount => {
@@ -31,10 +43,13 @@ const calculateOrderInputAmount = (
     params.userInput.inputAmountUi,
     params.inputTokenDecimals,
   );
-  const amountValues = calculateAmountValues(
-    inputAmountRaw,
-    params.inputTokenDecimals,
-    params.inputTokenUsdPrice,
+  const amountValues = withUsdAmount(
+    calculateAmountValues(
+      inputAmountRaw,
+      params.inputTokenDecimals,
+      params.inputTokenUsdPrice,
+    ),
+    params.inputAmountUsd,
   );
 
   return {
@@ -48,9 +63,10 @@ const calculateOrderTradePlan = (
   inputAmount: CalculatedOrderInputAmount,
   marketPrice: string,
 ): CalculatedOrderTradePlan => {
+  // Use the complete USD total to avoid reconstructing it through rounded unit prices.
   const maxTrades = getMaxPossibleTrades(
-    inputAmount.ui,
-    params.inputTokenUsdPrice,
+    inputAmount.usd,
+    "1",
     params.minTradeSizeUsd,
   );
   const totalTrades = getTrades(
@@ -76,26 +92,41 @@ const calculateOrderFormTrades = (
   params: CalculateOrderFormParams,
   tradePlan: CalculatedOrderTradePlan,
   values: CalculatedOrderValues,
-): CalculatedOrderTrades => ({
-  totalTrades: tradePlan.totalTrades,
-  maxTrades: tradePlan.maxTrades,
-  inputAmountPerTrade: calculateAmountValues(
-    values.inputAmountPerTrade,
-    params.inputTokenDecimals,
-    params.inputTokenUsdPrice,
-  ),
-  minOutputAmountPerTrade: calculateAmountValues(
-    values.minOutputAmountPerTrade,
-    params.outputTokenDecimals,
-    params.outputTokenUsdPrice,
-  ),
-  triggerOutputAmountPerTrade: calculateAmountValues(
-    values.triggerOutputAmountPerTrade,
-    params.outputTokenDecimals,
-    params.outputTokenUsdPrice,
-  ),
-  error: tradePlan.error,
-});
+): CalculatedOrderTrades => {
+  const inputUsd = normalizeUsdAmount(params.inputAmountUsd);
+  const inputAmountPerTradeUsd = inputUsd !== undefined && BN(values.inputAmount || 0).gt(0)
+    ? values.totalTrades === 1
+      ? inputUsd
+      : BN(inputUsd).times(values.inputAmountPerTrade).div(values.inputAmount).toFixed()
+    : undefined;
+
+  return {
+    totalTrades: tradePlan.totalTrades,
+    maxTrades: tradePlan.maxTrades,
+    inputAmountPerTrade: withUsdAmount(
+      calculateAmountValues(
+        values.inputAmountPerTrade,
+        params.inputTokenDecimals,
+        params.inputTokenUsdPrice,
+      ),
+      inputAmountPerTradeUsd,
+    ),
+    minOutputAmountPerTrade: withUsdAmount(
+      calculateAmountValues(
+        values.minOutputAmountPerTrade,
+        params.outputTokenDecimals,
+        params.outputTokenUsdPrice,
+      ),
+      params.module === Module.SWAP ? params.minimumOutputAmountUsd : undefined,
+    ),
+    triggerOutputAmountPerTrade: calculateAmountValues(
+      values.triggerOutputAmountPerTrade,
+      params.outputTokenDecimals,
+      params.outputTokenUsdPrice,
+    ),
+    error: tradePlan.error,
+  };
+};
 
 const calculateOrderFormSchedule = (
   params: CalculateOrderFormParams,
@@ -186,20 +217,26 @@ export const calculateOrder = (
     module: params.module,
     isInverted: params.module === Module.SWAP ? false : Boolean(params.userInput.isPriceInverted),
     inputAmount: inputAmountValues,
-    outputAmount: calculateAmountValues(
-      values.outputAmount,
-      params.outputTokenDecimals,
-      params.outputTokenUsdPrice,
+    outputAmount: withUsdAmount(
+      calculateAmountValues(
+        values.outputAmount,
+        params.outputTokenDecimals,
+        params.outputTokenUsdPrice,
+      ),
+      params.module === Module.SWAP ? params.quotedOutputAmountUsd : undefined,
     ),
     marketPrice: marketPriceValues,
     trades,
     schedule,
     triggerPrice: prices.triggerPrice,
     limitPrice: prices.limitPrice,
-    minOutputAmountTotal: calculateAmountValues(
-      values.minOutputAmountTotal,
-      params.outputTokenDecimals,
-      params.outputTokenUsdPrice,
+    minOutputAmountTotal: withUsdAmount(
+      calculateAmountValues(
+        values.minOutputAmountTotal,
+        params.outputTokenDecimals,
+        params.outputTokenUsdPrice,
+      ),
+      params.module === Module.SWAP ? params.minimumOutputAmountUsd : undefined,
     ),
     tradePrice: calculateAmountValues(
       values.tradePrice,

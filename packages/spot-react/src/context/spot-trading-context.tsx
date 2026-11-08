@@ -17,6 +17,9 @@ export interface SpotTradingState {
   quotedOutputAmountRaw?: string;
   /** Current quote.minimumAmountOut unchanged, required for Module.SWAP; output-token base units. */
   minimumOutputAmountRaw?: string;
+  inputAmountUsd?: string;
+  quotedOutputAmountUsd?: string;
+  minimumOutputAmountUsd?: string;
   marketPriceLoading?: boolean;
   account?: Address;
   noLiquidity?: boolean;

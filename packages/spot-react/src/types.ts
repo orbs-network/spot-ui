@@ -131,6 +131,12 @@ export type MarketQuote = {
   quotedOutputAmountRaw?: string;
   /** Current quote.minimumAmountOut unchanged, required for Module.SWAP; output-token base units. */
   minimumOutputAmountRaw?: string;
+  /** Exact USD value of the current input amount (quote.inputAmountUsd). */
+  inputAmountUsd?: string;
+  /** Exact USD value of the current net output quote; used unchanged for SWAP. */
+  quotedOutputAmountUsd?: string;
+  /** Exact USD value of the current minimum output quote; used unchanged for SWAP. */
+  minimumOutputAmountUsd?: string;
   isLoading?: boolean;
   noLiquidity?: boolean;
 };

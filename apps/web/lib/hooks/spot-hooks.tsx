@@ -196,6 +196,9 @@ export const useSpotMarketQuote = () => {
     return {
       quotedOutputAmountRaw: trade?.outAmount,
       minimumOutputAmountRaw: trade?.minAmountOut,
+      inputAmountUsd: trade?.originalQuote?.inputAmountUsd,
+      quotedOutputAmountUsd: trade?.originalQuote?.netAmountOutUsd,
+      minimumOutputAmountUsd: trade?.originalQuote?.minimumAmountOutUsd,
       noLiquidity: !isLoadingTrade && !trade,
       isLoading: isLoadingTrade,
     };

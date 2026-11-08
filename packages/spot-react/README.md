@@ -286,6 +286,13 @@ The returned minimum is authoritative; do not apply slippage again. If the quote
 belongs to older inputs, omit both amounts and report `isLoading: true` until a
 current quote arrives.
 
+Pass `inputAmountUsd: quote.inputAmountUsd`, `quotedOutputAmountUsd: quote.netAmountOutUsd`,
+and `minimumOutputAmountUsd: quote.minimumAmountOutUsd` in `marketQuote` to retain
+the service's exact USD totals in the form and execution snapshot. Swaps display
+the returned output and minimum USD values unchanged. Advanced orders calculate
+their edited output amounts using the supplied token prices, which can be
+derived from the same quote's USD totals and token amounts.
+
 `spot-react` has no network registry. Always pass the `wrappedNativeToken` prop
 from the DEX's own chain configuration; its value may be `undefined` only until
 a chain is known. It is used for native/wrapped pair detection, allowance checks,
@@ -304,7 +311,7 @@ Use the connected wallet chain as the source of truth. When it is absent or unsu
 | `inputAmountUi` | `string` | Yes | User-entered input-token amount |
 | `priceProtectionPercent` | `number` | Yes | Price Protection percentage for advanced orders; ignored for `SWAP`, which signs 500 bps oracle protection |
 | `minTradeSizeUsd` | `number` | Yes | Minimum individual trade size in USD |
-| `marketQuote` | `MarketQuote` | Yes | `{ quotedOutputAmountRaw?, minimumOutputAmountRaw?, isLoading?, noLiquidity? }`; swaps use `quote.netAmountOut` and `quote.minimumAmountOut` unchanged |
+| `marketQuote` | `MarketQuote` | Yes | Raw output/minimum amounts, optional `inputAmountUsd`, `quotedOutputAmountUsd`, `minimumOutputAmountUsd` totals, `isLoading?`, and `noLiquidity?`; swaps use quote amounts unchanged |
 | `walletInteractions` | `WalletInteractions` | Yes | Five wallet methods implemented by the DEX |
 | `chainId` | `number` | No | Connected wallet chain ID |
 | `account` | `Address` | No | Connected wallet address |
@@ -829,8 +836,8 @@ account as `userAddress` for preparation and execution. A refetch solely to bind
 the signer is unnecessary; the host owns its quote cache policy and live wallet
 context checks.
 
-`SwapQuote` also includes optional `netAmountOutUsd`, `minimumAmountOutUsd`, and
-`priceImpactPercentage` display metadata from the service. USD values are decimal
+`SwapQuote` also includes optional `inputAmountUsd`, `netAmountOutUsd`,
+`minimumAmountOutUsd`, and `priceImpactPercentage` display metadata from the service. USD values are decimal
 strings; price impact is a signed decimal percentage string such as `"-0.0333"`.
 
 Keep wrapping, approval, and EIP-712 signing in the DEX's existing wallet flow.

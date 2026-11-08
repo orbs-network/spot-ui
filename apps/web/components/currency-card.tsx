@@ -4,10 +4,9 @@ import { CurrencySelector } from "./currency-selector";
 import { ChevronDownIcon } from "lucide-react";
 import { NumericInput } from "./ui/numeric-input";
 import { useBalance } from "@/lib/hooks/use-balances";
-import { useCallback } from "react";
+import { useCallback, type ReactNode } from "react";
 import BN from "bignumber.js";
 import { formatDecimals } from "@/lib/utils";
-import { USD } from "./ui/usd";
 import { Balance } from "./ui/balance";
 import { CurrencyLogo } from "./ui/currency-logo";
 
@@ -20,6 +19,7 @@ type Props = {
   hidePercentageButtons?: boolean;
   title?: string;
   isLoading?: boolean;
+  usd?: ReactNode;
 };
 
 const CurrencySelectorTrigger = ({ currency }: { currency?: Currency }) => {
@@ -98,6 +98,7 @@ export function CurrencyCard({
   amount,
   title,
   isLoading = false,
+  usd,
 }: Props) {
   
   return (
@@ -125,7 +126,7 @@ export function CurrencyCard({
         />
       </div>
       <div className="flex items-center gap-2 justify-between">
-        <USD address={currency?.address} amount={amount} />
+        {usd}
         <Balance
           currency={currency}
           onAmountChange={onAmountChange ?? (() => {})}

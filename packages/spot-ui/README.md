@@ -231,12 +231,19 @@ Liquidity Hub gas-adjusted fields. Keep the host's gas comparison policy explici
 `quote.minimumAmountOut` is the service's authoritative protected minimum in raw
 output-token units. Use it unchanged for review, form input, and signing.
 
-`quote.netAmountOutUsd` and `quote.minimumAmountOutUsd` expose the service's USD
-values as decimal strings. `quote.priceImpactPercentage` is a signed decimal
+`quote.inputAmountUsd`, `quote.netAmountOutUsd`, and `quote.minimumAmountOutUsd` expose
+the service's input, net output, and minimum output USD values as decimal strings.
+`quote.priceImpactPercentage` is a signed decimal
 percentage string (for example, `"-0.0333"`). These fields preserve the service's
 values and are optional when omitted by the service. They are display metadata;
 use the raw token amounts above for order calculation and signing. The same
 fields are available through the `@orbs-network/spot-react` reexports.
+
+`calculateOrder` accepts optional `inputAmountUsd: quote.inputAmountUsd`,
+`quotedOutputAmountUsd: quote.netAmountOutUsd`, and
+`minimumOutputAmountUsd: quote.minimumAmountOutUsd` for the current quote. The input
+USD total is retained exactly; swaps also retain the exact output and minimum USD
+totals. Other modules value their edited output amounts using the token prices.
 
 ## Order lifecycle
 

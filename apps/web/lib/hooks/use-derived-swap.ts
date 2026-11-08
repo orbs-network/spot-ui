@@ -9,6 +9,19 @@ import { getWrappedNativeAction } from "../utils";
 import { useMemo } from "react";
 import type { BestTradeQuote } from "../types";
 import { DEFAULT_CHAIN_ID } from "../consts";
+import BN from "bignumber.js";
+
+const getQuoteTokenUsdPrice = (
+  amountUsd?: string,
+  rawAmount?: string,
+  decimals?: number,
+): string | undefined => {
+  if (amountUsd === undefined || !rawAmount || decimals === undefined) return undefined;
+  const usd = BN(amountUsd);
+  const amount = BN(rawAmount);
+  if (!usd.isFinite() || !usd.gt(0) || !amount.isFinite() || !amount.gt(0)) return undefined;
+  return usd.shiftedBy(decimals).dividedBy(amount).toFixed();
+};
 
 export const useDerivedSwap = () => {
   const chainId = useActiveChainId();
@@ -70,6 +83,7 @@ export const useDerivedSwap = () => {
     outputCurrency?.decimals,
     trade?.outAmount
   ));
+  const quote = trade?.originalQuote;
 
   return {
     inputCurrency,
@@ -78,6 +92,8 @@ export const useDerivedSwap = () => {
     inputAmount: store.inputAmount,
     parsedInputAmount,
     trade,
+    inputTokenUsdPrice: getQuoteTokenUsdPrice(quote?.inputAmountUsd, quote?.request.inAmount, inputCurrency?.decimals),
+    outputTokenUsdPrice: getQuoteTokenUsdPrice(quote?.netAmountOutUsd, quote?.netAmountOut, outputCurrency?.decimals),
     isLoadingTrade: wrappedNativeAction ? false : isLoadingTrade,
     refetchTrade,
     quoteError,

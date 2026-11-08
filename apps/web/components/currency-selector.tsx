@@ -1,10 +1,10 @@
 import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
-/* eslint-disable @next/next/no-img-element */
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -15,7 +15,6 @@ import { Virtuoso } from "react-virtuoso";
 import { Currency } from "@/lib/types";
 import { useBalance } from "@/lib/hooks/use-balances";
 import { useFormatNumber } from "@/lib/hooks/common";
-import { useUSDPrice } from "@/lib/hooks/use-usd-price";
 import BN from "bignumber.js";
 import {
   filterCurrencies,
@@ -56,13 +55,12 @@ const PopularTokens = ({
   return (
     <div className="grid grid-cols-5 gap-2 px-3">
       {popularCurrencies.map((c) => (
-        <DialogClose key={c.address}>
+        <DialogClose key={c.address} onClick={() => onCurrencyChange(c)}>
           <div
             className="flex flex-col items-center gap-1 rounded-xl p-3 bg-accent cursor-pointer hover:bg-accent/80"
-            onClick={() => onCurrencyChange(c)}
           >
             <Avatar className="size-6">
-              <AvatarImage src={c.logoUrl} />
+              <AvatarImage src={c.logoUrl || undefined} alt="" />
               <AvatarFallback>
                 <Skeleton className="size-6" />
               </AvatarFallback>
@@ -88,7 +86,10 @@ const SearchInput = ({
     <div className="p-3">
       <Input
         type="text"
-        placeholder="Search"
+        aria-label="Search tokens"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="Search tokens…"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -135,17 +136,22 @@ export function CurrencySelector({ onCurrencyChange, trigger }: Props) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {trigger ? (
-        <div onClick={() => setOpen(true)}>{trigger}</div>
+        <DialogTrigger asChild>
+          <button type="button" className="rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {trigger}
+          </button>
+        </DialogTrigger>
       ) : (
-        <DialogTrigger>
-          <Button>
-            <PlusIcon className="size-4" />
+        <DialogTrigger asChild>
+          <Button aria-label="Select a token">
+            <PlusIcon aria-hidden="true" className="size-4" />
           </Button>
         </DialogTrigger>
       )}
       <DialogContent className="sm:max-w-md p-0 gap-2">
         <DialogHeader className="p-3">
           <DialogTitle>Select a token</DialogTitle>
+          <DialogDescription className="sr-only">Search for a token to use in your order.</DialogDescription>
         </DialogHeader>
         <SearchInput onChange={setSearch} value={search} />
         <PopularTokens onCurrencyChange={onChange} />
@@ -179,20 +185,12 @@ const CurrencyItem = ({
   onCurrencyChange: (currency: Currency) => void;
 }) => {
   const { ui: balance, isLoading: isLoadingBalance } = useBalance(currency);
-  
   const formattedBalance = useFormatNumber({ value: balance });
-  const { formatted: usdPrice, isLoading: isLoadingUsdPrice } = useUSDPrice({
-    token: currency.address,
-    amount: balance,
-    disabled: BN(balance).lte(0),
-  });
-
 
   return (
-    <DialogClose className="w-full px-2">
+    <DialogClose className="w-full px-2" onClick={() => onCurrencyChange(currency)}>
       <div
         className="flex items-center justify-between px-2 py-2 hover:bg-accent/80 rounded-xl cursor-pointer gap-3 mb-2"
-        onClick={() => onCurrencyChange(currency)}
       >
         <div className="flex items-center gap-3 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
           <CurrencyLogo currency={currency} />
@@ -210,17 +208,11 @@ const CurrencyItem = ({
             </p>
           </div>
         </div>
-        {isLoadingBalance || isLoadingUsdPrice ? (
+        {isLoadingBalance ? (
           <Skeleton className="h-4 w-[50px]" />
         ) : (
           BN(balance ?? "0").gt(0) && (
-            <div className="flex flex-col items-end gap-0">
-              <p className="text-[17px] font-semibold">${usdPrice}</p>
-
-              <p className="text-[13px] text-muted-foreground">
-                {formattedBalance}
-              </p>
-            </div>
+            <p className="text-[17px] font-semibold">{formattedBalance}</p>
           )
         )}
       </div>
