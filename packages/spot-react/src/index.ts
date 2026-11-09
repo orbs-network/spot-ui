@@ -2,7 +2,7 @@
 
 import { setUIVersion } from "@orbs-network/spot-ui/internal";
 import pkg from "../package.json";
-import { SpotProvider } from "./context/spot-provider";
+import { AdvancedOrdersProvider } from "./context/advanced-orders-provider";
 export {
   ExecutionStatus,
   ExecutionPhase,
@@ -26,7 +26,8 @@ export {
   type MarketQuote,
   type ClientErrorFallbackProps,
   type SpotErrorFallbackProps,
-  type SpotProps,
+  type AdvancedOrdersProviderProps,
+  type AdvancedOrderModule,
 } from "./types";
 export { useOrderForm } from "./context/order-form-context";
 export { useClient } from "./context/use-client";
@@ -145,4 +146,4 @@ export {
   ORBS_WEBSITE_URL,
 } from "@orbs-network/spot-ui";
 
-export { SpotProvider };
+export { AdvancedOrdersProvider };

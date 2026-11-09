@@ -1,13 +1,13 @@
 import { eqIgnoreCase, isNativeAddress, toAmountRaw } from "@orbs-network/spot-ui/internal";
 import { useMemo } from "react";
-import type { MarketQuote, SpotProps } from "../types";
+import type { MarketQuote, AdvancedOrdersProviderProps } from "../types";
 import {
   createSpotFormDefaults,
   type SpotFormDefaults,
 } from "./create-spot-store";
 import type { SpotTradingState } from "./spot-trading-context";
 
-interface SpotProviderState {
+interface AdvancedOrdersProviderState {
   initialState: SpotFormDefaults;
   formScopeKey: string;
   trading: SpotTradingState;
@@ -29,7 +29,7 @@ const resolveMarketQuote = (marketQuote: MarketQuote): MarketQuote => {
   };
 };
 
-export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
+export const useAdvancedOrdersProviderState = (props: AdvancedOrdersProviderProps): AdvancedOrdersProviderState => {
   // The asynchronous client loader checks remote partner/chain support.
   const hasChainId =
     Number.isSafeInteger(props.chainId) && Number(props.chainId) > 0;

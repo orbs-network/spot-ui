@@ -1,6 +1,5 @@
-import { SpotForm } from "@/components/spot/spot-form";
-import { SwapType } from "@/lib/types";
+import { SwapForm } from "@/components/swap/swap-form";
 
 export default function HomePage() {
-  return <SpotForm swapType={SwapType.SWAP} />;
+  return <SwapForm />;
 }

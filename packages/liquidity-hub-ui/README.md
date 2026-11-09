@@ -14,7 +14,10 @@ npm install @orbs-network/spot-ui
 
 Follow the [migration guide](../spot-ui/README.md#migrating-from-liquidity-hub) and the complete [typed swap example](../spot-ui/examples/swap.ts). Spot swaps use a quote plus a single limit order; this requires changes to approval, signing, submission, and settlement tracking rather than just changing the package import.
 
-For React applications, use [`@orbs-network/spot-react`](../spot-react/README.md) with the existing `SpotProvider` and `Module.SWAP`. No separate swap provider is needed.
+React applications can import the same public client APIs from
+[`@orbs-network/spot-react`](../spot-react/README.md) and run swaps without a
+provider. `AdvancedOrdersProvider` supports advanced orders only; optional
+`swap-ui` components can render the host-owned swap review/progress state.
 
 The archived [Liquidity Hub references](../../skills/liquidity-hub-integration/SKILL.md) are available for maintaining an existing deployment during migration.
 

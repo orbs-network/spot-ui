@@ -1,12 +1,12 @@
 import { createContext, useContext, type ReactNode } from "react";
 import {
-  Module,
   type Address,
   type Partners,
   type SwapQuote,
 } from "@orbs-network/spot-ui";
 import type {
   Callbacks,
+  AdvancedOrderModule,
   Overrides,
   Token,
   WalletInteractions,
@@ -17,7 +17,7 @@ export interface SpotTradingState {
   walletInteractions: WalletInteractions;
   quote?: SwapQuote;
   quotedOutputAmountRaw?: string;
-  /** Current quote.minimumAmountOut unchanged, required for Module.SWAP; output-token base units. */
+  /** Quoted minimum in output-token base units. */
   minimumOutputAmountRaw?: string;
   inputAmountUsd?: string;
   quotedOutputAmountUsd?: string;
@@ -39,7 +39,7 @@ export interface SpotTradingState {
   hasChainId: boolean;
   priceProtectionPercent: number;
   displayFeePercent: number;
-  module: Module;
+  module: AdvancedOrderModule;
   callbacks?: Callbacks;
   supportLegacyOrders: boolean;
   overrides?: Overrides;
@@ -64,7 +64,7 @@ export const SpotTradingProvider = ({
 export const useSpotTrading = (): SpotTradingState => {
   const trading = useContext(SpotTradingContext);
   if (trading === null) {
-    throw new Error("useSpotTrading must be used within SpotProvider");
+    throw new Error("useSpotTrading must be used within AdvancedOrdersProvider");
   }
   return trading;
 };

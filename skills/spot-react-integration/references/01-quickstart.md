@@ -1,6 +1,6 @@
 # Quickstart
 
-Protocol quotes and orders use ERC-20 input addresses. SDK-managed execution calls the required `walletInteractions.shouldWrap()` once before allowance reads or wallet writes, awaits its boolean result, and calls `wrapNativeToken` only when true. React can display native input and its native balance while normalizing execution to the configured `wrappedNativeToken`. The host implements the wrapping transaction and waits for its successful receipt; users can review before wrapping.
+Protocol quotes and orders use ERC-20 input addresses. SDK-managed execution calls the required `walletInteractions.shouldWrap()` once before allowance reads or wallet writes, awaits its boolean result, and calls `wrapNativeToken` only when true. Advanced React forms can display native input and its native balance while normalizing execution to `wrappedNativeToken`. Provider-free swap hosts supply the wrapped protocol input address themselves. The host implements the wrapping transaction and waits for its successful receipt; users can review before wrapping.
 
 If there is no DEX, start with [Starting without a DEX](08-starting-without-dex.md). An existing React app keeps its stack and components; build its missing trading services. Scaffold a minimal application only when no app exists, then return to the provider path below.
 
@@ -18,16 +18,23 @@ Derive technical choices from those findings. Ask the user only about unresolved
 
 ## Select scope and dependencies
 
+`AdvancedOrdersProvider` supports only `TWAP`, `LIMIT`, `STOP_LOSS`, and
+`TAKE_PROFIT`. Swaps call the public SDK client without a provider; use the
+host's state and optional `swap-ui` presentation.
+
 | Request | Path |
 | --- | --- |
 | Build trading in a new or non-DEX React app | [Starting without a DEX](08-starting-without-dex.md), then the requested provider/form path |
 | Add Spot to an existing route selector/wallet flow | Public SDK helpers from `spot-react`, without a provider or replacement form; read [Swap and migration](07-swap-and-migration.md) |
-| Add a calculated React form or requested tabs | `SpotProvider`, focused form hooks, and the requested review/progress UI |
+| Add advanced-order forms or tabs | `AdvancedOrdersProvider`, focused form hooks, and the requested review/progress UI |
 | Add advanced price/TWAP controls | Relevant [Panels](03-panels.md) sections, retaining the existing form/state |
 | Add account history/cancellation | Relevant history sections, within provider scope or a context-preserving portal |
 | Migrate Liquidity Hub | Replace its quote, spender, signature, and execution contract while preserving the host form/router |
 
-A router integration does not require tabs or history. A form integration does not imply every supported module. Use one provider API for `Module.SWAP` and advanced modules; independent forms can have independent provider instances.
+A swap integration does not require tabs, a provider, or account history. An
+advanced form integration does not imply every supported module. Use one
+advanced-order provider for the requested advanced tabs; independent advanced
+forms can have independent provider instances. Keep the Swap tab outside it.
 
 Install only missing dependencies with the host package manager. Select a concrete release compatible with the existing React/wallet stack after inspecting published exports and peer requirements. Preserve user-selected versions and the lockfile. Never blindly install `@latest` or remove an old package until its replacement paths work and remaining imports have been checked.
 
@@ -55,11 +62,11 @@ advanced integrations that control wallet steps independently.
 Read [Provider](02-provider.md) and only the relevant [Panels](03-panels.md) sections.
 
 1. Keep editable/source values in the DEX's existing state. Build small adapters for token shape, raw balances, current quotes, and wallet methods; share them through a local DEX context only when multiple components need them.
-2. Pass the actual partner, connected account/chain, tokens, host wrapped-native token, amount, balance, available USD valuation, quote, callbacks, and wallet adapter directly to `SpotProvider`. Stabilize objects/functions with the host's React patterns. The provider loads protocol configuration itself.
-3. For swaps, pass the original SDK quote as `marketQuote: { quote, isLoading, noLiquidity }`; the provider derives output/minimum/USD fields and preserves the exact request. Advanced adapters may keep flat `quotedOutputAmountRaw` and USD fields. Withhold stale quotes/amounts and show loading until the request matches current inputs. Swap execution checks the captured quote against the reviewed form before wallet writes, then calls `client.prepareSwap` after approval without a second preparation.
+2. Pass the actual partner, connected account/chain, tokens, host wrapped-native token, amount, balance, available USD valuation, quote, callbacks, and wallet adapter directly to `AdvancedOrdersProvider`. Stabilize objects/functions with the host's React patterns. The provider loads protocol configuration itself.
+3. Supply current advanced-order valuation through `marketQuote`: flat `quotedOutputAmountRaw`/USD fields or an optional original SDK quote. Withhold stale values and show loading until the request matches current inputs. The provider derives amounts and valuation; it never executes `Module.SWAP`.
 4. Use the focused public hooks to render the requested controls, errors, and submit gating through existing DEX components. Do not silently reset selected TWAP trade counts when a smaller amount makes them invalid.
 5. Adapt the installed `walletInteractions` contract: `shouldWrap`, `wrapNativeToken`, `getAllowance`, `approveToken`, `signOrder`, and `cancelOrder`. The no-argument predicate decides from the DEX's captured input/account/chain context, may be async, and must return a boolean. Return true for native selections. Write methods wait for successful receipts; signing returns the original bytes. Implement `getTokenBalance` for completed-wrap retries.
-6. Use `useExecution` and `useSubmitButton` for review/progress state, duplicate prevention, and disabled/loading behavior. Pause obsolete quote requests through execution. Show swaps as successful only after fill; preserve and reconcile unknown attempts before another submission.
+6. Use `useExecution` and `useSubmitButton` for advanced-order review/progress, duplicate prevention, and disabled/loading behavior. Pause obsolete quote requests through execution. Creation succeeds at acceptance; preserve and reconcile unknown attempts before another submission.
 7. Refetch balances through lifecycle callbacks. Preserve the host input on failure/rejection; clear it only after success and use the installed reset/dismissal methods. Keep provider ownership stable across transient controls.
 8. Add requested history/cancellation under the same provider or a context-preserving portal. Use `order.historyKey` for identity and the SDK's configured history/cancellation APIs.
 

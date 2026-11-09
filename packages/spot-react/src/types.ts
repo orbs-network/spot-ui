@@ -131,16 +131,16 @@ export type Callbacks = {
 
 
 export type MarketQuote = {
-  /** Original SDK quote, required for swaps. Supplies amounts/USD values and the exact refresh request. */
+  /** Optional SDK quote supplying market amounts and USD display values. */
   quote?: SwapQuote;
   quotedOutputAmountRaw?: string;
-  /** Current quote.minimumAmountOut unchanged, required for Module.SWAP; output-token base units. */
+  /** Quoted minimum in output-token base units. */
   minimumOutputAmountRaw?: string;
   /** Exact USD value of the current input amount (quote.inputAmountUsd). */
   inputAmountUsd?: string;
-  /** Exact USD value of the current net output quote; used unchanged for SWAP. */
+  /** Exact USD value of the current net output quote. */
   quotedOutputAmountUsd?: string;
-  /** Exact USD value of the current minimum output quote; used unchanged for SWAP. */
+  /** Exact USD value of the current minimum output quote. */
   minimumOutputAmountUsd?: string;
   isLoading?: boolean;
   noLiquidity?: boolean;
@@ -157,7 +157,11 @@ export interface SpotErrorFallbackProps {
   resetErrorBoundary: (...args: unknown[]) => void;
 }
 
-export interface SpotProps {
+/** Order modules supported by the React form provider. Swaps use the direct SDK client. */
+export type AdvancedOrderModule = Exclude<Module, Module.SWAP>;
+
+/** Inputs for advanced order forms, execution, cancellation, and history. */
+export interface AdvancedOrdersProviderProps {
   children?: ReactNode;
   walletInteractions: WalletInteractions;
   chainId?: number;
@@ -175,7 +179,7 @@ export interface SpotProps {
   inputTokenUsdPrice: string | undefined;
   outputTokenUsdPrice?: string;
   priceProtectionPercent: number;
-  module: Module;
+  module: AdvancedOrderModule;
   marketQuote: MarketQuote;
   overrides?: Overrides;
   /** Display-only estimate; protocol fee collection is configured separately. */

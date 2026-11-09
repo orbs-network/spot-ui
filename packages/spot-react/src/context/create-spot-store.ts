@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type {
   Callbacks,
-  SpotProps,
+  AdvancedOrdersProviderProps,
   State,
   StartedSwapExecution,
   SwapExecution,
@@ -258,11 +258,11 @@ export const createSpotStore = (
 };
 
 export const createSpotFormDefaults = (
-  props: Pick<SpotProps, "module" | "overrides">,
+  props: Pick<AdvancedOrdersProviderProps, "module" | "overrides">,
 ): SpotFormDefaults => {
   const state = props.overrides?.state;
   return {
-    isMarketOrder: props.module === Module.LIMIT || props.module === Module.SWAP
+    isMarketOrder: props.module === Module.LIMIT
       ? false
       : state?.isMarketOrder,
     tradeCount: state?.tradeCount,

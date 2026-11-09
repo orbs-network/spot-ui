@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
-import { useClient } from "@orbs-network/spot-react";
+import { useClient, type SpotClient } from "@orbs-network/spot-react";
 import dynamic from "next/dynamic";
 import { Skeleton } from "../ui/skeleton";
 
@@ -18,9 +18,8 @@ const ReactJson = dynamic(() => import("react-json-view"), {
   loading: () => <Skeleton className="w-full h-[200px]" />,
 });
 
-const ConfigDialog = () => {
+const ConfigDialog = ({ client }: { client?: SpotClient }) => {
   const { parsedPartner } = useSwapParams();
-  const { data: client } = useClient();
 
   return (
     <Dialog>
@@ -52,7 +51,7 @@ const ConfigDialog = () => {
   );
 };
 
-export const SpotFooter = () => {
+export const SpotFooter = ({ client }: { client?: SpotClient }) => {
   const { parsedPartner } = useSwapParams();
 
   if (!parsedPartner) {
@@ -79,7 +78,12 @@ export const SpotFooter = () => {
           <LinkIcon />
         </Button>
       )}
-      <ConfigDialog />
+      <ConfigDialog client={client} />
     </div>
   );
+};
+
+export const AdvancedOrdersFooter = () => {
+  const { data: client } = useClient();
+  return <SpotFooter client={client} />;
 };

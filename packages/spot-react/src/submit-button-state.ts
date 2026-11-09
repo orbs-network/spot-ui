@@ -1,5 +1,4 @@
 import {
-  Module,
   type CalculatedOrderForm,
   type OrderFormNotReadyReason,
 } from "@orbs-network/spot-ui";
@@ -18,7 +17,6 @@ export type SubmitDisabledReason =
   | "client-error"
   | "client-unavailable"
   | "missing-wrapped-native-token"
-  | "missing-swap-quote"
   | "balance-loading"
   | "quote-loading"
   | "no-liquidity"
@@ -40,8 +38,6 @@ interface SubmitButtonInputs extends Pick<
   | "inputAmountUi"
   | "marketPriceLoading"
   | "hasChainId"
-  | "module"
-  | "quote"
 > {
   form: Pick<CalculatedOrderForm, "isReady" | "canSubmit" | "errors" | "notReadyReason">;
   hasClient: boolean;
@@ -53,7 +49,6 @@ interface SubmitButtonInputs extends Pick<
 interface SubmitButtonConditions {
   isExecuting: boolean;
   isWrappedNativeTokenMissing: boolean;
-  isSwapQuoteMissing: boolean;
   loading: boolean;
 }
 
@@ -75,7 +70,6 @@ const getDisabledReason = (
   if (form.notReadyReason === "empty-input") return "empty-input";
   if (input.noLiquidity) return "no-liquidity";
   if (input.marketPriceLoading && conditions.loading) return "quote-loading";
-  if (conditions.isSwapQuoteMissing) return "missing-swap-quote";
   if (!form.isReady && form.notReadyReason) return form.notReadyReason;
   if (form.errors.primary) return "validation-error";
   if (input.inputBalanceRaw === undefined && conditions.loading) return "balance-loading";
@@ -92,7 +86,6 @@ export const getSubmitButtonState = (input: SubmitButtonInputs): SubmitButtonRes
       isNativeAddress(inputToken.address) &&
       (!wrappedNativeToken || isNativeAddress(wrappedNativeToken.address)),
   );
-  const isSwapQuoteMissing = input.module === Module.SWAP && !input.quote;
   const isPropsLoading =
     input.marketPriceLoading ||
     (!form.isReady && !form.errors.primary) ||
@@ -110,13 +103,12 @@ export const getSubmitButtonState = (input: SubmitButtonInputs): SubmitButtonRes
       loading ||
       !inputToken ||
       !outputToken ||
-      isSwapQuoteMissing ||
       isWrappedNativeTokenMissing,
   );
   if (!disabled) return { disabled: false, loading };
   return {
     disabled: true,
     loading,
-    disabledReason: getDisabledReason(input, { isExecuting, isWrappedNativeTokenMissing, isSwapQuoteMissing, loading }),
+    disabledReason: getDisabledReason(input, { isExecuting, isWrappedNativeTokenMissing, loading }),
   };
 };

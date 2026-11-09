@@ -1,6 +1,6 @@
 # Quickstart
 
-Protocol quotes and orders use ERC-20 input addresses. SDK-managed execution calls the required `walletInteractions.shouldWrap()` once before allowance reads or wallet writes, awaits its boolean result, and calls `wrapNativeToken` only when true. React can display native input and its native balance while normalizing execution to the configured `wrappedNativeToken`. The host implements the wrapping transaction and waits for its successful receipt; users can review before wrapping.
+Protocol quotes and orders use ERC-20 input addresses. SDK-managed execution calls the required `walletInteractions.shouldWrap()` once before allowance reads or wallet writes, awaits its boolean result, and calls `wrapNativeToken` only when true. Advanced React forms can display native input and its native balance while normalizing execution to `wrappedNativeToken`. Provider-free swap hosts supply the wrapped protocol input address themselves. The host implements the wrapping transaction and waits for its successful receipt; users can review before wrapping.
 
 If the repository is empty or lacks a trading form/services, begin with [Starting without a DEX](08-starting-without-dex.md). Reuse any existing app, wallet, or data layer and build the missing pieces before following the execution path below.
 

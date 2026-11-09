@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ExecutionPhase,
   Module,
-  SpotProvider,
+  AdvancedOrdersProvider,
   TimeUnit,
   useExecution,
   type Overrides,
@@ -34,7 +34,7 @@ import { ToggleCurrencies } from "../toggle-currencies";
 import { Button } from "../ui/button";
 import { Portal } from "../ui/portal";
 import { WrappedNativeButton } from "../wrapped-native-button";
-import { SpotFooter } from "./footer";
+import { AdvancedOrdersFooter } from "./footer";
 import { OrderSettings } from "./order-settings";
 import { SpotsOrders } from "./orders";
 import { PriceSettings } from "./price-settings";
@@ -47,8 +47,9 @@ import { SpotFormContextProvider } from "./spot-form-context";
 import { SubmitOrderDialog } from "./submit-order-dialog";
 import { TokenPanel } from "./token-panel";
 
-const getModule = (swapType: SwapType): Module => {
-  if (swapType === SwapType.SWAP) return Module.SWAP;
+type AdvancedSwapType = Exclude<SwapType, SwapType.SWAP>;
+
+const getModule = (swapType: AdvancedSwapType): Exclude<Module, Module.SWAP> => {
   if (swapType === SwapType.LIMIT) return Module.LIMIT;
   if (swapType === SwapType.STOP_LOSS) return Module.STOP_LOSS;
   if (swapType === SwapType.TAKE_PROFIT) return Module.TAKE_PROFIT;
@@ -122,7 +123,7 @@ const UnsupportedNetworkNotice = ({
   );
 };
 
-export function SpotForm({ swapType }: { swapType: SwapType }) {
+export function SpotForm({ swapType }: { swapType: AdvancedSwapType }) {
   const {
     inputCurrency, outputCurrency, inputAmount, inputTokenUsdPrice,
     outputTokenUsdPrice, wrappedNativeAction, quoteError, refetchTrade,
@@ -164,7 +165,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
   return (
     <SpotFormContextProvider value={contextValue}>
       <FormContainer>
-        <SpotProvider
+        <AdvancedOrdersProvider
           chainId={supported ? chainId : undefined}
           inputAmountUi={inputAmount}
           walletInteractions={walletInteractions}
@@ -184,7 +185,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           callbacks={callbacks}
           supportLegacyOrders={true}
           clientErrorFallback={ClientErrorFallback}
-          displayFeePercent={swapModule === Module.SWAP ? 0 : 0.25}
+          displayFeePercent={0.25}
         >
           <PauseQuotesDuringExecution />
           <UnsupportedNetworkNotice supported={supported} account={address} partner={partner} />
@@ -200,8 +201,8 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
                   <WrappedNativeButton action={wrappedNativeAction} />
                 ) : (
                   <>
-                    {swapModule !== Module.SWAP && <PriceSettings />}
-                    {swapModule !== Module.SWAP && <OrderSettings />}
+                    <PriceSettings />
+                    <OrderSettings />
                     {quoteError && (
                       <div role="alert" className="text-sm text-destructive">
                         {quoteError.message} <button type="button" className="underline" onClick={() => void refetchTrade()}>Try again</button>
@@ -216,13 +217,11 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
               <Portal containerId="spot-orders">
                 <SpotsOrders />
               </Portal>
-              <SpotFooter />
+              <AdvancedOrdersFooter />
             </>
           )}
-        </SpotProvider>
+        </AdvancedOrdersProvider>
       </FormContainer>
     </SpotFormContextProvider>
   );
 }
-
-export const SpotOrders = () => <div id="spot-orders" className="w-full" />;

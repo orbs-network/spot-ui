@@ -1,4 +1,9 @@
-# SpotProvider Setup
+# AdvancedOrdersProvider Setup
+
+The provider supports only TWAP, Limit, Stop-Loss, and Take-Profit forms. Its
+`AdvancedOrderModule` excludes `Module.SWAP`. Swaps use the
+[provider-free client flow](07-swap-and-migration.md), with host state and optional
+`swap-ui` presentation.
 
 If no DEX state, wallet, token list, balance service, or quote resource exists, implement the missing host services through [Starting without a DEX](08-starting-without-dex.md) first. The host state below can belong to a new trading form inside an otherwise non-DEX app.
 
@@ -11,7 +16,7 @@ Recommended pattern:
 1. Read the DEX swap-form hook/context in one small adapter.
 2. Expose only the Spot-relevant values through a DEX-owned context if multiple Spot components need them.
 3. Have child components call that context/hook directly. Do not pass hook-returned values through intermediate components.
-4. Pass all required values directly into `SpotProvider`; avoid a separate `useSpotProviderProps()` hook whose only job is forwarding props.
+4. Pass all required values directly into `AdvancedOrdersProvider`; avoid a separate `useAdvancedOrdersProviderProps()` hook whose only job is forwarding props.
 
 If child components need many of the same props, stop passing a long prop list and wrap those shared values/actions in a focused local context. The context should hold DEX adapter state, DEX callbacks, formatting helpers, and cross-component UI state; it should not mirror Spot panel values, because children can call the relevant focused Spot hook directly.
 
@@ -22,7 +27,7 @@ The adapter should answer these questions explicitly:
 | Input/output tokens | DEX token selection state | `Token` objects with `address`, `symbol`, `decimals`, and optional `logoUrl` |
 | Wrapped native token | DEX chain configuration | The connected chain's wrapped-native `Token` |
 | Typed input amount | DEX input state | User-facing decimal string, e.g. `"1.25"` |
-| Quote output | DEX quote/router state | Original SDK `SwapQuote` for swaps; current whole-input raw output for advanced adapters |
+| Quote output | DEX quote/router state | Current whole-input raw output/USD fields or an optional SDK quote for valuation |
 | Quote freshness | DEX quote request metadata | Whether the quote was produced for the current typed amount/token pair |
 | Input balance | DEX balance hook | Raw integer string |
 | USD prices | DEX price hooks | USD value of one whole token as a string |
@@ -35,15 +40,15 @@ until the frozen attempt reaches a definitive terminal outcome. Unconfirmed
 attempts retain their snapshot until reconciliation.
 
 ```tsx
-function SpotOrderForm({ module }: { module: Module }) {
+function SpotOrderForm({ module }: { module: AdvancedOrderModule }) {
   return (
-    <SpotSwapFormStateProvider>
+    <DexTradingStateProvider>
       <SpotOrderFormContent module={module} />
-    </SpotSwapFormStateProvider>
+    </DexTradingStateProvider>
   );
 }
 
-function SpotOrderFormContent({ module }: { module: Module }) {
+function SpotOrderFormContent({ module }: { module: AdvancedOrderModule }) {
   const {
     inputCurrency,
     outputCurrency,
@@ -51,10 +56,10 @@ function SpotOrderFormContent({ module }: { module: Module }) {
     inputBalanceRaw,
     inputAmountUi,
     marketQuote,
-  } = useSpotSwapFormState();
+  } = useDexTradingState();
 
   return (
-    <SpotProvider
+    <AdvancedOrdersProvider
       module={module}
       inputAmountUi={inputAmountUi}
       marketQuote={marketQuote}
@@ -87,16 +92,17 @@ Use the DEX's existing folder conventions if they differ; the point is to avoid 
 
 ## Props
 
-Wrap objects with `useMemo` and functions with `useCallback` so SpotProvider does not re-render unnecessarily.
+Wrap objects with `useMemo` and functions with `useCallback` so AdvancedOrdersProvider does not re-render unnecessarily.
 
 If the DEX returns large objects whose identity changes every render, destructure the primitive fields you need before memoizing and use those primitive fields in dependency arrays. This is especially important for quote state, balances, tokens, callbacks, and wallet adapters.
 
 ```tsx
 import {
-  SpotProvider,
+  AdvancedOrdersProvider,
   Module,
   Partners,
   type Token,
+  type AdvancedOrderModule,
   type WalletInteractions,
   type Callbacks,
   type MarketQuote,
@@ -196,7 +202,7 @@ const walletInteractions = useMemo<WalletInteractions>(() => ({
 
 const callbacks = useMemo<Callbacks>(() => ({
   // Order lifecycle
-  // Acceptance only. Keep it silent; swap completion follows settlement.
+  // Advanced-order creation succeeds at acceptance; later fills appear in history.
   onOrderCreated: () => refetchBalances(),
   onSubmitOrderFailed: ({ message }) => toast.error(message),
   onSubmitOrderRejected: () => toast.error("Order rejected"),
@@ -246,7 +252,7 @@ const callbacks = useMemo<Callbacks>(() => ({
   onCopy: () => toast.success("Copied"),
 }), [refetchBalances, toast]);
 
-<SpotProvider
+<AdvancedOrdersProvider
   partner={Partners.Quick}
   module={module}
   priceProtectionPercent={3}
@@ -269,7 +275,7 @@ const callbacks = useMemo<Callbacks>(() => ({
 
 The code above assumes a fictional `dexWallet` adapter. Replace it with the DEX's existing wallet/client helpers. The important part is the contract: write methods return a transaction hash only after the receipt is confirmed, allowance reads return a raw integer string, and `signOrder` returns the wallet's original `0x`-prefixed signature.
 
-Pass a resolved `priceProtectionPercent` number. If the DEX setting has a default, resolve it before rendering `SpotProvider` instead of resolving it inline.
+Pass a resolved `priceProtectionPercent` number. If the DEX setting has a default, resolve it before rendering `AdvancedOrdersProvider` instead of resolving it inline.
 
 If the DEX quote stores the quoted input amount in raw units instead of the user-facing typed amount, compare against the DEX's current raw source amount instead. Quote freshness checks must compare the same representation.
 
@@ -278,11 +284,11 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 | Prop | Type | Required | Description |
 | --- | --- | --- | --- |
 | `partner` | `Partners` | Yes | DEX partner enum |
-| `module` | `Module` | Yes | `SWAP`, `TWAP`, `LIMIT`, `STOP_LOSS`, or `TAKE_PROFIT` |
+| `module` | `AdvancedOrderModule` | Yes | `TWAP`, `LIMIT`, `STOP_LOSS`, or `TAKE_PROFIT`; excludes `SWAP` |
 | `inputAmountUi` | `string` | Yes | User-entered input-token amount |
-| `priceProtectionPercent` | `number` | Yes | Price Protection percentage for advanced orders; ignored for fixed-protection swaps |
+| `priceProtectionPercent` | `number` | Yes | Price Protection percentage for advanced orders |
 | `minTradeSizeUsd` | `number` | Yes | Minimum individual trade size in USD |
-| `marketQuote` | `MarketQuote` | Yes | Original SDK `quote` required for swaps; flat current raw/USD fields remain available for advanced adapters, with `isLoading`/`noLiquidity` flags |
+| `marketQuote` | `MarketQuote` | Yes | Current advanced-order raw/USD fields or an optional SDK quote for valuation, with `isLoading`/`noLiquidity` flags |
 | `walletInteractions` | `WalletInteractions` | Yes | Wallet interaction handlers implemented by the DEX |
 | `chainId` | `number` | No | Connected chain ID |
 | `account` | `Address` | No | Connected wallet address |
@@ -316,7 +322,7 @@ optional balance reader required for completed-wrap retries:
 | `getAllowance({ tokenAddress, spenderAddress })` | Read ERC-20 allowance for the connected account and return the raw wei value as a string. |
 
 The write methods should not return immediately after wallet submission. Wait for the transaction receipt so Spot can show correct progress and surface reverted transactions as failures.
-Pass the selected input and its current raw balance to `SpotProvider`, including
+Pass the selected input and its current raw balance to `AdvancedOrdersProvider`, including
 native selections. For native input, supply the chain's `wrappedNativeToken` and
 implement `shouldWrap()` to return true. React normalizes the protocol
 input to that ERC-20 address; the shared runner awaits the predicate and the
@@ -332,15 +338,15 @@ standard representations.
 
 ## Quote, Balance, and Price Inputs
 
-- For swaps, pass the original SDK quote as `marketQuote: { quote, isLoading, noLiquidity }`. The provider derives output/minimum and USD fields, retaining the exact request for execution refresh. The quote must match the reviewed client, pair, input, and minimum; withhold it while stale/loading. Missing original swap quotes disable submission with `missing-swap-quote`, even when flat amounts exist. Never rebuild the quote from display amounts or apply slippage again. Advanced adapters may continue supplying flat `quotedOutputAmountRaw` and USD fields. See [Swap and Migration](07-swap-and-migration.md).
+- Supply current advanced-order valuation as flat `quotedOutputAmountRaw`/USD fields or an optional original SDK quote in `marketQuote.quote`. Quote-derived amounts/USD totals take precedence. Keep the values aligned with the reviewed pair/input and withhold stale values while loading. The provider does not execute swaps; see [Swap and Migration](07-swap-and-migration.md) for direct client execution.
 - `inputBalanceRaw` is a required provider prop whose value is a raw integer string. Pass `undefined` while disconnected, loading, or unavailable; surface read errors in the host UI rather than replacing them with zero.
 - `inputTokenUsdPrice` is a required prop whose value may be `undefined`. A current positive input USD total from `marketQuote.quote` or the flat `marketQuote.inputAmountUsd` can satisfy valuation without a separate unit-price source. Otherwise supply a positive, finite one-token USD price; while both are unavailable, the calculated form remains unready. `outputTokenUsdPrice` is optional for display; preserve available quote output/minimum USD totals as well.
 - Get `chainId` from the connected account/wallet hook wherever Spot needs chain identity. Avoid mixing router, quote, and account chain sources.
 - Pass `wrappedNativeToken` from the DEX's chain configuration for native input normalization and pair detection. Return true from `shouldWrap` for native selections, and implement confirmed wrapping in `wrapNativeToken`.
 - `chainId` and `account` may be missing while disconnected. Keep the form rendered; only swap the submit area to the DEX's connect-wallet or switch-network control.
-- When `chainId` is missing or unsupported, `SpotProvider` does not initialize a client and submission remains disabled. The DEX UI should show its connect/switch-network control.
+- When `chainId` is missing or unsupported, `AdvancedOrdersProvider` does not initialize a client and submission remains disabled. The DEX UI should show its connect/switch-network control.
 - `spot-ui` initializes a client internally using `partner` and the connected supported `chainId`. Do not add a separate configuration fetch or pass the response through DEX context.
-- The client owns RePermit-derived order, signing, approval, cancellation, submission, and history values. `SpotProvider` scopes client objects; configuration templates/in-flight requests share a 60-second, 32-entry LRU cache with validated deep copies and failure eviction. Inspect `useClient()` loading and error state to distinguish initialization from failure; pass a localized `clientErrorFallback` for retryable errors.
+- The client owns RePermit-derived order, signing, approval, cancellation, submission, and history values. `AdvancedOrdersProvider` scopes client objects; configuration templates/in-flight requests share a 60-second, 32-entry LRU cache with validated deep copies and failure eviction. Inspect `useClient()` loading and error state to distinguish initialization from failure; pass a localized `clientErrorFallback` for retryable errors.
 - The SDK rejects configuration chain mismatches and malformed or zero RePermit/adapter addresses. The response still supplies the approval spender, v2 cancellation contract, adapter, reactor, and executor without deployed-bytecode verification, so only use the trusted Orbs endpoint over TLS.
 - If the DEX quote result exposes the input amount used for the quote, treat a mismatch with the current typed amount as stale. While stale, omit `marketQuote.quotedOutputAmountRaw` and set `isLoading` to `true`.
 - Compute `inputTokenUsdPrice` and `outputTokenUsdPrice` as the USD value of one token. Prefer the DEX's direct one-token USD hook. If unavailable, derive it as `usdAmount / tokenAmount` from the current swap form amounts. Pass strings; use `undefined` for the required input price while no valid positive value is available, and omit the optional output price in that state.
@@ -411,24 +417,17 @@ if (isUnconfirmed) {
 
 `useExecution().order` holds the accepted order when available. Recovery checks
 that order or finds the exact previous prepared payload in the original account
-and chain's history; it never signs again. For swaps, a confirmed fill becomes
-`SUCCESS`; confirmed cancellation/expiry becomes `FAILED` and permits retry.
-Advanced order creation succeeds once acceptance is confirmed. Missing results
-and network errors remain `UNCONFIRMED`. `ParsedError.code` retains string SDK
-codes or numeric wallet codes, with `0` as fallback; optional `reason`, `orderId`,
-HTTP `status`, and `serviceCode` preserve classification details.
+and chain's history; it never signs again. Creation succeeds once acceptance is
+confirmed. Missing results and network errors remain `UNCONFIRMED`.
+`ParsedError.code` retains string SDK codes or numeric wallet codes, with `0`
+as fallback; optional `reason`, `orderId`, HTTP `status`, and `serviceCode` preserve
+classification details.
 
-Before wallet writes, swap execution captures the original quote and checks it
-against the reviewed form/client/pair/input. After confirmed approval it calls
-`await client.prepareSwap({ quote, account, signal })`. It checks age
-internally, reusing quotes up to 20 seconds old or replaying the same request.
-A lower refreshed `minimumAmountOut` rejects with `QUOTE_MINIMUM_DECREASED`.
-Both paths retain the original signed minimum and prepare fresh timestamps/nonce;
-React attaches the captured form without
-preparing a second order. Submission uses a fixed
-30-second timeout covering fetch/body reads and forwards the lifecycle signal.
-Pre-abort prevents the POST; abort/timeout after sending requires reconciliation,
-with no automatic POST retry.
+Advanced execution captures the reviewed form before wallet work. After confirmed
+wrapping/approval it prepares fresh order timestamps, signs, and submits once.
+Submission uses a fixed 30-second timeout covering fetch/body reads and forwards
+the lifecycle signal. Pre-abort prevents the POST; abort/timeout after sending
+requires reconciliation, with no automatic POST retry.
 
 ## Balance Refetch
 
@@ -439,7 +438,7 @@ Balance refetching is handled via callbacks, not a prop. Wire `refetchBalances` 
 - `onOrdersProgressUpdate` — when one or more observed orders change fill progress
 - `onCancelOrderSuccess` — after cancellation transaction confirms
 
-Avoid showing a toast for `onOrderCreated` unless the host DEX explicitly asks for one. Advanced order creation is shown in the modal; swaps stay in progress after acceptance until filled. Fill and cancel toasts can also be useful outside the modal.
+Avoid showing a toast for `onOrderCreated` unless the host DEX explicitly asks for one; advanced-order creation is already shown in the modal. Fill and cancel toasts can be useful for later history events.
 
 ## Price Protection
 
@@ -447,7 +446,7 @@ Avoid showing a toast for `onOrderCreated` unless the host DEX explicitly asks f
 - The unit is percentage: `3` means 3% / 300 basis points, not 3 bps
 - This is price protection, not swap slippage
 - For advanced order modules: hide DEX slippage and show Price Protection.
-- For `Module.SWAP`: show UI Slippage and hide Price Protection. Send the UI slippage percentage in the quote request and use the returned `quote.minimumAmountOut` unchanged. The signed swap oracle-protection field is fixed at 500 bps (5%). Duration is fixed at 3 minutes from preparation and is not editable.
+- Swap UI Slippage belongs to the separate provider-free client flow; see [Swap and Migration](07-swap-and-migration.md).
 - Pause automatic/manual quotes while `isExecuting`, cancel active quote requests, and resume when it becomes false or on cleanup. An unconfirmed order stays frozen and blocks fresh submission while recovery is available.
 - Persist the same way DEX stores slippage (zustand/redux/localStorage)
 
@@ -462,7 +461,7 @@ backend.
 For initial form state, pass `overrides`:
 
 ```tsx
-<SpotProvider
+<AdvancedOrdersProvider
   overrides={{
     state: {
       isMarketOrder: false,

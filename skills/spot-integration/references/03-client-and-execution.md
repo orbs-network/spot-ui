@@ -20,7 +20,7 @@ swap. Payloads contain only fields relevant to their event, without duplicate
 action/phase/success flags. Values are flat primitives, never objects or arrays;
 batch cancellation events use one scalar order ID/version per record.
 Use `disableAnalytics: true` on `createClient` or standalone `getQuote` to opt
-out. React hosts use `SpotProvider.disableAnalytics`. Reporting and operation
+out. React hosts use `AdvancedOrdersProvider.disableAnalytics`. Reporting and operation
 association are internal; host lifecycle callbacks remain available for UX and
 balance refresh.
 
@@ -119,7 +119,7 @@ preparation and submission calls below describe the advanced manual equivalent.
 4. Read allowance for `{ tokenAddress, spenderAddress: client.spenderAddress }` against `form.inputAmount.raw`. If wrapping is requested and funds are missing, call `wrapNativeToken` for the reviewed amount (or verified shortfall) and await its successful receipt.
 5. If the allowance was insufficient, approve the exact raw amount and wait for a successful receipt.
 6. Re-read allowance with a small bounded retry to tolerate RPC indexing lag. Stop if it is still insufficient.
-7. Form-only execution calls `client.prepareOrder` with the captured form, ERC-20 input, output token, and account. For a quote-aware swap flow, use `client.executeSwap` or manually await `client.prepareSwap({ quote, account, signal })`; that helper checks age, reusing quotes up to 20 seconds old or refreshing the exact request and comparing minima. A lower refreshed minimum reports `QUOTE_MINIMUM_DECREASED` and requires fresh review. Both quote-aware paths retain the reviewed minimum and prepare new signing timestamps/nonce. React's internal swap executor uses this quote-aware helper and attaches its captured form.
+7. Form-only execution calls `client.prepareOrder` with the captured form, ERC-20 input, output token, and account. For a quote-aware swap flow, use `client.executeSwap` or manually await `client.prepareSwap({ quote, account, signal })`; that helper checks age, reusing quotes up to 20 seconds old or refreshing the exact request and comparing minima. A lower refreshed minimum reports `QUOTE_MINIMUM_DECREASED` and requires fresh review. Both quote-aware paths retain the reviewed minimum and prepare new signing timestamps/nonce. React swaps use these same provider-free client methods and retain review/progress state in the host.
 8. Call `wallet.signOrder(preparedOrder.signingRequest)`.
 9. Call `client.submitSignedOrder(preparedOrder.order, signature, { signal })` once, using the attempt's lifecycle signal.
 10. For swaps, keep loading and the execution lock until the client method's internal settlement tracking confirms a fill or terminal failure. Do not add another poller. For other modules, acceptance completes creation. React consumes internal execution snapshots for progress/cache updates through its public hooks. For read-only recovery, the separate `executeOrder({ order, signal })` overload resumes accepted snapshots. Retain `OrderSettlementError.order` and `orderId` if tracking stops or fails. Refresh balances after the relevant wallet/settlement outcomes, and history only when that feature is implemented.

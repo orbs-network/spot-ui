@@ -1,6 +1,6 @@
 {
   "name": "spot-react-integration",
-  "description": "Spot React integration for existing DEXes and new or non-DEX React apps. Covers missing host trading services, requested order panels, SpotProvider, wallet adapters, settlement UX, history, and Liquidity Hub migration.",
+  "description": "Spot React integration for existing DEXes and new or non-DEX React apps. Covers advanced-order forms with AdvancedOrdersProvider, provider-free client swaps, missing host trading services, wallet adapters, execution UI, history, and Liquidity Hub migration.",
   "entrypoint": "SKILL.md",
   "references": [
     "references/01-quickstart.md",

@@ -46,11 +46,10 @@ with `ExecuteSwapParams`. It performs the complete wallet flow through host
 callbacks. For calculated forms, `client.executeOrder` accepts the reviewed
 `form`, token addresses, `account`, and wallet adapter, with only optional
 `signal`. It prepares from the form's amounts/minimum directly;
-use `client.executeSwap` for quote-aware refresh checks. React retains its swap
-quote validation and lifecycle controls internally. Advanced `client.submitSignedSwap`
+use `client.executeSwap` for quote-aware refresh checks. React swap integrations
+use the same client methods without a provider. Advanced `client.submitSignedSwap`
 submits an already signed prepared swap and waits for its fill.
-Client execution and signed submission share one internal settlement flow with
-React. Swaps resolve after a fill; limit/TWAP/other advanced orders resolve at
+Client execution and signed submission share one internal settlement flow. Swaps resolve after a fill; limit/TWAP/other advanced orders resolve at
 acceptance. Keep the host UI/loading lock until completion or reconciliation of
 an uncertain outcome.
 

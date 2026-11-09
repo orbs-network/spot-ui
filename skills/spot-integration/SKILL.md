@@ -32,7 +32,7 @@ A router source needs neither a new form nor account-history UI. Add only reques
 
 ## Protocol invariants
 
-- Protocol quotes and orders use ERC-20 input addresses. SDK-managed execution calls the required `walletInteractions.shouldWrap()` once before allowance reads or wallet writes, awaits its boolean result, and calls `wrapNativeToken` only when true. React can display native input and its native balance while normalizing execution to the configured `wrappedNativeToken`. The host implements the wrapping transaction and waits for its successful receipt; users can review before wrapping.
+- Protocol quotes and orders use ERC-20 input addresses. SDK-managed execution calls the required `walletInteractions.shouldWrap()` once before allowance reads or wallet writes, awaits its boolean result, and calls `wrapNativeToken` only when true. Advanced React forms can display native input and its native balance while normalizing execution to `wrappedNativeToken`. Provider-free swap hosts supply the wrapped protocol input address themselves. The host implements the wrapping transaction and waits for its successful receipt; users can review before wrapping.
 
 - Use public root exports from the installed `@orbs-network/spot-ui`; never import private source or `dist/*`. Inspect compatibility before installing/upgrading; do not blindly install `@latest` or invent unavailable exports.
 - Reuse the existing app/order form, wallet flow, state/data primitives, chain metadata, and components. Create missing host services through the no-DEX path; do not build a parallel application or second global store when these already exist.

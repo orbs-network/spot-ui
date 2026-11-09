@@ -8,7 +8,7 @@ export interface SpotRoute {
   quote: SwapQuote;
 }
 
-/** One candidate in the DEX's existing quote competition. No SpotProvider needed. */
+/** One candidate in the DEX's existing quote competition. No AdvancedOrdersProvider needed. */
 export async function quoteSpotRoute(params: {
   client: SpotClient;
   account: string;

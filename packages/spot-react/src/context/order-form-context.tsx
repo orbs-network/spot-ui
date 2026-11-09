@@ -135,7 +135,7 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
 export const useOrderForm = (): CalculatedOrderForm => {
   const form = useContext(OrderFormContext);
   if (!form) {
-    throw new Error("useOrderForm must be used within OrderFormProvider");
+    throw new Error("useOrderForm must be used within AdvancedOrdersProvider");
   }
   return form;
 };

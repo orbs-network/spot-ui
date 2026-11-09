@@ -22,7 +22,7 @@ guide take precedence for an already installed SDK.
 
 | I'm building… | Use… |
 | --- | --- |
-| A React order form | `spot-react`: `SpotProvider` with `Module.SWAP` or an advanced module, then `useExecution()` |
+| An advanced React order form | `spot-react`: `AdvancedOrdersProvider` with TWAP, Limit, Stop-Loss, or Take-Profit, then `useExecution()` |
 | SDK wallet orchestration | `client.executeSwap` for quotes; `calculateOrder` + `client.executeOrder` for calculated forms |
 | A DEX router that controls wallet steps | `client.getQuote` → `client.prepareSwap` → DEX signing → `client.submitSignedSwap`; submission waits for the fill |
 
@@ -124,7 +124,9 @@ requests confirmed wrapping through `wrapNativeToken`; false skips it. Errors,
 missing callbacks, and non-boolean results stop execution. Allowance is verified
 with bounded retries, and signing follows fresh preparation. Protocol input
 addresses and quotes must use the actual wrapped ERC-20 token for native input.
-React handles that normalization using the host's `wrappedNativeToken` metadata.
+Advanced-order React forms handle that normalization using the host's
+`wrappedNativeToken` metadata. Provider-free swap hosts supply the wrapped
+protocol address themselves.
 The host still owns balance/minimum-trade policy and keeps uncertain submissions
 locked until they are reconciled.
 
@@ -183,7 +185,7 @@ minimum from the reviewed quote; `account` supplies signer and recipient.
 ## Existing DEX routers: use the SDK directly
 
 A DEX can add Spot as one candidate in its existing quote competition without a
-`SpotProvider`. Keep the DEX's form, route selector, approval UI, wallet library,
+`AdvancedOrdersProvider`. Keep the DEX's form, route selector, approval UI, wallet library,
 and modal. Compare like-for-like protected minima for the same raw input, token
 pair, chain, and account, retaining the DEX's gas/fee ranking policy.
 
@@ -496,13 +498,10 @@ saved swap with `client.executeOrder({ order, signal })`; it does not submit aga
 If confirmation remains unavailable, direct the user to order history instead of
 claiming the swap completed.
 
-`spot-react` already manages this settlement step for `Module.SWAP`. Its
-`useExecution().isExecuting` stays true throughout preparation, wallet steps,
-submission, and active settlement tracking. For swaps, `isSuccess` becomes true
-only after the order fills. Ambiguous submission or stopped/unconfirmed tracking
-sets `isUnconfirmed`; use `resumeTracking()` to check the retained order without
-signing again. That state permits dismissal while blocking new submissions and
-resets until reconciliation. Other modules report creation success after submission.
+React swap integrations await these same client methods and keep review/progress
+state in the host. Optional `swap-ui` components can render that state.
+`AdvancedOrdersProvider` and `useExecution()` are reserved for advanced-order
+creation; they are not required for swap settlement.
 
 ## Form calculation and units
 
@@ -746,10 +745,11 @@ wallet's original signature. All swaps use a fixed 3-minute expiration from prep
 All swaps sign 500 bps (5%) oracle protection independently of the UI-slippage minimum.
 Do not reuse legacy Liquidity Hub quotes or signatures for Spot orders.
 
-For React, use `@orbs-network/spot-react` with the existing `SpotProvider` and
-`Module.SWAP`. The provider tracks settlement; `useExecution().isExecuting`
-covers wallet steps, submission, and settlement. Pause quote requests during
-execution and show success only after the order fills.
+React applications can import the same client APIs from `@orbs-network/spot-react`
+and run swaps without a provider. Keep host review/progress state around the
+awaited client call; optional `swap-ui` components can render it.
+`AdvancedOrdersProvider` is reserved for advanced-order forms.
+
 
 ## Migrating from 1.x
 

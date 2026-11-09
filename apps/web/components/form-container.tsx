@@ -6,7 +6,6 @@ import Link from "next/link";
 
 import { FORM_TABS, SPOT_TABS } from "@/lib/consts";
 import { useSelectedFormTab } from "@/lib/hooks/use-tabs";
-import { SpotOrders } from "./spot/spot-form";
 import { PartnerSelector } from "./spot/partner-selector";
 import { useSearchParams } from "next/navigation";
 
@@ -66,7 +65,7 @@ export function FormContainer({ children }: { children: React.ReactNode }) {
           <h2 className="text-2xl font-bold">{selectedTab?.fullLabel}</h2>
           <div className="flex flex-row gap-2 ml-auto">
             <SettingsModal />
-            <SpotOrders />
+            <div id="spot-orders" className="w-full" />
           </div>
         </div>
         {children}

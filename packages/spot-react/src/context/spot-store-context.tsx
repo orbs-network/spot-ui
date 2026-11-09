@@ -48,7 +48,7 @@ export const SpotStoreProvider = ({
 export const useSpotStoreApi = (): StoreApi<SpotStore> => {
   const store = useContext(SpotStoreContext);
   if (store === null) {
-    throw new Error("useSpotStore must be used within SpotProvider");
+    throw new Error("useSpotStore must be used within AdvancedOrdersProvider");
   }
   return store;
 };

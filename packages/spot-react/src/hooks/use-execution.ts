@@ -132,8 +132,6 @@ export const useExecution = (): SpotExecutionData => {
 
 export const useSubmitButton = (): SubmitButtonResult => {
   const {
-    module,
-    quote,
     inputToken,
     outputToken,
     wrappedNativeToken,
@@ -149,8 +147,6 @@ export const useSubmitButton = (): SubmitButtonResult => {
     (store) => store.state.currentExecution.phase,
   );
   const result = getSubmitButtonState({
-    module,
-    quote,
     inputToken,
     outputToken,
     wrappedNativeToken,

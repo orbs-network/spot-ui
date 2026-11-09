@@ -1,5 +1,5 @@
 /**
- * Spot Form Skeleton
+ * Advanced Orders Form Skeleton
  *
  * Copy this file into your DEX and replace placeholders with real DEX components.
  * Search for "DEX:" comments to find what needs replacing.
@@ -7,9 +7,8 @@
 
 import { useEffect, useMemo, useCallback, useState } from "react";
 import {
-  SpotProvider,
+  AdvancedOrdersProvider,
   Module,
-  ExecutionPhase,
   Partners,
   TimeUnit,
   useDisclaimer,
@@ -19,12 +18,12 @@ import {
   useInputErrors,
   useLimitPrice,
   useOutputAmount,
-  useOrderForm,
   usePriceDisplay,
   useSubmitButton,
   useTrades,
   useTriggerPrice,
   type ClientErrorFallbackProps,
+  type AdvancedOrderModule,
   type MarketQuote,
   type Token,
   type WalletInteractions,
@@ -82,7 +81,7 @@ function OutputAmount() {
   return <p>Estimated output: {amount.ui || "—"}</p>;
 }
 
-function PriceConfigSection({ module }: { module: Module }) {
+function PriceConfigSection({ module }: { module: AdvancedOrderModule }) {
   return (
     <div>
       <PriceHeader />
@@ -113,7 +112,7 @@ function PriceHeader() {
   );
 }
 
-function LimitPriceSection({ module }: { module: Module }) {
+function LimitPriceSection({ module }: { module: AdvancedOrderModule }) {
   const {
     price,
     onInputChange,
@@ -162,7 +161,7 @@ function LimitPriceSection({ module }: { module: Module }) {
   );
 }
 
-function TriggerPriceSection({ module }: { module: Module }) {
+function TriggerPriceSection({ module }: { module: AdvancedOrderModule }) {
   const {
     price,
     onInputChange,
@@ -325,9 +324,7 @@ function SubmitOrderSection({
     orderId,
     account,
     chainId,
-    phase,
   } = useExecution();
-  const isSwap = useOrderForm().module === Module.SWAP;
   const [accepted, setAccepted] = useState(true);
 
   useEffect(() => {
@@ -368,7 +365,7 @@ function SubmitOrderSection({
         onClick={() => setIsModalOpen(true)}
         disabled={!isUnconfirmed && disabled}
       >
-        {isUnconfirmed ? "Check previous order" : isSwap && isExecuting ? "Executing swap..." : loading ? "Loading..." : isSwap ? "Review Swap" : "Place Order"}
+        {isUnconfirmed ? "Check previous order" : loading ? "Loading..." : "Place Order"}
       </button>
 
       {isModalOpen && (
@@ -396,9 +393,8 @@ function SubmitOrderSection({
                   {/* DEX: Render review rows per references/03-panels.md:
                       recipient explorer link; abbreviated ID when available;
                       Individual trade size and trade count only for >1 trade;
-                      expiry as a date/time for advanced orders only;
-                      hide both expiry and limit price for Module.SWAP;
-                      min output for swaps and other limit execution;
+                      expiry as a date/time;
+                      min output for limit execution;
                       trigger price only for SL/TP. Use DEX amount/date formatters.
                       Build a DEX-owned OrderReviewDetails component using
                       useOrderForm() and the DEX account/chain context. */}
@@ -424,18 +420,14 @@ function SubmitOrderSection({
                     disabled={!accepted || disabled || Boolean(isPreparingOrder)}
                   >
                     {/* DEX: Replace loading text with your button spinner. */}
-                    {isPreparingOrder ? "Loading..." : isSwap ? "Confirm Swap" : "Create Order"}
+                    {isPreparingOrder ? "Loading..." : "Create Order"}
                   </button>
                 </>
               )}
-              {phase === ExecutionPhase.SETTLING && (
-                <p role="status">Waiting for your swap to fill...</p>
-              )}
               {/* DEX: Render SwapFlow when status is set and !isPreparingOrder.
-                  Swap status stays LOADING through settlement; label success
-                  "Swap completed" only after a fill. Hide close/dismiss while
-                  isExecuting. Render UNCONFIRMED above as recovery, with no fresh
-                  submit/reset. Other modules show creation success on acceptance. */}
+                  Hide close/dismiss while isExecuting. Render UNCONFIRMED above
+                  as recovery, with no fresh submit/reset. Creation succeeds on
+                  confirmed acceptance. */}
             </>
           )}
         </div>
@@ -452,9 +444,8 @@ export function SpotForm({
   onQuotePauseChange,
   // DEX: Add your props (inputCurrency, outputCurrency, etc.)
 }: {
-  module: Module;
-  /** DEX: For SWAP pass { quote: originalSdkQuote, isLoading, noLiquidity }.
-   * Other modules can use flat raw/USD fields from the host's quote adapter. */
+  module: AdvancedOrderModule;
+  /** DEX: Supply current raw/USD quote fields or an original SDK quote for valuation. */
   marketQuote: MarketQuote;
   /** DEX: Stable callback controlling automatic/manual refresh and cancellation. */
   onQuotePauseChange: (paused: boolean) => void;
@@ -507,7 +498,7 @@ export function SpotForm({
         // refetchBalances();
       },
       onOrderCreated: () => {
-        // Acceptance only. Swap success waits for onOrderFilled/execution success.
+        // Advanced-order creation succeeds at acceptance; fills appear in history.
         // refetchBalances();
       },
       onOrderFilled: () => {
@@ -535,7 +526,7 @@ export function SpotForm({
   const outputTokenUsdPrice = undefined;
 
   return (
-    <SpotProvider
+    <AdvancedOrdersProvider
       chainId={chainId}
       account={account}
       walletInteractions={walletInteractions}
@@ -553,19 +544,19 @@ export function SpotForm({
       outputTokenUsdPrice={outputTokenUsdPrice}
       callbacks={callbacks}
       clientErrorFallback={ClientErrorFallback}
-      displayFeePercent={module === Module.SWAP ? 0 : 0.25}
+      displayFeePercent={0.25}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* DEX: Token inputs section using your CurrencyInputPanel */}
         <OutputAmount />
-        {module !== Module.SWAP && <PriceConfigSection module={module} />}
+        <PriceConfigSection module={module} />
         {module === Module.TWAP && <TradeSizeSection />}
         {module === Module.TWAP && <TradeIntervalSection />}
-        {module !== Module.TWAP && module !== Module.SWAP && <DurationSection />}
+        {module !== Module.TWAP && <DurationSection />}
         <InputErrorPanel />
         <DisclaimerPanel />
         <SubmitOrderSection setInputAmount={setInputAmount} onQuotePauseChange={onQuotePauseChange} />
       </div>
-    </SpotProvider>
+    </AdvancedOrdersProvider>
   );
 }

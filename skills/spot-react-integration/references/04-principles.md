@@ -8,7 +8,7 @@ For a new or non-DEX app, first use [Starting without a DEX](08-starting-without
 2. **Module Navigation** — Add only the requested modules through the DEX's existing router/query navigation. A single-module request does not imply every Spot tab.
 3. **Use DEX Components As-Is** — Don't modify DEX components. If one doesn't exist (e.g. Select, Switch), create a new one using DEX styles. Never use generic web components.
 4. **Review and Progress** — Reuse the requested host review/progress flow and its modal shell when applicable. If adopting the documented `@orbs-network/swap-ui` flow, first verify its installed exports and adapt its appearance to the DEX.
-5. **Use Portals for Context** — If rendering elements outside SpotProvider scope, use Portal to maintain context access.
+5. **Use Portals for Context** — If rendering elements outside AdvancedOrdersProvider scope, use Portal to maintain context access.
 6. **Hooks in Components, Context for Shared Props** — Each component calls the focused Spot hook it needs or the DEX-owned Spot adapter hook directly. Never pass values to a child when that child can get them from a hook. If many props are passed through children, create a focused local context/hook for the shared DEX adapter state, callbacks, formatting helpers, or UI state.
 7. **Verify Before Using** — Always check: types are correct, components exist in DEX, imports from spot-react are valid.
 8. **Never Import from dist** — Always `@orbs-network/spot-react`, never `@orbs-network/spot-react/dist/*`.
@@ -21,7 +21,7 @@ For a new or non-DEX app, first use [Starting without a DEX](08-starting-without
 15. **Balance Refetch via Callbacks** — Wire `refetchBalances` into the supported lifecycle callbacks relevant to the implemented flow. Add progress/cancellation refresh only when those features are in scope.
 16. **Input Reset in onClose** — Ignore close/reset requests while `isExecuting` is true. Clear the DEX input only when `isSuccess` is true inside the modal's `onClose` callback. On success call `startNewOrder()`; on failed/rejected submissions keep the input and call `returnToOrderForm()` (see [02-provider.md](02-provider.md)).
 17. **Translations** — The SDK returns string keys for disclaimers and errors. Resolve via your own i18n system. Register all disclaimer defaults from [03-panels.md](03-panels.md#disclaimer-panel) and fall back to the English copy when a translation is missing, empty, or returns the key.
-18. **Direct Provider Props** — Pass values directly to `SpotProvider`. Do not create `useSpotProviderProps()` wrappers that hide simple prop wiring.
+18. **Direct Provider Props** — Pass values directly to `AdvancedOrdersProvider`. Do not create `useAdvancedOrdersProviderProps()` wrappers that hide simple prop wiring.
 19. **DEX Swap State Context** — Keep selected tokens, typed amount, balances, USD amounts, and quote state in the DEX swap form context/store. If Spot components need shared access or the same props are passed to multiple children, expose a small Spot adapter context rather than prop-drilling.
 20. **Connected Chain Source** — Use the connected account/wallet chain id for Spot config, provider props, token conversion, and history links. Do not mix it with quote/router chain sources.
 21. **Token Selector Lock** — If reusing the DEX token selector, hide chain selection for Spot. Network changes should go through the DEX network control.
@@ -31,7 +31,7 @@ For a new or non-DEX app, first use [Starting without a DEX](08-starting-without
 25. **No Hidden Unsupported Chain** — Spot never substitutes another chain. Its client and submission remain disabled until the connected wallet is on a supported chain; show the host DEX's switch-network control.
 26. **Visual References Are Structural** — Use [05-ui-reference.md](05-ui-reference.md) and the bundled screenshots for layout, hierarchy, density, and flow states. Adapt colors, backgrounds, radii, typography, and token-logo rendering to the integrated DEX.
 27. **Shared Spot Client** — Let `spot-react` initialize the keyed `spot-ui` client. Do not add a DEX-owned `/config` request or pass RePermit configuration through local context; the SDK client owns all configuration-derived order and transaction-request values, while `calculateOrder` keeps defaults, validation, preview/display amounts, and order construction aligned.
-28. **Configuration Boundary** — Inspect the installed `useClient()` loading/error state rather than treating every missing client as loading. Keep submission disabled while unavailable and give `SpotProvider` a DEX-native `clientErrorFallback`. The fallback receives `error`, `retry`, and `isRetrying`, keeping failures recoverable without recreating configuration state in child contexts.
+28. **Configuration Boundary** — Inspect the installed `useClient()` loading/error state rather than treating every missing client as loading. Keep submission disabled while unavailable and give `AdvancedOrdersProvider` a DEX-native `clientErrorFallback`. The fallback receives `error`, `retry`, and `isRetrying`, keeping failures recoverable without recreating configuration state in child contexts.
 29. **Trusted Configuration Boundary** — The SDK rejects chain mismatches and malformed or zero RePermit/adapter addresses, then uses the remaining `/config` contract values for approvals, cancellation, and order construction. It does not verify deployed bytecode or contract identity, so only use the trusted Orbs endpoint over TLS.
 30. **Preserve Wallet Signatures** — Return the wallet's original `0x`-prefixed value from `signOrder`. Spot submits it unchanged; do not split it into `{ v, r, s }`, rewrite `v`, or normalize its bytes.
 
@@ -39,41 +39,55 @@ For a new or non-DEX app, first use [Starting without a DEX](08-starting-without
 
 ## Module Navigation
 
-Use the same navigation pattern as the DEX (router or query params):
+Use the DEX navigation pattern. Render the Swap tab with the provider-free client
+flow; only advanced tabs enter `AdvancedOrdersProvider`. Map those tabs to the
+exported `AdvancedOrderModule`:
 
 ```tsx
+import { useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Module, type AdvancedOrderModule } from "@orbs-network/spot-react";
 
-const module = useMemo(() => {
-  const tab = searchParams.get("tab");
-  if (tab === "swap") return Module.SWAP;
-  if (tab === "limit") return Module.LIMIT;
-  if (tab === "stop-loss") return Module.STOP_LOSS;
-  if (tab === "take-profit") return Module.TAKE_PROFIT;
-  return Module.TWAP;
-}, [searchParams]);
+// DEX-owned view mounted only for advanced-order tabs; Swap has its own view.
+function AdvancedOrdersTabs() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const module = useMemo<AdvancedOrderModule>(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "limit") return Module.LIMIT;
+    if (tab === "stop-loss") return Module.STOP_LOSS;
+    if (tab === "take-profit") return Module.TAKE_PROFIT;
+    return Module.TWAP;
+  }, [searchParams]);
 
-const handleModuleChange = useCallback((newModule: Module) => {
-  const tabMap = {
-    [Module.SWAP]: "swap",
-    [Module.TWAP]: "twap",
-    [Module.LIMIT]: "limit",
-    [Module.STOP_LOSS]: "stop-loss",
-    [Module.TAKE_PROFIT]: "take-profit",
-  };
-  router.push(`?tab=${tabMap[newModule]}`, { scroll: false });
-}, [router]);
+  const handleModuleChange = useCallback((next: AdvancedOrderModule) => {
+    const tabs = {
+      [Module.TWAP]: "twap",
+      [Module.LIMIT]: "limit",
+      [Module.STOP_LOSS]: "stop-loss",
+      [Module.TAKE_PROFIT]: "take-profit",
+    };
+    router.push(`?tab=${tabs[next]}`, { scroll: false });
+  }, [router]);
+
+  return <AdvancedOrdersForm module={module} onModuleChange={handleModuleChange} />;
+}
 ```
+
+`AdvancedOrdersForm` is a DEX-owned component containing the provider and its
+requested panels, not an SDK export. Keep that provider mounted across advanced
+tab changes and while an execution is active.
+
 
 ## Portals
 
-If rendering elements outside SpotProvider scope (modals, tooltips), use Portal:
+If rendering elements outside AdvancedOrdersProvider scope (modals, tooltips), use Portal:
 
 ```tsx
 import { createPortal } from "react-dom";
 
 function OrderHistoryWithPortal() {
-  const { data } = useOrders(); // Must be inside SpotProvider
+  const { data } = useOrders(); // Must be inside AdvancedOrdersProvider
   const orders = data?.all ?? [];
   const [container, setContainer] = useState<HTMLElement | null>(null);
 
@@ -145,7 +159,7 @@ use [Quickstart](01-quickstart.md) for compatible-version fallbacks.
 - [ ] Existing host state/hooks are reused; a new local adapter context exists only where multiple components need shared host values/actions
 - [ ] Shared dependencies stay focused; small prop lists do not trigger an unnecessary context or second global store
 - [ ] Substantial integration files are split where complexity warrants it, without creating empty or unneeded architecture for a narrow task
-- [ ] Form quotes match the current full input; swaps pass the original SDK `SwapQuote` as `marketQuote.quote` so amount/USD mapping and exact-request refresh stay aligned. Advanced adapters may use flat fields. Balances use raw units and unit USD prices describe one token
+- [ ] Advanced form quotes match the current full input and can use flat raw/USD fields or an optional SDK quote for valuation. Swaps pass the original reviewed `SwapQuote` directly to the client. Balances use raw units and unit USD prices describe one token
 - [ ] For swaps, obsolete quotes pause/cancel during execution, and success appears only after a fill; account history is not required for settlement
 - [ ] Requested swap review hides limit price and expiration; UI Slippage remains separate from fixed 500 bps signed protection
 - [ ] Provider/native-input integrations use the DEX's chain configuration for `wrappedNativeToken`

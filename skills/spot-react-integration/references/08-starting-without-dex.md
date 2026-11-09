@@ -1,6 +1,6 @@
 # Starting without a DEX
 
-Use this path for a new React trading app or an existing React app with no DEX services. `SpotProvider` manages Spot form/execution state; it does not connect wallets, supply token lists, read balances, fetch host quotes/prices, or render the application. Build those missing host services before wiring the provider.
+Use this path for a new React trading app or an existing React app with no DEX services. `AdvancedOrdersProvider` manages advanced-order form/execution state; it does not connect wallets, supply token lists, read balances, fetch host quotes/prices, or render the application. Build those missing host services before wiring the provider.
 
 ## Establish scope and the host layer
 
@@ -13,11 +13,11 @@ Create focused host hooks/services for the missing capabilities; do not put wall
 | Capability | What the agent implements |
 | --- | --- |
 | Chains and RPC | One registry for chain IDs, RPC/read clients, native symbol/decimals, verified wrapped-native tokens, and explorer links. Share it with wallet/network controls; verify actual RPC chain IDs and browser access. Private service credentials stay server-side when required. |
-| Wallet | Connect/disconnect, active account/chain, network switching, receipt-confirmed writes, and the installed `walletInteractions` methods. Inspect the installed contract rather than inventing wallet methods. The current contract requires a cancellation adapter even when cancellation UI is out of scope; that does not require adding a history screen. A preview address is only for quoting. |
+| Wallet | Connect/disconnect, active account/chain, network switching, receipt-confirmed writes, and the installed `walletInteractions` methods. Inspect the installed contract rather than inventing wallet methods. The advanced provider requires a cancellation adapter even when history UI is out of scope. Direct swap execution uses `OrderWalletInteractions` without cancellation; neither path requires adding a history screen. A preview address is only for quoting. |
 | Token list | A maintained chain-specific list or verified curated set, searchable selectors, and loading/error/retry states. Validate addresses/decimals and key by chain plus normalized address. Keep non-18 decimals intact; never use symbols as identity or guess 18 decimals. Add the native sentinel separately from its wrapped ERC-20 token. Custom-token import is optional. |
 | Balances | Native balance and ERC-20 `balanceOf(account)` for selected tokens, keyed by account/chain/token and held as raw integer strings. Disconnected/loading/error is unavailable; a confirmed zero is `"0"`. Track a visible read error separately, and refresh after relevant confirmed writes and order events. Account/chain/token changes invalidate old balances. |
 | Host state | Selected tokens, typed amount, slippage, and requested navigation in one small state layer. Local state can be enough; do not add a global store just for Spot. Let focused Spot hooks own their price/schedule/execution state rather than mirroring it in the host. |
-| Quote resource | Use the installed SDK `getQuote`/`client.getQuote` when no router exists; another venue is unnecessary. Quote the complete raw ERC-20 input with the actual partner/chain. For SDK-managed execution, provide `shouldWrap` and confirmed `wrapNativeToken` callbacks; React normalizes native input to the configured wrapped ERC-20 address. Omit `dexMinAmountOut` without a competing quote. Debounce/refresh as appropriate, key by the full request, and cancel/ignore obsolete responses. Expose loading, no-liquidity, error, and retry state. |
+| Quote resource | Use the installed SDK `getQuote`/`client.getQuote` when no router exists; another venue is unnecessary. Quote the complete raw ERC-20 input with the actual partner/chain. For SDK-managed execution, provide `shouldWrap` and confirmed `wrapNativeToken` callbacks; Advanced forms normalize native input to `wrappedNativeToken`; direct swap hosts quote the wrapped address themselves. Omit `dexMinAmountOut` without a competing quote. Debounce/refresh as appropriate, key by the full request, and cancel/ignore obsolete responses. Expose loading, no-liquidity, error, and retry state. |
 | USD data | Preserve current quote USD totals and fetch positive, finite one-token USD prices when those totals are insufficient for calculation/display. Verify chain/token coverage independently of the token list. Do not invent prices or substitute a USD ratio for the executable quote. Missing input valuation keeps calculated forms unready. |
 | UI | Amount/token controls, connect/switch-network actions, requested Spot controls, review/disclaimer, execution progress, validation, and recoverable service errors. Use the app's primitives; when none exist, create a small consistent set. Optional `swap-ui` components can supply the documented progress flow after verifying compatibility. |
 
@@ -25,13 +25,10 @@ Scope source values and caches to their identities so changing the account, chai
 
 ## Wire the provider after the services exist
 
-Read [Provider setup](02-provider.md) and the relevant [Panels](03-panels.md). Pass actual selected tokens, `wrappedNativeToken`, `inputAmountUi`, connected account/chain, raw `inputBalanceRaw`, available USD prices, and a stable wallet adapter into `SpotProvider`.
+Read [Provider setup](02-provider.md) and the relevant [Panels](03-panels.md). Pass actual selected tokens, `wrappedNativeToken`, `inputAmountUi`, connected account/chain, raw `inputBalanceRaw`, available USD prices, and a stable wallet adapter into `AdvancedOrdersProvider`.
 
-For swaps, retain the complete SDK quote and pass
-`marketQuote={{ quote: currentQuote, isLoading, noLiquidity }}`. The provider
-derives amount/USD fields and uses the original request for refresh before
-signing. A flat amount-only adapter cannot supply that request. For advanced
-adapters, these flat mappings remain available in the installed API:
+Advanced forms accept current flat quote/USD fields or an optional original SDK
+quote in `marketQuote.quote`. These mappings remain available:
 
 | SDK quote field | `marketQuote` field |
 | --- | --- |
@@ -41,11 +38,32 @@ adapters, these flat mappings remain available in the installed API:
 | `netAmountOutUsd` | `quotedOutputAmountUsd` |
 | `minimumAmountOutUsd` | `minimumOutputAmountUsd` |
 
-Use `isLoading`/`noLiquidity` for the corresponding resource states; expose quote errors in the host UI. Withhold stale quote objects/fields during replacement requests. Swap execution validates the captured quote against the form before wallet writes, then calls `client.prepareSwap` after approval. The helper reuses quotes up to 20 seconds old or refreshes the original request and compares protected minima; a decrease requires fresh review. Both paths prepare new signing timestamps/nonce, so the agent need not add a separate age check. Quote USD totals describe the complete quoted amount; `inputTokenUsdPrice`/`outputTokenUsdPrice` describe one whole token.
+Use `isLoading`/`noLiquidity` for the corresponding resource states and expose
+quote errors in the host UI. Withhold stale quote fields while replacing requests.
+USD totals describe the complete quoted amount; unit prices describe one token.
 
-Use `useOrderForm()` and `useSubmitButton()` for validation/readiness; inspect installed `form.notReadyReason` and `disabledReason` when available. The host still renders connect/switch-network actions and owns wallet/balance policy. Use `useExecution()` for provider execution, pause obsolete quotes during execution, and keep the provider mounted while tracking is needed. Confirm native wrapping/approval receipts, preserve native gas funds using wallet estimation, and return the original wallet signature unchanged.
+Use `useOrderForm()` and `useSubmitButton()` for advanced validation/readiness,
+and `useExecution()` for advanced creation. Keep the provider mounted through the
+attempt, pause obsolete quotes, confirm wrapping/approval receipts, and return
+the original signature unchanged. Retain input on rejection/failure and follow
+the installed reset/unconfirmed-recovery contract. History/cancellation UI remains
+optional and belongs inside advanced-provider scope or a context-preserving portal.
 
-Wire relevant callbacks to balance refresh. Retain input on rejection/failure, wait for a fill before swap success, and follow the installed reset/unconfirmed-recovery contract. Add history/cancellation only if requested, within provider scope or a context-preserving portal.
+## Add swaps without a provider
+
+Keep the host's swap form and its execution state outside `AdvancedOrdersProvider`.
+Retain the original SDK quote and call `client.executeSwap({ quote, account,
+walletInteractions, signal })` after review. This path does not need advanced
+pricing/scheduling props, a calculated Spot form, USD inputs, or a cancellation
+adapter. The host still validates balance, gas, and product policy.
+
+The client confirms requested wrapping/approval, prepares fresh signing data,
+submits once, and waits for the fill. Keep loading/duplicate guards until the
+promise settles, and use existing progress UI or optional `swap-ui` components.
+Preserve `OrderSettlementError.order`/`orderId` for read-only recovery. Existing
+DEX wallet flows can use `prepareSwap` → host signing → `submitSignedSwap` instead.
+See [Swap and Migration](07-swap-and-migration.md) for freshness, minimum protection,
+and uncertain-outcome handling.
 
 ## Verify and explain completion
 
