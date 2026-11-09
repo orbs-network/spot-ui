@@ -1,4 +1,5 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
+import { getQuote } from "@orbs-network/spot-react";
 import { useSpotClient } from "./use-spot-client";
 import { useSettings } from "./use-settings";
 import type { BestTradeQuote, Currency } from "../types";
@@ -35,7 +36,11 @@ export const useTrade = (
     queryKey: [...SWAP_QUOTE_QUERY_KEY, chainId, partner, inToken, outToken, parsedInputAmount, user, slippage],
     queryFn: client
       ? async ({ signal }) => {
-          const quote = await client.getQuote({
+          // The host client only loads configuration; standalone quotes own their telemetry.
+          const quote = await getQuote({
+            chainId: client.chainId,
+            partner: client.partner,
+            apiUrl: client.apiUrl,
             inToken: isNativeAddress(inToken)
               ? getWrappedNativeCurrency(chainId)?.address ?? ""
               : inToken,

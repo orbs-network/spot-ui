@@ -1,10 +1,17 @@
 # Integration Principles
 
+Apply only the sections and checks needed for the requested integration. A
+router source does not require an advanced-order form or history surface, and a
+history-only task does not require a new submission flow. Mark unrelated checks
+not applicable instead of adding features to satisfy the checklist.
+
+For a new or non-DEX app, first follow [Starting without a DEX](08-starting-without-dex.md) to create missing host services and UI primitives. Reuse rules below apply to what already exists or has just been established; they do not require a preexisting DEX.
+
 ## Existing App Components
 
 - First locate the existing `App`, swap/order-form component, and the components already used for token input, settings, submission, dialogs, progress, and history.
 - Extend that component tree in place. Reuse the app's component APIs, styling variants, responsive behavior, accessibility patterns, and translation/error surfaces.
-- Do not create a new UI component file, parallel Spot application/page, replacement order form, wrapper component, or Spot-only design-system primitive. If code must be extracted, keep it non-visual: typed adapters, pure mappings, selectors, or service/state modules.
+- Reuse existing component extension points. Add a small local control or component only when the requested behavior needs one and the host has no suitable primitive. Keep the host's styling and state ownership; avoid a parallel Spot application or replacement order form.
 - Preserve the app's existing router, provider, wallet, modal, and error-boundary ownership. Insert Spot behavior at the established extension points rather than wrapping the application in another UI root.
 - Do not funnel the entire Spot model through the root `App` as one large prop object. Connect each existing component to the smallest state slice it needs using the application's established pattern.
 
@@ -53,7 +60,7 @@ Classify state before wiring it:
 ## Final Checklist
 
 - [ ] `@orbs-network/spot-ui` is installed and every import comes from its package root.
-- [ ] Spot is wired into the existing `App`/order-form component tree; no new UI component, page, form, wrapper, or design-system primitive was created.
+- [ ] Spot is wired into the existing app's extension points; any new local component is needed for the requested behavior and follows host conventions.
 - [ ] All controls, dialogs, progress views, history rows, loading states, errors, styling, and accessibility behavior reuse existing app components.
 - [ ] The existing app state solution is reused; no second global store was added.
 - [ ] Editable/external source state is stored once, and `CalculatedOrderForm` remains a memoized/computed derivation rather than mirrored state.
@@ -80,6 +87,6 @@ Classify state before wiring it:
 - [ ] The signing adapter returns the original `0x` signature unchanged.
 - [ ] Concurrent submission and cancellation prompts are prevented.
 - [ ] Ambiguous submission failures are reconciled before another order is prepared.
-- [ ] History is fetched through the configured client and keyed by `order.historyKey`.
-- [ ] Cancellation uses `client.getCancelOrderRequest(order)` and refreshes normalized history after confirmation.
-- [ ] Raw history and transaction values are never rendered without the correct token-decimal formatting.
+- [ ] If requested, history is fetched through the configured client and keyed by `order.historyKey`.
+- [ ] If requested, cancellation uses `client.getCancelOrderRequest(order)` and refreshes normalized history after confirmation.
+- [ ] Any displayed history and transaction values use the correct token-decimal formatting.

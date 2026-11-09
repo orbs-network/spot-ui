@@ -1,6 +1,7 @@
 import { Module, type Address, type RePermitData, type RePermitOrder } from "./types";
 import BN from "bignumber.js";
 import { SpotError } from "./errors";
+import { getOrderEpochSeconds } from "./order-timing";
 
 const MILLISECONDS_PER_SECOND = 1000;
 /** Signed oracle-data freshness, independent of the host's quote age policy. */
@@ -50,10 +51,7 @@ export const buildRePermitOrderData = ({
   if (!Number.isSafeInteger(slippageBps) || slippageBps < 0) {
     throw new SpotError("INVALID_ARGUMENT", "slippageBps must be a non-negative safe integer");
   }
-  const epoch =
-    !totalTrades || totalTrades === 1
-      ? 0
-      : roundToSeconds(fillDelayMillis);
+  const epoch = getOrderEpochSeconds(fillDelayMillis, totalTrades);
   // Starts and swap deadlines floor; advanced deadlines retain nearest-second rounding.
   const deadline = (module === Module.SWAP
     ? floorToSeconds(deadlineMillis)

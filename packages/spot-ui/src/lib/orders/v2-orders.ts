@@ -16,6 +16,7 @@ import {
 import BN from "bignumber.js";
 import { SpotError } from "../errors";
 import { SWAP_ORDER_DURATION_MILLIS } from "../order-form/constants";
+import { getFilledAmounts, getFilledOrderTimestamp } from "./order-fills";
 
 const getOrderType = (order: OrderV2): OrderType => {
   const isLimit = BN(order.order.witness.output.limit || 0).gt(1);
@@ -129,20 +130,6 @@ const getFills = (order: OrderV2): OrderFill[] => {
     .sort((a, b) => a.timestamp - b.timestamp);
 };
 
-const getFilledOrderTimestamp = (
-  fills: OrderFill[],
-  totalTradesAmount: number,
-) => {
-  const totalFilled = fills.length;
-  if (totalFilled >= totalTradesAmount) {
-    return fills.reduce(
-      (latestTimestamp, fill) => Math.max(latestTimestamp, fill.timestamp),
-      0,
-    );
-  }
-  return 0;
-};
-
 const getOrderDollarValueIn = (order: OrderV2) => {
   const amount = BN(order.metadata.displayOnlyInputTokenPriceUSD || 0);
   return amount.isFinite() ? amount.dividedBy(1e18).toFixed() : "0";
@@ -182,6 +169,7 @@ export const buildV2Order = (order: OrderV2): Order => {
   const dstMinAmountPerTrade = getDstMinAmountPerTrade(order, type);
   const totalTradesAmount = order.metadata.expectedChunks || 1;
   const fills = getFills(order);
+  const filledAmounts = getFilledAmounts(fills);
   return {
     id: order.hash,
     hash: order.hash,
@@ -190,14 +178,8 @@ export const buildV2Order = (order: OrderV2): Order => {
     type,
     maker: order.order.witness.swapper,
     progress,
-    srcAmountFilled:
-      fills
-        .reduce((acc, fill) => acc.plus(fill.inAmount), new BN(0))
-        .toFixed() || "",
-    dstAmountFilled:
-      fills
-        .reduce((acc, fill) => acc.plus(fill.outAmount), new BN(0))
-        .toFixed() || "",
+    srcAmountFilled: filledAmounts.input || "",
+    dstAmountFilled: filledAmounts.output || "",
     fills,
     srcTokenAddress: order.order.witness.input.token,
     dstTokenAddress: order.order.witness.output.token,
@@ -253,6 +235,24 @@ const parseOrdersPayload = (
   };
 };
 
+const readOrdersPayload = async (
+  response: Response,
+  signal?: AbortSignal,
+): Promise<OrdersApiPayload> => {
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
+    throw new SpotError("INVALID_RESPONSE", "Invalid order history response: unable to decode JSON", {
+      cause: error,
+      status: response.status,
+    });
+  }
+  signal?.throwIfAborted();
+  return parseOrdersPayload(payload);
+};
+
 /** Fetches one v2 order by its full hash, without loading account history. */
 export const getOrder = async ({ orderId, chainId, signal, apiUrl }: {
   orderId: string;
@@ -273,15 +273,7 @@ export const getOrder = async ({ orderId, chainId, signal, apiUrl }: {
     throw new SpotError("ORDER_LOOKUP_FAILED", error instanceof Error ? error.message : "Failed to fetch order", { cause: error });
   }
   if (!response.ok) throw new SpotError("ORDER_LOOKUP_FAILED", `Failed to fetch order: ${response.status}`, { status: response.status });
-  let payload: unknown;
-  try {
-    payload = await response.json();
-  } catch (error) {
-    if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
-    throw new SpotError("INVALID_RESPONSE", "Invalid order history response: unable to decode JSON", { cause: error, status: response.status });
-  }
-  signal?.throwIfAborted();
-  const { orders } = parseOrdersPayload(payload);
+  const { orders } = await readOrdersPayload(response, signal);
   // The service's hash filter accepts substrings. Require an exact identity
   // match before a response can complete the submitted swap.
   for (const raw of orders) {
@@ -340,15 +332,7 @@ const fetchOrdersForTarget = async ({
     );
   }
 
-  let data: unknown;
-  try {
-    data = await response.json();
-  } catch (error) {
-    if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
-    throw new SpotError("INVALID_RESPONSE", "Invalid order history response: unable to decode JSON", { cause: error, status: response.status });
-  }
-  signal?.throwIfAborted();
-  const payload = parseOrdersPayload(data);
+  const payload = await readOrdersPayload(response, signal);
   let invalidOrders = 0;
   const orders = payload.orders.flatMap((rawOrder) => {
     try {

@@ -66,7 +66,7 @@ const history = useOrders();
 | `usePriceDisplay()` | `onInvert`, `isInverted`, actual/display tokens, `isMarketOrder` |
 | `useDisclaimer()` | Disclaimer string key or `undefined` |
 | `useInputErrors()` | `{ type, args }` or `undefined` |
-| `useSubmitButton()` | `disabled` and `loading` |
+| `useSubmitButton()` | `disabled`, `loading`, and `disabledReason` when disabled |
 | `execution` | `submitOrder`, `phase`, `status`, `returnToOrderForm`, `startNewOrder`, `error`, `isPreparingOrder`, `isExecuting`, `isSuccess`, `isFailed`, `isRejected`, `canDismiss`, `currentStep`, `currentStepIndex`, `totalSteps`, `executionSteps`, `inputToken`, `outputToken`, `wrapTxHash`, `approvalTxHash` |
 | `history` | Provider-scoped state with `data: { all, open, completed, cancelled, expired }` |
 
@@ -391,12 +391,13 @@ Render the form normally even without `chainId` or `account`. Only the submit ar
 function SubmitOrderSection({ supportedChains }: { supportedChains: number[] }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { disabled, loading } = useSubmitButton();
-  const { status, isSuccess, isExecuting, returnToOrderForm, startNewOrder } =
+  const { status, isSuccess, canDismiss, isUnconfirmed, returnToOrderForm, startNewOrder } =
     useExecution();
 
   const onClose = useCallback(() => {
-    if (isExecuting) return;
+    if (!canDismiss) return;
     setIsModalOpen(false);
+    if (isUnconfirmed) return;
     if (isSuccess) {
       setInputAmount("");
       setTimeout(() => {
@@ -407,22 +408,24 @@ function SubmitOrderSection({ supportedChains }: { supportedChains: number[] }) 
         returnToOrderForm();
       }, 500);
     }
-  }, [isExecuting, isSuccess, returnToOrderForm, setInputAmount, startNewOrder, status]);
-
-  if (!address) return <ConnectWalletButton />;
-  if (!chainId || !supportedChains.includes(chainId)) {
-    return <SwitchNetworkButton targetChainId={supportedChains[0]} />;
-  }
+  }, [canDismiss, isSuccess, isUnconfirmed, returnToOrderForm, setInputAmount, startNewOrder, status]);
 
   return (
     <>
-      <Button
-        onClick={() => setIsModalOpen(true)}
-        disabled={disabled}
-        isLoading={loading}
-      >
-        {loading ? t("fetchingQuote") : t("placeOrder")}
-      </Button>
+      {!isUnconfirmed && !address ? (
+        <ConnectWalletButton />
+      ) : !isUnconfirmed && (!chainId || !supportedChains.includes(chainId)) ? (
+        <SwitchNetworkButton targetChainId={supportedChains[0]} />
+      ) : (
+        <Button
+          onClick={() => setIsModalOpen(true)}
+          disabled={disabled && !isUnconfirmed}
+          isLoading={loading && !isUnconfirmed}
+        >
+          {isUnconfirmed ? "Check order status" : loading ? t("fetchingQuote") : t("placeOrder")}
+        </Button>
+      )}
+      {/* Keep progress mounted while a captured attempt is reconciled. */}
       <SubmitOrderModal isOpen={isModalOpen} onClose={onClose} />
     </>
   );
@@ -438,9 +441,22 @@ submission; configuration failures stop loading and retain disabled submission.
 After retries, `SpotProvider` renders `clientErrorFallback` with `error`, `retry`,
 and `isRetrying`; provide a localized DEX-native component.
 
+When the installed API exposes `useSubmitButton().disabledReason`, use it to
+diagnose the existing gate instead of rebuilding readiness rules. Client reasons
+lead to `useClient()` and its retry action; quote/balance/token reasons lead to
+the corresponding discovered host source. `unconfirmed-order` requires status
+reconciliation, while `validation-error` leads to `useInputErrors()`.
+`missing-swap-quote` means the swap adapter must pass the original SDK quote as
+`marketQuote.quote`; flat output/minimum amounts alone cannot support exact refresh.
+Form
+prerequisite details are in `useOrderForm().notReadyReason` when supported.
+Map codes to the host's UI copy and tell the person the required action in plain
+language. Older versions without these fields require inspection of the public
+form and client state, not invented imports or properties.
+
 ## Submit Modal
 
-Build your submit order UI using `useExecution()` for execution state and `useOrderForm()` for order review details. Use `@orbs-network/swap-ui` for the order creation/progress flow UI inside the modal. The host DEX can still provide the modal shell, backdrop, close button, and surrounding layout, but the execution state content should be driven by `SwapFlow`.
+Build your submit order UI using `useExecution()` for execution state and `useOrderForm()` for review details. Reuse the host's progress UI or adopt compatible `@orbs-network/swap-ui` components inside its modal shell. `SwapFlow` below is one optional implementation; a new app can also build a small progress view from the same public execution state.
 
 For `Module.SWAP`, also follow [Swap and Migration](07-swap-and-migration.md): hide limit price and expiration, show minimum received, and keep loading through settlement. `onOrderCreated` is acceptance; use execution success or `onOrderFilled` for swap completion. Settlement errors are exposed in execution state, not `onSubmitOrderFailed`.
 
@@ -480,9 +496,8 @@ This mirrors the reference submit panel: review details are shown only before su
 
 ### swap-ui flow
 
-Verify current public exports before implementation. `@orbs-network/swap-ui`
-exposes `SwapFlow` and `SwapStatus`; use them rather than building a custom
-progress modal from scratch. `spot-react` exposes its own deliberately named
+When adopting this optional flow, verify the installed public `SwapFlow` and
+`SwapStatus` exports before using the example. `spot-react` exposes its own named
 `ExecutionStatus`; map the two enums explicitly because the packages are
 versioned independently.
 
@@ -559,18 +574,20 @@ Style the `SwapFlow` wrapper with the DEX theme. Do not copy the reference scree
 - `submitOrder` — trigger the order creation flow
 - `status` — `ExecutionStatus` (`LOADING`, `SUCCESS`, `FAILED`) or undefined
 - `isExecuting` — true through preparation, wallet steps, submission, and swap settlement; use it to pause quotes and block close/reset
+- `isUnconfirmed`, `resumeTracking` — retain an uncertain attempt and check its status before another submission
+- `canDismiss` — whether the view may close; closing an unconfirmed view must preserve its input and execution snapshot
 - `isSuccess`, `isFailed` — terminal flags; swap success requires a fill, while other modules succeed at acceptance
 - `currentStep` — current step: WRAP, APPROVE, CREATE
 - `currentStepIndex` / `totalSteps` — progress tracking
 - `executionSteps` — ordered steps required for this execution
 - `error` — parsed `{ code, message }` failure for display
-- `returnToOrderForm()` — dismisses a failed/rejected execution while preserving the form and completed wrap metadata for retry; returns `false` during an active execution
-- `startNewOrder()` — resets Spot's form and retry state after a terminal execution; returns `false` during an active execution
+- `returnToOrderForm()` — dismisses a definitive failed/rejected execution while preserving the form and completed wrap metadata for retry; active and unconfirmed executions reject the reset
+- `startNewOrder()` — resets Spot's form and retry state after a confirmed terminal execution; active and unconfirmed executions reject the reset
 
 Use `phase` when the DEX needs precise progress. It transitions through `idle`,
 `preparing`, `wrapping`, `approving`, `signing`, `submitting`, swap-only `settling`, and `success`,
-with terminal `failed` and `rejected` branches. Map the coarser `status` to
-`swap-ui` as shown above. Keep the modal open while `isExecuting` is true; the
+with definitive `failed`/`rejected` and retained `unconfirmed` branches. Map the coarser `status` to
+the chosen progress UI. Keep the modal open while `isExecuting` is true; the
 SDK also rejects reset actions during those phases.
 - `isPreparingOrder` — whether client initialization or allowance preparation is pending
 - `inputToken`, `outputToken` — resolved tokens (after wrap if needed)
@@ -585,7 +602,7 @@ SDK also rejects reset actions during those phases.
   are available on `PreparedOrder.values`.
 - Fees: `fees.raw`, `fees.ui`, `fees.usd`, and `fees.percentage`
 - Type: `values.orderType`, `values.isMarketOrder`, and `values.isTriggerPrice`
-- Validation: `errors`, `isReady`, and `canSubmit`
+- Validation: `errors`, `isReady`, `notReadyReason`, and `canSubmit`
 
 Use `useClient()` only when review UI also needs configuration such as
 `spenderAddress` or `rePermitData`.
@@ -593,13 +610,19 @@ Use `useClient()` only when review UI also needs configuration such as
 ```tsx
 function SubmitOrderModal({ isOpen, onClose }) {
   const [accepted, setAccepted] = useState(true);
-  const { submitOrder, status, isExecuting, isSuccess, isFailed, error, isPreparingOrder, inputToken, outputToken, currentStep, currentStepIndex, totalSteps } =
+  const { submitOrder, status, error, isPreparingOrder, isUnconfirmed, resumeTracking } =
     useExecution();
+  const { disabled } = useSubmitButton();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
-        {error ? (
+        {isUnconfirmed ? (
+          <div role="status">
+            <p>Check the previous order before starting another.</p>
+            <Button onClick={resumeTracking}>Check order status</Button>
+          </div>
+        ) : error ? (
           <ErrorDisplay error={error} onClose={onClose} />
         ) : (
           <>
@@ -610,7 +633,7 @@ function SubmitOrderModal({ isOpen, onClose }) {
                 <DisclaimerAccept accepted={accepted} onAcceptedChange={setAccepted} />
                 <Button
                   onClick={submitOrder}
-                  disabled={!accepted || Boolean(isPreparingOrder)}
+                  disabled={!accepted || disabled || Boolean(isPreparingOrder)}
                   isLoading={isPreparingOrder}
                 >
                   Create Order

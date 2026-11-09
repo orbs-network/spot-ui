@@ -1,5 +1,12 @@
 # Form Calculation
 
+Inspect the installed form types before using diagnostics. Releases exposing
+`form.notReadyReason` identify missing input, a current quote, USD value, or a
+valid swap minimum. When `isReady` is true but `canSubmit` is false, inspect
+`errors.primary`/`errors.all` instead. Explain the relevant action in the host's
+UI; do not ask a non-developer to identify raw amounts or SDK prerequisites that
+can be discovered from the project.
+
 `calculateOrder` is synchronous, time-independent, and the only public order-calculation entry point. Keep the user's editable state under `userInput`; pass token, quote, balance, and product configuration at the top level.
 
 Create one memoized/computed form derivation in the application's existing state layer. Its dependency key should contain only the primitive values represented by `CalculateOrderFormParams`; do not recalculate because an unrelated app/store field changed. Existing components should select only the calculated fields they render rather than subscribing to the entire store.

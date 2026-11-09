@@ -1,19 +1,12 @@
-import type { SpotAnalytics } from "./analytics";
+import { bindSubmittedOrderAnalytics, type SpotAnalytics } from "./analytics";
 import { getApiEndpoint } from "./api-config";
 import { buildV2Order } from "./orders/v2-orders";
 import type { Order, OrderV2, RePermitOrder } from "./types";
 import { SpotError } from "./errors";
 import type { SubmitOrderOptions } from "./client";
+import { observe } from "./observe";
 
 const SUBMISSION_TIMEOUT_MILLIS = 30_000;
-
-const observe = (callback: () => unknown): void => {
-  try {
-    void Promise.resolve(callback()).catch(() => undefined);
-  } catch {
-    // Analytics must never affect order submission.
-  }
-};
 
 export const submitOrder = async (
   order: RePermitOrder,
@@ -23,7 +16,12 @@ export const submitOrder = async (
   apiUrl = getApiEndpoint(),
 ): Promise<Order> => {
   // A preflight abort establishes that this call never sent the signed order.
-  options.signal?.throwIfAborted();
+  try {
+    options.signal?.throwIfAborted();
+  } catch (error) {
+    observe(() => analytics.onCreateOrderError(error));
+    throw error;
+  }
   const controller = new AbortController();
   const onAbort = () => controller.abort(new SpotError("SUBMISSION_FAILED",
     "Submission tracking stopped. Check order status before submitting another order.",
@@ -100,6 +98,7 @@ export const submitOrder = async (
     } catch (cause) {
       throw new SpotError("INVALID_RESPONSE", "Invalid API response: invalid signedOrder", { cause, status: response.status });
     }
+    bindSubmittedOrderAnalytics(newOrder, analytics);
     observe(() => analytics.onCreateOrderSuccess(newOrder.id));
     return newOrder;
   };

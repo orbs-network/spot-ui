@@ -15,6 +15,7 @@ import type {
   CalculatedOrderPrices,
   CalculatedOrderSchedule,
   CalculatedOrderTradePlan,
+  OrderFormNotReadyReason,
 } from "./types";
 
 const hasInputUsdValue = (
@@ -159,6 +160,49 @@ const calculateMinTradeSizeError = (
   };
 };
 
+const calculateBalanceError = (
+  inputAmountRaw: string,
+  inputBalanceRaw?: string,
+): InputError | undefined => {
+  if (!inputBalanceRaw || !BN(inputAmountRaw).gt(inputBalanceRaw)) return undefined;
+  return { type: InputErrors.INSUFFICIENT_BALANCE, value: inputBalanceRaw };
+};
+
+const hasValidSwapQuote = (params: CalculateOrderFormParams): boolean => {
+  if (params.module !== Module.SWAP) return true;
+  const minimum = params.minimumOutputAmountRaw || "";
+  const output = params.quotedOutputAmountRaw || "";
+  return /^\d+$/.test(minimum) && /^\d+$/.test(output) &&
+    BN(minimum || 0).gt(0) && BN(minimum || 0).lte(output || 0);
+};
+
+interface FormReadiness {
+  hasRequiredInputs: boolean;
+  isReady: boolean;
+  notReadyReason?: OrderFormNotReadyReason;
+}
+
+const calculateFormReadiness = (
+  params: CalculateOrderFormParams,
+  inputAmount: CalculatedOrderInputAmount,
+  marketPrice: string,
+): FormReadiness => {
+  const hasInputAmount = BN(inputAmount.raw || 0).gt(0);
+  const hasMarketQuote = BN(marketPrice || 0).gt(0);
+  const hasUsdValue = hasInputUsdValue(params, inputAmount);
+  const hasRequiredInputs = hasInputAmount && hasMarketQuote && hasUsdValue;
+  const validSwapQuote = hasValidSwapQuote(params);
+
+  // Report the first missing prerequisite, before errors in editable form fields.
+  let notReadyReason: OrderFormNotReadyReason | undefined;
+  if (!hasInputAmount) notReadyReason = "empty-input";
+  else if (!hasMarketQuote) notReadyReason = "awaiting-quote";
+  else if (!hasUsdValue) notReadyReason = "missing-usd-value";
+  else if (!validSwapQuote) notReadyReason = "invalid-swap-minimum";
+
+  return { hasRequiredInputs, isReady: hasRequiredInputs && validSwapQuote, notReadyReason };
+};
+
 export const validateOrderForm = (
   params: CalculateOrderFormParams,
   inputAmount: CalculatedOrderInputAmount,
@@ -171,25 +215,10 @@ export const validateOrderForm = (
     inputAmount,
     params.minTradeSizeUsd,
   );
-  const balanceError: InputError | undefined =
-    params.inputBalanceRaw && BN(inputAmount.raw).gt(params.inputBalanceRaw)
-      ? {
-          type: InputErrors.INSUFFICIENT_BALANCE,
-          value: params.inputBalanceRaw,
-        }
-      : undefined;
-  const hasRequiredInputs =
-    BN(marketPrice || 0).gt(0) &&
-    BN(inputAmount.raw || 0).gt(0) &&
-    hasInputUsdValue(params, inputAmount);
-  const validSwapQuote = params.module !== Module.SWAP || Boolean(
-    /^\d+$/.test(params.minimumOutputAmountRaw || "") &&
-    /^\d+$/.test(params.quotedOutputAmountRaw || "") &&
-    BN(params.minimumOutputAmountRaw || 0).gt(0) &&
-    BN(params.minimumOutputAmountRaw || 0).lte(params.quotedOutputAmountRaw || 0)
-  );
+  const balanceError = calculateBalanceError(inputAmount.raw, params.inputBalanceRaw);
+  const readiness = calculateFormReadiness(params, inputAmount, marketPrice);
   const swapMinimumError: InputError | undefined =
-    hasRequiredInputs && !validSwapQuote
+    readiness.hasRequiredInputs && !readiness.isReady
       ? {
           type: InputErrors.INVALID_SWAP_MINIMUM,
           value: params.minimumOutputAmountRaw ?? "",
@@ -205,8 +234,7 @@ export const validateOrderForm = (
     schedule.durationError,
     balanceError,
   ].filter((error): error is InputError => Boolean(error));
-  const isReady = hasRequiredInputs && validSwapQuote;
-  const primaryError = hasRequiredInputs ? orderedErrors[0] : undefined;
+  const primaryError = readiness.hasRequiredInputs ? orderedErrors[0] : undefined;
 
   return {
     errors: {
@@ -221,7 +249,8 @@ export const validateOrderForm = (
       duration: schedule.durationError,
       balance: balanceError,
     },
-    isReady,
-    canSubmit: isReady && !primaryError,
+    isReady: readiness.isReady,
+    notReadyReason: readiness.notReadyReason,
+    canSubmit: readiness.isReady && !primaryError,
   };
 };

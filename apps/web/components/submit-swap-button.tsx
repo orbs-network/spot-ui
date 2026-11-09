@@ -58,7 +58,8 @@ export const SubmitSwapButton = ({
   }, [quoteError, enterAmount, forceAction, insufficientBalance, text, isLoadingTrade, insufficientLiquidity]);
 
 
-  if (!address) {
+  // Execution and recovery use a captured attempt, independent of live quote/wallet UI.
+  if (!address && !forceAction) {
     return (
       <Button
         onClick={() => {
@@ -72,7 +73,7 @@ export const SubmitSwapButton = ({
 
 
   return (
-    <Button onClick={onClick} isLoading={isLoading && !quoteError && !insufficientLiquidity} disabled={_disabled}>
+    <Button onClick={onClick} isLoading={isLoading && (forceAction || (!quoteError && !insufficientLiquidity))} disabled={_disabled}>
       {_text}
     </Button>
   );

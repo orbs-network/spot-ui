@@ -2,6 +2,14 @@ import { getOrder } from "./orders/v2-orders";
 import { OrderStatus, type Order } from "./types";
 import { SpotError } from "./errors";
 import { getApiEndpoint } from "./api-config";
+import {
+  bindSubmittedOrderAnalytics,
+  createAnalytics,
+  getSubmittedOrderAnalytics,
+  resolveAnalyticsReporter,
+  type SpotAnalytics,
+} from "./analytics";
+import { observe } from "./observe";
 
 const INITIAL_POLL_DELAY_MILLIS = 2_000;
 const MAX_POLL_DELAY_MILLIS = 30_000;
@@ -25,6 +33,8 @@ export interface WaitForOrderParams {
   signal?: AbortSignal;
   /** Use the submitting client's apiUrl when it uses a custom order service. */
   apiUrl?: string;
+  /** Swap settlement reporter; submitted and client-fetched orders retain theirs automatically. */
+  analytics?: SpotAnalytics;
 }
 
 /** Bounds even a lookup whose transport ignores cancellation. */
@@ -58,6 +68,7 @@ function isSettled(order: Order): boolean {
  * snapshot resets the interval to two seconds.
  * Tracking ends one minute after the order's millisecond deadline if completion
  * cannot be confirmed. Breaking out of the loop releases timers and requests.
+ * Settlement analytics are emitted only for swaps; other order types can still be tracked.
  *
  * @param params - Submitted order and optional tracking cancellation signal.
  * @returns An async stream of matching order snapshots, including the terminal snapshot.
@@ -69,13 +80,35 @@ function isSettled(order: Order): boolean {
  *   updateOrderHistory(current);
  * }
  */
-export async function* watchOrder({ order, signal, apiUrl }: WaitForOrderParams): AsyncGenerator<Order, void, unknown> {
+export async function* watchOrder({ order, signal, apiUrl, analytics }: WaitForOrderParams): AsyncGenerator<Order, void, unknown> {
+  const context = {
+    account: order?.maker,
+    chainId: order?.chainId,
+    orderId: order?.id,
+    inputTokenAddress: order?.srcTokenAddress,
+    outputTokenAddress: order?.dstTokenAddress,
+    inputAmountRaw: order?.srcAmount,
+  };
+  const inherited = getSubmittedOrderAnalytics(order);
+  const reporter = inherited
+    ? resolveAnalyticsReporter(inherited, analytics ?? inherited, context)
+    : analytics ?? createAnalytics(context);
   const orderId = order?.id;
-  if (!orderId) throw new SpotError("INVALID_ARGUMENT", "An order with a full ID is required");
+  let endpoint: string;
+  try {
+    if (!orderId) throw new SpotError("INVALID_ARGUMENT", "An order with a full ID is required");
+    if (!Number.isSafeInteger(order.chainId) || order.chainId <= 0) throw new SpotError("INVALID_ARGUMENT", "The order must have a valid chain ID");
+    if (!Number.isFinite(order.deadline)) throw new SpotError("INVALID_ARGUMENT", "The order must have a finite deadline");
+    endpoint = getApiEndpoint(apiUrl);
+  } catch (error) {
+    observe(() => reporter.onSettlementError(error, order));
+    throw error;
+  }
   const { chainId, deadline, historyKey } = order;
-  if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new SpotError("INVALID_ARGUMENT", "The order must have a valid chain ID");
-  if (!Number.isFinite(deadline)) throw new SpotError("INVALID_ARGUMENT", "The order must have a finite deadline");
-  const endpoint = getApiEndpoint(apiUrl);
+  const reportSnapshot = (current: Order) => {
+    bindSubmittedOrderAnalytics(current, reporter);
+    observe(() => reporter.onSettlementUpdate(current));
+  };
 
   const controller = new AbortController();
   let poll: ReturnType<typeof setTimeout> | undefined;
@@ -99,6 +132,7 @@ export async function* watchOrder({ order, signal, apiUrl }: WaitForOrderParams)
 
   try {
     controller.signal.throwIfAborted();
+    reportSnapshot(order);
     if (order.status !== OrderStatus.Open) {
       yield order;
       controller.signal.throwIfAborted();
@@ -119,6 +153,8 @@ export async function* watchOrder({ order, signal, apiUrl }: WaitForOrderParams)
       const matchesOrder = current && current.id.toLowerCase() === orderId.toLowerCase() && current.historyKey === historyKey;
       if (current && matchesOrder) {
         pollDelayMillis = INITIAL_POLL_DELAY_MILLIS;
+        // Record before yielding so a consumer stopping at a terminal snapshot still reports it.
+        reportSnapshot(current);
         yield current;
         controller.signal.throwIfAborted();
         if (isSettled(current)) return;
@@ -129,6 +165,9 @@ export async function* watchOrder({ order, signal, apiUrl }: WaitForOrderParams)
       }
       await abortable(new Promise<void>(resolve => { poll = setTimeout(resolve, delayMillis); }), controller.signal);
     }
+  } catch (error) {
+    observe(() => reporter.onSettlementError(error, order));
+    throw error;
   } finally {
     clearTimeout(poll);
     clearTimeout(timeout);

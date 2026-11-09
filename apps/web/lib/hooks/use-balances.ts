@@ -4,9 +4,31 @@ import { useConnection } from "wagmi";
 import axios from "axios";
 import { useMemo } from "react";
 import { useFormatNumber, useToAmountUI } from "./common";
-import { Currency } from "../types";
+import type { Balances, Currency } from "../types";
 import { useCurrenciesQuery } from "./use-currencies-query";
 import { useDerivedSwap } from "./use-derived-swap";
+
+const fetchBalances = async (
+  chainId: number,
+  address: string | undefined,
+  tokens: string[],
+): Promise<Balances> => {
+  const response = await axios.post<Balances>("/api/balances", {
+    chainId,
+    address,
+    tokens,
+  });
+  return response.data;
+};
+
+const uniqueTokenAddresses = (addresses: (string | undefined)[]): string[] =>
+  Array.from(
+    new Map(
+      addresses
+        .filter((address): address is string => Boolean(address))
+        .map((address) => [address.toLowerCase(), address]),
+    ).values(),
+  );
 
 const useQueryKey = () => {
   const chainId = useActiveChainId();
@@ -31,16 +53,9 @@ export const useBalances = () => {
     [currencies]
   );
   const queryKey = useQueryKey();
-  return useQuery<Record<string, string>>({
+  return useQuery<Balances>({
     queryKey,
-    queryFn: async () => {
-      const response = await axios.post("/api/balances", {
-        chainId,
-        address,
-        tokens: addresses,
-      });
-      return response.data;
-    },
+    queryFn: () => fetchBalances(chainId, address, addresses),
     enabled: !!chainId && !!address && addresses.length > 0,
     refetchInterval: 60_000,
     staleTime: 60_000,
@@ -56,24 +71,14 @@ export const useRefetchSelectedCurrenciesBalances = () => {
   const queryKey = useQueryKey();
   return useMutation({
     mutationFn: async (additionalAddresses: string[]) => {
-      const addresses = Array.from(
-        new Map(
-          [
-            inputCurrency?.address,
-            outputCurrency?.address,
-            ...additionalAddresses,
-          ]
-            .filter((address): address is string => Boolean(address))
-            .map((address) => [address.toLowerCase(), address]),
-        ).values(),
-      );
-      const response = await axios.post("/api/balances", {
-        chainId,
-        address,
-        tokens: addresses,
-      });
-      const newBalances = response.data;
-      queryClient.setQueryData<Record<string, string>>(
+      const addresses = uniqueTokenAddresses([
+        inputCurrency?.address,
+        outputCurrency?.address,
+        ...additionalAddresses,
+      ]);
+      const newBalances = await fetchBalances(chainId, address, addresses);
+      // Refresh selected assets without discarding cached balances for the token list.
+      queryClient.setQueryData<Balances>(
         queryKey,
         (prevBalances) => {
           if (!prevBalances) return newBalances;
@@ -93,7 +98,7 @@ export const useBalance = (currency?: Currency) => {
   const ui = useToAmountUI(currency?.decimals, balance);
 
   return {
-    ui: useToAmountUI(currency?.decimals, balance),
+    ui,
     wei: balance,
     formatted: useFormatNumber({ value: ui }),
     isLoading,

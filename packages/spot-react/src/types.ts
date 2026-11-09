@@ -10,6 +10,8 @@ import {
   type CancelOrderRequest,
   type OrderWalletInteractions,
   type PreparedOrder,
+  type SpotAnalytics,
+  type SwapQuote,
   type Token,
 } from "@orbs-network/spot-ui";
 import type { ComponentType, ReactNode } from "react";
@@ -128,6 +130,8 @@ export type Callbacks = {
 
 
 export type MarketQuote = {
+  /** Original SDK quote, required for swaps. Supplies amounts/USD values and the exact refresh request. */
+  quote?: SwapQuote;
   quotedOutputAmountRaw?: string;
   /** Current quote.minimumAmountOut unchanged, required for Module.SWAP; output-token base units. */
   minimumOutputAmountRaw?: string;
@@ -158,6 +162,8 @@ export interface SpotProps {
   chainId?: number;
   account?: Address;
   partner: Partners;
+  /** Disable telemetry for this provider, including active operations. Defaults to false. */
+  disableAnalytics?: boolean;
   inputToken?: Token;
   outputToken?: Token;
   /** Host-owned chain metadata; may be undefined only before a chain is known. */
@@ -205,6 +211,8 @@ export type SwapExecution = {
   partner?: Partners;
   /** Captured order service for wallet-independent settlement and recovery. */
   apiUrl?: string;
+  /** Reporter captured for this attempt, retained for wallet-independent status recovery. */
+  analytics?: SpotAnalytics;
   parsedError?: ParsedError;
   error?: Error;
   stepIndex?: number;

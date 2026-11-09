@@ -14,8 +14,8 @@ import {
   createIdleExecution,
   isExecutionLocked,
 } from "../execution-state";
-import { REFETCH_ORDER_HISTORY } from "../consts";
-import { mergeOrderSnapshots, notifyOrderUpdates, structurallyShareOrders } from "../order-history-data";
+import { createClientResource, EMPTY_CLIENT_STATE } from "./spot-client-resource";
+import { createOrdersResource, EMPTY_ORDERS_STATE } from "./spot-orders-resource";
 
 export interface SpotFormDefaults {
   tradeCount?: number;
@@ -42,7 +42,7 @@ export interface OrdersResourceState {
   isFetching: boolean;
 }
 
-type ClientLoader = () => Promise<SpotClient>;
+export type ClientLoader = () => Promise<SpotClient>;
 
 export interface OrdersLoadResult {
   orders: Order[];
@@ -116,260 +116,22 @@ const createInitialState = (defaults: SpotFormDefaults): State => ({
   currentExecution: createIdleExecution(),
 });
 
-const EMPTY_CLIENT_STATE: ClientResourceState = { isFetching: false };
-const EMPTY_ORDERS_STATE: OrdersResourceState = { isFetching: false };
-
-const wait = (milliseconds: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
-
 export const createSpotStore = (
   initialState: SpotFormDefaults,
 ): StoreApi<SpotStore> => {
   let nextExecutionId = 0;
-  let clientKey: string | undefined;
-  let clientLoader: ClientLoader | undefined;
-  let clientRequestId = 0;
-  let clientPromise: Promise<SpotClient | undefined> | undefined;
-  let ordersKey: string | undefined;
-  let ordersLoader: OrdersLoader | undefined;
-  let ordersCallbacks: Callbacks | undefined;
-  const notifiedFilledOrders = new Set<string>();
-  let ordersLegacyLoaded = false;
-  let ordersConsumers = 0;
-  let ordersRequestId = 0;
-  let ordersPromise: Promise<Order[] | undefined> | undefined;
-  let ordersAbortController: AbortController | undefined;
-  let ordersInterval: ReturnType<typeof setInterval> | undefined;
   let executionController: AbortController | undefined;
 
   return createStore<SpotStore>((set, get) => {
-    const commitOrders = (orders: Order[], callbacks = ordersCallbacks, isFetching = get().orders.isFetching, trackedOrder?: Order): Order[] => {
-      const key = ordersKey;
-      const previousOrders = get().orders.data;
-      const sharedOrders = structurallyShareOrders(previousOrders, mergeOrderSnapshots(previousOrders, orders));
-      set((store) => ({ orders: { ...store.orders, data: sharedOrders, isFetching } }));
-      if (ordersKey === key) notifyOrderUpdates(previousOrders, sharedOrders, callbacks, notifiedFilledOrders, trackedOrder);
-      return sharedOrders;
-    };
-
-    const refetchClient = async (): Promise<SpotClient | undefined> => {
-      if (!clientKey || !clientLoader) return undefined;
-      if (clientPromise) return clientPromise;
-
-      const requestId = ++clientRequestId;
-      const load = clientLoader;
-      set((store) => ({
-        client: {
-          key: clientKey,
-          data: store.client.data,
-          error: store.client.error,
-          isFetching: true,
-        },
-      }));
-
-      const promise = (async () => {
-        let lastError: Error | undefined;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          if (requestId !== clientRequestId) return undefined;
-          try {
-            const client = await load();
-            if (requestId !== clientRequestId) return undefined;
-            set({
-              client: { key: clientKey, data: client, isFetching: false },
-            });
-            return client;
-          } catch (error) {
-            lastError =
-              error instanceof Error ? error : new Error(String(error));
-            if (requestId !== clientRequestId) return undefined;
-            if (attempt < 2) await wait(2 ** attempt * 1_000);
-          }
-        }
-
-        if (requestId === clientRequestId) {
-          set({
-            client: { key: clientKey, error: lastError, isFetching: false },
-          });
-        }
-        return undefined;
-      })();
-
-      clientPromise = promise;
-      void promise.finally(() => {
-        if (clientPromise === promise) clientPromise = undefined;
-      });
-      return promise;
-    };
-
-    const refetchOrders = async (
-      force = false,
-      refreshLegacy = false,
-    ): Promise<Order[] | undefined> => {
-      if ((!force && ordersConsumers === 0) || !ordersKey || !ordersLoader) {
-        return get().orders.data;
-      }
-      if (ordersPromise) {
-        if (!refreshLegacy) return ordersPromise;
-        const key = ordersKey;
-        await ordersPromise;
-        if (ordersKey !== key) return undefined;
-        return refetchOrders(force, refreshLegacy);
-      }
-
-      const requestId = ++ordersRequestId;
-      const load = ordersLoader;
-      const previousOrders = get().orders.data;
-      const abortController = new AbortController();
-      ordersAbortController = abortController;
-      set((store) => ({
-        orders: {
-          key: ordersKey,
-          data: store.orders.data,
-          error: undefined,
-          isFetching: true,
-        },
-      }));
-
-      const promise = load(
-        previousOrders,
-        refreshLegacy ? false : ordersLegacyLoaded,
-        abortController.signal,
-      )
-        .then(({ orders, legacyLoaded }) => {
-          if (requestId !== ordersRequestId) return undefined;
-          ordersLegacyLoaded = legacyLoaded;
-          return commitOrders(orders, ordersCallbacks, false);
-        })
-        .catch((error: unknown) => {
-          if (requestId !== ordersRequestId || abortController.signal.aborted) {
-            return undefined;
-          }
-          const normalizedError =
-            error instanceof Error ? error : new Error(String(error));
-          set((store) => ({
-            orders: {
-              key: ordersKey,
-              data: store.orders.data,
-              error: normalizedError,
-              isFetching: false,
-            },
-          }));
-          return undefined;
-        });
-
-      ordersPromise = promise;
-      void promise.finally(() => {
-        if (ordersPromise === promise) ordersPromise = undefined;
-        if (ordersAbortController === abortController) {
-          ordersAbortController = undefined;
-        }
-      });
-      return promise;
-    };
-
-    const refetchOrdersOnFocus = (): void => {
-      void refetchOrders();
-    };
-
-    const stopOrders = (): void => {
-      if (ordersInterval) {
-        clearInterval(ordersInterval);
-        ordersInterval = undefined;
-      }
-      if (typeof window !== "undefined") {
-        window.removeEventListener("focus", refetchOrdersOnFocus);
-      }
-      ordersAbortController?.abort();
-      ordersAbortController = undefined;
-      ordersPromise = undefined;
-      ordersRequestId++;
-      set((store) => ({
-        orders: { ...store.orders, isFetching: false },
-      }));
-    };
-
-    const startOrders = (): void => {
-      if (!ordersKey || !ordersLoader || ordersInterval) return;
-      void refetchOrders(true);
-      ordersInterval = setInterval(() => {
-        void refetchOrders();
-      }, REFETCH_ORDER_HISTORY);
-      if (typeof window !== "undefined") {
-        window.addEventListener("focus", refetchOrdersOnFocus);
-      }
-    };
+    const clientResource = createClientResource(set);
+    const ordersResource = createOrdersResource(set, get);
 
     return {
       client: EMPTY_CLIENT_STATE,
       orders: EMPTY_ORDERS_STATE,
       state: createInitialState(initialState),
-      configureClient: (key, loader) => {
-        if (clientKey === key) {
-          clientLoader = loader;
-          return;
-        }
-        clientKey = key;
-        clientLoader = loader;
-        clientRequestId++;
-        clientPromise = undefined;
-        set({
-          client: key ? { key, isFetching: false } : EMPTY_CLIENT_STATE,
-        });
-        if (key && loader) void refetchClient();
-      },
-      refetchClient,
-      configureOrders: (key, loader, callbacks) => {
-        ordersCallbacks = callbacks;
-        if (ordersKey === key) {
-          ordersLoader = loader;
-          return;
-        }
-        stopOrders();
-        ordersKey = key;
-        ordersLoader = loader;
-        ordersLegacyLoaded = false;
-        notifiedFilledOrders.clear();
-        set({
-          orders: key ? { key, isFetching: false } : EMPTY_ORDERS_STATE,
-        });
-        if (ordersConsumers > 0) startOrders();
-      },
-      registerOrdersConsumer: () => {
-        // Any number of useOrders callers share the same request and timer.
-        // Only the first mount starts polling and only the last cleanup stops it.
-        ordersConsumers++;
-        if (ordersConsumers === 1) startOrders();
-        return () => {
-          ordersConsumers = Math.max(0, ordersConsumers - 1);
-          if (ordersConsumers === 0) stopOrders();
-        };
-      },
-      refetchOrders,
-      addOrder: (order) => {
-        set((store) => {
-          const orders = store.orders.data;
-          if (
-            orders?.some(
-              (candidate) => candidate.historyKey === order.historyKey,
-            )
-          ) {
-            return store;
-          }
-          return {
-            orders: {
-              ...store.orders,
-              data: [order, ...(orders ?? [])],
-            },
-          };
-        });
-      },
-      updateOrder: (order, callbacks) => {
-        const previousOrders = get().orders.data ?? [];
-        const exists = previousOrders.some(candidate => candidate.historyKey === order.historyKey);
-        commitOrders(exists
-          ? previousOrders.map(candidate => candidate.historyKey === order.historyKey ? order : candidate)
-          : [order, ...previousOrders], ordersCallbacks ?? callbacks, get().orders.isFetching, order);
-      },
+      ...clientResource,
+      ...ordersResource,
       setCancelOrder: (historyKey, value) => {
         set((store) => ({
           state: {

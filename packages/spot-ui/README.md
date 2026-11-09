@@ -9,6 +9,17 @@ state, wallet-step orchestration, and settlement tracking. It includes this SDK
 as a dependency and re-exports its full public API, so those applications can
 install only `spot-react` and import SDK helpers and types from it.
 
+For AI-assisted integration, give your agent the requested features and access to
+the host project. The matching guide is included at
+`node_modules/@orbs-network/spot-ui/dist/integration-skill/SKILL.md`; its adjacent
+`manifest.json` records `sdkVersion`. The agent should inspect the existing app,
+choose a focused integration path, and ask only unresolved product questions.
+For a new or non-DEX app, the guide includes a starting path for wallet setup,
+token lists, balances, quote/USD data, and the missing trading UI.
+The [source guide](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-integration)
+is useful when working in this repository; installed exports and the bundled
+guide take precedence for an already installed SDK.
+
 | I'm building… | Use… |
 | --- | --- |
 | A React order form | `spot-react`: `SpotProvider` with `Module.SWAP` or an advanced module, then `useExecution()` |
@@ -30,7 +41,7 @@ modern browser or Node.js 18+. Import from the package root.
 | `client.getQuote(params)` | Quote using the client's partner and chain | Same quote request and result as `getQuote` |
 | `getQuote(params)` | Quote the full input amount for a swap | Fetches `/quote` directly from order-sink v2 |
 | `client.prepareSwap(quote, userAddress)` | Prepare a raw exact-input swap without UI, decimals, balances, or USD inputs | No wallet/network work |
-| `client.refreshAndPrepareSwap({ quote, account, signal? })` | Re-quote and check the protected minimum before preparing the reviewed swap | One quote request; no wallet work |
+| `client.refreshAndPrepareSwap({ quote, account, signal?, maxQuoteAgeMillis? })` | Reuse a recent quote or refresh/check its minimum, then prepare the reviewed swap | Zero or one quote request; no wallet work |
 | `submitSwap(params)` | Wrap/approve/verify/sign/submit through the host wallet | Returns a submitted intent, not a fill |
 | `executeOrder(params)` | Shared wallet orchestration for a prepared order factory | Resolves at acceptance; host owns UI state |
 | `waitForOrder(params)` | Track a submitted order until filled or a terminal/uncertain outcome | Serial, bounded polling with cancellation |
@@ -107,13 +118,31 @@ the service has already applied the requested slippage. Pass it unchanged and
 do not apply slippage a second time.
 `quote.request.user` records the quote request and may be a disconnected preview
 address; it does not bind the signing account.
-`refreshAndPrepareSwap` replays the original quote request, including its preview
+`refreshAndPrepareSwap` checks quote age internally. By default, a quote up to
+20,000 ms old skips the HTTP request; an older quote, a future timestamp, or an
+invalid timestamp triggers a refresh. Direct callers can set the finite,
+non-negative `maxQuoteAgeMillis` option; `0` always forces a refresh. Callers do
+not need a separate `isQuoteFresh` check.
+
+When refreshing, the helper replays the original request, including its preview
 `user`, `slippage`, and `dexMinAmountOut`, through the client's configured endpoint.
-It compares the fresh `minimumAmountOut` with the original reviewed
+It compares the refreshed `minimumAmountOut` with the original reviewed
 `quote.minimumAmountOut`. A lower minimum throws `SpotError` with code
 `QUOTE_MINIMUM_DECREASED` before signing; obtain a new quote and let the user review it.
 An equal or higher minimum prepares the original quote and preserves its exact
-reviewed minimum. The refresh does not mutate the quote or its request.
+reviewed minimum. Both paths prepare fresh signing timestamps and a new nonce;
+they do not mutate the quote or its request. Age is a local reuse heuristic,
+not a server expiry or execution guarantee; the signed minimum stays protected.
+
+```ts
+// Force a refresh even when the reviewed quote was just received.
+const prepared = await client.refreshAndPrepareSwap({
+  quote,
+  account,
+  signal,
+  maxQuoteAgeMillis: 0,
+});
+```
 
 The synchronous `client.prepareSwap(quote, userAddress)` remains available for
 pure local preparation; it performs no refresh or price check. `submitOrder`
@@ -155,11 +184,12 @@ checks that balance and wraps only a shortfall; progress updates expose the
 actual wrapped base-unit amount as `wrapAmountRaw`.
 The fixed 3-minute window starts at final preparation after wrapping and approval,
 immediately before signing.
-`submitSwap` uses `refreshAndPrepareSwap` at that point: a fresh `minimumAmountOut`
-below the reviewed minimum rejects with `QUOTE_MINIMUM_DECREASED`; an equal or higher minimum
-keeps the original quote and signed minimum. React's calculated-form executor
-separately checks fresh net output against its reviewed form minimum before
-preparation. The host's paused quote UI remains frozen during these controlled checks.
+`submitSwap` uses `refreshAndPrepareSwap` at that point with its default 20-second
+reuse window. If a refresh is needed, `minimumAmountOut` below the reviewed minimum
+rejects with `QUOTE_MINIMUM_DECREASED`; an equal or higher minimum keeps the
+original quote and signed minimum. React's calculated-form executor
+uses the same `refreshAndPrepareSwap` helper, attaching its reviewed form to the
+returned prepared swap. The host's paused quote UI remains frozen during this check.
 
 Progress updates include `phase`, `event`, `steps`, `stepIndex`, transaction hashes,
 and the prepared payload. Observers are best-effort; use `signal` and
@@ -203,8 +233,8 @@ execution account as signer and recipient.
 
 ### Migrating to quote-based preparation
 
-Use `await client.refreshAndPrepareSwap({ quote, account, signal })` to refresh
-and validate the protected minimum before local preparation.
+Use `await client.refreshAndPrepareSwap({ quote, account, signal })` to handle
+quote freshness and validate a refreshed minimum before local preparation.
 `client.prepareSwap(quote, userAddress)` remains synchronous and takes the quote
 and execution account positionally. `submitSwap` accepts `quote` and `userAddress`
 in its options object and performs the same refresh check internally.
@@ -219,9 +249,10 @@ refetching solely to change its quote-request user.
 ### Quote identity, errors, and comparison units
 
 Quotes include a frozen `request` identity and local `receivedAt` timestamp. Match
-all request inputs before using a cached quote; `isQuoteFresh(quote, maxAgeMillis)`
-is an optional local age policy, not a server expiry guarantee. The host owns
-quote age checks and any refresh/review policy. Wallet steps never silently
+all request inputs before using a cached quote. `isQuoteFresh(quote, maxAgeMillis)`
+remains available for host UI/cache policy and compatibility, but
+`refreshAndPrepareSwap` already uses it internally. It checks local age, not
+server expiry or execution availability. Wallet steps never silently
 replace the reviewed minimum. The quote-request user is metadata; execution uses
 the separately supplied `userAddress` and live wallet context checks.
 
@@ -450,6 +481,20 @@ advanced modules. Swap forms ignore `priceProtectionPercent` and
 | `form.values` | Authoritative raw execution values consumed by `prepareOrder` |
 | `form.errors.primary` / `form.errors.all` | Primary and ordered validation errors |
 | `form.isReady` / `form.canSubmit` | Whether enough inputs exist / validation allows submission |
+| `form.notReadyReason` | Missing prerequisite; absent when the form is ready, even if validation prevents submission |
+
+`OrderFormNotReadyReason` is exported for typed integration diagnostics:
+
+| Reason | Next step |
+| --- | --- |
+| `empty-input` | Provide a positive input amount in the token's precision |
+| `awaiting-quote` | Supply a quote for the current amount and token pair |
+| `missing-usd-value` | Supply a positive quote `inputAmountUsd` or input-token USD price |
+| `invalid-swap-minimum` | Pass the current quote's valid `minimumAmountOut` unchanged |
+| `missing-token-metadata` | React provider: supply the selected input/output token metadata |
+
+Ready forms can still fail validation. In that case `notReadyReason` is absent;
+use `form.errors.primary` and `form.errors.all` to explain `canSubmit: false`.
 
 `form.inputAmount`, `outputAmount`, `minOutputAmountTotal`, `tradePrice`, and
 `fees` use structured amounts. `trades` contains per-trade amounts; `schedule`
@@ -527,31 +572,93 @@ TWAP subgraphs.
 
 ## Client configuration and analytics
 
-In the browser, add `?devurl=true` to the page URL (or `&devurl=true` when it
-already has query parameters) to use `https://order-sink-dev.orbs.network` for
-configuration, quotes, order submission, and order lookups. Order-sink history
-uses only the dev service in this mode. Other values, an absent flag, and
-environments without `window` use the production services.
+Page URL parameters do not select the backend. Pass
+`{ apiUrl: "https://order-sink-dev.orbs.network" }` to `createClient` to select a
+trusted alternative explicitly. Configuration, quotes, submission, and lookups
+use that client's captured endpoint; custom services exclude production history.
 
-`createClient` fetches and validates `/config` on every call. It rejects chain
+`createClient` loads validated `/config` data using the shared bounded cache. It rejects chain
 mismatches and malformed or zero RePermit and exchange-adapter addresses. The
 client supplies configured spender, exchange, signing data, and cancellation
 requests. The host supplies wrapped native tokens and other chain metadata;
 the SDK has no network registry. Cache clients/promises in the host data layer
 and allow rejected initialization attempts to be retried.
 
-Analytics initializes from validated configuration and is enabled by default.
-Use `client.analytics` for lifecycle events when orchestrating operations in a
-host adapter. `spot-react` wires those events already. To disable analytics:
+Analytics is enabled by default. Validated configuration supplies contract
+metadata; configuration failures still report the requested partner/chain.
+The SDK owns telemetry for configuration, quotes, execution, submission, and
+tracked swap settlement. Advanced order creation finishes at submission; later
+fills remain available in order history. `spot-react` also reports cancellation
+and recovery. Host callbacks do not need to repeat these SDK events.
+
+Each lifecycle step creates a separate event record with a unique `_id`.
+`operationId` links the events for one execution, cancellation, or quote request.
+Request and preparation events carry the trade details; later events carry their
+own result, transaction hash, or error. Contract configuration is recorded on
+`configuration.loaded`, without repeating it on every wallet step. Common context
+includes partner, chain, account, SDK/UI versions, and browser origin when available.
+Wallet signatures and complete signed payloads are never included.
+Each event has an explicit field list. Single-trade orders omit chunk counts,
+per-chunk amounts, and fill delays; trigger settings appear only for triggered
+orders. Multi-trade `fillDelay` matches the signed interval in milliseconds.
+Every emitted value is a string, finite number, or boolean. Objects, arrays,
+null, and invalid numbers are omitted. Batch cancellation steps emit one record
+per order, using scalar `cancelOrderId` and `cancelOrderVersion` fields under the
+same `operationId`.
+
+| Event | Additional data |
+| --- | --- |
+| Configuration loaded | Contract addresses and signing configuration actually used |
+| Quote requested or reused | Original quote user, pair, input amount, and slippage |
+| Execution requested or order prepared | Applicable trade amounts and order settings |
+| Approval requested | Actual token, spender, and approval amount |
+| Wallet transaction confirmed | That step's transaction hash |
+| Submission or cancellation outcome | Relevant order IDs and transaction hash or error |
+| Swap settlement | Order ID and applicable fill/progress information |
+| Failure | Redacted message and available SDK/HTTP/service error codes |
+
+`sessionId` connects operations within the current page load. It is kept only in
+memory and changes on refresh. Clients and operations on the same page share it,
+including across wallet, chain, or partner changes. Server-side events omit it;
+browser storage is never used.
+`eventName` identifies the step and outcome, such as `quote.requested`,
+`signing.succeeded`, or `submission.failed`. Duplicate action, phase, and success
+flags are not emitted. Generic
+failures retain `errorPhase` to identify the failing step.
+`eventTimestampMillis` records when it happened, before
+delivery delays; `eventSequence` orders events within one operation. Events are
+not debounced, so rapid request/success transitions remain separate records.
+
+Count `submission.succeeded` for accepted submissions and `settlement.filled`
+for completed swaps. These are separate events; no additional success/status
+booleans are needed.
+Tracking an order returned by submission keeps its operation association. For an
+order restored from storage, pass the captured reporter as the optional `analytics`
+argument to `watchOrder`/`waitForOrder` when telemetry correlation is needed.
+
+To disable analytics for a client:
 
 ```ts
 const client = await createClient(Partners.Thena, 56, { disableAnalytics: true });
 ```
 
-Telemetry delivery does not block client creation. Disabled analytics methods
-remain safe to call and send no telemetry or analytics timers. The deprecated
-global `analytics` export is retained for compatibility; new integrations use
-the client-owned instance. Initialization also works without `window`.
+For a host-controlled telemetry preference, create a reporter first and pass it
+as `createClient(..., { analytics: reporter })`. Calling
+`reporter.setDisabled(true)` also suppresses pending client initialization and
+operations created from that client. `disableAnalytics: true` always takes
+precedence over a supplied reporter.
+
+Standalone `getQuote` accepts `disableAnalytics: true` as well. For host-owned
+wallet/cancellation flows, use `client.analytics.createOperation(context)` to
+isolate the reporter for each attempt. `createAnalytics(context, {
+disableAnalytics })` creates a contextual reporter before a client is available;
+it does not initialize protocol configuration.
+
+Delivery is best effort: HTTP failures and timeouts are contained and never
+change trading results. Disabling a reporter suppresses its child operations and
+pending telemetry. The deprecated global `analytics` export remains available
+for compatibility; SDK-owned flows use scoped reporters. Initialization also
+works without `window`.
 
 ## Migrating from Liquidity Hub
 

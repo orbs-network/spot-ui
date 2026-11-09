@@ -1,5 +1,7 @@
 # SpotProvider Setup
 
+If no DEX state, wallet, token list, balance service, or quote resource exists, implement the missing host services through [Starting without a DEX](08-starting-without-dex.md) first. The host state below can belong to a new trading form inside an otherwise non-DEX app.
+
 ## Own DEX Swap State Outside Spot
 
 Keep the DEX swap form as the source of truth for selected tokens, typed input amount, balances, USD amounts, and quotes. Spot should adapt that state; it should not create a parallel swap form store.
@@ -20,7 +22,7 @@ The adapter should answer these questions explicitly:
 | Input/output tokens | DEX token selection state | `Token` objects with `address`, `symbol`, `decimals`, and optional `logoUrl` |
 | Wrapped native token | DEX chain configuration | The connected chain's wrapped-native `Token` |
 | Typed input amount | DEX input state | User-facing decimal string, e.g. `"1.25"` |
-| Quote output | DEX quote/router state | Raw output token amount for the current typed amount |
+| Quote output | DEX quote/router state | Original SDK `SwapQuote` for swaps; current whole-input raw output for advanced adapters |
 | Quote freshness | DEX quote request metadata | Whether the quote was produced for the current typed amount/token pair |
 | Input balance | DEX balance hook | Raw integer string |
 | USD prices | DEX price hooks | USD value of one whole token as a string |
@@ -104,6 +106,7 @@ import { useMemo } from "react";
 const {
   quotedInputAmount = "",
   quoteOutputRaw,
+  swapQuote,
   isQuoteLoading,
 } = dexSwapState;
 
@@ -112,10 +115,11 @@ const marketQuote = useMemo<MarketQuote>(() => {
     inputAmountUi && inputCurrency && outputCurrency,
   );
   const isQuoteStale = shouldQuote && inputAmountUi !== quotedInputAmount;
-  const outputAmount = !shouldQuote || isQuoteStale ? undefined : quoteOutputRaw;
+  const outputAmount = !shouldQuote || isQuoteStale ? undefined : swapQuote?.netAmountOut ?? quoteOutputRaw;
   const isLoading = shouldQuote && (isQuoteStale || isQuoteLoading);
 
   return {
+    quote: !shouldQuote || isQuoteStale ? undefined : swapQuote,
     quotedOutputAmountRaw: outputAmount,
     isLoading,
     noLiquidity: shouldQuote && !isLoading && !outputAmount,
@@ -125,6 +129,7 @@ const marketQuote = useMemo<MarketQuote>(() => {
   isQuoteLoading,
   outputCurrency,
   quoteOutputRaw,
+  swapQuote,
   quotedInputAmount,
   inputAmountUi,
 ]);
@@ -282,21 +287,22 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 | `inputAmountUi` | `string` | Yes | User-entered input-token amount |
 | `priceProtectionPercent` | `number` | Yes | Price Protection percentage for advanced orders; ignored for fixed-protection swaps |
 | `minTradeSizeUsd` | `number` | Yes | Minimum individual trade size in USD |
-| `marketQuote` | `MarketQuote` | Yes | `{ quotedOutputAmountRaw?: string, minimumOutputAmountRaw?: string, isLoading?: boolean, noLiquidity?: boolean }`; swaps require both raw amounts |
+| `marketQuote` | `MarketQuote` | Yes | Original SDK `quote` required for swaps; flat current raw/USD fields remain available for advanced adapters, with `isLoading`/`noLiquidity` flags |
 | `walletInteractions` | `WalletInteractions` | Yes | Wallet interaction handlers implemented by the DEX |
 | `chainId` | `number` | No | Connected chain ID |
 | `account` | `Address` | No | Connected wallet address |
 | `inputToken` | `Token` | No | `{ address, symbol, decimals, logoUrl? }` |
 | `outputToken` | `Token` | No | `{ address, symbol, decimals, logoUrl? }` |
 | `wrappedNativeToken` | `Token \| undefined` | Yes | Host-provided wrapped-native token; pass `undefined` only before a chain is known |
-| `inputBalanceRaw` | `string \| undefined` | Yes | Raw input-token balance; pass `undefined` while disconnected or loading |
-| `inputTokenUsdPrice` | `string \| undefined` | Yes | USD price of 1 input token; pass `undefined` while loading |
+| `inputBalanceRaw` | `string \| undefined` | Yes | Raw input-token balance; `undefined` while disconnected/loading/unavailable, with read errors shown by the host |
+| `inputTokenUsdPrice` | `string \| undefined` | Yes | USD price of 1 input token; may be `undefined` when current quote input USD supplies valuation or the price is unavailable |
 | `outputTokenUsdPrice` | `string` | No | USD price of 1 output token |
 | `callbacks` | `Callbacks` | No | Lifecycle event handlers |
 | `displayFeePercent` | `number` | No | Display-only fee estimate percentage; does not collect or subtract fees |
 | `overrides` | `Overrides` | No | Initial Spot form state such as default trades, duration, fill delay, trigger price, limit price, and market/limit mode |
 | `clientErrorFallback` | `ComponentType<ClientErrorFallbackProps>` | No | DEX-native initialization error component receiving `error`, `retry`, and `isRetrying` |
 | `errorFallback` | `ComponentType<SpotErrorFallbackProps>` | No | DEX-native fallback for unexpected calculation or rendering errors |
+| `disableAnalytics` | `boolean` | No | Disable SDK telemetry, including active operation reporters, without resetting execution |
 
 ## WalletInteractions
 
@@ -327,15 +333,15 @@ standard representations.
 
 ## Quote, Balance, and Price Inputs
 
-- `marketQuote.quotedOutputAmountRaw` is the full-input current raw quote, not a standalone token price. For swaps use `quote.netAmountOut` and set `marketQuote.minimumOutputAmountRaw` directly to the authoritative `quote.minimumAmountOut`. Do not apply slippage again. Withhold both while stale/loading. See [Swap and Migration](07-swap-and-migration.md).
-- `inputBalanceRaw` is a required provider prop whose value is a raw integer string. Pass `undefined` only while the wallet is disconnected or the balance is loading so submission state and validation match the swap form.
-- `inputTokenUsdPrice` is a required provider prop because loading state and minimum-trade validation depend on it; pass `undefined` only while the price is loading. `outputTokenUsdPrice` remains optional because it is used for display details only.
+- For swaps, pass the original SDK quote as `marketQuote: { quote, isLoading, noLiquidity }`. The provider derives output/minimum and USD fields, retaining the exact request for execution refresh. The quote must match the reviewed client, pair, input, and minimum; withhold it while stale/loading. Missing original swap quotes disable submission with `missing-swap-quote`, even when flat amounts exist. Never rebuild the quote from display amounts or apply slippage again. Advanced adapters may continue supplying flat `quotedOutputAmountRaw` and USD fields. See [Swap and Migration](07-swap-and-migration.md).
+- `inputBalanceRaw` is a required provider prop whose value is a raw integer string. Pass `undefined` while disconnected, loading, or unavailable; surface read errors in the host UI rather than replacing them with zero.
+- `inputTokenUsdPrice` is a required prop whose value may be `undefined`. A current positive input USD total from `marketQuote.quote` or the flat `marketQuote.inputAmountUsd` can satisfy valuation without a separate unit-price source. Otherwise supply a positive, finite one-token USD price; while both are unavailable, the calculated form remains unready. `outputTokenUsdPrice` is optional for display; preserve available quote output/minimum USD totals as well.
 - Get `chainId` from the connected account/wallet hook wherever Spot needs chain identity. Avoid mixing router, quote, and account chain sources.
 - Always pass the `wrappedNativeToken` prop from the DEX's chain configuration. Its value may be `undefined` only before a chain is known; Spot does not maintain a network registry or infer this token.
 - `chainId` and `account` may be missing while disconnected. Keep the form rendered; only swap the submit area to the DEX's connect-wallet or switch-network control.
 - When `chainId` is missing or unsupported, `SpotProvider` does not initialize a client and submission remains disabled. The DEX UI should show its connect/switch-network control.
 - `spot-ui` initializes a client internally using `partner` and the connected supported `chainId`. Do not add a separate configuration fetch or pass the response through DEX context.
-- The client owns RePermit-derived order, signing, approval, cancellation, submission, and history values. `SpotProvider` scopes client objects; configuration templates/in-flight requests share a 60-second, 32-entry LRU cache with validated deep copies and failure eviction. A missing client represents initialization loading; pass a localized `clientErrorFallback` for retryable errors.
+- The client owns RePermit-derived order, signing, approval, cancellation, submission, and history values. `SpotProvider` scopes client objects; configuration templates/in-flight requests share a 60-second, 32-entry LRU cache with validated deep copies and failure eviction. Inspect `useClient()` loading and error state to distinguish initialization from failure; pass a localized `clientErrorFallback` for retryable errors.
 - The SDK rejects configuration chain mismatches and malformed or zero RePermit/adapter addresses. The response still supplies the approval spender, v2 cancellation contract, adapter, reactor, and executor without deployed-bytecode verification, so only use the trusted Orbs endpoint over TLS.
 - If the DEX quote result exposes the input amount used for the quote, treat a mismatch with the current typed amount as stale. While stale, omit `marketQuote.quotedOutputAmountRaw` and set `isLoading` to `true`.
 - Compute `inputTokenUsdPrice` and `outputTokenUsdPrice` as the USD value of one token. Prefer the DEX's direct one-token USD hook. If unavailable, derive it as `usdAmount / tokenAmount` from the current swap form amounts. Pass strings; use `undefined` for the required input price while no valid positive value is available, and omit the optional output price in that state.
@@ -413,9 +419,14 @@ and network errors remain `UNCONFIRMED`. `ParsedError.code` retains string SDK
 codes or numeric wallet codes, with `0` as fallback; optional `reason`, `orderId`,
 HTTP `status`, and `serviceCode` preserve classification details.
 
-After wrapping/approval, swap execution re-quotes before preparation. Fresh net
-output below the reviewed minimum rejects with `INVALID_QUOTE` and requires a
-new review; otherwise the original minimum stays signed. Submission uses a fixed
+Before wallet writes, swap execution captures the original quote and checks it
+against the reviewed form/client/pair/input. After wrapping/approval it calls
+`client.refreshAndPrepareSwap({ quote, account, signal })`. It checks age
+internally, reusing quotes up to 20 seconds old or replaying the same request.
+A lower refreshed `minimumAmountOut` rejects with `QUOTE_MINIMUM_DECREASED`.
+Both paths retain the original signed minimum and prepare fresh timestamps/nonce;
+React attaches the captured form without
+preparing a second order. Submission uses a fixed
 30-second timeout covering fetch/body reads and forwards the lifecycle signal.
 Pre-abort prevents the POST; abort/timeout after sending requires reconciliation,
 with no automatic POST retry.

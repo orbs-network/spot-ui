@@ -110,7 +110,7 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
       triggerPriceUi,
     ],
   );
-  const form = useMemo(() => {
+  const form = useMemo<CalculatedOrderForm>(() => {
     if (frozenForm) return frozenForm;
     const calculatedForm = calculateOrder(params);
     if (inputToken && outputToken) return calculatedForm;
@@ -121,6 +121,7 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
       ...calculatedForm,
       isReady: false,
       canSubmit: false,
+      notReadyReason: "missing-token-metadata",
     };
   }, [frozenForm, inputToken, outputToken, params]);
 

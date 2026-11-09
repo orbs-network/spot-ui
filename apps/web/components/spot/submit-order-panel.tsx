@@ -1,10 +1,10 @@
 "use client";
 import {
-  Step,
+  type Step,
   SwapFlow,
   SwapStatus as SwapUiStatus,
 } from "@orbs-network/swap-ui";
-import { createContext, ReactNode, useContext, useMemo } from "react";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
 import {
   ORBS_TWAP_FAQ_URL,
   Steps,
@@ -29,15 +29,12 @@ type SubmitOrderPanelProps = {
   reviewDetails?: ReactNode;
 };
 
-
-type SubmitPanelContextType =  SubmitOrderPanelProps & {
+type SubmitPanelContextType = SubmitOrderPanelProps & {
   inputToken?: Token;
   outputToken?: Token;
 };
 
-const SubmitPanelContext = createContext(
-  {} as SubmitPanelContextType,
-);
+const SubmitPanelContext = createContext<SubmitPanelContextType>({});
 
 const useSubmitPanelContext = () => useContext(SubmitPanelContext);
 
@@ -86,9 +83,6 @@ const useStep = () => {
   const approveExplorerUrl = getExplorerUrl(chainId, approvalTxHash);
   const symbol = inputToken?.symbol || "";
   const swapTitle = useTitle();
-  
-
-  
 
   return useMemo((): Step | undefined => {
     if (phase === ExecutionPhase.SETTLING) {
@@ -255,9 +249,36 @@ const SuccessContent = () => {
   );
 };
 
+// Spot execution and swap-ui are independently versioned, so map their enums explicitly.
+const getSwapUiStatus = (status?: ExecutionStatus): SwapUiStatus | undefined => {
+  switch (status) {
+    case ExecutionStatus.SUCCESS:
+      return SwapUiStatus.SUCCESS;
+    case ExecutionStatus.FAILED:
+      return SwapUiStatus.FAILED;
+    case ExecutionStatus.LOADING:
+      return SwapUiStatus.LOADING;
+    default:
+      return undefined;
+  }
+};
+
 export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
   const panelData = useExecution();
-  
+  const { inputToken, outputToken } = panelData;
+
+  return (
+    <SubmitPanelContext.Provider value={{ ...props, inputToken, outputToken }}>
+      <SubmitOrderFlow panelData={panelData} />
+    </SubmitPanelContext.Provider>
+  );
+};
+
+const SubmitOrderFlow = ({
+  panelData,
+}: {
+  panelData: ReturnType<typeof useExecution>;
+}) => {
   const {
     status,
     isPreparingOrder,
@@ -287,38 +308,28 @@ export const SubmitOrderPanel = (props: SubmitOrderPanelProps) => {
     [outputToken],
   );
 
+  // Step and title hooks consume the same context as the rendered flow content.
   const currentStep = useStep();
-  const swapStatus =
-    isPreparingOrder
-      ? undefined
-      : status === ExecutionStatus.SUCCESS
-        ? SwapUiStatus.SUCCESS
-        : status === ExecutionStatus.FAILED
-          ? SwapUiStatus.FAILED
-          : status === ExecutionStatus.LOADING
-            ? SwapUiStatus.LOADING
-            : undefined;
+  const swapStatus = isPreparingOrder ? undefined : getSwapUiStatus(status);
 
   return (
-    <SubmitPanelContext.Provider value={{ ...panelData, ...props, inputToken, outputToken }}>
-      <SwapFlow
-        inAmount={inputAmountF}
-        outAmount={outputAmountF}
-        swapStatus={swapStatus}
-        totalSteps={totalSteps}
-        currentStep={currentStep}
-        currentStepIndex={currentStepIndex}
-        inToken={inToken}
-        outToken={outToken}
-        components={{
-          SrcTokenLogo: <SpotTokenLogo token={inputToken} />,
-          DstTokenLogo: <SpotTokenLogo token={outputToken} />,
-          Failed: <Failed error={error} />,
-          Success: <SuccessContent />,
-          Main: <Main />,
-          Loader: <Spinner className="size-18" />,
-        }}
-      />
-    </SubmitPanelContext.Provider>
+    <SwapFlow
+      inAmount={inputAmountF}
+      outAmount={outputAmountF}
+      swapStatus={swapStatus}
+      totalSteps={totalSteps}
+      currentStep={currentStep}
+      currentStepIndex={currentStepIndex}
+      inToken={inToken}
+      outToken={outToken}
+      components={{
+        SrcTokenLogo: <SpotTokenLogo token={inputToken} />,
+        DstTokenLogo: <SpotTokenLogo token={outputToken} />,
+        Failed: <Failed error={error} />,
+        Success: <SuccessContent />,
+        Main: <Main />,
+        Loader: <Spinner className="size-18" />,
+      }}
+    />
   );
 };

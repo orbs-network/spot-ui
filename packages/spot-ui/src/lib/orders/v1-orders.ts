@@ -13,6 +13,7 @@ import BN from "bignumber.js";
 import { SpotError } from "../errors";
 import { getExchanges } from "../utils";
 import { THE_GRAPH_ORDERS_API } from "./legacy-twap-config";
+import { getFilledAmounts, getFilledOrderTimestamp } from "./order-fills";
 type RawStatus = "CANCELLED" | "COMPLETED" | null;
 
 const normalizeSubgraphList = <T>(list?: T[], transform?: (val: T) => string) =>
@@ -170,19 +171,8 @@ const buildV1Order = (
           .toNumber(),
       )
     : 1;
-  const isFilled = fills?.length >= chunks;
-  const filledOrderTimestamp = isFilled
-    ? parsedFills.reduce(
-        (latestTimestamp, fill) => Math.max(latestTimestamp, fill.timestamp),
-        0,
-      )
-    : undefined;
-  const filledSrcAmount = parsedFills
-    .reduce((acc, fill) => acc.plus(fill.inAmount), new BN(0))
-    .toFixed();
-  const filledDstAmount = parsedFills
-    .reduce((acc, fill) => acc.plus(fill.outAmount), new BN(0))
-    .toFixed();
+  const filledOrderTimestamp = getFilledOrderTimestamp(parsedFills, chunks);
+  const { input: filledSrcAmount, output: filledDstAmount } = getFilledAmounts(parsedFills);
   const progress = getV1OrderProgress(order.ask_srcAmount, filledSrcAmount);
   const type = getOrderType(order.ask_dstMinAmount, chunks);
   return {

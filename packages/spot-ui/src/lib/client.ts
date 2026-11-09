@@ -1,4 +1,12 @@
-import { Analytics, type SpotAnalytics } from "./analytics";
+import {
+  bindOrderAnalytics,
+  bindSubmittedOrderAnalytics,
+  createAnalyticsOperation,
+  createClientAnalytics,
+  getOrderAnalytics,
+  resolveAnalyticsReporter,
+  type SpotAnalytics,
+} from "./analytics";
 import { REPERMIT_ABI, TWAP_ABI } from "./abi";
 import { buildRePermitOrderData } from "./build-repermit-order-data";
 import { fetchRePermitData } from "./fetch-repermit-data";
@@ -8,7 +16,6 @@ import type {
 } from "./order-form/types";
 import { isNativeAddress } from "./utils";
 import {
-  getAccountOrders,
   getAccountOrdersResult,
   type AccountOrdersResult,
   type GetAccountOrdersParams,
@@ -18,9 +25,11 @@ import { getOrder } from "./orders/v2-orders";
 import { Module } from "./types";
 import { SpotError } from "./errors";
 import { getApiEndpoint } from "./api-config";
-import { getQuote as fetchQuote, type SwapQuote, type SwapQuoteParams } from "./quote";
+import { fetchQuote, getQuoteAnalyticsContext, isQuoteFresh, type SwapQuote, type SwapQuoteParams } from "./quote";
+import { observe } from "./observe";
 import { MIN_FILL_DELAY_MILLIS, SWAP_ORDER_DURATION_MILLIS, SWAP_ORDER_SLIPPAGE_BPS } from "./order-form/constants";
-import { validateSwap, type PreparedSwap } from "./swap";
+import type { PrepareSwapParams, PreparedSwap } from "./swap";
+import { captureValidatedSwap } from "./swap-validation";
 import type {
   Address,
   Order,
@@ -29,6 +38,8 @@ import type {
   RePermitOrder,
   TimeDuration,
 } from "./types";
+
+const DEFAULT_QUOTE_MAX_AGE_MILLIS = 20_000;
 
 const getDeadline = (
   currentTimeMillis: number,
@@ -124,6 +135,8 @@ export interface ClientGetOrderParams {
 export interface CreateClientOptions {
   /** Disable all analytics events for this client. Defaults to false. */
   disableAnalytics?: boolean;
+  /** Optional telemetry owner whose opt-out policy is shared with this client's operations. */
+  analytics?: SpotAnalytics;
   /** Trusted order-service base URL, fixed for this client's lifetime. Defaults to production v2. */
   apiUrl?: string;
 }
@@ -134,7 +147,7 @@ export interface SubmitOrderOptions {
 }
 
 /** Quote inputs; the selected chain and partner are supplied by the client. */
-export type ClientGetQuoteParams = Omit<SwapQuoteParams, "chainId" | "partner" | "apiUrl">;
+export type ClientGetQuoteParams = Omit<SwapQuoteParams, "chainId" | "partner" | "apiUrl" | "disableAnalytics">;
 
 export interface RefreshAndPrepareSwapParams {
   /** Reviewed quote; its request parameters are reused unchanged for the refresh. */
@@ -143,6 +156,10 @@ export interface RefreshAndPrepareSwapParams {
   account: string;
   /** Cancels the refresh before a signing payload is prepared. */
   signal?: AbortSignal;
+  /** Reuse quotes this many milliseconds old or newer. Defaults to 20,000; 0 always refreshes. */
+  maxQuoteAgeMillis?: number;
+  /** Optional operation reporter from this client's analytics, shared with wallet execution. */
+  analytics?: SpotAnalytics;
 }
 
 /** Reusable protocol configuration and order operations for one partner and chain. */
@@ -210,10 +227,11 @@ export interface SpotClient {
   prepareSwap(quote: SwapQuote, userAddress: string): PreparedSwap;
 
   /**
-   * Refreshes the original quote request before preparing a swap for signing.
+   * Reuses a quote received within maxQuoteAgeMillis (default 20 seconds), otherwise refreshes it.
    * Uses this client's endpoint and preserves the original quote user, slippage,
    * and DEX minimum. A lower refreshed minimumAmountOut throws QUOTE_MINIMUM_DECREASED.
    * Equal or higher minima keep the exact minimum the user originally reviewed.
+   * Always prepares fresh signing timestamps/nonce; a local age check does not guarantee a fill.
    * Call after wrapping and confirmed approval, immediately before signing.
    * Performs no wallet operations or submission.
    */
@@ -300,6 +318,29 @@ const createNonce = (currentTimeMillis: number): string => {
   return latestNonce.toString();
 };
 
+/** Both preparation paths sign and approve the exact order built from the same template. */
+const createOrderRequests = (
+  permitData: RePermitData,
+  signerAddress: string,
+  inputAmount: string,
+  spenderAddress: Address,
+): Pick<PreparedOrder, "signingRequest" | "approvalRequest"> => ({
+  signingRequest: {
+    signerAddress: signerAddress as Address,
+    typedData: {
+      domain: permitData.domain,
+      types: permitData.types,
+      primaryType: permitData.primaryType,
+      message: permitData.order,
+    },
+  },
+  approvalRequest: {
+    tokenAddress: permitData.order.permitted.token,
+    amount: inputAmount,
+    spenderAddress,
+  },
+});
+
 /**
  * Loads and validates protocol configuration for one partner and EVM chain.
  * Reuse the client for that pair; create or retrieve another when either changes.
@@ -321,20 +362,31 @@ export const createClient = async (
   chainId: number,
   options: CreateClientOptions = {},
 ): Promise<SpotClient> => {
-  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
-    throw new SpotError("INVALID_ARGUMENT", "chainId must be a positive safe integer");
-  }
+  const analytics = createClientAnalytics(options.analytics, options.disableAnalytics);
+  const configurationAnalytics = createAnalyticsOperation(analytics, { partner, chainId });
+  let apiUrl: string;
+  let rePermitData: RePermitData;
+  try {
+    if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+      throw new SpotError("INVALID_ARGUMENT", "chainId must be a positive safe integer");
+    }
 
-  // Configuration requests/templates are shared; callers receive isolated copies.
-  const apiUrl = getApiEndpoint(options.apiUrl);
-  const rePermitData = await fetchRePermitData(partner, chainId, apiUrl);
-  const analytics = new Analytics(options.disableAnalytics);
-  analytics.init(partner, rePermitData);
+    // Configuration requests/templates are shared; callers receive isolated copies.
+    apiUrl = getApiEndpoint(options.apiUrl);
+    rePermitData = await fetchRePermitData(partner, chainId, apiUrl);
+  } catch (error) {
+    observe(() => configurationAnalytics.onConfigurationError(error));
+    throw error;
+  }
+  observe(() => analytics.init(partner, rePermitData));
   const spenderAddress = rePermitData.domain.verifyingContract;
   const exchangeAddress = rePermitData.order.witness.exchange.adapter;
 
   const getQuote = (params: ClientGetQuoteParams): Promise<SwapQuote> =>
-    fetchQuote({ ...params, chainId, partner, apiUrl });
+    fetchQuote(
+      { ...params, chainId, partner, apiUrl },
+      createAnalyticsOperation(analytics, getQuoteAnalyticsContext({ ...params, chainId, partner })),
+    );
 
   /**
    * Stamps an existing calculated form with a fresh start, deadline, and nonce,
@@ -376,75 +428,138 @@ export const createClient = async (
       module: form.module,
     });
     const order = permitData.order;
+    // Pure preparation only binds context; telemetry starts when execution/submission starts.
+    bindOrderAnalytics(order, createAnalyticsOperation(analytics, {
+      account: params.swapperAddress,
+      chainId,
+      partner,
+      module: form.module,
+      inputTokenAddress: params.inputTokenAddress,
+      outputTokenAddress: params.outputTokenAddress,
+      inputAmountRaw: values.inputAmount,
+      minimumOutputAmountRaw: values.minOutputAmountPerTrade,
+      inputAmountPerTradeRaw: values.inputAmountPerTrade,
+      triggerOutputAmountPerTradeRaw: values.triggerOutputAmountPerTrade,
+      deadlineMillis: Number(order.deadline) * 1000,
+      fillDelayMillis: values.fillDelayMillis,
+      slippagePercent: values.slippageBps / 100,
+      totalTrades: values.totalTrades,
+      isMarketOrder: values.isMarketOrder,
+    }));
 
     return {
       order,
-      signingRequest: {
-        signerAddress: params.swapperAddress as Address,
-        typedData: {
-          domain: permitData.domain,
-          types: permitData.types,
-          primaryType: permitData.primaryType,
-          message: order,
-        },
-      },
-      approvalRequest: {
-        tokenAddress: order.permitted.token,
-        amount: values.inputAmount,
-        spenderAddress,
-      },
+      ...createOrderRequests(permitData, params.swapperAddress, values.inputAmount, spenderAddress),
       form,
       values: preparedValues,
     };
   };
 
-  const prepareSwap = (quote: SwapQuote, userAddress: string): PreparedSwap => {
+  // Public entry points validate first; this builder only consumes captured inputs.
+  const buildPreparedSwap = (
+    { quote: preparedQuote, userAddress }: PrepareSwapParams,
+    reporter = createAnalyticsOperation(analytics, {
+      account: userAddress,
+      chainId,
+      partner,
+      module: Module.SWAP,
+      inputTokenAddress: preparedQuote.request.inToken,
+      outputTokenAddress: preparedQuote.request.outToken,
+      inputAmountRaw: preparedQuote.request.inAmount,
+      minimumOutputAmountRaw: preparedQuote.minimumAmountOut,
+    }),
+  ): PreparedSwap => {
     const currentTimeMillis = Date.now();
-    validateSwap({ quote, userAddress }, chainId, partner);
-    const preparedQuote = Object.freeze({ ...quote, request: Object.freeze({ ...quote.request }) });
     const minimumOutputAmountRaw = preparedQuote.minimumAmountOut;
     const orderDeadlineMillis = currentTimeMillis + SWAP_ORDER_DURATION_MILLIS;
     const permit = buildRePermitOrderData({
-      inputTokenAddress: preparedQuote.request.inToken, outputTokenAddress: preparedQuote.request.outToken,
-      totalInputAmount: preparedQuote.request.inAmount, inputAmountPerTrade: preparedQuote.request.inAmount,
+      inputTokenAddress: preparedQuote.request.inToken,
+      outputTokenAddress: preparedQuote.request.outToken,
+      totalInputAmount: preparedQuote.request.inAmount,
+      inputAmountPerTrade: preparedQuote.request.inAmount,
       minOutputAmountPerTrade: minimumOutputAmountRaw,
-      nonce: createNonce(currentTimeMillis), currentTimeMillis, deadlineMillis: orderDeadlineMillis,
-      fillDelayMillis: MIN_FILL_DELAY_MILLIS, totalTrades: 1, slippageBps: SWAP_ORDER_SLIPPAGE_BPS,
-      swapperAddress: userAddress, permitData: rePermitData, module: Module.SWAP,
+      nonce: createNonce(currentTimeMillis),
+      currentTimeMillis,
+      deadlineMillis: orderDeadlineMillis,
+      fillDelayMillis: MIN_FILL_DELAY_MILLIS,
+      totalTrades: 1,
+      slippageBps: SWAP_ORDER_SLIPPAGE_BPS,
+      swapperAddress: userAddress,
+      permitData: rePermitData,
+      module: Module.SWAP,
     });
+    bindOrderAnalytics(permit.order, reporter);
     return {
-      order: permit.order, quote: preparedQuote,
-      signingRequest: { signerAddress: userAddress as Address, typedData: {
-        domain: permit.domain, types: permit.types, primaryType: permit.primaryType, message: permit.order,
-      } },
-      approvalRequest: { tokenAddress: permit.order.permitted.token, amount: preparedQuote.request.inAmount, spenderAddress },
-      values: { inputAmount: preparedQuote.request.inAmount, minimumOutputAmountRaw, currentTimeMillis, deadlineMillis: orderDeadlineMillis },
+      order: permit.order,
+      quote: preparedQuote,
+      ...createOrderRequests(permit, userAddress, preparedQuote.request.inAmount, spenderAddress),
+      values: {
+        inputAmount: preparedQuote.request.inAmount,
+        minimumOutputAmountRaw,
+        currentTimeMillis,
+        deadlineMillis: orderDeadlineMillis,
+      },
     };
   };
+
+  const prepareSwap = (quote: SwapQuote, userAddress: string): PreparedSwap =>
+    buildPreparedSwap(captureValidatedSwap(quote, userAddress, chainId, partner));
 
   const refreshAndPrepareSwap = async ({
     quote,
     account,
     signal,
+    maxQuoteAgeMillis = DEFAULT_QUOTE_MAX_AGE_MILLIS,
+    analytics: operationAnalytics,
   }: RefreshAndPrepareSwapParams): Promise<PreparedSwap> => {
-    signal?.throwIfAborted();
-    validateSwap({ quote, userAddress: account }, chainId, partner);
-
-    const reviewedQuote = Object.freeze({
-      ...quote,
-      request: Object.freeze({ ...quote.request }),
+    const reporter = resolveAnalyticsReporter(analytics, operationAnalytics, {
+      ...getQuoteAnalyticsContext(quote?.request),
+      minimumOutputAmountRaw: quote?.minimumAmountOut,
+      account,
+      chainId,
+      partner,
+      module: Module.SWAP,
     });
-    const freshQuote = await getQuote({ ...reviewedQuote.request, signal });
-    signal?.throwIfAborted();
+    let comparison: {
+      reviewedMinimumOutputAmountRaw: string;
+      freshMinimumOutputAmountRaw: string;
+    } | undefined;
+    try {
+      signal?.throwIfAborted();
+      const input = captureValidatedSwap(quote, account, chainId, partner);
+      if (!Number.isFinite(maxQuoteAgeMillis) || maxQuoteAgeMillis < 0) {
+        throw new SpotError("INVALID_ARGUMENT", "maxQuoteAgeMillis must be a finite non-negative number");
+      }
 
-    if (BigInt(freshQuote.minimumAmountOut) < BigInt(reviewedQuote.minimumAmountOut)) {
-      throw new SpotError(
-        "QUOTE_MINIMUM_DECREASED",
-        "Swap minimum output decreased. Review a fresh quote before signing.",
-      );
+      const reviewedQuote = input.quote;
+      // Check after wallet steps: approvals may have aged the reviewed quote.
+      // Zero explicitly opts out, even when the quote arrived in this millisecond.
+      if (maxQuoteAgeMillis > 0 && isQuoteFresh(reviewedQuote, maxQuoteAgeMillis)) {
+        observe(() => reporter.onQuoteSuccess({
+          reused: true,
+          context: getQuoteAnalyticsContext(reviewedQuote.request),
+        }));
+        return buildPreparedSwap(input, reporter);
+      }
+      const freshQuote = await fetchQuote({ ...reviewedQuote.request, signal, apiUrl }, reporter);
+      signal?.throwIfAborted();
+
+      if (BigInt(freshQuote.minimumAmountOut) < BigInt(reviewedQuote.minimumAmountOut)) {
+        comparison = {
+          reviewedMinimumOutputAmountRaw: reviewedQuote.minimumAmountOut,
+          freshMinimumOutputAmountRaw: freshQuote.minimumAmountOut,
+        };
+        throw new SpotError(
+          "QUOTE_MINIMUM_DECREASED",
+          "Swap minimum output decreased. Review a fresh quote before signing.",
+        );
+      }
+
+      return buildPreparedSwap(input, reporter);
+    } catch (error) {
+      observe(() => reporter.onQuoteValidationError(error, comparison));
+      throw error;
     }
-
-    return prepareSwap(reviewedQuote, account);
   };
 
   /**
@@ -455,7 +570,12 @@ export const createClient = async (
     order: RePermitOrder,
     signature: `0x${string}`,
     options?: SubmitOrderOptions,
-  ): Promise<Order> => submitOrderRequest(order, signature, analytics, options, apiUrl);
+  ): Promise<Order> => {
+    const reporter = resolveAnalyticsReporter(analytics, getOrderAnalytics(order));
+    observe(() => reporter.onOrderPrepared(order));
+    bindOrderAnalytics(order, reporter);
+    return submitOrderRequest(order, signature, reporter, options, apiUrl);
+  };
 
   /**
    * Builds the correct v1 or v2 cancellation contract request. It only returns
@@ -489,7 +609,30 @@ export const createClient = async (
       partner,
       exchangeAddress,
       apiUrl,
+    }).then(result => {
+      result.orders.forEach(bindTrackingAnalytics);
+      return result;
     });
+
+  // A later clientless watch retains this client's opt-out policy without emitting history events.
+  const bindTrackingAnalytics = (order: Order): void => {
+    bindSubmittedOrderAnalytics(order, createAnalyticsOperation(analytics, {
+      account: order.maker,
+      chainId,
+      partner,
+      orderId: order.id,
+      inputTokenAddress: order.srcTokenAddress,
+      outputTokenAddress: order.dstTokenAddress,
+      inputAmountRaw: order.srcAmount,
+      minimumOutputAmountRaw: order.dstMinAmountPerTrade,
+      inputAmountPerTradeRaw: order.srcAmountPerTrade,
+      triggerOutputAmountPerTradeRaw: order.triggerPricePerTrade,
+      deadlineMillis: order.deadline,
+      fillDelayMillis: order.fillDelay,
+      totalTrades: order.totalTradesAmount,
+      isMarketOrder: order.isMarketPrice,
+    }));
+  };
 
   return Object.freeze({
     analytics,
@@ -505,10 +648,13 @@ export const createClient = async (
     refreshAndPrepareSwap,
     submitOrder,
     getCancelOrderRequest,
-    getOrder: (params: ClientGetOrderParams): Promise<Order | undefined> =>
-      getOrder({ ...params, chainId, apiUrl }),
+    getOrder: async (params: ClientGetOrderParams): Promise<Order | undefined> => {
+      const order = await getOrder({ ...params, chainId, apiUrl });
+      if (order) bindTrackingAnalytics(order);
+      return order;
+    },
     getAccountOrdersResult: getConfiguredAccountOrdersResult,
-    getAccountOrders: (params: ClientGetAccountOrdersParams): Promise<Order[]> =>
-      getAccountOrders({ ...params, chainId, partner, exchangeAddress, apiUrl }),
+    getAccountOrders: async (params: ClientGetAccountOrdersParams): Promise<Order[]> =>
+      (await getConfiguredAccountOrdersResult(params)).orders,
   });
 };

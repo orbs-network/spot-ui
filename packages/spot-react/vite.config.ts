@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [
     dts({
       insertTypesEntry: true,
+      entryRoot: 'src',
+      // Emit this package's declarations against the public SDK dependency.
+      compilerOptions: { rootDir: resolve(__dirname), paths: {} },
       tsconfigPath: './tsconfig.json',
       include: ['src'],
       pathsToAliases: false,

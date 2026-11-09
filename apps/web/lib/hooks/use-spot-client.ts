@@ -9,7 +9,7 @@ import { useSwapParams } from "./use-swap-params";
 /**
  * Shares a host client for the selected partner and active chain outside SpotProvider.
  * `data` is undefined while configuration loads; use `error` and `refetch` for failures.
- * Analytics are disabled here because SpotProvider owns execution analytics.
+ * Initialization analytics belong to SpotProvider; useTrade reports standalone quotes.
  */
 export const useSpotClient = (): Pick<
   UseQueryResult<SpotClient>, "data" | "error" | "isLoading" | "refetch"

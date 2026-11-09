@@ -1,6 +1,6 @@
 {
   "name": "@orbs-network/spot-ui",
-  "version": "2.1.28",
+  "version": "2.1.29",
   "description": "Framework-neutral SDK for Spot swap quotes, order calculation, signing payloads, submission, and order status.",
   "type": "module",
   "main": "./dist/spot-ui.umd.cjs",
@@ -20,7 +20,7 @@
   ],
   "scripts": {
     "dev": "vite build --watch",
-    "build": "tsc && vite build && tsc -p tsconfig.examples.json",
+    "build": "tsc && vite build && tsc -p tsconfig.examples.json && node ../../scripts/package-integration-skill.mjs spot-ui",
     "typecheck:examples": "tsc -p tsconfig.examples.json",
     "prepublishOnly": "pnpm run build"
   },

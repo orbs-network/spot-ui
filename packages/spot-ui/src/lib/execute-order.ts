@@ -1,6 +1,8 @@
 import type { AllowanceRequest, ApprovalRequest, OrderSigningRequest, PreparedOrder, SpotClient } from "./client";
 import type { Order } from "./types";
 import { SpotError } from "./errors";
+import { observe } from "./observe";
+import { bindOrderAnalytics, bindSubmittedOrderAnalytics, resolveAnalyticsReporter, type SpotAnalytics } from "./analytics";
 
 /** Current stage before an order has been accepted by the order service. */
 export type OrderExecutionPhase = "preparing" | "wrapping" | "approving" | "signing" | "submitting";
@@ -41,7 +43,8 @@ export interface OrderExecutionUpdate<T extends SignableOrder> {
 /** Reviewed spending inputs and wallet adapter for {@link executeOrder}. */
 export interface ExecuteOrderParams<T extends SignableOrder> {
   /** Reused client supplying the configured spender, submission, and analytics. */
-  client: Pick<SpotClient, "spenderAddress" | "submitOrder" | "analytics">;
+  client: Pick<SpotClient, "spenderAddress" | "submitOrder" | "analytics"> &
+    Partial<Pick<SpotClient, "chainId" | "partner">>;
   /** Connected account that must match the prepared order's signer. */
   account: string;
   /** ERC-20 input address; use the wrapped token address for native input. */
@@ -62,15 +65,75 @@ export interface ExecuteOrderParams<T extends SignableOrder> {
   validateContext?: () => void;
   /** Optional progress observer. Thrown errors or rejected promises are ignored. */
   onUpdate?: (update: OrderExecutionUpdate<T>) => void;
+  /** Operation reporter shared with preparation, submission, and settlement. */
+  analytics?: SpotAnalytics;
   /** Optional delay implementation for allowance retries; defaults to a timer. */
   wait?: (milliseconds: number) => Promise<void>;
 }
 const locks = new WeakMap<object, Set<string>>();
+const ALLOWANCE_ATTEMPTS = 3;
+const ALLOWANCE_RETRY_DELAY_MILLIS = 3_000;
 const waitFor = (milliseconds: number): Promise<void> => new Promise(resolve => setTimeout(resolve, milliseconds));
-const observe = (fn: () => unknown) => { try { void Promise.resolve(fn()).catch(() => undefined); } catch { /* observer */ } };
-const amount = (raw: string): bigint => {
-  if (typeof raw !== "string" || !/^\d+$/.test(raw)) throw new SpotError("INVALID_AMOUNT", "Token balances, allowance, and input amount must be non-negative integer base-unit amounts");
+const parseRawAmount = (raw: string): bigint => {
+  if (typeof raw !== "string" || !/^\d+$/.test(raw)) {
+    throw new SpotError("INVALID_AMOUNT", "Token balances, allowance, and input amount must be non-negative integer base-unit amounts");
+  }
   return BigInt(raw);
+};
+
+const acquireExecution = (
+  client: object,
+  account: string,
+  inputAmountRaw: string,
+): { key: string; active: Set<string>; inputAmount: bigint } => {
+  const key = account.toLowerCase();
+  const active = locks.get(client) ?? new Set<string>();
+  if (active.has(key)) throw new SpotError("EXECUTION_IN_PROGRESS", "An order execution is already in progress for this account");
+  const inputAmount = parseRawAmount(inputAmountRaw);
+  if (inputAmount <= BigInt(0)) throw new SpotError("INVALID_AMOUNT", "Input amount must be positive");
+  active.add(key);
+  locks.set(client, active);
+  return { key, active, inputAmount };
+};
+
+const getExecutionSteps = (wrapRequired: boolean, approvalRequired: boolean): OrderExecutionStep[] => {
+  const steps: OrderExecutionStep[] = [];
+  if (wrapRequired) steps.push("wrap");
+  if (approvalRequired) steps.push("approve");
+  steps.push("create");
+  return steps;
+};
+
+const verifyAllowance = async (
+  hasAllowance: () => Promise<boolean>,
+  checkContext: () => void,
+  wait: (milliseconds: number) => Promise<void>,
+): Promise<void> => {
+  // A confirmed receipt can precede the RPC node's updated allowance view.
+  for (let attempt = 0; attempt < ALLOWANCE_ATTEMPTS; attempt++) {
+    checkContext();
+    if (await hasAllowance()) return;
+    if (attempt < ALLOWANCE_ATTEMPTS - 1) await wait(ALLOWANCE_RETRY_DELAY_MILLIS);
+  }
+  throw new SpotError("INSUFFICIENT_ALLOWANCE", "Insufficient allowance to submit the order. Please approve the token first.");
+};
+
+const assertReviewedOrder = (
+  prepared: SignableOrder,
+  params: Pick<ExecuteOrderParams<SignableOrder>, "inputTokenAddress" | "inputAmountRaw">,
+  accountKey: string,
+  spenderAddress: string,
+): void => {
+  const approval = prepared.approvalRequest;
+  const matchesReview =
+    approval.tokenAddress.toLowerCase() === params.inputTokenAddress.toLowerCase() &&
+    approval.amount === params.inputAmountRaw &&
+    approval.spenderAddress.toLowerCase() === spenderAddress.toLowerCase() &&
+    prepared.signingRequest.signerAddress.toLowerCase() === accountKey;
+  // Late preparation refreshes timestamps, never the reviewed spending authority.
+  if (!matchesReview) {
+    throw new SpotError("PREPARED_ORDER_MISMATCH", "Prepared order does not match the reviewed execution");
+  }
 };
 
 const signBeforeDeadline = async (wallet: OrderWalletInteractions, prepared: SignableOrder): Promise<`0x${string}`> => {
@@ -122,13 +185,30 @@ export async function executeOrder<T extends SignableOrder>(params: ExecuteOrder
   order: Order; preparedOrder: T; wrapTxHash?: string; approvalTxHash?: string;
 }> {
   const { client, walletInteractions: wallet, wait = waitFor } = params;
-  const key = params.account.toLowerCase();
-  const active = locks.get(client) ?? new Set<string>();
-  if (active.has(key)) throw new SpotError("EXECUTION_IN_PROGRESS", "An order execution is already in progress for this account");
-  const inputAmount = amount(params.inputAmountRaw);
-  if (inputAmount <= BigInt(0)) throw new SpotError("INVALID_AMOUNT", "Input amount must be positive");
-  active.add(key); locks.set(client, active);
-  const check = () => { params.signal?.throwIfAborted(); params.validateContext?.(); };
+  const analytics = resolveAnalyticsReporter(client.analytics, params.analytics, {
+    account: params.account,
+    chainId: client.chainId,
+    partner: client.partner,
+    inputTokenAddress: params.inputTokenAddress,
+    inputAmountRaw: params.inputAmountRaw,
+  });
+  observe(() => analytics.onExecutionRequest({
+    account: params.account,
+    inputTokenAddress: params.inputTokenAddress,
+    inputAmountRaw: params.inputAmountRaw,
+  }));
+  let acquired: ReturnType<typeof acquireExecution>;
+  try {
+    acquired = acquireExecution(client, params.account, params.inputAmountRaw);
+  } catch (error) {
+    observe(() => analytics.onExecutionError(error, "preparing"));
+    throw error;
+  }
+  const { key, active, inputAmount } = acquired;
+  const check = () => {
+    params.signal?.throwIfAborted();
+    params.validateContext?.();
+  };
   let update: OrderExecutionUpdate<T> = {
     phase: "preparing", event: "request", steps: [], stepIndex: 0,
     hasApproval: false, wrapTxHash: params.completedWrapTxHash,
@@ -137,9 +217,14 @@ export async function executeOrder<T extends SignableOrder>(params: ExecuteOrder
     update = { ...update, ...changes };
     observe(() => params.onUpdate?.({ ...update, steps: [...update.steps] }));
   };
-  const allowance = async () => amount(await wallet.getAllowance({ tokenAddress: params.inputTokenAddress, spenderAddress: client.spenderAddress })) >= inputAmount;
+  const allowance = async () => parseRawAmount(await wallet.getAllowance({
+    tokenAddress: params.inputTokenAddress,
+    spenderAddress: client.spenderAddress,
+  })) >= inputAmount;
   try {
-    check(); emit({}); check();
+    check();
+    emit({});
+    check();
     let wrapAmount = params.nativeInput ? inputAmount : BigInt(0);
     let readRetryBalance: (() => Promise<bigint>) | undefined;
     if (params.nativeInput && params.completedWrapTxHash) {
@@ -147,7 +232,7 @@ export async function executeOrder<T extends SignableOrder>(params: ExecuteOrder
       if (!getTokenBalance) {
         throw new SpotError("INVALID_ARGUMENT", "getTokenBalance is required to verify wrapped token funds before reusing a completed wrap");
       }
-      readRetryBalance = async () => amount(await getTokenBalance.call(wallet, { tokenAddress: params.inputTokenAddress }));
+      readRetryBalance = async () => parseRawAmount(await getTokenBalance.call(wallet, { tokenAddress: params.inputTokenAddress }));
       const wrappedBalance = await readRetryBalance();
       check();
       wrapAmount = wrappedBalance < inputAmount ? inputAmount - wrappedBalance : BigInt(0);
@@ -155,35 +240,35 @@ export async function executeOrder<T extends SignableOrder>(params: ExecuteOrder
     const approvalRequired = !(await allowance());
     check();
     const wrapRequired = wrapAmount > BigInt(0);
-    const steps: OrderExecutionStep[] = [];
-    if (wrapRequired) steps.push("wrap");
-    if (approvalRequired) steps.push("approve");
-    steps.push("create");
+    const steps = getExecutionSteps(wrapRequired, approvalRequired);
     emit({ steps, hasApproval: !approvalRequired });
     if (wrapRequired) {
       const wrapAmountRaw = wrapAmount.toString();
-      emit({ phase: "wrapping", event: "request", wrapAmountRaw, wrapTxHash: undefined }); check();
-      observe(() => client.analytics.onWrapRequest());
+      emit({ phase: "wrapping", event: "request", wrapAmountRaw, wrapTxHash: undefined });
+      check();
+      observe(() => analytics.onWrapRequest(wrapAmountRaw));
       const hash = await wallet.wrapNativeToken(wrapAmountRaw);
       if (!hash) throw new SpotError("WRAP_FAILED", "failed to wrap input token");
       emit({ event: "success", wrapTxHash: hash, stepIndex: update.stepIndex + 1 });
-      observe(() => client.analytics.onWrapSuccess(hash));
+      observe(() => analytics.onWrapSuccess(hash));
     }
     if (approvalRequired) {
-      check(); emit({ phase: "approving", event: "request" }); check();
-      observe(() => client.analytics.onApproveRequest());
-      const hash = await wallet.approveToken({ tokenAddress: params.inputTokenAddress, spenderAddress: client.spenderAddress, amount: params.inputAmountRaw });
+      check();
+      emit({ phase: "approving", event: "request" });
+      check();
+      const request: ApprovalRequest = {
+        tokenAddress: params.inputTokenAddress,
+        spenderAddress: client.spenderAddress,
+        amount: params.inputAmountRaw,
+      };
+      observe(() => analytics.onApproveRequest(request));
+      const hash = await wallet.approveToken(request);
       if (!hash) throw new SpotError("APPROVAL_FAILED", "failed to approve token");
+      observe(() => analytics.onApproveConfirmed(hash));
       emit({ event: "transaction", approvalTxHash: hash });
-      let approved = false;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        check(); approved = await allowance();
-        if (approved) break;
-        if (attempt < 2) await wait(3_000);
-      }
-      if (!approved) throw new SpotError("INSUFFICIENT_ALLOWANCE", "Insufficient allowance to submit the order. Please approve the token first.");
+      await verifyAllowance(allowance, check, wait);
       emit({ event: "success", hasApproval: true, stepIndex: update.stepIndex + 1 });
-      observe(() => client.analytics.onApproveSuccess(hash));
+      observe(() => analytics.onApproveSuccess(hash));
     }
     check();
     if (readRetryBalance) {
@@ -193,28 +278,45 @@ export async function executeOrder<T extends SignableOrder>(params: ExecuteOrder
         throw new SpotError("WRAP_FAILED", "Wrapped token balance is insufficient after wallet steps; review the balance before retrying");
       }
     }
-    check(); emit({ phase: "signing", event: "request" }); check();
-    const prepared = await params.prepareOrder();
     check();
-    // A changing request must never spend more or approve a different spender than reviewed.
-    if (prepared.approvalRequest.tokenAddress.toLowerCase() !== params.inputTokenAddress.toLowerCase() ||
-        prepared.approvalRequest.amount !== params.inputAmountRaw ||
-        prepared.approvalRequest.spenderAddress.toLowerCase() !== client.spenderAddress.toLowerCase() ||
-        prepared.signingRequest.signerAddress.toLowerCase() !== key) throw new SpotError("PREPARED_ORDER_MISMATCH", "Prepared order does not match the reviewed execution");
-    emit({ event: "prepared", preparedOrder: prepared }); check();
-    observe(() => client.analytics.onSignOrderRequest(prepared.order));
+    emit({ phase: "signing", event: "request" });
+    check();
+    let prepared: T;
+    try {
+      prepared = await params.prepareOrder();
+      check();
+      assertReviewedOrder(prepared, params, key, client.spenderAddress);
+    } catch (error) {
+      observe(() => analytics.onExecutionError(error, "preparing"));
+      throw error;
+    }
+    bindOrderAnalytics(prepared.order, analytics);
+    observe(() => analytics.onOrderPrepared(prepared.order));
+    emit({ event: "prepared", preparedOrder: prepared });
+    check();
+    observe(() => analytics.onSignOrderRequest(prepared.order));
     let signature: `0x${string}`;
     try {
       signature = await signBeforeDeadline(wallet, prepared);
-      observe(() => client.analytics.onSignOrderSuccess(signature));
+      observe(() => analytics.onSignOrderSuccess(signature));
       emit({ event: "success", signature });
-    } catch (error) { observe(() => client.analytics.onSignOrderError(error)); emit({ event: "error", error }); throw error; }
-    check(); emit({ phase: "submitting", event: "request" }); check();
+    } catch (error) {
+      observe(() => analytics.onSignOrderError(error));
+      emit({ event: "error", error });
+      throw error;
+    }
+    check();
+    emit({ phase: "submitting", event: "request" });
+    check();
     const order = await client.submitOrder(prepared.order, signature, { signal: params.signal });
+    bindSubmittedOrderAnalytics(order, analytics);
     return { order, preparedOrder: prepared, wrapTxHash: update.wrapTxHash, approvalTxHash: update.approvalTxHash };
   } catch (error) {
-    if (update.phase === "wrapping") observe(() => client.analytics.onWrapError(error));
-    if (update.phase === "approving") observe(() => client.analytics.onApproveError(error));
+    if (update.phase === "wrapping") observe(() => analytics.onWrapError(error));
+    else if (update.phase === "approving") observe(() => analytics.onApproveError(error));
+    else observe(() => analytics.onExecutionError(error, update.phase));
     throw error;
-  } finally { active.delete(key); }
+  } finally {
+    active.delete(key);
+  }
 }

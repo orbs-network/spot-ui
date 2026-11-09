@@ -49,8 +49,9 @@ export function prepareSpotRoute(params: {
 
 /**
  * Call after confirmed wrapping/approval, immediately before signing.
- * Replays the original request and rejects a lower minimum with QUOTE_MINIMUM_DECREASED.
- * An equal or higher fresh minimum keeps the original reviewed quote and minimum.
+ * Reuses quotes up to 20 seconds old or refreshes the exact request and checks its minimum.
+ * A lower refreshed minimum throws QUOTE_MINIMUM_DECREASED. The reviewed minimum stays signed.
+ * Both paths prepare fresh signing timestamps and nonce; no separate age check is needed.
  * The DEX owns its execution lock and live account/chain/balance checks.
  */
 export async function refreshSpotRoute(params: {

@@ -25,54 +25,58 @@ import type {
   CalculatedTriggerPriceValues,
 } from "./types";
 
+const resolvePriceInput = (
+  params: CalculatePriceInputParams,
+  initialPrice: string,
+): string => {
+  if (params.typedValue !== undefined) {
+    const typedPrice = BN(params.typedValue);
+    // Inversion changes display direction; execution prices remain in output/input units.
+    const value = !params.isInverted || typedPrice.isZero()
+      ? typedPrice
+      : BN(1).dividedBy(typedPrice);
+    return toAmountRaw(value.toFixed(), params.tokenDecimals);
+  }
+
+  if (!initialPrice || !BN(initialPrice).gt(0)) return "";
+  if (params.percentage !== undefined) {
+    const percentFactor = BN(params.percentage || 0).dividedBy(100);
+    return BN(initialPrice)
+      .plus(BN(initialPrice).multipliedBy(percentFactor))
+      .decimalPlaces(0)
+      .toFixed();
+  }
+  return BN(initialPrice).decimalPlaces(0).toFixed();
+};
+
+const calculatePricePercentage = (
+  initialPrice: string,
+  raw: string,
+  selectedPercentage?: string | null,
+): string => {
+  if (!initialPrice || BN(initialPrice).isZero()) return "";
+  if (selectedPercentage != null) return selectedPercentage;
+  if (!raw) return "";
+
+  const difference = BN(raw)
+    .minus(initialPrice)
+    .dividedBy(initialPrice)
+    .multipliedBy(100)
+    .decimalPlaces(2)
+    .toString();
+  return BN(difference).isZero() ? "" : difference;
+};
+
 export const calculatePriceInput = (
   params: CalculatePriceInputParams,
 ): CalculatedPriceInput => {
   const initialPrice = normalizeAmount(params.initialPrice);
-  let resolvedPrice = "";
-
-  if (params.typedValue !== undefined) {
-    const typedPrice = BN(params.typedValue);
-    const value = params.isInverted
-      ? typedPrice.isZero()
-        ? BN(0)
-        : BN(1).dividedBy(typedPrice)
-      : typedPrice;
-    resolvedPrice = toAmountRaw(value.toFixed(), params.tokenDecimals);
-  } else if (
-    params.percentage !== undefined &&
-    initialPrice &&
-    BN(initialPrice).gt(0)
-  ) {
-    const percentFactor = BN(params.percentage || 0).dividedBy(100);
-    resolvedPrice = BN(initialPrice)
-      .plus(BN(initialPrice).multipliedBy(percentFactor))
-      .decimalPlaces(0)
-      .toFixed();
-  } else if (initialPrice && BN(initialPrice).gt(0)) {
-    resolvedPrice = BN(initialPrice).decimalPlaces(0).toFixed();
-  }
-
-  const raw = normalizeAmount(resolvedPrice);
-  let percentage = "";
-  if (initialPrice && !BN(initialPrice).isZero()) {
-    if (params.percentage !== undefined && params.percentage !== null) {
-      percentage = params.percentage;
-    } else if (raw) {
-      const difference = BN(raw)
-        .minus(initialPrice)
-        .dividedBy(initialPrice)
-        .multipliedBy(100)
-        .decimalPlaces(2)
-        .toString();
-      percentage = BN(difference).isZero() ? "" : difference;
-    }
-  }
+  const raw = normalizeAmount(resolvePriceInput(params, initialPrice));
 
   return {
     raw,
     typedValue: params.typedValue,
-    percentage,
+    percentage: calculatePricePercentage(initialPrice, raw, params.percentage),
     isTypedValue: params.typedValue !== undefined,
   };
 };
@@ -80,15 +84,9 @@ export const calculatePriceInput = (
 export const calculatePriceDisplay = (
   params: CalculatePriceDisplayParams,
 ): CalculatedPriceDisplay => {
-  const sanitize = (value?: string): string => {
-    if (!value) return "";
-    const amount = BN(value);
-    return amount.isFinite() && !amount.isNaN() ? value : "";
-  };
-
   let ui = "";
   if (params.typedValue !== undefined) {
-    ui = sanitize(params.typedValue);
+    ui = normalizeAmount(params.typedValue);
   } else {
     const baseAmountUI = toAmountUI(params.raw, params.amountDecimals ?? 18);
     if (baseAmountUI && !BN(baseAmountUI).isZero()) {
@@ -101,8 +99,8 @@ export const calculatePriceDisplay = (
   const raw = !ui
     ? ""
     : params.isInverted
-      ? sanitize(toAmountRaw(ui, params.invertedAmountDecimals ?? 18))
-      : sanitize(params.raw);
+      ? normalizeAmount(toAmountRaw(ui, params.invertedAmountDecimals ?? 18))
+      : normalizeAmount(params.raw);
   const usdPrice = params.isInverted
     ? params.invertedAmountUsdPrice
     : params.amountUsdPrice;
@@ -186,6 +184,19 @@ const getTriggerPriceError = (
   return undefined;
 };
 
+const calculateOrderPriceDisplay = (
+  params: CalculateTriggerPriceValuesParams | CalculateLimitPriceValuesParams,
+  price: CalculatedPriceInput,
+): CalculatedPriceDisplay => calculatePriceDisplay({
+  raw: price.raw,
+  typedValue: price.typedValue,
+  amountDecimals: params.outputTokenDecimals,
+  invertedAmountDecimals: params.inputTokenDecimals,
+  amountUsdPrice: params.outputUsdPrice,
+  invertedAmountUsdPrice: params.inputUsdPrice,
+  isInverted: params.isInverted,
+});
+
 export const calculateTriggerPriceValues = (
   params: CalculateTriggerPriceValuesParams,
 ): CalculatedTriggerPriceValues => {
@@ -203,19 +214,10 @@ export const calculateTriggerPriceValues = (
     percentage: resolvedPercentage,
     isInverted: params.isInverted,
   });
-  const display = calculatePriceDisplay({
-    raw: price.raw,
-    typedValue: price.typedValue,
-    amountDecimals: params.outputTokenDecimals,
-    invertedAmountDecimals: params.inputTokenDecimals,
-    amountUsdPrice: params.outputUsdPrice,
-    invertedAmountUsdPrice: params.inputUsdPrice,
-    isInverted: params.isInverted,
-  });
   return {
     ...price,
     enabled,
-    display,
+    display: calculateOrderPriceDisplay(params, price),
     error: getTriggerPriceError(
       params.module,
       params.inputAmountRaw,
@@ -273,22 +275,27 @@ export const calculateLimitPriceValues = (
     percentage: resolvedPercentage,
     isInverted: params.isInverted,
   });
-  const display = calculatePriceDisplay({
-    raw: price.raw,
-    typedValue: price.typedValue,
-    amountDecimals: params.outputTokenDecimals,
-    invertedAmountDecimals: params.inputTokenDecimals,
-    amountUsdPrice: params.outputUsdPrice,
-    invertedAmountUsdPrice: params.inputUsdPrice,
-    isInverted: params.isInverted,
-  });
   const marketPrice = normalizeAmount(params.marketPrice);
 
   return {
     ...price,
-    display,
+    display: calculateOrderPriceDisplay(params, price),
     error: getLimitPriceError(params, marketPrice, price.raw),
   };
+};
+
+const calculateSwapLimitPrice = (
+  params: CalculateOrderFormParams,
+  inputAmount: string,
+): string => {
+  if (!BN(inputAmount || 0).gt(0)) return "";
+
+  // Convert the whole-quote minimum into a UI unit price for the shared price model.
+  const priceRaw = BN(params.minimumOutputAmountRaw || 0)
+    .div(inputAmount)
+    .times(BN(10).pow(params.inputTokenDecimals))
+    .toFixed();
+  return toAmountUI(priceRaw, params.outputTokenDecimals);
 };
 
 export const calculateOrderPrices = (
@@ -318,13 +325,7 @@ export const calculateOrderPrices = (
     marketPrice,
     inputAmountRaw: inputAmount,
     limitPrice: params.module === Module.SWAP
-      ? BN(inputAmount || 0).gt(0)
-        ? toAmountUI(
-            BN(params.minimumOutputAmountRaw || 0).div(inputAmount)
-              .times(BN(10).pow(params.inputTokenDecimals)).toFixed(),
-            params.outputTokenDecimals,
-          )
-        : ""
+      ? calculateSwapLimitPrice(params, inputAmount)
       : params.userInput.limitPriceUi,
     limitPricePercent: params.module === Module.SWAP
       ? null

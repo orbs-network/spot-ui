@@ -4,6 +4,7 @@ import type { SpotStore } from "./context/create-spot-store";
 import { ExecutionPhase, type Callbacks, type SwapExecution } from "./types";
 import { isUnconfirmedExecutionError, normalizeError, observe, parseExecutionError } from "./execution-state";
 import { addAcceptedOrderToCache, waitForSwapOrder } from "./wait-for-swap-order";
+import { createOperationAnalytics, getExecutionAnalyticsContext } from "./analytics";
 
 // Compare every signed field, rather than treating a matching timestamp nonce as identity.
 const asInteger = (value: unknown): bigint | undefined => {
@@ -37,24 +38,31 @@ const findAcceptedOrder = (orders: Order[], prepared: RePermitOrder): Order | un
   );
 
 /** Reconciles the saved attempt using read-only lookups; never signs or submits again. */
-export async function resumeExecution({ store, callbacks, signal }: {
+export async function resumeExecution({ store, callbacks, signal, disableAnalytics }: {
   store: StoreApi<SpotStore>;
   callbacks?: Callbacks;
   signal: AbortSignal;
+  disableAnalytics?: boolean;
 }): Promise<Order | undefined> {
   const saved = store.getState().state.currentExecution;
   if (saved.phase !== ExecutionPhase.UNCONFIRMED || saved.executionId === undefined) return;
   const executionId = saved.executionId;
+  const analytics = saved.analytics ?? createOperationAnalytics(
+    getExecutionAnalyticsContext(saved), undefined, disableAnalytics,
+  );
+  if (disableAnalytics !== undefined) observe(() => analytics.setDisabled(disableAnalytics));
   let execution: SwapExecution = {
-    ...saved, phase: ExecutionPhase.SETTLING, error: undefined, parsedError: undefined,
+    ...saved, analytics, phase: ExecutionPhase.SETTLING, error: undefined, parsedError: undefined,
   };
   if (!store.getState().replaceExecution(executionId, execution)) return;
+  observe(() => analytics.onRecoveryRequest());
   const transition = (phase: ExecutionPhase, changes: Partial<SwapExecution> = {}): boolean => {
     const next = { ...execution, ...changes, phase };
     if (!store.getState().replaceExecution(executionId, next)) return false;
     execution = next;
     return true;
   };
+  let trackingStarted = false;
   try {
     signal.throwIfAborted();
     let order = execution.order;
@@ -84,13 +92,23 @@ export async function resumeExecution({ store, callbacks, signal }: {
     signal.throwIfAborted();
     if (!transition(ExecutionPhase.SETTLING, { order, orderId: order.id })) return;
     observe(() => addAcceptedOrderToCache(store, order));
-    if (recoveredAcceptance) observe(() => callbacks?.onOrderCreated?.(order));
+    if (recoveredAcceptance) {
+      observe(() => analytics.onCreateOrderSuccess(order.id));
+      observe(() => callbacks?.onOrderCreated?.(order));
+    }
+    trackingStarted = execution.form?.module === Module.SWAP;
     const completed = execution.form?.module === Module.SWAP
       ? await waitForSwapOrder({ store, callbacks, order, executionId, signal })
       : order;
     transition(ExecutionPhase.SUCCESS, { order: completed, orderId: completed.id });
     return completed;
   } catch (error) {
+    // SDK watchOrder reports tracking outcomes; this covers recovery lookup failures before it starts.
+    if (!trackingStarted) {
+      observe(() => execution.form?.module === Module.SWAP
+        ? analytics.onSettlementError(error)
+        : analytics.onRecoveryError(error));
+    }
     transition(isUnconfirmedExecutionError(error, ExecutionPhase.SETTLING)
       ? ExecutionPhase.UNCONFIRMED : ExecutionPhase.FAILED, {
       error: normalizeError(error), parsedError: parseExecutionError(error),

@@ -453,7 +453,8 @@ export function SpotForm({
   // DEX: Add your props (inputCurrency, outputCurrency, etc.)
 }: {
   module: Module;
-  /** DEX: Map quote.netAmountOut and quote.minimumAmountOut unchanged. */
+  /** DEX: For SWAP pass { quote: originalSdkQuote, isLoading, noLiquidity }.
+   * Other modules can use flat raw/USD fields from the host's quote adapter. */
   marketQuote: MarketQuote;
   /** DEX: Stable callback controlling automatic/manual refresh and cancellation. */
   onQuotePauseChange: (paused: boolean) => void;

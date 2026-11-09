@@ -60,15 +60,13 @@ export const getWrappedNativeAction = (
   return undefined;
 };
 
-const isBaseToken = (t: Currency, chainId?: number) => {
-  const baseCurrencies = getBaseCurrencies(chainId).map((t) => t.toLowerCase());
-  return baseCurrencies.includes(t.address.toLowerCase());
-};
-
 export const sortByBaseAssets = (currencies: Currency[], chainId?: number) => {
+  const baseAddresses = new Set(
+    getBaseCurrencies(chainId).map((address) => address.toLowerCase()),
+  );
   return currencies.sort((a, b) => {
-    const baseA = isBaseToken(a, chainId);
-    const baseB = isBaseToken(b, chainId);
+    const baseA = baseAddresses.has(a.address.toLowerCase());
+    const baseB = baseAddresses.has(b.address.toLowerCase());
 
     if (baseA !== baseB) {
       return baseA ? -1 : 1; // base first
@@ -108,6 +106,25 @@ export const sortTokens = (
   return uniqueRes;
 };
 
+const trimFraction = (fraction: string, scale: number): string =>
+  fraction.slice(0, scale).replace(/0+$/, "");
+
+const formatSmallFraction = (
+  fraction: string,
+  scale: number,
+  maxDecimals: number,
+): string | undefined => {
+  const firstSignificantIndex = fraction.search(/[^0]/);
+  if (firstSignificantIndex === -1 || firstSignificantIndex + 1 > maxDecimals) {
+    return undefined;
+  }
+  const significant = trimFraction(fraction.slice(firstSignificantIndex), scale);
+  if (!significant) return undefined;
+  // Keep leading fractional zeros so tiny values retain their first significant digits.
+  return `0.${fraction.slice(0, firstSignificantIndex)}${significant}`;
+};
+
+/** Truncate for display; raw execution amounts must retain their original precision. */
 export function formatDecimals(
   value?: string,
   scale = 6,
@@ -115,33 +132,19 @@ export function formatDecimals(
 ): string {
   if (!value) return "";
 
-  // ─── keep the sign, work with the absolute value ────────────────
   const sign = value.startsWith("-") ? "-" : "";
   const abs = sign ? value.slice(1) : value;
-
   const [intPart, rawDec = ""] = abs.split(".");
 
-  // Fast-path: decimal part is all zeros (or absent) ───────────────
   if (!rawDec || Number(rawDec) === 0) return sign + intPart;
 
-  /** Case 1 – |value| ≥ 1 *****************************************/
   if (intPart !== "0") {
-    const sliced = rawDec.slice(0, scale);
-    const cleaned = sliced.replace(/0+$/, ""); // drop trailing zeros
-    const trimmed = cleaned ? "." + cleaned : "";
-    return sign + intPart + trimmed;
+    const fraction = trimFraction(rawDec, scale);
+    return sign + intPart + (fraction ? `.${fraction}` : "");
   }
 
-  /** Case 2 – |value| < 1 *****************************************/
-  const firstSigIdx = rawDec.search(/[^0]/); // first non-zero position
-  if (firstSigIdx === -1) return "0"; // decimal part is all zeros
-  if (firstSigIdx + 1 > maxDecimals) return "0"; // too many leading zeros → 0
-
-  const leadingZeros = rawDec.slice(0, firstSigIdx); // keep them
-  const significantRaw = rawDec.slice(firstSigIdx).slice(0, scale);
-  const significant = significantRaw.replace(/0+$/, ""); // trim trailing zeros
-
-  return significant ? sign + "0." + leadingZeros + significant : "0";
+  const smallValue = formatSmallFraction(rawDec, scale, maxDecimals);
+  return smallValue ? sign + smallValue : "0";
 }
 
 export const parseNativeCurrencyAddress = (
@@ -178,10 +181,7 @@ export const getNativeTokenSymbol = (chainId: number) => {
 };
 
 export const getPopularTokenForChain = (chainId?: number) => {
-  if (!chainId) {
-    return [];
-  }
-  return POPULAR_TOKENS[chainId as keyof typeof POPULAR_TOKENS] ?? [];
+  return getBaseCurrencies(chainId);
 };
 
 export const fillDelayText = (value?: number) => {
@@ -256,13 +256,13 @@ export function getFirstAndLastLetter(symbol?: string): string {
 
 
 export const toAmountRaw = (value?: string, decimals?: number) => {
-  if (!decimals || !value) return "0";
+  if (decimals == null || !value) return "0";
   return parseUnits(value, decimals).toString();
 };
 
 export const toAmountUI = (value?: string, decimals?: number) => {
  try {
-  if (!decimals || !value) return "0";
+  if (decimals == null || !value) return "0";
   return formatUnits(BigInt(value), decimals);
  // eslint-disable-next-line @typescript-eslint/no-unused-vars
  } catch (error) {

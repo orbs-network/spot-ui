@@ -21,6 +21,17 @@ const getOutputAmount = (
     .toFixed(0);
 };
 
+const getProtectedOutputAmount = (
+  inputAmount: string,
+  price: string,
+  inputTokenDecimals: number,
+): string => {
+  const amount = BN(inputAmount).times(price).div(BN(10).pow(inputTokenDecimals));
+  // Limits and triggers share floor rounding and a minimum of one base unit.
+  // Display/output estimates above intentionally retain their usual rounding.
+  return BN.max(1, amount).integerValue(BN.ROUND_FLOOR).toFixed(0);
+};
+
 const getMinOutputAmountPerTrade = (
   inputAmountPerTrade?: string,
   limitPrice?: string,
@@ -36,10 +47,7 @@ const getMinOutputAmountPerTrade = (
     return "0";
   }
 
-  const adjustedResult = BN(inputAmountPerTrade)
-    .times(limitPrice)
-    .div(BN(10).pow(inputTokenDecimals));
-  return BN.max(1, adjustedResult).integerValue(BN.ROUND_FLOOR).toFixed(0);
+  return getProtectedOutputAmount(inputAmountPerTrade, limitPrice, inputTokenDecimals);
 };
 
 const getTriggerOutputAmountPerTrade = (
@@ -53,10 +61,7 @@ const getTriggerOutputAmountPerTrade = (
     return undefined;
   }
 
-  const adjustedResult = BN(inputAmountPerTrade)
-    .times(triggerPrice)
-    .div(BN(10).pow(inputTokenDecimals));
-  return BN.max(1, adjustedResult).integerValue(BN.ROUND_FLOOR).toFixed(0);
+  return getProtectedOutputAmount(inputAmountPerTrade, triggerPrice, inputTokenDecimals);
 };
 
 const getInputAmountPerTrade = (
@@ -121,17 +126,24 @@ const getTotalAmount = (amountPerTrade: string, totalTrades: number): string => 
     .toFixed();
 };
 
+const getOrderSlippageBps = (params: CalculateOrderValuesParams): number => {
+  // Swap quote slippage is already applied to its minimum; this signed field is oracle protection.
+  if (params.module === Module.SWAP) return SWAP_ORDER_SLIPPAGE_BPS;
+  return Number.isFinite(params.priceProtectionPercent)
+    ? Math.round(params.priceProtectionPercent * 100)
+    : 0;
+};
+
+const getDisplayFeeAmount = (outputAmount: string, percent: number): string => {
+  if (!percent || !outputAmount) return "";
+  return BN(outputAmount).multipliedBy(percent).dividedBy(100).toFixed(0);
+};
+
 export const calculateOrderValues = (
   params: CalculateOrderValuesParams,
 ): CalculatedOrderValues => {
   const schedule = calculateOrderSchedule(params);
-  // The swap quote already includes UI slippage in its minimum output.
-  // This separate signed field controls oracle protection.
-  const slippageBps = params.module === Module.SWAP
-    ? SWAP_ORDER_SLIPPAGE_BPS
-    : Number.isFinite(params.priceProtectionPercent)
-      ? Math.round(params.priceProtectionPercent * 100)
-      : 0;
+  const slippageBps = getOrderSlippageBps(params);
   const displayFeePercent =
     typeof params.displayFeePercent === "number" &&
     Number.isFinite(params.displayFeePercent)
@@ -177,13 +189,7 @@ export const calculateOrderValues = (
       triggerPrice,
       params.inputTokenDecimals,
     ) || "0";
-  const displayFeeAmount =
-    displayFeePercent && outputAmount
-      ? BN(outputAmount)
-          .multipliedBy(displayFeePercent)
-          .dividedBy(100)
-          .toFixed(0)
-      : "";
+  const displayFeeAmount = getDisplayFeeAmount(outputAmount, displayFeePercent);
 
   return {
     ...schedule,

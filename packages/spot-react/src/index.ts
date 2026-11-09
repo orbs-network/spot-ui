@@ -22,6 +22,7 @@ export { useTrades } from "./hooks/use-trades";
 export { useTriggerPrice } from "./hooks/use-trigger-price";
 export { type CancelOrderStatus } from "./hooks/use-cancel-order";
 export type { SpotExecutionData } from "./hooks/use-execution";
+export type { SubmitButtonResult, SubmitDisabledReason } from "./hooks/use-execution";
 
 // Set the UI version in spot-sdk for analytics
 setUIVersion(pkg.version);
@@ -37,6 +38,7 @@ export {
   type CreateClientOptions,
   type SubmitOrderOptions,
   type SpotAnalytics,
+  type AnalyticsContext,
   type AccountOrdersResult,
   type GetOrdersParams,
   type QuoteErrorKind,
@@ -81,6 +83,7 @@ export {
   type CalculatedOrderFormSchedule,
   type CalculatedOrderFormErrors,
   type CalculatedOrderForm,
+  type OrderFormNotReadyReason,
   type CalculatedOrderSchedule,
   type CalculatedPriceInput,
   type CalculatedPriceDisplay,
@@ -135,6 +138,7 @@ export {
   ORBS_WEBSITE_URL,
   // Analytics
   analytics,
+  createAnalytics,
   setUIVersion,
 } from "@orbs-network/spot-ui";
 

@@ -17,6 +17,7 @@ import {
   normalizeError,
   observe,
 } from "../execution-state";
+import { createOperationAnalytics } from "../analytics";
 
 export type CancelOrderStatus = {
   status: ExecutionStatus;
@@ -31,7 +32,7 @@ export const createCancelledOrder = (order: Order): Order => ({
 });
 
 export const useCancelOrder = (order?: Order) => {
-  const { account, walletInteractions, callbacks } = useSpotTrading();
+  const { account, chainId, partner, walletInteractions, callbacks, disableAnalytics } = useSpotTrading();
   const { data: client } = useClient();
   const { key: ordersKey, refetch } = useOrdersResource();
   const store = useSpotStoreApi();
@@ -46,6 +47,15 @@ export const useCancelOrder = (order?: Order) => {
     if (previous?.status === ExecutionStatus.LOADING || previous?.status === ExecutionStatus.SUCCESS) {
       return undefined;
     }
+    const analytics = createOperationAnalytics({
+      account,
+      chainId: order?.chainId ?? chainId,
+      partner,
+      orderId: order?.id,
+      inputTokenAddress: order?.srcTokenAddress,
+      outputTokenAddress: order?.dstTokenAddress,
+      inputAmountRaw: order?.srcAmount,
+    }, client, disableAnalytics);
 
     try {
       if (!account) throw new Error("missing account");
@@ -57,7 +67,7 @@ export const useCancelOrder = (order?: Order) => {
       observe(() => callbacks?.onCancelOrderRequest?.(order));
 
       observe(() =>
-        client.analytics.onCancelOrderRequest(
+        analytics.onCancelOrderRequest(
           [order.version === 1 ? order.id.toString() : order.hash],
           order.version as 1 | 2,
         ),
@@ -79,7 +89,7 @@ export const useCancelOrder = (order?: Order) => {
       if (ordersKey && store.getState().orders.key === ordersKey) {
         observe(() => store.getState().updateOrder(cancelledOrder));
       }
-      observe(() => client.analytics.onCancelOrderSuccess(txHash));
+      observe(() => analytics.onCancelOrderSuccess(txHash));
       observe(() =>
         callbacks?.onCancelOrderSuccess?.({
           order: cancelledOrder,
@@ -100,13 +110,17 @@ export const useCancelOrder = (order?: Order) => {
             error: getErrorMessage(error),
           });
         }
-        observe(() => client?.analytics.onCancelOrderError(error));
       }
+      // User rejection is an outcome too, while its existing UI state remains dismissible.
+      observe(() => analytics.onCancelOrderError(error));
       observe(() => callbacks?.onCancelOrderFailed?.(normalizeError(error)));
     }
     return undefined;
   }, [
     account,
+    chainId,
+    partner,
+    disableAnalytics,
     callbacks,
     clearCancelOrder,
     client,

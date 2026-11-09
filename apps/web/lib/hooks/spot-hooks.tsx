@@ -19,6 +19,17 @@ import { TABS } from "../types";
 import { DEFAULT_PARTNER } from "../consts";
 import { useRefetchSelectedCurrenciesBalances } from "./use-balances";
 
+const ExplorerToastLink = ({ chainId, txHash }: { chainId: number; txHash: string }) => (
+  <a
+    href={getExplorerUrl(chainId, txHash)}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="text-sm text-blue-500 hover:text-blue-600"
+  >
+    View on explorer
+  </a>
+);
+
 export const useCallbacks = () => {
   const wrapToastId = useRef<number>(null);
   const approveToastId = useRef<number>(null);
@@ -47,19 +58,8 @@ export const useCallbacks = () => {
   const onWrapSuccess = useCallback(
     async ({ txHash }: OnWrapSuccessCallback) => {
       const wrappedNativeCurrency = getWrappedNativeCurrency(chainId);
-      const explorerUrl = getExplorerUrl(chainId, txHash);
-
       toast.success(`Wrapped ${inputCurrency?.symbol}`, {
-        description: (
-          <a
-            href={explorerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-blue-500 hover:text-blue-600"
-          >
-            View on explorer
-          </a>
-        ),
+        description: <ExplorerToastLink chainId={chainId} txHash={txHash} />,
         id: wrapToastId.current as number,
       });
       // Keep the selected native token unchanged. Switching it here changes
@@ -81,19 +81,9 @@ export const useCallbacks = () => {
 
   const onApproveSuccess = useCallback(
     ({ txHash }: OnApproveSuccessCallback) => {
-      const explorerUrl = getExplorerUrl(chainId, txHash);
       toast.success(`Approved ${symbol}`, {
         id: approveToastId.current as number,
-        description: (
-          <a
-            href={explorerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-blue-500 hover:text-blue-600"
-          >
-            View on explorer
-          </a>
-        ),
+        description: <ExplorerToastLink chainId={chainId} txHash={txHash} />,
       });
     },
     [chainId, symbol],
@@ -194,11 +184,7 @@ export const useSpotMarketQuote = () => {
 
   return useMemo(() => {
     return {
-      quotedOutputAmountRaw: trade?.outAmount,
-      minimumOutputAmountRaw: trade?.minAmountOut,
-      inputAmountUsd: trade?.originalQuote?.inputAmountUsd,
-      quotedOutputAmountUsd: trade?.originalQuote?.netAmountOutUsd,
-      minimumOutputAmountUsd: trade?.originalQuote?.minimumAmountOutUsd,
+      quote: trade?.originalQuote,
       noLiquidity: !isLoadingTrade && !trade,
       isLoading: isLoadingTrade,
     };

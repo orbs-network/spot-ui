@@ -1,22 +1,24 @@
 # Integration Principles
 
+For a new or non-DEX app, first use [Starting without a DEX](08-starting-without-dex.md) to create the missing host services and a small set of UI primitives. References to existing DEX controls/state below mean reuse them when present; otherwise use the host layer just established.
+
 ## Rules
 
 1. **Token Inputs = Exact DEX Copy** — Must look exactly like the DEX swap UI.
-2. **Module Navigation** — Add the requested Swap, TWAP, Limit, Stop-Loss, and Take-Profit modules through the DEX's existing router/query navigation.
+2. **Module Navigation** — Add only the requested modules through the DEX's existing router/query navigation. A single-module request does not imply every Spot tab.
 3. **Use DEX Components As-Is** — Don't modify DEX components. If one doesn't exist (e.g. Select, Switch), create a new one using DEX styles. Never use generic web components.
-4. **Modals Required** — Submit order in a modal. Use `@orbs-network/swap-ui` for the order creation/progress flow content, wrapped in the same modal shell the DEX uses for token select or settings when possible.
+4. **Review and Progress** — Reuse the requested host review/progress flow and its modal shell when applicable. If adopting the documented `@orbs-network/swap-ui` flow, first verify its installed exports and adapt its appearance to the DEX.
 5. **Use Portals for Context** — If rendering elements outside SpotProvider scope, use Portal to maintain context access.
 6. **Hooks in Components, Context for Shared Props** — Each component calls the focused Spot hook it needs or the DEX-owned Spot adapter hook directly. Never pass values to a child when that child can get them from a hook. If many props are passed through children, create a focused local context/hook for the shared DEX adapter state, callbacks, formatting helpers, or UI state.
 7. **Verify Before Using** — Always check: types are correct, components exist in DEX, imports from spot-react are valid.
 8. **Never Import from dist** — Always `@orbs-network/spot-react`, never `@orbs-network/spot-react/dist/*`.
-9. **Layout Placement** — Spot form next to the swap panel. Spot tabs and swap tab in the same container (e.g. Swap | TWAP | Limit | Stop-Loss | Take-Profit).
+9. **Layout Placement** — When adding requested Spot tabs, use the DEX's existing swap container and navigation. A router-source integration does not require a new form or tabs.
 10. **Format Display Values** — Convert raw Spot amounts into the DEX's native amount type when possible, then display with the DEX formatter or `.toSignificant()` / `.toExact()`.
-11. **No Extra Packages Beyond Spot UI Needs** — Install `@orbs-network/spot-react`, React, and `@orbs-network/swap-ui` when using the documented progress modal. Import SDK helpers such as `getQuote` from `@orbs-network/spot-react`; no separate `spot-ui` install is needed. Reuse the host query/numeric libraries; Zustand and BigNumber are SDK internals.
+11. **Only Needed Dependencies** — Inspect the installed SDK/React versions and public exports before changing packages. Install only missing, compatible dependencies with the host package manager; preserve existing versions and the lockfile. Add `@orbs-network/swap-ui` only when adopting its progress flow. Import SDK helpers from `@orbs-network/spot-react`; no separate core install is needed. Spot requires no particular wallet, query, or numeric library, but a new host still needs wallet/read capabilities and exact amount conversion.
 12. **Don't Recreate Error Boundary** — spot-react includes its own ErrorBoundary. Don't add another one around it.
 13. **Form Always Visible** — If no chainId/account, still render the form. Only the submit area shows Connect Wallet or Switch Chain using DEX's existing flow.
 14. **Split Big Files** — A tiny integration can start in one file, but production integrations should split large files into focused `components`, `hooks`, `context`, and `utils` files. Do not leave one giant file that mixes provider setup, wallet adapters, form sections, modals, history rows, formatting, and transaction helpers.
-15. **Balance Refetch via Callbacks** — Wire `refetchBalances` into `onWrapSuccess`, `onOrderCreated`, `onOrderFilled`, `onOrdersProgressUpdate`, and `onCancelOrderSuccess`. Do not pass it as a prop.
+15. **Balance Refetch via Callbacks** — Wire `refetchBalances` into the supported lifecycle callbacks relevant to the implemented flow. Add progress/cancellation refresh only when those features are in scope.
 16. **Input Reset in onClose** — Ignore close/reset requests while `isExecuting` is true. Clear the DEX input only when `isSuccess` is true inside the modal's `onClose` callback. On success call `startNewOrder()`; on failed/rejected submissions keep the input and call `returnToOrderForm()` (see [02-provider.md](02-provider.md)).
 17. **Translations** — The SDK returns string keys for disclaimers and errors. Resolve via your own i18n system. Register all disclaimer defaults from [03-panels.md](03-panels.md#disclaimer-panel) and fall back to the English copy when a translation is missing, empty, or returns the key.
 18. **Direct Provider Props** — Pass values directly to `SpotProvider`. Do not create `useSpotProviderProps()` wrappers that hide simple prop wiring.
@@ -25,11 +27,11 @@
 21. **Token Selector Lock** — If reusing the DEX token selector, hide chain selection for Spot. Network changes should go through the DEX network control.
 22. **Submit Progress Mode** — Once `useExecution().status` is set and `isPreparingOrder` is false, hide review details, submit button, and secondary modal footer close/cancel actions. The progress/success/failure content owns the modal.
 23. **Order Created Toast** — Avoid a toast on `onOrderCreated` unless explicitly requested. Refetch balances silently; keep toasts for fills, cancellation, copy, and errors.
-24. **Virtualized History** — Use existing virtualization for order history and fills lists when available. Store the selected order's stable `historyKey`, not the selected order object or collision-prone v1 numeric id.
+24. **Requested History** — Add history/cancellation only when requested. For large lists use existing virtualization when available and store the selected order's stable `historyKey`, not the selected order object or collision-prone v1 numeric id.
 25. **No Hidden Unsupported Chain** — Spot never substitutes another chain. Its client and submission remain disabled until the connected wallet is on a supported chain; show the host DEX's switch-network control.
 26. **Visual References Are Structural** — Use [05-ui-reference.md](05-ui-reference.md) and the bundled screenshots for layout, hierarchy, density, and flow states. Adapt colors, backgrounds, radii, typography, and token-logo rendering to the integrated DEX.
 27. **Shared Spot Client** — Let `spot-react` initialize the keyed `spot-ui` client. Do not add a DEX-owned `/config` request or pass RePermit configuration through local context; the SDK client owns all configuration-derived order and transaction-request values, while `calculateOrder` keeps defaults, validation, preview/display amounts, and order construction aligned.
-28. **Configuration Boundary** — Treat a missing client as initialization loading. Keep submission disabled while it is unavailable and give `SpotProvider` a DEX-native `clientErrorFallback`. The fallback receives `error`, `retry`, and `isRetrying`, keeping failures recoverable without recreating configuration state in child contexts.
+28. **Configuration Boundary** — Inspect the installed `useClient()` loading/error state rather than treating every missing client as loading. Keep submission disabled while unavailable and give `SpotProvider` a DEX-native `clientErrorFallback`. The fallback receives `error`, `retry`, and `isRetrying`, keeping failures recoverable without recreating configuration state in child contexts.
 29. **Trusted Configuration Boundary** — The SDK rejects chain mismatches and malformed or zero RePermit/adapter addresses, then uses the remaining `/config` contract values for approvals, cancellation, and order construction. It does not verify deployed bytecode or contract identity, so only use the trusted Orbs endpoint over TLS.
 30. **Preserve Wallet Signatures** — Return the wallet's original `0x`-prefixed value from `signOrder`. Spot submits it unchanged; do not split it into `{ v, r, s }`, rewrite `v`, or normalize its bytes.
 
@@ -91,7 +93,7 @@ function OrderHistoryWithPortal() {
 | --- | --- | --- | --- | --- | --- |
 | Trades amount | — | Yes | — | — | — |
 | Fill delay | — | Yes | — | — | — |
-| Duration | — (fixed 15 min) | — | Yes | Yes | Yes |
+| Duration | — (fixed 3 min) | — | Yes | Yes | Yes |
 | Limit price | — | Yes (toggle) | Yes (always on) | Yes (toggle) | Yes (toggle) |
 | Trigger price | — | — | — | Yes | Yes |
 | Setting | UI Slippage | Price Protection | Price Protection | Price Protection | Price Protection |
@@ -100,7 +102,10 @@ Swap submit review hides limit price and expiration. Its loading state lasts thr
 
 ## File Structure
 
-Start simple, then split when the file is getting large or when sections need their own hooks/state. Follow the host DEX folder conventions, but prefer a shape like:
+Start simple, then split when the file is getting large or sections need their
+own hooks/state. Follow the host DEX folder conventions. This is one possible
+shape for a full integration; omit unrequested modules/history and unnecessary
+context or utility files:
 
 ```txt
 components/spot/
@@ -125,42 +130,45 @@ Keep focused Spot hook calls in the component that renders the data whenever pos
 
 ## Final Checklist
 
-- [ ] Submit review follows [03-panels.md](03-panels.md): recipient explorer link, shortened ID, conditional trade/price rows, expiry date, DEX number formatting, allowance spinner, and disclaimer accepted by default
+Apply only the checks relevant to the requested integration. Inspect the
+installed API before copying a method, type, or component from these references;
+use [Quickstart](01-quickstart.md) for compatible-version fallbacks.
 
-- [ ] All Spot tooltips have the `apps/web` defaults from [06-tooltips.md](06-tooltips.md), including fallback text for missing or empty translations
+- [ ] Requested submit review follows the applicable [03-panels.md](03-panels.md) rows and states, using DEX formatting and the relevant disclaimer
 
-- [ ] `@orbs-network/spot-react@latest` installed with all peer dependencies (no viem required)
-- [ ] `@orbs-network/swap-ui@latest` installed and used for order creation/progress modal content
-- [ ] `walletInteractions` provided with all 5 methods (`wrapNativeToken`, `approveToken`, `cancelOrder`, `signOrder`, `getAllowance`); write methods wait for receipts and `signOrder` returns the wallet signature unchanged
-- [ ] `inputAmountUi` from DEX state
-- [ ] DEX swap state exposed through local context/hook where needed; no prop drilling of hook-returned values
-- [ ] Long child prop lists replaced with a focused local context/hook
-- [ ] Large integration files split into focused components, hooks, context, and utils files
-- [ ] The full-input raw quote is current; swaps map Spot `quote.netAmountOut` and `quote.minimumAmountOut` unchanged to the form quote inputs; balances/USD prices use raw units / one-token USD values
-- [ ] Swap quotes pause (including manual refresh) and in-flight quotes are cancelled while `isExecuting`; account history stays independent of per-order settlement
-- [ ] Swap review hides limit price and expiration; success is shown only after a fill; UI Slippage remains separate from fixed 500 bps signed protection
-- [ ] `wrappedNativeToken` comes from the DEX's chain configuration
+- [ ] Implemented controls use the relevant tooltip defaults from [06-tooltips.md](06-tooltips.md), including fallback text for missing or empty translations
+
+- [ ] The installed `@orbs-network/spot-react` release and React peers are compatible; only necessary package changes were made, preserving selected versions and the host lockfile
+- [ ] If adopting `@orbs-network/swap-ui`, its installed exports are verified and adapted to the host progress UI; no dependency was added solely because it appears in an example
+- [ ] For provider execution, `walletInteractions` satisfies the installed contract; write methods wait for successful receipts and `signOrder` returns the wallet signature unchanged
+- [ ] For a form integration, `inputAmountUi` comes from DEX state
+- [ ] Existing host state/hooks are reused; a new local adapter context exists only where multiple components need shared host values/actions
+- [ ] Shared dependencies stay focused; small prop lists do not trigger an unnecessary context or second global store
+- [ ] Substantial integration files are split where complexity warrants it, without creating empty or unneeded architecture for a narrow task
+- [ ] Form quotes match the current full input; swaps pass the original SDK `SwapQuote` as `marketQuote.quote` so amount/USD mapping and exact-request refresh stay aligned. Advanced adapters may use flat fields. Balances use raw units and unit USD prices describe one token
+- [ ] For swaps, obsolete quotes pause/cancel during execution, and success appears only after a fill; account history is not required for settlement
+- [ ] Requested swap review hides limit price and expiration; UI Slippage remains separate from fixed 500 bps signed protection
+- [ ] Provider/native-input integrations use the DEX's chain configuration for `wrappedNativeToken`
 - [ ] Quote freshness handled so stale output is not shown after input amount changes
 - [ ] `chainId` comes from connected account/wallet state everywhere Spot uses it
 - [ ] Submit area blocks unsupported/missing connected chains with the DEX switch-network flow
-- [ ] Modal close/reset is ignored while `isExecuting`; afterward clear input and call `startNewOrder()` on success, or keep input and call `returnToOrderForm()` after failed/rejected submissions
-- [ ] Balance refetch handled via callbacks: wrap success, order created, order filled, order progress update, cancellation success
+- [ ] Provider modal close/reset is blocked during active execution; unconfirmed dismissal preserves the snapshot and blocks reset/new submission. Definitive outcomes follow the installed reset/dismissal contract
+- [ ] Relevant lifecycle callbacks refresh balances; history progress/cancellation callbacks are included only when implemented
 - [ ] Token inputs use DEX components unchanged
 - [ ] Token selector chain switching hidden/disabled for Spot
-- [ ] Duration/interval panels use Input + Select with `TimeUnit` options
+- [ ] Requested duration/interval panels use the DEX's controls with supported `TimeUnit` options
 - [ ] Raw panel/history amounts converted into DEX amount objects before display when possible
-- [ ] Submit modal built using `useExecution()` and `useOrderForm()`
-- [ ] Submit modal progress/success/failure states rendered with `@orbs-network/swap-ui`
-- [ ] Submit modal hides review details and submit/footer buttons while `useExecution().status` is set and preparation is finished
-- [ ] RePermit configuration failures use a localized, DEX-native `clientErrorFallback` with retry
+- [ ] Provider review/progress uses the installed `useExecution()`/`useOrderForm()` contract; router-only work retains the host wallet/progress flow
+- [ ] If the documented `@orbs-network/swap-ui` flow is adopted, its progress/success/failure states are wired using verified installed exports
+- [ ] Implemented provider progress hides review/duplicate-submit actions while execution owns the modal, with explicit unconfirmed recovery
+- [ ] Provider configuration failures use a localized, DEX-native `clientErrorFallback` with retry
 - [ ] Submit remains disabled while RePermit configuration is loading or unavailable
-- [ ] Order cancellation uses `useCancelOrder(order)` hook
-- [ ] Order history built using `useOrders()` and `useHistoryOrder()`
-- [ ] Order history and order fills virtualized for large lists; selected order stored by `historyKey`
-- [ ] DEX styles applied to orders list, selected order view, submit order content
-- [ ] Persist UI Slippage for swaps and Price Protection for advanced orders using the host settings store
+- [ ] If cancellation is requested, it uses installed `useCancelOrder(order)`
+- [ ] If history is requested, it uses installed `useOrders()`/`useHistoryOrder()`, stable `historyKey` identity, and existing virtualization for large lists
+- [ ] DEX styles are applied to the implemented form/progress/history surfaces
+- [ ] Implemented swap/advanced settings persist through the existing host settings store
 - [ ] Callbacks wired for balance refetch; no order-created toast unless explicitly requested
-- [ ] Spot tabs in same container as Swap tab
-- [ ] All three disclaimer defaults from [03-panels.md](03-panels.md#disclaimer-panel) registered in i18n; the applicable `useDisclaimer()` text appears in the form, including when translations are missing or empty, with a "Learn more" link
+- [ ] Only requested modules/tabs were added, using existing navigation and placement
+- [ ] Applicable disclaimer defaults from [03-panels.md](03-panels.md#disclaimer-panel) are registered in i18n, with non-empty fallbacks and the required link
 - [ ] Powered-by-Orbs attribution/link included if required by the integration agreement, using DEX-native styling
-- [ ] UI checked against [05-ui-reference.md](05-ui-reference.md), with the reference structure preserved and the host DEX theme applied
+- [ ] Changed UI was checked against the applicable [UI references](05-ui-reference.md), preserving the host DEX theme and the requested scope

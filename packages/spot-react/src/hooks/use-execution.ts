@@ -6,7 +6,7 @@ import {
   type Steps,
   type Token,
 } from "../types";
-import { isNativeAddress, type Address } from "@orbs-network/spot-ui";
+import type { Address } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import { useSubmitOrder } from "./use-submit-order";
 import { useSwapExecution } from "./use-swap-execution";
@@ -20,8 +20,10 @@ import {
   getExecutionStatus,
   getExecutionStep,
   isExecutionActive,
-  isExecutionLocked,
 } from "../execution-state";
+import { getSubmitButtonState, type SubmitButtonResult } from "../submit-button-state";
+
+export type { SubmitButtonResult, SubmitDisabledReason } from "../submit-button-state";
 
 export interface SpotExecutionData {
   phase: ExecutionPhase;
@@ -108,7 +110,7 @@ export const useExecution = (): SpotExecutionData => {
       isUnconfirmed: swapExecution.phase === ExecutionPhase.UNCONFIRMED,
       isPreparingOrder:
         swapExecution.phase === ExecutionPhase.PREPARING ||
-        (hasChainId && isClientLoading && !client),
+        (swapExecution.phase === ExecutionPhase.IDLE && hasChainId && isClientLoading && !client),
       canDismiss: !isExecuting,
     };
   }, [
@@ -128,8 +130,10 @@ export const useExecution = (): SpotExecutionData => {
   ]);
 };
 
-export const useSubmitButton = () => {
+export const useSubmitButton = (): SubmitButtonResult => {
   const {
+    module,
+    quote,
     inputToken,
     outputToken,
     wrappedNativeToken,
@@ -140,42 +144,31 @@ export const useSubmitButton = () => {
     hasChainId,
   } = useSpotTrading();
   const form = useOrderForm();
-  const { data: client, isLoading: isClientLoading } = useClient();
+  const { data: client, error: clientError, isLoading: isClientLoading } = useClient();
   const executionPhase = useSpotStore(
     (store) => store.state.currentExecution.phase,
   );
-  const isExecuting = isExecutionActive(executionPhase);
-  const isWrappedNativeTokenMissing = Boolean(
-    inputToken &&
-      isNativeAddress(inputToken.address) &&
-      (!wrappedNativeToken || isNativeAddress(wrappedNativeToken.address)),
+  const result = getSubmitButtonState({
+    module,
+    quote,
+    inputToken,
+    outputToken,
+    wrappedNativeToken,
+    inputBalanceRaw,
+    noLiquidity,
+    inputAmountUi,
+    marketPriceLoading,
+    hasChainId,
+    form,
+    hasClient: Boolean(client),
+    clientError,
+    isClientLoading,
+    executionPhase,
+  });
+
+  // Keep the public result stable when unrelated trading inputs change.
+  return useMemo(
+    () => result,
+    [result.disabled, result.loading, result.disabledReason],
   );
-
-  const isPropsLoading =
-    marketPriceLoading ||
-    (!form.isReady && !form.errors.primary) ||
-    inputBalanceRaw === undefined;
-
-  const buttonLoading =
-    isExecuting ||
-    (hasChainId && isClientLoading && !client) ||
-    Boolean(inputToken && outputToken && inputAmountUi && isPropsLoading);
-  const disabled = Boolean(
-    !form.canSubmit ||
-      isExecutionLocked(executionPhase) ||
-      !hasChainId ||
-      !client ||
-      noLiquidity ||
-      buttonLoading ||
-      !inputToken ||
-      !outputToken ||
-      isWrappedNativeTokenMissing,
-  );
-
-  return useMemo(() => {
-    return {
-      disabled,
-      loading: buttonLoading,
-    };
-  }, [disabled, buttonLoading]);
 };

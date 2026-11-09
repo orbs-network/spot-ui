@@ -3,6 +3,7 @@ import {
   Module,
   type Address,
   type Partners,
+  type SwapQuote,
 } from "@orbs-network/spot-ui";
 import type {
   Callbacks,
@@ -14,6 +15,7 @@ import type {
 /** Complete trading inputs, including connection and integration settings. */
 export interface SpotTradingState {
   walletInteractions: WalletInteractions;
+  quote?: SwapQuote;
   quotedOutputAmountRaw?: string;
   /** Current quote.minimumAmountOut unchanged, required for Module.SWAP; output-token base units. */
   minimumOutputAmountRaw?: string;
@@ -25,6 +27,7 @@ export interface SpotTradingState {
   noLiquidity?: boolean;
   inputAmountUi: string;
   partner: Partners;
+  disableAnalytics: boolean;
   minTradeSizeUsd: number;
   inputToken?: Token;
   outputToken?: Token;

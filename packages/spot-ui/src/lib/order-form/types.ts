@@ -142,7 +142,7 @@ export interface CalculatedOrderFormErrors {
   primary?: InputError;
   all: InputError[];
   minTradeSize?: InputError;
-  /** Invalid SWAP minimum, reported after the amount, quote, and USD price are available. */
+  /** Invalid SWAP minimum, reported after the amount, quote, and USD value are available. */
   swapMinimum?: InputError;
   triggerPrice?: InputError;
   limitPrice?: InputError;
@@ -151,6 +151,14 @@ export interface CalculatedOrderFormErrors {
   duration?: InputError;
   balance?: InputError;
 }
+
+/** Missing prerequisites for form readiness, separate from input validation errors. */
+export type OrderFormNotReadyReason =
+  | "empty-input"
+  | "awaiting-quote"
+  | "missing-usd-value"
+  | "invalid-swap-minimum"
+  | "missing-token-metadata";
 
 export interface CalculatedOrderForm {
   module: Module;
@@ -168,6 +176,8 @@ export interface CalculatedOrderForm {
   values: CalculatedOrderValues;
   errors: CalculatedOrderFormErrors;
   isReady: boolean;
+  /** Explains `isReady: false`; ready forms may still have validation errors. */
+  notReadyReason?: OrderFormNotReadyReason;
   canSubmit: boolean;
 }
 
@@ -186,6 +196,7 @@ export interface CalculatedOrderTradePlan {
 export interface CalculatedOrderFormValidation {
   errors: CalculatedOrderFormErrors;
   isReady: boolean;
+  notReadyReason?: OrderFormNotReadyReason;
   canSubmit: boolean;
 }
 

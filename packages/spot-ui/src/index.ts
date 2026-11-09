@@ -36,6 +36,7 @@ export type {
   CalculatedOrderFormSchedule,
   CalculatedOrderFormErrors,
   CalculatedOrderForm,
+  OrderFormNotReadyReason,
 } from "./lib/order-form/types";
 
 export { calculateOrder, calculateOrderForm } from "./lib/order-form/calculate-order-form";
@@ -82,7 +83,7 @@ export {
 
 export { getOrders, type GetOrdersParams, type AccountOrdersResult } from "./lib/orders";
 
-export { analytics, setUIVersion, type SpotAnalytics } from "./lib/analytics";
+export { analytics, createAnalytics, setUIVersion, type AnalyticsContext, type SpotAnalytics } from "./lib/analytics";
 
 export {
   isNativeAddress,

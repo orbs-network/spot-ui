@@ -107,13 +107,19 @@ const OpenOrderReviewButton = ({ onClick }: { onClick: () => void }) => {
   const { disabled, loading } = useSubmitButton();
   const { isExecuting, isUnconfirmed } = useExecution();
   const isSwap = useOrderForm().module === Module.SWAP;
+  const isExecutionAction = isExecuting || isUnconfirmed;
+  let text = isSwap ? "Review Swap" : t("placeOrder");
+  if (isUnconfirmed) text = "Check order status";
+  else if (isExecuting) text = isSwap ? "Executing swap…" : t("creatingOrder");
+  else if (loading) text = t("fetchingQuote");
 
   return (
     <SubmitSwapButton
       onClick={onClick}
       disabled={disabled && !isUnconfirmed}
       isLoading={loading && !isUnconfirmed}
-      text={isUnconfirmed ? "Check order status" : isSwap && isExecuting ? "Executing swap…" : loading ? t("fetchingQuote") : isSwap ? "Review Swap" : t("placeOrder")}
+      forceAction={isExecutionAction}
+      text={text}
     />
   );
 };

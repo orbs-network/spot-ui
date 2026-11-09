@@ -1,19 +1,21 @@
 import {
   executeOrder as executeWalletOrder,
   isNativeAddress,
+  eqIgnoreCase,
   Module,
   SpotError,
   isTxRejected,
-  toAmountUI,
   type Address,
   type CalculatedOrderForm,
   type Order,
   type PreparedOrder,
   type SpotClient,
+  type Partners,
+  type SpotAnalytics,
+  type SwapQuote,
 } from "@orbs-network/spot-ui";
 import {
   ExecutionPhase,
-  Steps,
   type Callbacks,
   type StartedSwapExecution,
   type SwapExecution,
@@ -27,6 +29,12 @@ import {
   observe,
   parseExecutionError,
 } from "./execution-state";
+import {
+  getExecutionProgress,
+  notifyExecutionProgress,
+  type ExecutionProgressContext,
+} from "./execution-progress";
+import { createOperationAnalytics, getExecutionAnalyticsContext } from "./analytics";
 
 interface ExecutionStoreActions {
   getCurrentExecution: () => SwapExecution;
@@ -46,7 +54,10 @@ export interface ExecuteOrderParams extends ExecutionStoreActions {
   outputToken?: Token;
   wrappedNativeToken?: Token;
   form: CalculatedOrderForm;
+  quote?: SwapQuote;
   client?: SpotClient;
+  partner?: Partners;
+  disableAnalytics?: boolean;
   walletInteractions: WalletInteractions;
   callbacks?: Callbacks;
   addNewOrder: (order: Order) => void;
@@ -76,7 +87,33 @@ interface ValidatedExecutionInputs {
   outputToken: Token;
   client: SpotClient;
   inputAmountRaw: string;
+  quote?: SwapQuote;
 }
+
+const captureSwapQuote = (
+  quote: SwapQuote | undefined,
+  inputs: ValidatedExecutionInputs,
+  form: CalculatedOrderForm,
+): SwapQuote => {
+  if (!quote?.request) {
+    throw new SpotError("INVALID_QUOTE", "Pass the original swap quote in marketQuote.quote before submitting");
+  }
+  // Freeze both values and request identity before wrapping or approval can await.
+  const reviewedQuote = Object.freeze({ ...quote, request: Object.freeze({ ...quote.request }) });
+  const request = reviewedQuote.request;
+  const matchesForm = request.chainId === inputs.chainId &&
+    request.chainId === inputs.client.chainId &&
+    request.partner === inputs.client.partner &&
+    eqIgnoreCase(request.inToken, inputs.orderInputToken.address) &&
+    eqIgnoreCase(request.outToken, inputs.outputToken.address) &&
+    parseBaseUnitAmount(request.inAmount, "Quoted input") === BigInt(inputs.inputAmountRaw) &&
+    parseBaseUnitAmount(reviewedQuote.netAmountOut, "Quoted output") === BigInt(form.outputAmount.raw) &&
+    parseBaseUnitAmount(reviewedQuote.minimumAmountOut, "Minimum output") === BigInt(form.values.minOutputAmountPerTrade);
+  if (!matchesForm) {
+    throw new SpotError("QUOTE_CONTEXT_MISMATCH", "Swap quote does not match the reviewed form, tokens, or client");
+  }
+  return reviewedQuote;
+};
 
 const validateExecutionInputs = (
   params: ExecuteOrderParams,
@@ -102,8 +139,8 @@ const validateExecutionInputs = (
     throw new Error("Swap settlement tracking is unavailable");
   }
   const inputAmountRaw = params.form.inputAmount.raw;
-  parseBaseUnitAmount(inputAmountRaw, "Input amount");
-  return {
+  // The shared wallet runner validates this spending amount before wallet access.
+  const inputs: ValidatedExecutionInputs = {
     account: params.account,
     chainId: params.chainId,
     inputToken: params.inputToken,
@@ -112,42 +149,44 @@ const validateExecutionInputs = (
     client: params.client,
     inputAmountRaw,
   };
+  if (params.form.module === Module.SWAP) {
+    inputs.quote = captureSwapQuote(params.quote, inputs, params.form);
+  }
+  return inputs;
 };
 
-const trackOrderRequest = ({
-  analytics,
-  account,
-  chainId,
-  inputToken,
-  outputToken,
-  preparedOrder,
-}: {
-  account: Address;
-  chainId: number;
-  inputToken: Token;
-  outputToken: Token;
-  analytics: SpotClient["analytics"];
-  preparedOrder: PreparedOrder;
-}): void => {
-  const { form, values } = preparedOrder;
-  observe(() =>
-    analytics.onRequestOrder({
+const prepareExecutionOrder = async (
+  { client, orderInputToken, outputToken, account, quote }: ValidatedExecutionInputs,
+  form: CalculatedOrderForm,
+  signal?: AbortSignal,
+  analytics?: SpotAnalytics,
+): Promise<PreparedOrder> => {
+  if (quote) {
+    const { order, signingRequest, approvalRequest, values } = await client.refreshAndPrepareSwap({
+      quote,
       account,
-      chainId,
-      module: form.module,
-      srcToken: inputToken,
-      dstToken: outputToken,
-      fromTokenAmount: values.inputAmount,
-      srcChunkAmount: values.inputAmountPerTrade,
-      triggerPricePerTrade: values.triggerOutputAmountPerTrade,
-      deadline: values.deadlineMillis,
-      fillDelay: values.fillDelayMillis,
-      minDstAmountOutPerTrade: values.minOutputAmountPerTrade,
-      slippage: form.values.slippageBps / 100,
-      isMarketOrder: values.isMarketOrder,
-      chunksAmount: values.totalTrades,
-    }),
-  );
+      signal,
+      analytics,
+    });
+    // Keep React's review metadata while using the exact payload prepared by the SDK.
+    return {
+      order,
+      signingRequest,
+      approvalRequest,
+      form,
+      values: {
+        ...form.values,
+        currentTimeMillis: values.currentTimeMillis,
+        deadlineMillis: values.deadlineMillis,
+      },
+    };
+  }
+  return client.prepareOrder({
+    form,
+    inputTokenAddress: orderInputToken.address,
+    outputTokenAddress: outputToken.address,
+    swapperAddress: account,
+  });
 };
 
 export const executeOrder = async (
@@ -164,17 +203,25 @@ export const executeOrder = async (
     replaceExecution,
     wait = waitFor,
   } = params;
+  const analytics = createOperationAnalytics(
+    getExecutionAnalyticsContext({ ...params, partner: params.client?.partner ?? params.partner }),
+    params.client,
+    params.disableAnalytics,
+  );
   let inputs: ValidatedExecutionInputs;
   try {
     inputs = validateExecutionInputs(params);
   } catch (error) {
+    observe(() => analytics.onExecutionRequest());
+    observe(() => analytics.onExecutionError(error, ExecutionPhase.PREPARING));
     const normalizedError = normalizeError(error);
     const parsedError = parseExecutionError(error);
     const failedExecution = beginExecution({
       account: params.account,
-      partner: params.client?.partner,
+      partner: params.client?.partner ?? params.partner,
       apiUrl: params.client?.apiUrl,
       form,
+      analytics,
       inputToken: params.inputToken,
       outputToken: params.outputToken,
       chainId: params.chainId,
@@ -201,7 +248,6 @@ export const executeOrder = async (
     client,
     inputAmountRaw,
   } = inputs;
-  const { analytics } = client;
   const previousExecution = getCurrentExecution();
   const completedWrap = getReusableCompletedWrap({
     execution: previousExecution,
@@ -215,6 +261,7 @@ export const executeOrder = async (
     partner: client.partner,
     apiUrl: client.apiUrl,
     form,
+    analytics,
     inputToken,
     outputToken,
     chainId,
@@ -225,21 +272,6 @@ export const executeOrder = async (
 
   const executionId = startedExecution.executionId;
   let execution: SwapExecution = startedExecution;
-  const transition = (
-    phase: ExecutionPhase,
-    changes: Partial<SwapExecution> = {},
-  ): void => {
-    const nextExecution: SwapExecution = {
-      ...execution,
-      ...changes,
-      executionId,
-      phase,
-    };
-    if (!replaceExecution(executionId, nextExecution)) {
-      throw new Error("Execution is no longer current");
-    }
-    execution = nextExecution;
-  };
   const tryTransition = (
     phase: ExecutionPhase,
     changes: Partial<SwapExecution> = {},
@@ -254,62 +286,42 @@ export const executeOrder = async (
     execution = nextExecution;
     return true;
   };
+  const transition = (
+    phase: ExecutionPhase,
+    changes: Partial<SwapExecution> = {},
+  ): void => {
+    if (!tryTransition(phase, changes)) {
+      throw new Error("Execution is no longer current");
+    }
+  };
+  const progressContext: ExecutionProgressContext = {
+    account,
+    chainId,
+    inputToken,
+    orderInputToken,
+    inputAmountRaw,
+    callbacks,
+  };
 
   try {
     const { order } = await executeWalletOrder({
-      client, account, inputTokenAddress: orderInputToken.address, inputAmountRaw,
-      nativeInput: isNativeAddress(inputToken.address), completedWrapTxHash: completedWrap?.txHash,
-      walletInteractions, wait, signal: params.signal,
-      prepareOrder: async () => {
-        if (form.module === Module.SWAP) {
-          const fresh = await client.getQuote({
-            inToken: orderInputToken.address, outToken: outputToken.address,
-            inAmount: inputAmountRaw, user: account, slippage: 0,
-            dexMinAmountOut: "-1", signal: params.signal,
-          });
-          params.signal?.throwIfAborted();
-          // This is a feasibility check against the already reviewed signed floor.
-          // It never changes the form's minimum or its separate oracle protection.
-          if (BigInt(fresh.netAmountOut) < parseBaseUnitAmount(form.values.minOutputAmountPerTrade, "Minimum output")) {
-            throw new SpotError("INVALID_QUOTE", "Swap price changed. Review a fresh quote before signing.");
-          }
-        }
-        return client.prepareOrder({
-          form, inputTokenAddress: orderInputToken.address,
-          outputTokenAddress: outputToken.address, swapperAddress: account,
-        });
-      },
+      client,
+      analytics,
+      account,
+      inputTokenAddress: orderInputToken.address,
+      inputAmountRaw,
+      nativeInput: isNativeAddress(inputToken.address),
+      completedWrapTxHash: completedWrap?.txHash,
+      walletInteractions,
+      wait,
+      signal: params.signal,
+      prepareOrder: () => prepareExecutionOrder(inputs, form, params.signal, analytics),
       validateContext: () => {
         if (getCurrentExecution().executionId !== executionId) throw new Error("Execution is no longer current");
       },
       onUpdate: (update) => {
-        const pendingSteps = update.steps.map(step => ({ wrap: Steps.WRAP, approve: Steps.APPROVE, create: Steps.CREATE })[step]);
-        const phase = update.phase as ExecutionPhase;
-        transition(phase, {
-          pendingSteps, totalSteps: pendingSteps.length, stepIndex: update.stepIndex,
-          hasApproval: update.hasApproval, wrapTxHash: update.wrapTxHash,
-          approveTxHash: update.approvalTxHash,
-          ...(update.preparedOrder ? { preparedOrder: update.preparedOrder } : {}),
-          ...(update.phase === "wrapping" && update.event === "success" && update.wrapTxHash ? {
-            completedWrap: { account, chainId, inputTokenAddress: inputToken.address, inputAmountRaw, txHash: update.wrapTxHash },
-          } : {}),
-        });
-        if (update.phase === "wrapping") {
-          if (update.event === "request") observe(callbacks?.onWrapRequest);
-          if (update.event === "success" && update.wrapTxHash) observe(() => callbacks?.onWrapSuccess?.({ txHash: update.wrapTxHash!, amount: toAmountUI(update.wrapAmountRaw ?? inputAmountRaw, orderInputToken.decimals) }));
-        }
-        if (update.phase === "approving") {
-          if (update.event === "request") observe(callbacks?.onApproveRequest);
-          if (update.event === "success" && update.approvalTxHash) observe(() => callbacks?.onApproveSuccess?.({ txHash: update.approvalTxHash!, token: orderInputToken, amount: toAmountUI(inputAmountRaw, orderInputToken.decimals) }));
-        }
-        if (update.phase === "signing") {
-          if (update.event === "prepared" && update.preparedOrder) {
-            trackOrderRequest({ analytics, account, chainId, inputToken, outputToken, preparedOrder: update.preparedOrder });
-            observe(callbacks?.onSignOrderRequest);
-          }
-          if (update.event === "success" && update.signature) observe(() => callbacks?.onSignOrderSuccess?.(update.signature!));
-          if (update.event === "error") observe(() => callbacks?.onSignOrderError?.(normalizeError(update.error)));
-        }
+        transition(update.phase as ExecutionPhase, getExecutionProgress(update, progressContext));
+        notifyExecutionProgress(update, progressContext);
       },
     });
     const isSwap = form.module === Module.SWAP;

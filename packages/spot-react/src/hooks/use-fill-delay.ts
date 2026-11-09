@@ -1,9 +1,10 @@
-import { type TimeDuration, TimeUnit } from "@orbs-network/spot-ui";
+import type { TimeDuration } from "@orbs-network/spot-ui";
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
 import { useSpotTrading } from "../context/spot-trading-context";
 import { useSpotStore } from "../context/spot-store-context";
 import { observe } from "../execution-state";
+import { useTimeInput } from "./use-time-input";
 
 export const useFillDelay = () => {
   const { callbacks } = useSpotTrading();
@@ -17,18 +18,7 @@ export const useFillDelay = () => {
     },
     [callbacks, updateState],
   );
-  const onInputChange = useCallback(
-    (value: string) => {
-      const numericValue = Number(value);
-      if (!Number.isFinite(numericValue)) return;
-      onChange({ unit: fillDelay.unit, value: numericValue });
-    },
-    [fillDelay.unit, onChange],
-  );
-  const onUnitSelect = useCallback(
-    (unit: TimeUnit) => onChange({ unit, value: fillDelay.value }),
-    [fillDelay.value, onChange],
-  );
+  const { onInputChange, onUnitSelect } = useTimeInput(fillDelay, onChange);
 
   return useMemo(
     () => ({

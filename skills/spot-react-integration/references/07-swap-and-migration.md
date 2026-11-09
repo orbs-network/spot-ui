@@ -6,15 +6,32 @@ Install only `@orbs-network/spot-react` for React integrations. It depends on `s
 
 When the DEX owns a route selector and execution callbacks, do not require a
 provider around the whole form. Import the SDK helpers from `@orbs-network/spot-react` and add a Spot source using `client.getQuote`,
-`client.prepareSwap`, `client.submitOrder`, and app-level
+`client.refreshAndPrepareSwap`, `client.submitOrder`, and app-level
 `waitForOrder`. Keep wrapping, confirmed approval to `client.spenderAddress`, and
-EIP-712 signing in the DEX wallet flow. Call `client.prepareSwap(quote, account)`
-immediately before signing and
+EIP-712 signing in the DEX wallet flow. When the installed client exports it,
+await `client.refreshAndPrepareSwap({ quote, account, signal })` immediately before signing and
 forward the original signature unchanged. No `walletInteractions` object or
 provider is required. The raw path needs no calculated UI form or USD display inputs;
 the host still enforces balance and minimum-trade policy. See the [typed router
 example](https://github.com/orbs-network/spot-ui/blob/master/packages/spot-ui/examples/router-swap.ts).
 Exact-output and alternate recipients must be gated with `isSwapSupported`.
+
+The helper checks age internally: quotes up to 20,000 ms old skip HTTP; older,
+future-dated, or invalid timestamps trigger a refresh. Direct callers can set
+finite, non-negative `maxQuoteAgeMillis`; `0` forces a refresh. No separate
+`isQuoteFresh` call is needed; that export remains available for host UI/cache policy.
+When refreshing, it replays the original request, including its preview `user`,
+slippage, and `dexMinAmountOut`, through the configured client. A refreshed
+`minimumAmountOut` below the reviewed `quote.minimumAmountOut` throws
+`QUOTE_MINIMUM_DECREASED` and requires fresh review. Equal or higher minima
+prepare the original quote and preserve the exact reviewed minimum. Both paths
+prepare new signing timestamps/nonce; local age is not an execution guarantee.
+Pure `client.prepareSwap(quote, account)` remains synchronous and performs no
+refresh check. If the helper is absent, follow the installed-version/manual
+fallback in [Quickstart](01-quickstart.md): replay the exact original request,
+compare fresh and reviewed protected minima, then prepare only if the fresh
+minimum is equal or higher. Do not substitute a net-output comparison or invent
+an unavailable SDK error code on an older release.
 
 The provider workflow below remains appropriate when using Spot's calculated
 React form and execution state. React reuses the same SDK executor and poller.
@@ -43,33 +60,38 @@ abort signal. Normalize native input to its wrapped address. The SDK calls `/quo
 Before connection, use a preview account such as
 `0x0000000000000000000000000000000000000001` for the required `user` field.
 Include it in the query key as quote-request metadata. For raw SDK execution,
-pass the connected account as `userAddress`; it may differ from the quote-request
-user. A refetch solely to bind the signer is unnecessary. The host owns quote
+pass the connected account as `account` to the refresh helper or `userAddress` to
+`submitSwap`/pure preparation; it may differ from the quote-request user. A refetch
+solely to bind the signer is unnecessary. The host owns quote
 cache policy and must validate the live wallet context before wallet steps and
 submission.
 
-Pass `quote.netAmountOut` and the authoritative `quote.minimumAmountOut` directly.
-Do not apply slippage again to the returned minimum:
+Pass the original SDK `SwapQuote`, including its request, to the provider. It
+derives `netAmountOut`, the authoritative `minimumAmountOut`, and USD totals;
+do not apply slippage again:
 
 ```tsx
-const hasQuote = Boolean(quote);
 const marketQuote = useMemo(() => ({
-  quotedOutputAmountRaw: isCurrent && !isLoading ? quote?.netAmountOut : undefined,
-  minimumOutputAmountRaw: isCurrent && !isLoading ? quote?.minimumAmountOut : undefined,
-  isLoading,
-  noLiquidity: !isLoading && !hasQuote,
-}), [isCurrent, isLoading, quote?.netAmountOut, quote?.minimumAmountOut, hasQuote]);
+  quote: isCurrent && !isLoading ? quote : undefined,
+  isLoading: isLoading || !isCurrent,
+  noLiquidity: isCurrent && !isLoading && !quote,
+}), [isCurrent, isLoading, quote]);
 
 // Other account, wallet, token, balance, and USD-price props are unchanged.
 <SpotProvider module={Module.SWAP} marketQuote={marketQuote} {...otherProviderProps} />
 ```
 
-Include amount, token pair, chain, partner, signer, and UI slippage in the query key/freshness check. Withhold both amounts while stale or loading. Render quote errors in the host form and allow a deliberate retry while idle. A positive input USD price is still required for readiness and minimum-trade validation. Avoid adding a fee estimate to already-net swap output; the reference app uses `displayFeePercent={0}` for swaps.
+Include amount, token pair, chain, partner, quote-request user, and UI slippage in the query key/freshness check. Withhold the original quote while stale or loading. Flat fields alone cannot supply the request needed for swap execution; keep them for advanced quote adapters. Render quote errors in the host form and allow a deliberate retry while idle. Current form readiness accepts a positive quoted `inputAmountUsd` or a finite positive `inputTokenUsdPrice`; pass the available valuation rather than requiring a unit price for every token. Minimum-trade validation still applies. Verify the installed version supports original-quote input and USD totals before relying on them. Avoid adding a fee estimate to already-net swap output; the reference app uses `displayFeePercent={0}` for swaps.
 
 If the other required inputs are ready but the minimum is missing or invalid,
 `useInputErrors()` reports `InputErrors.INVALID_SWAP_MINIMUM`. Translate and
 render that validation error; the submit button remains disabled without an
 indefinite loading spinner.
+
+When migrating a flat-only swap adapter, supply the original SDK quote as above.
+`useSubmitButton().disabledReason === "missing-swap-quote"` identifies this missing
+input and keeps submission unavailable; direct execution rejects before wallet
+writes. Advanced quote adapters may continue using flat amounts/USD fields.
 
 ## Pause quoting through execution
 
@@ -97,11 +119,16 @@ work. For swaps, a confirmed fill becomes `SUCCESS`; confirmed cancellation or e
 `ExecutionPhase.UNCONFIRMED`. Use `phase === ExecutionPhase.SETTLING` for active
 tracking text such as “Waiting for your swap to fill…”.
 
-After wrapping/approval, raw `submitSwap` and the React form executor re-quote
-immediately before preparation. Fresh net output below the original `quote.minimumAmountOut`
-rejects with `INVALID_QUOTE` and requires a new review. Otherwise the exact
-reviewed minimum stays signed. This controlled check runs while host quote UI
-remains paused and frozen.
+Both raw `submitSwap` and React calculated-form execution use
+`client.refreshAndPrepareSwap({ quote, account, signal })` after wrapping/approval.
+Both use the default 20-second window to reuse a recent quote or replay its
+original request and compare refreshed/reviewed `minimumAmountOut`. A decrease
+rejects with `QUOTE_MINIMUM_DECREASED`. Both paths prepare the original minimum
+with new signing timestamps/nonce. React captures and matches
+that quote to the form/client/pair/input before wallet writes, then attaches the
+reviewed form to the returned prepared swap; it does not prepare another order,
+substitute the fresh minimum, or compare net output. Any needed controlled
+refresh runs while host quote UI remains paused and frozen.
 
 Submission forwards the lifecycle signal and has a fixed 30-second timeout for
 fetch and body reads. Pre-abort prevents the POST; abort/timeout after sending

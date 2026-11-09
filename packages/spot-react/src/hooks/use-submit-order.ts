@@ -18,6 +18,9 @@ export const useSubmitOrder = (): (() => void) => {
     callbacks,
     account,
     walletInteractions,
+    quote,
+    partner,
+    disableAnalytics,
   } = useSpotTrading();
   const addNewOrder = useAddNewOrder();
   const refetchActiveOrders = useRefetchActiveOrders();
@@ -35,7 +38,10 @@ export const useSubmitOrder = (): (() => void) => {
       outputToken,
       wrappedNativeToken,
       form,
+      quote,
       client,
+      partner,
+      disableAnalytics,
       walletInteractions,
       callbacks,
       addNewOrder,
@@ -55,7 +61,10 @@ export const useSubmitOrder = (): (() => void) => {
     callbacks,
     chainId,
     client,
+    partner,
+    disableAnalytics,
     form,
+    quote,
     inputToken,
     outputToken,
     wrappedNativeToken,

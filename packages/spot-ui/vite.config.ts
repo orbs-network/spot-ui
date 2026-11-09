@@ -6,6 +6,8 @@ export default defineConfig({
   plugins: [
     dts({
       insertTypesEntry: true,
+      entryRoot: 'src',
+      compilerOptions: { rootDir: resolve(__dirname) },
     }),
   ],
   build: {

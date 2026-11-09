@@ -13,20 +13,48 @@ React SDK for building Swap, TWAP, Limit, Stop-Loss, and Take-Profit order inter
 Every path can import its SDK functions and types from `spot-react` alone.
 The underlying `spot-ui` package is framework-neutral and renders no components.
 
+For AI-assisted integration, describe the requested features to your coding agent
+and have it read
+`node_modules/@orbs-network/spot-react/dist/integration-skill/SKILL.md`.
+The bundled guide's `manifest.json` records the matching `sdkVersion`. The agent
+discovers the host's wallet, components, state, and networks, selects a focused
+path, and asks only unresolved product questions.
+If there is no DEX yet, its starting path covers the missing wallet, token list,
+balances, quote/USD data, and React trading form before provider setup.
+
 For the complete integration workflow, see the [Spot React integration skill](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-react-integration) and the [reference implementation](https://github.com/orbs-network/spot-ui/blob/master/apps/web/components/spot/spot-form.tsx).
 
-Client and history resources are configured once per provider. History and
-cancellation consumers subscribe to configuration separately from live form
-quotes. Failed legacy-history requests remain eligible for retry, and cached
+Client and history resources are configured once per provider and share its cache.
+Failed legacy-history requests remain eligible for retry, and cached
 legacy orders remain visible during an outage. Execution analytics belong to
 the provider's client.
+
+The SDK reports its own configuration, quote, wallet, submission, cancellation,
+swap settlement, recovery, and crash outcomes as separate event records. Advanced
+order creation finishes at submission, with later fills available in history.
+Request and preparation events capture account/token/amount context; subsequent events carry
+their own outcome rather than the accumulated history. Submission acceptance is
+recorded as `submission.succeeded`, separately from `settlement.filled` for a
+completed swap. Each event includes only applicable fields, without duplicate
+action, phase, or success/status flags.
+Log values are flat strings, finite numbers, or booleans; nested objects and
+arrays are never emitted.
+`sessionId` connects those operations across clients and wallet/chain changes
+within one page load. Refreshing the page starts a new session. Every event has a
+unique `_id`, a shared `operationId` for its attempt, an `eventName`, and `eventTimestampMillis`.
+`eventSequence` orders steps within an operation, including rapid transitions.
+
+Set `disableAnalytics` on `SpotProvider` to disable reporting, including active
+operation reporters, without resetting the trade. Host lifecycle callbacks do
+not need to duplicate SDK telemetry.
 
 ## Before You Start
 
 The host owns partner discovery and chain selectors. Client initialization reads
 and validates the order-sink `/config` response directly and exposes failures
-through `useClient()` and `clientErrorFallback`. Analytics configuration also
-comes exclusively from this response. The demo's GitHub partner-list fetch is
+through `useClient()` and `clientErrorFallback`. Analytics contract metadata also
+comes from this validated response; initialization failures retain the requested
+partner/chain context. The demo's GitHub partner-list fetch is
 local to the web app and is not an SDK dependency.
 
 Every DEX needs a member of the exported `Partners` enum and a server-side Orbs Spot configuration for its supported chains. The SDK fetches contract and adapter addresses from that configuration. If the DEX is not configured yet, contact [@dTWAPSupportGroup](https://t.me/dTWAPSupportGroup) before integrating.
@@ -46,9 +74,11 @@ effect. Nonce allocation is shared across clients in the loaded SDK instance.
 The client owns configuration-dependent preparation, signing/approval/cancellation
 requests, submission, and history access. Package-level `calculateOrder` provides
 the shared form model. `prepareOrder` assigns fresh start, deadline, and nonce
-after wrapping/approval, immediately before signing. Swap execution first
-re-quotes: net output below the reviewed minimum rejects with `INVALID_QUOTE` and
-requires fresh review; otherwise the exact reviewed minimum remains signed.
+after wrapping/approval, immediately before signing. Swap execution calls
+`client.refreshAndPrepareSwap`, which reuses quotes up to 20 seconds old and
+otherwise replays the original request. If refreshed `minimumAmountOut` is lower,
+it rejects with `QUOTE_MINIMUM_DECREASED` and requires fresh review. Both paths
+prepare new signing timestamps/nonce and keep the exact reviewed minimum.
 
 Initialization is retried twice. After those retries, the provider keeps children
 mounted and renders `clientErrorFallback` alongside them. Supply that component
@@ -72,9 +102,9 @@ The completed integration should:
 
 - keep tokens, typed amount, balances, USD prices, and quote state in the DEX's existing swap store or context;
 - provide the five required `walletInteractions` methods using the DEX's existing wallet stack, plus `getTokenBalance` for completed-wrap retries;
-- render TWAP, Limit, Stop-Loss, and Take-Profit entry points using DEX-native navigation and components;
-- use `@orbs-network/swap-ui` for the order review/progress flow inside the DEX's modal shell;
-- render order history and cancellation inside `SpotProvider` scope or through a context-preserving portal.
+- render the requested order types using DEX-native navigation and components;
+- reuse the host's review/progress UI, or adapt `@orbs-network/swap-ui` inside the DEX's modal shell;
+- when history is requested, render it and cancellation inside `SpotProvider` scope or through a context-preserving portal.
 
 ## Installation
 
@@ -82,15 +112,19 @@ The completed integration should:
 functions and types. Install only `spot-react` for the SDK and hooks; add
 `swap-ui` when using its order progress components.
 
-Install the latest Spot packages with the host application's package manager. Do not mix lockfiles.
+Inspect installed versions first and preserve a compatible installation. When the
+SDK is missing, check its peer requirements and use the host application's package
+manager. Commit the resulting lockfile; do not mix package managers.
 
 ```bash
-npm install @orbs-network/spot-react@latest @orbs-network/swap-ui@latest
-# or: pnpm add @orbs-network/spot-react@latest @orbs-network/swap-ui@latest
-# or: yarn add @orbs-network/spot-react@latest @orbs-network/swap-ui@latest
+npm install @orbs-network/spot-react
+# or: pnpm add @orbs-network/spot-react
+# or: yarn add @orbs-network/spot-react
 ```
 
-If migrating from `@orbs-network/twap-ui`, remove it before installing the packages above.
+Add a compatible `@orbs-network/swap-ui` only if using its progress components.
+If migrating from `@orbs-network/twap-ui`, remove the old package after replacing
+its imports and verifying the new integration.
 
 ### Migrating from 1.x
 
@@ -99,8 +133,9 @@ and `useSwapExecution` interfaces with focused hooks such as `useOrderForm`,
 `useExecution`, `useSubmitButton`, and `useOrders`. Provider values now use
 `input`/`output` terminology (`inputToken`, `outputToken`, `inputBalanceRaw`,
 and `minTradeSizeUsd`), and the host supplies wallet operations through
-`walletInteractions`. The `isDev` option is no longer supported. In the browser,
-`?devurl=true` selects the Spot SDK's development order service.
+`walletInteractions`. The `isDev` option and `?devurl=true` backend selection are
+no longer supported. Direct SDK clients can select a trusted endpoint with
+`createClient(partner, chainId, { apiUrl })`; the provider uses production.
 
 `@orbs-network/swap-ui` is a recommended companion for the documented order
 progress modal, but it is not imported by `spot-react` and is not required for
@@ -129,7 +164,7 @@ Keep the DEX swap form as the source of truth. Pass the following adapted values
 | Selected tokens | `Token` objects with `address`, `symbol`, `decimals`, and optional `logoUrl` |
 | Wrapped native token | The connected chain's wrapped-native `Token`, supplied by the DEX |
 | Typed source amount | User-facing decimal string, for example `"1.25"` |
-| Quote output | Raw destination-token amount for the current typed input; swaps map `quote.minimumAmountOut` unchanged to `minimumOutputAmountRaw` |
+| Quote output | Swaps pass the original SDK `SwapQuote` as `marketQuote.quote`; advanced quote adapters may use raw output/USD fields |
 | Input balance | Raw integer string |
 | USD prices | USD value of exactly one whole source/destination token |
 | Chain and account | Values from the connected wallet/account state |
@@ -181,6 +216,7 @@ function SpotOrderForm({ module }: { module: Module }) {
     quotedInputAmountUi,
     quotedOutputAmountRaw,
     minimumOutputAmountRaw,
+    swapQuote,
     isQuoteLoading,
     inputTokenUsdPrice,
     outputTokenUsdPrice,
@@ -224,10 +260,11 @@ function SpotOrderForm({ module }: { module: Module }) {
     );
     const isStale = shouldQuote && inputAmountUi !== quotedInputAmountUi;
     const currentQuotedOutputAmountRaw =
-      !shouldQuote || isStale ? undefined : quotedOutputAmountRaw;
+      !shouldQuote || isStale ? undefined : swapQuote?.netAmountOut ?? quotedOutputAmountRaw;
     const isLoading = shouldQuote && (isStale || isQuoteLoading);
 
     return {
+      quote: !shouldQuote || isStale ? undefined : swapQuote,
       quotedOutputAmountRaw: currentQuotedOutputAmountRaw,
       minimumOutputAmountRaw:
         !shouldQuote || isStale ? undefined : minimumOutputAmountRaw,
@@ -241,6 +278,7 @@ function SpotOrderForm({ module }: { module: Module }) {
     outputCurrency,
     quotedOutputAmountRaw,
     minimumOutputAmountRaw,
+    swapQuote,
     quotedInputAmountUi,
     inputAmountUi,
   ]);
@@ -288,16 +326,28 @@ function SpotOrderForm({ module }: { module: Module }) {
 }
 ```
 
-`marketQuote.quotedOutputAmountRaw` is the quote's raw output amount for the current
-`inputAmountUi`, not a standalone per-token price. For swaps, pass
-`quote.netAmountOut` and `minimumOutputAmountRaw: quote.minimumAmountOut`.
-The returned minimum is authoritative; do not apply slippage again. If the quote
-belongs to older inputs, omit both amounts and report `isLoading: true` until a
-current quote arrives.
+For swaps, `swapQuote` above is the original SDK `SwapQuote`, including its
+request. Pass it as `marketQuote: { quote, isLoading, noLiquidity }`; the provider
+derives raw output/minimum amounts and USD totals from it. The original quote is
+required to replay the same request before signing and must match the reviewed
+form and client/token scope. Do not rebuild it from displayed amounts or apply
+slippage again. Omit stale quotes and report `isLoading: true` until current.
 
-Pass `inputAmountUsd: quote.inputAmountUsd`, `quotedOutputAmountUsd: quote.netAmountOutUsd`,
-and `minimumOutputAmountUsd: quote.minimumAmountOutUsd` in `marketQuote` to retain
-the service's exact USD totals in the form and execution snapshot. Swaps display
+Existing swap adapters that pass only flat amounts must also supply the original
+SDK quote: replace their swap mapping with `{ quote, isLoading, noLiquidity }`.
+When it is missing, `useSubmitButton()` reports `missing-swap-quote` and keeps
+submission disabled; direct execution rejects before wallet writes. Flat-only
+adapters remain supported for advanced modules and display calculations.
+
+Advanced-order adapters can keep using `marketQuote.quotedOutputAmountRaw` for
+the current `inputAmountUi`; this is a whole-input raw output amount, not a
+standalone token price. Flat minimum and USD fields remain available for those
+adapters. Swap quote fields take precedence when an original quote is supplied.
+
+For flat advanced adapters, pass `inputAmountUsd: quote.inputAmountUsd`,
+`quotedOutputAmountUsd: quote.netAmountOutUsd`, and
+`minimumOutputAmountUsd: quote.minimumAmountOutUsd` to retain exact USD totals.
+With `marketQuote.quote`, the provider maps these fields automatically. Swaps display
 the returned output and minimum USD values unchanged. Advanced orders calculate
 their edited output amounts using the supplied token prices, which can be
 derived from the same quote's USD totals and token amounts.
@@ -320,7 +370,7 @@ Use the connected wallet chain as the source of truth. When it is absent or unsu
 | `inputAmountUi` | `string` | Yes | User-entered input-token amount |
 | `priceProtectionPercent` | `number` | Yes | Price Protection percentage for advanced orders; ignored for `SWAP`, which signs 500 bps oracle protection |
 | `minTradeSizeUsd` | `number` | Yes | Minimum individual trade size in USD |
-| `marketQuote` | `MarketQuote` | Yes | Raw output/minimum amounts, optional `inputAmountUsd`, `quotedOutputAmountUsd`, `minimumOutputAmountUsd` totals, `isLoading?`, and `noLiquidity?`; swaps use quote amounts unchanged |
+| `marketQuote` | `MarketQuote` | Yes | Original `quote: SwapQuote` required for swaps; flat raw/USD fields remain available for advanced adapters, with `isLoading?` and `noLiquidity?` flags |
 | `walletInteractions` | `WalletInteractions` | Yes | Five wallet methods implemented by the DEX |
 | `chainId` | `number` | No | Connected wallet chain ID |
 | `account` | `Address` | No | Connected wallet address |
@@ -333,6 +383,7 @@ Use the connected wallet chain as the source of truth. When it is absent or unsu
 | `callbacks` | `Callbacks` | No | Lifecycle and field-change callbacks |
 | `displayFeePercent` | `number` | No | Display-only fee estimate percentage; does not collect or subtract fees |
 | `supportLegacyOrders` | `boolean` | No | Include supported legacy v1 orders in history |
+| `disableAnalytics` | `boolean` | No | Disable SDK telemetry; defaults to `false` |
 | `clientErrorFallback` | `ComponentType<ClientErrorFallbackProps>` | No | Host-rendered client initialization error UI with `error`, `retry`, and `isRetrying` |
 | `errorFallback` | `ComponentType<SpotErrorFallbackProps>` | No | Host-rendered fallback for unexpected calculation or rendering errors |
 
@@ -455,7 +506,7 @@ const history = useOrders();
 | `usePriceDisplay()` | Inversion state/callback, actual and display-direction tokens, market-order state |
 | `useDisclaimer()` | Disclaimer translation key or `undefined` |
 | `useInputErrors()` | `{ type, args }` or `undefined` |
-| `useSubmitButton()` | `disabled` and `loading` |
+| `useSubmitButton()` | `disabled`, `loading`, and an actionable `disabledReason` |
 | `useExecution()` | Submission/recovery, status, steps, errors, retained order/account, resets, resolved tokens, and tx hashes |
 | `useOrders()` | Provider-scoped categorized order lists and polling state |
 | `useHistoryOrder()` | Display-ready values for one history order |
@@ -466,6 +517,29 @@ const history = useOrders();
 Child components should call the relevant focused hook themselves instead of receiving hook-returned panels through intermediate props. `useOrders()` activates order-history fetching while an orders consumer is mounted; form-only integrations do not fetch or poll history.
 
 Keep the submit button disabled while `loading` is true. If client initialization fails, `SpotProvider` keeps child components mounted and renders the retryable `clientErrorFallback` alongside them.
+
+`useSubmitButton()` returns the exported `SubmitButtonResult` type. When
+`disabled` is true, `disabledReason` is a stable `SubmitDisabledReason`; when
+enabled, no reason is present. Translate these codes with the host's existing UI and use them for
+agent diagnostics instead of reconstructing the SDK's readiness logic.
+
+| Reason | Integration action |
+| --- | --- |
+| `execution-in-progress` | Keep the current execution visible and block duplicate starts |
+| `unconfirmed-order` | Reconcile the captured order with `resumeTracking()` |
+| `missing-chain` | Use the host's connect/switch-network flow |
+| `client-loading`, `client-error`, `client-unavailable` | Inspect `useClient()` and its retryable initialization state |
+| `missing-token-metadata`, `missing-wrapped-native-token` | Supply the host's selected-token and wrapped-native metadata |
+| `quote-loading`, `awaiting-quote`, `no-liquidity` | Inspect the current pair's quote resource |
+| `missing-swap-quote` | Pass the original SDK `SwapQuote` as `marketQuote.quote`; flat amounts cannot replay its request |
+| `balance-loading` | Supply the connected account's raw input-token balance |
+| `empty-input`, `missing-usd-value`, `invalid-swap-minimum` | Correct the prerequisite identified by `form.notReadyReason` |
+| `validation-error` | Read `useOrderForm().errors.primary` or `useInputErrors()` |
+| `form-not-ready`, `form-not-submittable` | Inspect the complete form and installed SDK contract before choosing a recovery |
+
+`form.notReadyReason` describes missing calculation prerequisites; it is absent
+for ready forms that fail validation. Neither diagnostic changes the host's
+responsibility for wallet connection, translations, or product policy.
 
 For `Module.SWAP`, a missing or invalid minimum reports
 `InputErrors.INVALID_SWAP_MINIMUM` through `useInputErrors()` once the other
@@ -661,7 +735,9 @@ and `serviceCode` preserve settlement and service details for host error UI.
 
 ## Callbacks
 
-Callbacks cover wallet notifications, analytics, field synchronization, and balance refresh:
+Host callbacks cover wallet notifications, field synchronization, and balance
+refresh. The SDK already reports its analytics; repeating those events in host
+callbacks would duplicate them.
 
 ```tsx
 const callbacks: Callbacks = {
@@ -855,11 +931,18 @@ Keep wrapping, approval, and EIP-712 signing in the DEX's existing wallet flow.
 After confirmed approval to `client.spenderAddress`, call
 `await client.refreshAndPrepareSwap({ quote, account, signal })`,
 sign its `signingRequest`, then call `client.submitOrder(prepared.order, signature, { signal })`.
-The helper replays the original quote request, preserving its preview user,
-slippage, and DEX minimum. It compares the fresh `minimumAmountOut` against the
+The helper checks freshness internally, so no separate `isQuoteFresh` call is
+needed. Quotes up to 20,000 ms old skip the HTTP request; older, future-dated, or
+invalid timestamps trigger a refresh. A direct call can override the finite,
+non-negative `maxQuoteAgeMillis`; `0` forces a refresh. The React provider and
+`submitSwap` use the default window.
+When refreshing, it replays the original request, preserving its preview user,
+slippage, and DEX minimum. It compares the refreshed `minimumAmountOut` against the
 original `quote.minimumAmountOut`; a lower minimum throws `QUOTE_MINIMUM_DECREASED` before
 signing and requires a new review. An equal or higher minimum prepares the
-original reviewed quote without changing its minimum.
+original reviewed quote without changing its minimum. Reuse still prepares fresh
+signing timestamps and a new nonce. Local age does not guarantee execution;
+`isQuoteFresh` remains available for optional host UI/cache policy.
 `client.prepareSwap(quote, account)` remains available for synchronous local
 preparation without a refresh or price check.
 All swaps have a fixed 3-minute expiration from preparation, immediately before

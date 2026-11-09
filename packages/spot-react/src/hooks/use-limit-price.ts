@@ -3,7 +3,7 @@ import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
 import { useSpotTrading } from "../context/spot-trading-context";
 import { useSpotStore } from "../context/spot-store-context";
-import { observe } from "../execution-state";
+import { usePriceInput } from "./use-price-input";
 
 export const useLimitPrice = () => {
   const { marketPriceLoading, inputToken, outputToken, callbacks } =
@@ -11,33 +11,8 @@ export const useLimitPrice = () => {
   const { limitPrice, values, module, isInverted } = useOrderForm();
   const updateState = useSpotStore((state) => state.updateState);
 
-  const onInputChange = useCallback(
-    (value?: string) => {
-      updateState({ limitPriceUi: value, limitPricePercent: null });
-      observe(() => callbacks?.onLimitPriceChange?.(value || ""));
-      observe(() => callbacks?.onLimitPricePercentChange?.(""));
-    },
-    [callbacks, updateState],
-  );
-
-  const onPercentageChange = useCallback(
-    (percentage?: string) => {
-      updateState({
-        limitPriceUi: undefined,
-        limitPricePercent: percentage,
-      });
-      observe(() => callbacks?.onLimitPriceChange?.(""));
-      observe(() => callbacks?.onLimitPricePercentChange?.(percentage || ""));
-    },
-    [callbacks, updateState],
-  );
-
-  const onReset = useCallback(() => {
-    updateState({
-      limitPriceUi: undefined,
-      limitPricePercent: undefined,
-    });
-  }, [updateState]);
+  const { onInputChange, onPercentageChange, onReset } =
+    usePriceInput("limit", updateState, callbacks);
 
   const isEnabled = !values.isMarketOrder;
   const toggle = useCallback(() => {

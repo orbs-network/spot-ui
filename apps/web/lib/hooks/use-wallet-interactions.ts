@@ -7,10 +7,36 @@ import type {
   GetAllowanceProps,
 } from "@orbs-network/spot-react";
 import { useCallback, useMemo } from "react";
-import { erc20Abi } from "viem";
+import { erc20Abi, type PublicClient, type WalletClient } from "viem";
 import { useConnection, usePublicClient, useWalletClient } from "wagmi";
 import { getWrappedNativeCurrency } from "../utils";
 import { wagmiConfig } from "../wagmi-config";
+
+type BalanceReadContext = {
+  walletClient: Pick<WalletClient, "getChainId" | "getAddresses">;
+  publicClient: Pick<PublicClient, "chain">;
+  chainId?: number;
+  account: `0x${string}`;
+};
+
+const assertBalanceReadContext = async ({
+  walletClient,
+  publicClient,
+  chainId,
+  account,
+}: BalanceReadContext): Promise<void> => {
+  const [connectedChainId, accounts] = await Promise.all([
+    walletClient.getChainId(),
+    walletClient.getAddresses(),
+  ]);
+  if (
+    connectedChainId !== chainId ||
+    publicClient.chain?.id !== chainId ||
+    accounts[0]?.toLowerCase() !== account.toLowerCase()
+  ) {
+    throw new Error("Wallet account or network changed while reading the token balance");
+  }
+};
 
 export const useWalletInteractions = () => {
   const { chain, chainId } = useConnection({ config: wagmiConfig });
@@ -37,18 +63,27 @@ export const useWalletInteractions = () => {
   return useMemo((): WalletInteractions => {
     const wrappedNativeCurrency = getWrappedNativeCurrency(chainId);
 
+    const requireWalletClient = () => {
+      if (!walletClient) throw new Error("Wallet client not found");
+      return walletClient;
+    };
+    const requirePublicClient = () => {
+      if (!publicClient) throw new Error("Public client not found");
+      return publicClient;
+    };
+    const getWriteContext = () => {
+      const client = requireWalletClient();
+      if (!chain) throw new Error(`Unsupported wallet chain: ${chainId}`);
+      return { client, chain };
+    };
+
     return {
       wrapNativeToken: async (amount: string) => {
-        if (!walletClient) {
-          throw new Error("Wallet client not found");
-        }
-        if (!chain) {
-          throw new Error(`Unsupported wallet chain: ${chainId}`);
-        }
+        const { client, chain } = getWriteContext();
         if (!wrappedNativeCurrency?.address) {
           throw new Error("Wrapped native token not found for chain");
         }
-        const hash = await walletClient.writeContract({
+        const hash = await client.writeContract({
           abi: [
             {
               name: "deposit",
@@ -63,53 +98,41 @@ export const useWalletInteractions = () => {
           args: [],
           value: BigInt(amount),
           chain,
-          account: walletClient.account,
+          account: client.account,
         });
         return waitForTx(hash);
       },
       approveToken: async (props: ApproveTokenProps) => {
-        if (!walletClient) {
-          throw new Error("Wallet client not found");
-        }
-        if (!chain) {
-          throw new Error(`Unsupported wallet chain: ${chainId}`);
-        }
-        const hash = await walletClient.writeContract({
+        const { client, chain } = getWriteContext();
+        const hash = await client.writeContract({
           abi: erc20Abi,
           functionName: "approve",
           address: props.tokenAddress as `0x${string}`,
           args: [props.spenderAddress as `0x${string}`, BigInt(props.amount)],
           chain,
-          account: walletClient.account,
+          account: client.account,
         });
         return waitForTx(hash);
       },
       cancelOrder: async (props: CancelOrderProps) => {
-        if (!walletClient) {
-          throw new Error("Wallet client not found");
-        }
-        if (!chain) {
-          throw new Error(`Unsupported wallet chain: ${chainId}`);
-        }
+        const { client, chain } = getWriteContext();
         if (props.order.chainId !== chainId) {
           throw new Error(`Switch to chain ${props.order.chainId} to cancel this order`);
         }
-        const hash = await walletClient.writeContract({
+        const hash = await client.writeContract({
           abi: props.abi,
           functionName: "cancel",
           address: props.contractAddress as `0x${string}`,
           args: props.args,
           chain,
-          account: walletClient.account,
+          account: client.account,
         });
         return waitForTx(hash);
       },
       signOrder: async (request: OrderSigningRequest) => {
-        if (!walletClient) {
-          throw new Error("Wallet client not found");
-        }
+        const client = requireWalletClient();
         const { signerAddress, typedData } = request;
-        return walletClient.signTypedData({
+        return client.signTypedData({
           domain: typedData.domain as any,
           types: typedData.types as any,
           primaryType: typedData.primaryType,
@@ -118,52 +141,35 @@ export const useWalletInteractions = () => {
         });
       },
       getAllowance: async (props: GetAllowanceProps) => {
-        if (!publicClient) {
-          throw new Error("Public client not found");
-        }
-        if (!walletClient) {
-          throw new Error("Wallet client not found");
-        }
-        const result = await publicClient.readContract({
+        const readClient = requirePublicClient();
+        const client = requireWalletClient();
+        const result = await readClient.readContract({
           address: props.tokenAddress as `0x${string}`,
           abi: erc20Abi,
           functionName: "allowance",
           args: [
-            walletClient.account?.address as `0x${string}`,
+            client.account?.address as `0x${string}`,
             props.spenderAddress as `0x${string}`,
           ],
         });
         return String(result);
       },
       getTokenBalance: async ({ tokenAddress }) => {
-        if (!publicClient) {
-          throw new Error("Public client not found");
-        }
+        const readClient = requirePublicClient();
         if (!walletClient?.account?.address) {
           throw new Error("Wallet account not found");
         }
         const account = walletClient.account.address;
-        const assertWalletContext = async () => {
-          const [connectedChainId, accounts] = await Promise.all([
-            walletClient.getChainId(),
-            walletClient.getAddresses(),
-          ]);
-          if (
-            connectedChainId !== chainId ||
-            publicClient.chain?.id !== chainId ||
-            accounts[0]?.toLowerCase() !== account.toLowerCase()
-          ) {
-            throw new Error("Wallet account or network changed while reading the token balance");
-          }
-        };
-        await assertWalletContext();
-        const result = await publicClient.readContract({
+        const context = { walletClient, publicClient: readClient, chainId, account };
+        // A completed-wrap retry must not use a balance read across wallet changes.
+        await assertBalanceReadContext(context);
+        const result = await readClient.readContract({
           address: tokenAddress as `0x${string}`,
           abi: erc20Abi,
           functionName: "balanceOf",
           args: [account],
         });
-        await assertWalletContext();
+        await assertBalanceReadContext(context);
         return String(result);
       },
     };

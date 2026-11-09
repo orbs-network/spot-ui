@@ -146,6 +146,35 @@ async function waitForPublishedDependency(dependency, packageDir, registry, { ru
   )
 }
 
+async function waitForDependencies(target, rootDir, packageDir, registry, services) {
+  // pnpm publishes workspace:* as the exact local version, which must be installable first.
+  for (const directory of target.dependencies ?? []) {
+    const dependency = JSON.parse(readFileSync(join(rootDir, directory, 'package.json'), 'utf8'))
+    services.log(`Waiting for published dependency ${dependency.name}@${dependency.version}...`)
+    await waitForPublishedDependency(dependency, packageDir, registry, services)
+  }
+}
+
+async function prepareRelease({
+  version, manifest, originalManifest, manifestPath, target, rootDir, run, prompts, log,
+}) {
+  try {
+    // Build with the release version so it is also correct inside the bundle.
+    manifest.version = version
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
+    log('\nBuilding...')
+    for (const args of target.checks) {
+      run('pnpm', args, { cwd: rootDir, stdio: 'inherit' })
+    }
+    return await prompts.promptOtp()
+  } catch (cause) {
+    // No upload has started: builds and prompt cancellation are safe to roll back.
+    writeFileSync(manifestPath, originalManifest)
+    const reason = cause instanceof Error ? cause.message : String(cause)
+    throw new Error(`Release preparation stopped; restored the original package version. ${reason}`, { cause })
+  }
+}
+
 /** Publishes a package using configurable command execution and prompts. */
 export async function publishPackage(targetName, {
   rootDir = repositoryRoot,
@@ -176,30 +205,10 @@ export async function publishPackage(targetName, {
   const authDir = existsSync(join(packageDir, '.npmrc')) ? packageDir : rootDir
   ensureNpmAuthentication(authDir, registry, run, interactive, log)
 
-  // pnpm replaces workspace:* with the exact local version when publishing.
-  // A successful local build does not establish that consumers can install it.
-  for (const directory of target.dependencies ?? []) {
-    const dependency = JSON.parse(readFileSync(join(rootDir, directory, 'package.json'), 'utf8'))
-    log(`Waiting for published dependency ${dependency.name}@${dependency.version}...`)
-    await waitForPublishedDependency(dependency, packageDir, registry, { run, log, wait, now })
-  }
-
-  let otp
-  try {
-    // Build with the release version so it is also correct inside the bundle.
-    manifest.version = version
-    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
-    log('\nBuilding...')
-    for (const args of target.checks) {
-      run('pnpm', args, { cwd: rootDir, stdio: 'inherit' })
-    }
-    otp = await prompts.promptOtp()
-  } catch (cause) {
-    // No upload has started: builds and prompt cancellation are safe to roll back.
-    writeFileSync(manifestPath, originalManifest)
-    const reason = cause instanceof Error ? cause.message : String(cause)
-    throw new Error(`Release preparation stopped; restored the original package version. ${reason}`, { cause })
-  }
+  await waitForDependencies(target, rootDir, packageDir, registry, { run, log, wait, now })
+  const otp = await prepareRelease({
+    version, manifest, originalManifest, manifestPath, target, rootDir, run, prompts, log,
+  })
 
   // Builds have already run; skip duplicate lifecycle scripts.
   const args = ['publish', '--access', 'public', '--no-git-checks', '--ignore-scripts', '--registry', registry]

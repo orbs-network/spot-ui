@@ -1,8 +1,8 @@
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
 import { useSpotTrading } from "../context/spot-trading-context";
 import { useSpotStore } from "../context/spot-store-context";
-import { observe } from "../execution-state";
+import { usePriceInput } from "./use-price-input";
 
 export const useTriggerPrice = () => {
   const { marketPriceLoading, inputToken, outputToken, callbacks } =
@@ -10,33 +10,8 @@ export const useTriggerPrice = () => {
   const { marketPrice, trades, triggerPrice, isInverted } = useOrderForm();
   const updateState = useSpotStore((state) => state.updateState);
 
-  const onInputChange = useCallback(
-    (value?: string) => {
-      updateState({ triggerPriceUi: value, triggerPricePercent: null });
-      observe(() => callbacks?.onTriggerPriceChange?.(value || ""));
-      observe(() => callbacks?.onTriggerPricePercentChange?.(""));
-    },
-    [callbacks, updateState],
-  );
-
-  const onPercentageChange = useCallback(
-    (percentage?: string) => {
-      updateState({
-        triggerPriceUi: undefined,
-        triggerPricePercent: percentage,
-      });
-      observe(() => callbacks?.onTriggerPriceChange?.(""));
-      observe(() => callbacks?.onTriggerPricePercentChange?.(percentage || ""));
-    },
-    [callbacks, updateState],
-  );
-
-  const onReset = useCallback(() => {
-    updateState({
-      triggerPricePercent: undefined,
-      triggerPriceUi: undefined,
-    });
-  }, [updateState]);
+  const { onInputChange, onPercentageChange, onReset } =
+    usePriceInput("trigger", updateState, callbacks);
 
   return useMemo(
     () => ({

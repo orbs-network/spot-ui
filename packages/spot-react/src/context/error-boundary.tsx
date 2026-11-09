@@ -1,7 +1,9 @@
-import { analytics } from "@orbs-network/spot-ui";
 import { Component, useCallback, type ComponentType, type ReactNode } from "react";
 import type { SpotErrorFallbackProps } from "../types";
-import { useSpotStoreApi } from "./spot-store-context";
+import { useClient } from "./use-client";
+import { useSpotTrading } from "./spot-trading-context";
+import { createOperationAnalytics } from "../analytics";
+import { observe } from "../execution-state";
 
 const DefaultErrorFallback = ({
   resetErrorBoundary,
@@ -21,11 +23,21 @@ export const SpotErrorBoundary = ({
   children: ReactNode;
   fallback?: ComponentType<SpotErrorFallbackProps>;
 }) => {
-  const store = useSpotStoreApi();
+  const { data: client } = useClient();
+  const { partner, chainId, account, module, inputToken, outputToken, disableAnalytics } = useSpotTrading();
   const reportCrash = useCallback((error: Error) => {
-    const reporter = store.getState().client.data?.analytics ?? analytics;
-    reporter.onCrash(error);
-  }, [store]);
+    const reporter = createOperationAnalytics({
+      partner,
+      chainId,
+      account,
+      module,
+      inputTokenAddress: inputToken?.address,
+      inputTokenSymbol: inputToken?.symbol,
+      outputTokenAddress: outputToken?.address,
+      outputTokenSymbol: outputToken?.symbol,
+    }, client, disableAnalytics);
+    observe(() => reporter.onCrash(error));
+  }, [client, partner, chainId, account, module, inputToken, outputToken, disableAnalytics]);
   return (
     <InternalErrorBoundary fallback={ErrorFallback} reportCrash={reportCrash}>
       {children}

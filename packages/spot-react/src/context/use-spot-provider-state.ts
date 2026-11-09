@@ -4,7 +4,7 @@ import {
   toAmountRaw,
 } from "@orbs-network/spot-ui";
 import { useMemo } from "react";
-import type { SpotProps } from "../types";
+import type { MarketQuote, SpotProps } from "../types";
 import {
   createSpotFormDefaults,
   type SpotFormDefaults,
@@ -17,11 +17,35 @@ interface SpotProviderState {
   trading: SpotTradingState;
 }
 
+const resolveMarketQuote = (marketQuote: MarketQuote): MarketQuote => {
+  if (marketQuote.isLoading) {
+    return { isLoading: true, noLiquidity: marketQuote.noLiquidity };
+  }
+  const { quote } = marketQuote;
+  // The original quote is authoritative; flat fields support other quote adapters.
+  return {
+    ...marketQuote,
+    quotedOutputAmountRaw: quote?.netAmountOut ?? marketQuote.quotedOutputAmountRaw,
+    minimumOutputAmountRaw: quote?.minimumAmountOut ?? marketQuote.minimumOutputAmountRaw,
+    inputAmountUsd: quote?.inputAmountUsd ?? marketQuote.inputAmountUsd,
+    quotedOutputAmountUsd: quote?.netAmountOutUsd ?? marketQuote.quotedOutputAmountUsd,
+    minimumOutputAmountUsd: quote?.minimumAmountOutUsd ?? marketQuote.minimumOutputAmountUsd,
+  };
+};
+
 export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
   // The asynchronous client loader checks remote partner/chain support.
   const hasChainId =
     Number.isSafeInteger(props.chainId) && Number(props.chainId) > 0;
   const wrappedNativeAddress = props.wrappedNativeToken?.address;
+  const {
+    quote,
+    quotedOutputAmountRaw: marketOutputAmountRaw,
+    minimumOutputAmountRaw,
+    inputAmountUsd,
+    quotedOutputAmountUsd,
+    minimumOutputAmountUsd,
+  } = resolveMarketQuote(props.marketQuote);
   const isNativePair = Boolean(
     wrappedNativeAddress &&
       ((isNativeAddress(props.inputToken?.address) &&
@@ -31,9 +55,7 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
   );
   const quotedOutputAmountRaw = isNativePair
     ? toAmountRaw(props.inputAmountUi, props.outputToken?.decimals)
-    : props.marketQuote.isLoading
-      ? undefined
-      : props.marketQuote.quotedOutputAmountRaw;
+    : marketOutputAmountRaw;
   const marketPriceLoading = isNativePair
     ? false
     : props.marketQuote.isLoading;
@@ -66,19 +88,19 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
       minTradeSizeUsd: props.minTradeSizeUsd,
       account: props.account,
       walletInteractions: props.walletInteractions,
+      quote,
       quotedOutputAmountRaw,
-      minimumOutputAmountRaw: props.marketQuote.isLoading
-        ? undefined
-        : props.marketQuote.minimumOutputAmountRaw,
-      inputAmountUsd: props.marketQuote.isLoading ? undefined : props.marketQuote.inputAmountUsd,
-      quotedOutputAmountUsd: props.marketQuote.isLoading ? undefined : props.marketQuote.quotedOutputAmountUsd,
-      minimumOutputAmountUsd: props.marketQuote.isLoading ? undefined : props.marketQuote.minimumOutputAmountUsd,
+      minimumOutputAmountRaw,
+      inputAmountUsd,
+      quotedOutputAmountUsd,
+      minimumOutputAmountUsd,
       marketPriceLoading,
       noLiquidity,
       priceProtectionPercent: props.priceProtectionPercent,
       chainId: props.chainId,
       hasChainId,
       partner: props.partner,
+      disableAnalytics: props.disableAnalytics ?? false,
       module: props.module,
       displayFeePercent: props.displayFeePercent ?? 0,
       callbacks: props.callbacks,
@@ -92,11 +114,11 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
       overrides: props.overrides,
     }),
     [
-      props.marketQuote.isLoading,
-      props.marketQuote.minimumOutputAmountRaw,
-      props.marketQuote.inputAmountUsd,
-      props.marketQuote.quotedOutputAmountUsd,
-      props.marketQuote.minimumOutputAmountUsd,
+      minimumOutputAmountRaw,
+      inputAmountUsd,
+      quotedOutputAmountUsd,
+      minimumOutputAmountUsd,
+      quote,
       props.account,
       props.callbacks,
       props.chainId,
@@ -111,6 +133,7 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
       props.wrappedNativeToken,
       props.overrides,
       props.partner,
+      props.disableAnalytics,
       props.priceProtectionPercent,
       props.supportLegacyOrders,
       props.inputAmountUi,

@@ -2,6 +2,23 @@
 
 A monorepo containing the Spot SDK, UI components, and a demo web application.
 
+## Integrate with an AI coding agent
+
+Describe the feature you want, for example:
+
+> Add Spot limit orders and TWAP to this app. Discover its existing wallet,
+> trading state, networks, and components. Follow the matching Spot integration
+> skill, reuse the app's styling, and verify the result. Ask me only about product
+> decisions you cannot infer from the project.
+
+The agent should choose the [framework-neutral guide](skills/spot-integration/SKILL.md)
+for an existing swap router or custom TypeScript integration, or the
+[React guide](skills/spot-react-integration/SKILL.md) for provider-driven order forms.
+Both guides include a starting path for a new or non-DEX app: create missing
+wallet, token-list, balance, quote/price, and UI services before wiring Spot.
+Each SDK build also bundles its matching guide at `dist/integration-skill/SKILL.md`,
+with the package version recorded in `dist/integration-skill/manifest.json`.
+
 ## Packages
 
 | Package | Description | Published |
@@ -53,12 +70,13 @@ quote competition. React integrations that already install `@orbs-network/spot-r
 can import all the same SDK functions and types from it, without separately
 installing `spot-ui`. No React provider is required for these functions. `getQuote` carries request
 identity and the authoritative `minimumAmountOut`, and
-`client.prepareSwap` builds from raw amounts without a UI form. The DEX can
+`client.refreshAndPrepareSwap` reuses quotes up to 20 seconds old, or refreshes
+the original request and checks its minimum, before preparing raw amounts without a UI form. The DEX can
 keep its wrapping, approval, and signing flow, then post the signed order with
 `client.submitOrder`. Use `waitForOrder({ order })` for settlement tracking; the
 order contains its ID, chain, and deadline, so tracking needs no client.
 `submitSwap` remains optional for integrations wanting SDK wallet orchestration.
-Call `client.prepareSwap(quote, account)` immediately before signing. All swaps
+Call `client.refreshAndPrepareSwap({ quote, account, signal })` immediately before signing. All swaps
 have a fixed 3-minute expiration from preparation, including calculated form swaps.
 
 See the [typed router adapter](packages/spot-ui/examples/router-swap.ts) and
@@ -77,8 +95,9 @@ is forwarded to fetch.
 
 For `Module.SWAP`, pass the quote's `netAmountOut` as
 `quotedOutputAmountRaw` and its `minimumAmountOut` unchanged as
-`minimumOutputAmountRaw`. In React, provide both through
-`SpotProvider.marketQuote`. Missing or invalid amounts block submission.
+`minimumOutputAmountRaw`. In React, pass the original quote as
+`SpotProvider.marketQuote={{ quote }}`; the provider derives those fields and
+retains the request for an exact refresh when needed before signing. Missing or invalid quotes block submission.
 Do not apply slippage again to the returned minimum.
 The form creates one limit order with that exact minimum and a
 fixed 3-minute expiration. Native input is wrapped before approval; signing,
