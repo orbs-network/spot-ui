@@ -48,6 +48,7 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
       }),
     [props.module, props.overrides],
   );
+  // Changing saved defaults must not reset the current form or execution.
   const formScopeKey = JSON.stringify([
     props.partner,
     props.chainId,
@@ -58,7 +59,6 @@ export const useSpotProviderState = (props: SpotProps): SpotProviderState => {
     props.outputToken?.decimals,
     props.wrappedNativeToken?.address,
     props.wrappedNativeToken?.decimals,
-    initialState,
   ]);
   const trading = useMemo<SpotTradingState>(
     () => ({

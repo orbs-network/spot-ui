@@ -1,6 +1,7 @@
 import { getOrder } from "./orders/v2-orders";
 import { OrderStatus, type Order } from "./types";
 import { SpotError } from "./errors";
+import { getApiEndpoint } from "./api-config";
 
 const INITIAL_POLL_DELAY_MILLIS = 2_000;
 const MAX_POLL_DELAY_MILLIS = 30_000;
@@ -22,6 +23,8 @@ export interface WaitForOrderParams {
   order: Order;
   /** Stops tracking with reason `"aborted"`; does not cancel the order itself. */
   signal?: AbortSignal;
+  /** Use the submitting client's apiUrl when it uses a custom order service. */
+  apiUrl?: string;
 }
 
 /** Bounds even a lookup whose transport ignores cancellation. */
@@ -66,12 +69,13 @@ function isSettled(order: Order): boolean {
  *   updateOrderHistory(current);
  * }
  */
-export async function* watchOrder({ order, signal }: WaitForOrderParams): AsyncGenerator<Order, void, unknown> {
+export async function* watchOrder({ order, signal, apiUrl }: WaitForOrderParams): AsyncGenerator<Order, void, unknown> {
   const orderId = order?.id;
   if (!orderId) throw new SpotError("INVALID_ARGUMENT", "An order with a full ID is required");
   const { chainId, deadline, historyKey } = order;
   if (!Number.isSafeInteger(chainId) || chainId <= 0) throw new SpotError("INVALID_ARGUMENT", "The order must have a valid chain ID");
   if (!Number.isFinite(deadline)) throw new SpotError("INVALID_ARGUMENT", "The order must have a finite deadline");
+  const endpoint = getApiEndpoint(apiUrl);
 
   const controller = new AbortController();
   let poll: ReturnType<typeof setTimeout> | undefined;
@@ -106,7 +110,7 @@ export async function* watchOrder({ order, signal }: WaitForOrderParams): AsyncG
       controller.signal.throwIfAborted();
       let current: Order | undefined;
       try {
-        current = await abortable(getOrder({ orderId, chainId, signal: controller.signal }), controller.signal);
+        current = await abortable(getOrder({ orderId, chainId, signal: controller.signal, apiUrl: endpoint }), controller.signal);
       } catch {
         // Missing/indexing results and transient request errors remain retryable.
         controller.signal.throwIfAborted();

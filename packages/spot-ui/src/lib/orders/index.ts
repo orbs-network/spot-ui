@@ -1,5 +1,6 @@
 import { Order, Partners } from "../types";
 import { SpotError } from "../errors";
+import { getApiEndpoint } from "../api-config";
 import { getTwapConfig } from "./legacy-twap-config";
 import { getOrders as getV1Orders } from "./v1-orders";
 import { getOrders as getV2Orders } from "./v2-orders";
@@ -20,6 +21,8 @@ export interface GetOrdersParams {
   signal?: AbortSignal;
   /** Include orders from order-sink.orbs.network. Defaults to true. */
   getv1orders?: boolean;
+  /** Explicit order-service base URL; defaults to production v2. */
+  apiUrl?: string;
 }
 
 /**
@@ -42,6 +45,7 @@ export const getOrders = async ({
   limit,
   signal,
   getv1orders,
+  apiUrl,
 }: GetOrdersParams = {}): Promise<Order[]> => {
   assertValidPagination(page, limit);
   const orders = await getV2Orders({
@@ -52,6 +56,7 @@ export const getOrders = async ({
     limit,
     signal,
     getv1orders,
+    apiUrl,
   });
   return orders.sort((a, b) => b.createdAt - a.createdAt);
 };
@@ -74,6 +79,8 @@ export interface GetAccountOrdersParams {
   legacyOrders?: boolean;
   /** Include orders from order-sink.orbs.network. Defaults to true. */
   getv1orders?: boolean;
+  /** Explicit order-service base URL; custom services exclude production legacy history. */
+  apiUrl?: string;
 }
 
 const assertValidPagination = (page?: number, limit?: number): void => {
@@ -114,13 +121,17 @@ export const getAccountOrdersResult = async ({
   account,
   legacyOrders = true,
   getv1orders = true,
+  apiUrl,
 }: GetAccountOrdersParams): Promise<AccountOrdersResult> => {
   
   assertValidPagination(page, limit);
   const twapConfig = getTwapConfig(partner, chainId);
+  const hasLegacySource = Boolean(
+    twapConfig && legacyOrders && getApiEndpoint(apiUrl) === getApiEndpoint(),
+  );
   
   const results = await Promise.allSettled([
-    !twapConfig || !legacyOrders
+    !hasLegacySource || !twapConfig
       ? Promise.resolve([])
       : getV1Orders({
           chainId,
@@ -139,12 +150,12 @@ export const getAccountOrdersResult = async ({
       partner,
       exchangeAddress,
       getv1orders,
+      apiUrl,
     }),
   ]);
   if (signal?.aborted) throw signal.reason;
 
   const [legacyResult, currentResult] = results;
-  const hasLegacySource = Boolean(twapConfig && legacyOrders);
   if (
     currentResult.status === "rejected" &&
     (!hasLegacySource || legacyResult.status === "rejected")

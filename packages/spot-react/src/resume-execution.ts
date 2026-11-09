@@ -67,6 +67,7 @@ export async function resumeExecution({ store, callbacks, signal }: {
       }
       const orders = await getOrders({
         swapper: execution.account, chainId: execution.chainId, getv1orders: false, signal,
+        apiUrl: execution.apiUrl,
       });
       const previousOrder = order;
       order = previousOrder

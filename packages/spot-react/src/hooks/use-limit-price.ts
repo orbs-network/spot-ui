@@ -41,9 +41,9 @@ export const useLimitPrice = () => {
 
   const isEnabled = !values.isMarketOrder;
   const toggle = useCallback(() => {
+    // Keep typed trigger and limit prices in their current units.
     updateState({
       isMarketOrder: !values.isMarketOrder,
-      ...(!values.isMarketOrder ? { isPriceInverted: false } : {}),
       ...(!values.isMarketOrder && module === Module.STOP_LOSS
         ? { limitPricePercent: undefined }
         : {}),

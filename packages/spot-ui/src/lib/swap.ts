@@ -140,19 +140,11 @@ export async function submitSwap(params: SubmitSwapParams): Promise<SubmittedSwa
     client, account: input.userAddress, inputTokenAddress: input.quote.request.inToken,
     inputAmountRaw: input.quote.request.inAmount, nativeInput, completedWrapTxHash,
     walletInteractions, signal, onUpdate, validateContext,
-    prepareOrder: async () => {
-      const fresh = await client.getQuote({
-        inToken: input.quote.request.inToken, outToken: input.quote.request.outToken,
-        inAmount: input.quote.request.inAmount, user: input.userAddress,
-        slippage: input.quote.request.slippage, dexMinAmountOut: "-1", signal,
-      });
-      signal?.throwIfAborted();
-      if (BigInt(fresh.netAmountOut) < BigInt(input.quote.minimumAmountOut)) {
-        throw new SpotError("INVALID_QUOTE", "Swap price changed. Review a fresh quote before signing.");
-      }
-      // Preserve the exact minimum reviewed by the user; never weaken it on refresh.
-      return client.prepareSwap(input.quote, input.userAddress);
-    },
+    prepareOrder: () => client.refreshAndPrepareSwap({
+      quote: input.quote,
+      account: input.userAddress,
+      signal,
+    }),
   });
   return {
     type: "intent", status: "submitted", orderId: result.order.id, order: result.order,

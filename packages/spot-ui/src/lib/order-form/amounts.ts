@@ -12,7 +12,7 @@ export const normalizeAmount = (value?: string): string => {
 
 /**
  * Converts a decimal token amount into an integer string of token base units.
- * Fractional base units are rounded using BigNumber's configured rounding mode.
+ * Fractional base units are discarded without rounding the amount up.
  *
  * @param value Token amount in UI units, for example `"1.5"`.
  * @param decimals The token's decimal precision, for example `6` for USDC.
@@ -23,7 +23,7 @@ export const toAmountRaw = (value?: string, decimals?: number): string => {
   if (decimals == null || !value) return "";
   const amount = BN(value);
   if (!amount.isFinite() || amount.isNaN()) return "";
-  return amount.multipliedBy(BN(10).pow(decimals)).toFixed(0);
+  return amount.multipliedBy(BN(10).pow(decimals)).toFixed(0, BN.ROUND_DOWN);
 };
 
 /**

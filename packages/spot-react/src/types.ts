@@ -203,6 +203,8 @@ export type SwapExecution = {
   phase: ExecutionPhase;
   account?: Address;
   partner?: Partners;
+  /** Captured order service for wallet-independent settlement and recovery. */
+  apiUrl?: string;
   parsedError?: ParsedError;
   error?: Error;
   stepIndex?: number;

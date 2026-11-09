@@ -17,6 +17,17 @@ import type {
   CalculatedOrderTradePlan,
 } from "./types";
 
+const hasInputUsdValue = (
+  params: CalculateOrderFormParams,
+  inputAmount: CalculatedOrderInputAmount,
+): boolean => {
+  const usdAmount = BN(inputAmount.usd || 0);
+  if (usdAmount.isFinite() && usdAmount.gt(0)) return true;
+
+  const unitPrice = BN(params.inputTokenUsdPrice || 0);
+  return unitPrice.isFinite() && unitPrice.gt(0);
+};
+
 const formatDurationErrorValue = (milliseconds: number): string => {
   const minutes = milliseconds / 60_000;
   const days = minutes / 60 / 24;
@@ -42,7 +53,7 @@ export const calculateTradesError = (
   if (
     BN(inputAmount.raw || "0").isZero() ||
     !marketPrice ||
-    BN(params.inputTokenUsdPrice || "0").isZero()
+    !hasInputUsdValue(params, inputAmount)
   ) {
     return undefined;
   }
@@ -170,7 +181,7 @@ export const validateOrderForm = (
   const hasRequiredInputs =
     BN(marketPrice || 0).gt(0) &&
     BN(inputAmount.raw || 0).gt(0) &&
-    BN(params.inputTokenUsdPrice || 0).gt(0);
+    hasInputUsdValue(params, inputAmount);
   const validSwapQuote = params.module !== Module.SWAP || Boolean(
     /^\d+$/.test(params.minimumOutputAmountRaw || "") &&
     /^\d+$/.test(params.quotedOutputAmountRaw || "") &&

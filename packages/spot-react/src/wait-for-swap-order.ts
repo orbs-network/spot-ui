@@ -43,7 +43,8 @@ export const waitForSwapOrder = async ({ store, callbacks, order, executionId, s
   try {
     let settled = order;
     if (!controller.signal.aborted) observe(() => addAcceptedOrderToCache(store, order));
-    for await (const current of watchOrder({ order, signal: controller.signal })) {
+    const apiUrl = store.getState().state.currentExecution.apiUrl;
+    for await (const current of watchOrder({ order, signal: controller.signal, apiUrl })) {
       if (controller.signal.aborted) continue;
       // Cache updates and host callbacks belong to the React adapter.
       observe(() => {

@@ -59,8 +59,8 @@ const loadRePermitData = async (
 };
 
 /** Share requests and validated templates for one minute; each caller owns its deep copy. */
-export const fetchRePermitData = async (partner: Partners, chainId: number): Promise<RePermitData> => {
-  const endpoint = getRePermitConfigEndpoint();
+export const fetchRePermitData = async (partner: Partners, chainId: number, apiUrl?: string): Promise<RePermitData> => {
+  const endpoint = getRePermitConfigEndpoint(apiUrl);
   const key = JSON.stringify([endpoint, partner, chainId]);
   const now = Date.now();
   for (const [cachedKey, entry] of configurationCache) {

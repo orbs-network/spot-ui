@@ -65,6 +65,7 @@ export {
   type ClientGetAccountOrdersParams,
   type ClientGetOrderParams,
   type ClientGetQuoteParams,
+  type RefreshAndPrepareSwapParams,
   type SpotErrorCode,
   type SpotErrorOptions,
   type Signature,

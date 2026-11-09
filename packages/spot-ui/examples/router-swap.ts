@@ -36,9 +36,8 @@ export async function quoteSpotRoute(params: {
 }
 
 /**
- * Call after the DEX confirms wrapping/approval to client.spenderAddress.
- * The DEX owns its execution lock and live account/chain/balance checks.
- * Prepare immediately before signing; the host owns quote freshness policy.
+ * Pure local preparation for a host that already checked the quote.
+ * Use refreshSpotRoute to refresh and compare protected minima before signing.
  */
 export function prepareSpotRoute(params: {
   client: SpotClient;
@@ -46,6 +45,25 @@ export function prepareSpotRoute(params: {
   account: string;
 }): PreparedSwap {
   return params.client.prepareSwap(params.route.quote, params.account);
+}
+
+/**
+ * Call after confirmed wrapping/approval, immediately before signing.
+ * Replays the original request and rejects a lower minimum with QUOTE_MINIMUM_DECREASED.
+ * An equal or higher fresh minimum keeps the original reviewed quote and minimum.
+ * The DEX owns its execution lock and live account/chain/balance checks.
+ */
+export async function refreshSpotRoute(params: {
+  client: SpotClient;
+  route: SpotRoute;
+  account: string;
+  signal?: AbortSignal;
+}): Promise<PreparedSwap> {
+  return params.client.refreshAndPrepareSwap({
+    quote: params.route.quote,
+    account: params.account,
+    signal: params.signal,
+  });
 }
 
 /**
@@ -73,7 +91,7 @@ export function trackSpotRoute(submitted: SubmittedSwap, signal?: AbortSignal) {
 // The DEX keeps its own selector, wallet steps, progress UI, and execution lock.
 // Native input: wrap route.quote.request.inAmount when route.nativeInput is true.
 // Approve the quote's ERC-20 input token/amount to client.spenderAddress and verify
-// confirmed allowance before prepareSpotRoute. Never reprepare after signing.
+// confirmed allowance before refreshSpotRoute. Never reprepare after signing.
 // Check the active abort signal and account/chain before each wallet step and POST.
 // Once the POST starts, preserve any accepted ID even if the form unmounts.
 // Pause/cancel quote requests through wallet execution and any active swap loading UI.

@@ -77,6 +77,9 @@ export interface SpotStore {
     executionId: number,
     value: SwapExecution,
   ) => boolean;
+  acquireExecutionController: () => AbortController | undefined;
+  releaseExecutionController: (controller: AbortController) => void;
+  abortExecutionTask: (preserveSubmitted?: boolean) => void;
   syncFormDefaults: (defaults: SpotFormDefaults) => boolean;
   startNewOrder: (defaults: SpotFormDefaults, executionId: number | undefined) => boolean;
   returnToOrderForm: (executionId: number | undefined) => boolean;
@@ -137,6 +140,7 @@ export const createSpotStore = (
   let ordersPromise: Promise<Order[] | undefined> | undefined;
   let ordersAbortController: AbortController | undefined;
   let ordersInterval: ReturnType<typeof setInterval> | undefined;
+  let executionController: AbortController | undefined;
 
   return createStore<SpotStore>((set, get) => {
     const commitOrders = (orders: Order[], callbacks = ordersCallbacks, isFetching = get().orders.isFetching, trackedOrder?: Order): Order[] => {
@@ -158,7 +162,7 @@ export const createSpotStore = (
         client: {
           key: clientKey,
           data: store.client.data,
-          error: undefined,
+          error: store.client.error,
           isFetching: true,
         },
       }));
@@ -384,6 +388,23 @@ export const createSpotStore = (
       },
       updateState: (value: Partial<State>) =>
         set((store) => ({ state: { ...store.state, ...value } })),
+      acquireExecutionController: () => {
+        if (executionController) return undefined;
+        executionController = new AbortController();
+        return executionController;
+      },
+      releaseExecutionController: (controller) => {
+        if (executionController === controller) executionController = undefined;
+      },
+      abortExecutionTask: (preserveSubmitted = false) => {
+        const phase = get().state.currentExecution.phase;
+        const submissionStarted =
+          phase === ExecutionPhase.SUBMITTING ||
+          phase === ExecutionPhase.SETTLING ||
+          phase === ExecutionPhase.UNCONFIRMED;
+        if (preserveSubmitted && submissionStarted) return;
+        executionController?.abort();
+      },
       beginExecution: (value) => {
         let startedExecution: StartedSwapExecution | undefined;
         set((store) => {

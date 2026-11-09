@@ -9,13 +9,18 @@ assembling `CalculateOrderFormParams`. Read/copy the [router example](../assets/
 
 1. Fetch `client.getQuote` as a candidate and use its authoritative `minimumAmountOut` unchanged for review and comparison.
 2. Gate exact-output/custom-recipient requests using `isSwapSupported`; compare only matching input/pair/account/chain minima, preserving the host gas policy.
-3. Keep wrapping, confirmed approval to `client.spenderAddress`, and signing in the DEX wallet flow. After verifying allowance, call `client.prepareSwap(quote, account)` immediately before signing its `signingRequest`, then forward the original signature to `client.submitOrder`. Input, output, and protected minimum are derived from the quote; the positional `userAddress` argument supplies the signer and recipient. No wallet callback object is required. Create the abort controller and execution lock before wallet work; validate the live account/chain/balance/minimum-trade policy before wallet steps and submission.
+3. Keep wrapping, confirmed approval to `client.spenderAddress`, and signing in the DEX wallet flow. After verifying allowance, await `client.refreshAndPrepareSwap({ quote, account, signal })` immediately before signing its `signingRequest`, then forward the original signature to `client.submitOrder`. Input, output, and protected minimum are derived from the reviewed quote; `account` supplies the signer and recipient. No wallet callback object is required. Create the abort controller and execution lock before wallet work; validate the live account/chain/balance/minimum-trade policy before wallet steps and submission.
 4. Persist the returned `order` snapshot; use `waitForOrder({ order, signal })` at app/store scope when tracking must outlive modal closure. It derives the ID, chain, and deadline from the order, with no client or configuration request. It resolves with the completed order and supports optional cancellation and typed terminal/uncertain errors. React consumes the shared `watchOrder({ order, signal })` stream for progress/cache updates.
 
-`client.prepareSwap` constructs the protocol order locally; `client.submitOrder`
-posts that exact order and its signature without wallet work or automatic polling.
-Manual router flows must fetch a current quote after wrapping/approval, before
-pure `prepareSwap`, and compare net output against the reviewed minimum.
+`client.refreshAndPrepareSwap` replays the original request through the configured
+client, including its preview `user`, `slippage`, and `dexMinAmountOut`.
+Fresh `minimumAmountOut` below the reviewed `quote.minimumAmountOut` throws
+`QUOTE_MINIMUM_DECREASED` before signing and requires fresh review. An equal or higher
+minimum prepares the original reviewed quote, retaining its exact minimum and
+leaving the quote and request unchanged.
+`client.prepareSwap(quote, userAddress)` remains available for pure synchronous
+preparation without a refresh or price check. `client.submitOrder` posts that
+exact order and its signature without wallet work or automatic polling.
 The optional `submitSwap` convenience function accepts `walletInteractions` when
 SDK orchestration is desired. It and `spot-react` share the `executeOrder` runner;
 `waitForOrder` is shared with React settlement. Submission is
@@ -57,10 +62,12 @@ wallet steps, and submission.
 
 Include all request inputs in the quote cache key. Reject results for an old amount, tokens, chain, partner, or slippage, and keep quote-request account changes consistent with the host's cache policy. The execution account is supplied separately. Omit both quote and minimum while a replacement loads. Cancel an obsolete request using its signal.
 
-`client.prepareSwap(quote, userAddress)` takes the quote and execution account
-positionally. `submitSwap` accepts `quote` and `userAddress` in its options object.
-Preparation signs `quote.minimumAmountOut` unchanged and uses `userAddress` as
-signer and recipient.
+`client.refreshAndPrepareSwap({ quote, account, signal })` accepts the reviewed
+quote, execution account, and optional abort signal. The synchronous
+`client.prepareSwap(quote, userAddress)` takes quote and account positionally.
+`submitSwap` accepts `quote` and `userAddress` in its options object and performs
+the same refresh check internally. Preparation signs the original
+`quote.minimumAmountOut` unchanged and uses the execution account as signer and recipient.
 Do not pass duplicate minimum, recipient, or trade-type fields into
 `prepareSwap` or `submitSwap`. Display that same authoritative minimum in the host
 review and do not apply slippage a second time.
@@ -94,11 +101,12 @@ The SDK enforces one limit trade, zero triggers, `isInverted: false`, fixed 3-mi
 ## Execution and settlement
 
 Use the normal configured Spot client: wrap native input when needed, read/approve allowance using `client.spenderAddress`, verify confirmed allowance with bounded retry, prepare immediately before signing, and forward the original signature unchanged to `client.submitOrder`.
-Both `submitSwap` and React's form executor re-quote after wrapping/approval,
-immediately before preparation. Fresh net output below the original `quote.minimumAmountOut`
-rejects with `INVALID_QUOTE` and requires a new review; otherwise the exact
-reviewed minimum remains signed. Pausing host quote refresh does not disable this
-controlled execution check.
+`submitSwap` uses `refreshAndPrepareSwap` after wrapping/approval, immediately
+before preparation. A lower fresh `minimumAmountOut` rejects with `QUOTE_MINIMUM_DECREASED`
+and requires a new review; an equal or higher minimum preserves the original
+reviewed quote and minimum. React's calculated-form executor separately checks
+fresh net output against its reviewed form minimum. Pausing host quote refresh
+does not disable these controlled execution checks.
 
 `client.submitOrder(order, signature, { signal })` has a fixed 30-second timeout
 covering fetch and the response body. A pre-aborted signal prevents submission;

@@ -159,8 +159,9 @@ const calculateOrderFormSchedule = (
  *
  * @param params Form inputs in UI units, with quotes and balances in token base units.
  * @returns A form snapshot with `errors` for input validation. `isReady` means the
- * required amount, market quote, and input-token USD price are available (plus a
+ * required amount, market quote, and input USD value are available (plus a
  * valid minimum output for SWAP); `canSubmit` also requires the form to pass validation.
+ * The USD value can come from `inputAmountUsd` or the input token's unit price.
  * Neither checks wallet state or allowance.
  */
 export const calculateOrder = (

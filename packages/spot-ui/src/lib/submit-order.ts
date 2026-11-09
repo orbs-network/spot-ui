@@ -7,11 +7,20 @@ import type { SubmitOrderOptions } from "./client";
 
 const SUBMISSION_TIMEOUT_MILLIS = 30_000;
 
+const observe = (callback: () => unknown): void => {
+  try {
+    void Promise.resolve(callback()).catch(() => undefined);
+  } catch {
+    // Analytics must never affect order submission.
+  }
+};
+
 export const submitOrder = async (
   order: RePermitOrder,
   signature: `0x${string}`,
   analytics: SpotAnalytics,
   options: SubmitOrderOptions = {},
+  apiUrl = getApiEndpoint(),
 ): Promise<Order> => {
   // A preflight abort establishes that this call never sent the signed order.
   options.signal?.throwIfAborted();
@@ -37,11 +46,11 @@ export const submitOrder = async (
       status: "pending",
     };
 
-    analytics.onCreateOrderRequest();
+    observe(() => analytics.onCreateOrderRequest());
 
     let response: Response;
     try {
-      response = await fetch(`${getApiEndpoint()}/orders/new`, {
+      response = await fetch(`${apiUrl}/orders/new`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -91,13 +100,13 @@ export const submitOrder = async (
     } catch (cause) {
       throw new SpotError("INVALID_RESPONSE", "Invalid API response: invalid signedOrder", { cause, status: response.status });
     }
-    analytics.onCreateOrderSuccess(newOrder.id);
+    observe(() => analytics.onCreateOrderSuccess(newOrder.id));
     return newOrder;
   };
   try {
     return await Promise.race([send(), aborted]);
   } catch (error) {
-    analytics.onCreateOrderError(error);
+    observe(() => analytics.onCreateOrderError(error));
     throw error;
   } finally {
     clearTimeout(timeout);

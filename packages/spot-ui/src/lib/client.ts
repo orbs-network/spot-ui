@@ -17,7 +17,8 @@ import { submitOrder as submitOrderRequest } from "./submit-order";
 import { getOrder } from "./orders/v2-orders";
 import { Module } from "./types";
 import { SpotError } from "./errors";
-import { getQuote, type SwapQuote, type SwapQuoteParams } from "./quote";
+import { getApiEndpoint } from "./api-config";
+import { getQuote as fetchQuote, type SwapQuote, type SwapQuoteParams } from "./quote";
 import { MIN_FILL_DELAY_MILLIS, SWAP_ORDER_DURATION_MILLIS, SWAP_ORDER_SLIPPAGE_BPS } from "./order-form/constants";
 import { validateSwap, type PreparedSwap } from "./swap";
 import type {
@@ -110,7 +111,7 @@ export interface CancelOrderRequest {
 /** Account-history filters; chain, partner, and current adapter come from the client. */
 export type ClientGetAccountOrdersParams = Omit<
   GetAccountOrdersParams,
-  "chainId" | "partner" | "exchangeAddress"
+  "chainId" | "partner" | "exchangeAddress" | "apiUrl"
 >;
 
 export interface ClientGetOrderParams {
@@ -123,6 +124,8 @@ export interface ClientGetOrderParams {
 export interface CreateClientOptions {
   /** Disable all analytics events for this client. Defaults to false. */
   disableAnalytics?: boolean;
+  /** Trusted order-service base URL, fixed for this client's lifetime. Defaults to production v2. */
+  apiUrl?: string;
 }
 
 /** Cancellation of a submission request; it cannot cancel an accepted order. */
@@ -131,7 +134,16 @@ export interface SubmitOrderOptions {
 }
 
 /** Quote inputs; the selected chain and partner are supplied by the client. */
-export type ClientGetQuoteParams = Omit<SwapQuoteParams, "chainId" | "partner">;
+export type ClientGetQuoteParams = Omit<SwapQuoteParams, "chainId" | "partner" | "apiUrl">;
+
+export interface RefreshAndPrepareSwapParams {
+  /** Reviewed quote; its request parameters are reused unchanged for the refresh. */
+  quote: SwapQuote;
+  /** Connected signer and recipient, independent of the quote's preview user. */
+  account: string;
+  /** Cancels the refresh before a signing payload is prepared. */
+  signal?: AbortSignal;
+}
 
 /** Reusable protocol configuration and order operations for one partner and chain. */
 export interface SpotClient {
@@ -141,6 +153,8 @@ export interface SpotClient {
   readonly partner: Partners;
   /** EVM chain used for configuration, signing, submission, and account history. */
   readonly chainId: number;
+  /** Captured order-service base URL; pass it to standalone tracking for custom services. */
+  readonly apiUrl: string;
   /** Validated protocol template and EIP-712 domain loaded during initialization. */
   readonly rePermitData: RePermitData;
   /** RePermit contract to use as the ERC-20 approval spender. */
@@ -194,6 +208,16 @@ export interface SpotClient {
    * const prepared = client.prepareSwap(quote, account);
    */
   prepareSwap(quote: SwapQuote, userAddress: string): PreparedSwap;
+
+  /**
+   * Refreshes the original quote request before preparing a swap for signing.
+   * Uses this client's endpoint and preserves the original quote user, slippage,
+   * and DEX minimum. A lower refreshed minimumAmountOut throws QUOTE_MINIMUM_DECREASED.
+   * Equal or higher minima keep the exact minimum the user originally reviewed.
+   * Call after wrapping and confirmed approval, immediately before signing.
+   * Performs no wallet operations or submission.
+   */
+  refreshAndPrepareSwap(params: RefreshAndPrepareSwapParams): Promise<PreparedSwap>;
 
   /**
    * Posts an already signed order to the order service.
@@ -284,7 +308,7 @@ const createNonce = (currentTimeMillis: number): string => {
  *
  * @param partner - DEX integration to load configuration for, such as `Partners.Quick`.
  * @param chainId - Positive EVM chain ID, such as `137` for Polygon.
- * @param options - Optional analytics settings.
+ * @param options - Optional analytics settings and trusted order-service base URL.
  * @returns Initialized client for preparing, submitting, looking up, and cancelling orders.
  * @throws If the chain ID is invalid, configuration loading fails, or configuration is invalid.
  *
@@ -302,11 +326,15 @@ export const createClient = async (
   }
 
   // Configuration requests/templates are shared; callers receive isolated copies.
-  const rePermitData = await fetchRePermitData(partner, chainId);
+  const apiUrl = getApiEndpoint(options.apiUrl);
+  const rePermitData = await fetchRePermitData(partner, chainId, apiUrl);
   const analytics = new Analytics(options.disableAnalytics);
   analytics.init(partner, rePermitData);
   const spenderAddress = rePermitData.domain.verifyingContract;
   const exchangeAddress = rePermitData.order.witness.exchange.adapter;
+
+  const getQuote = (params: ClientGetQuoteParams): Promise<SwapQuote> =>
+    fetchQuote({ ...params, chainId, partner, apiUrl });
 
   /**
    * Stamps an existing calculated form with a fresh start, deadline, and nonce,
@@ -394,6 +422,31 @@ export const createClient = async (
     };
   };
 
+  const refreshAndPrepareSwap = async ({
+    quote,
+    account,
+    signal,
+  }: RefreshAndPrepareSwapParams): Promise<PreparedSwap> => {
+    signal?.throwIfAborted();
+    validateSwap({ quote, userAddress: account }, chainId, partner);
+
+    const reviewedQuote = Object.freeze({
+      ...quote,
+      request: Object.freeze({ ...quote.request }),
+    });
+    const freshQuote = await getQuote({ ...reviewedQuote.request, signal });
+    signal?.throwIfAborted();
+
+    if (BigInt(freshQuote.minimumAmountOut) < BigInt(reviewedQuote.minimumAmountOut)) {
+      throw new SpotError(
+        "QUOTE_MINIMUM_DECREASED",
+        "Swap minimum output decreased. Review a fresh quote before signing.",
+      );
+    }
+
+    return prepareSwap(reviewedQuote, account);
+  };
+
   /**
    * Sends a prepared order and its wallet signature to the order service. The
    * order must already have been signed by the host wallet.
@@ -402,7 +455,7 @@ export const createClient = async (
     order: RePermitOrder,
     signature: `0x${string}`,
     options?: SubmitOrderOptions,
-  ): Promise<Order> => submitOrderRequest(order, signature, analytics, options);
+  ): Promise<Order> => submitOrderRequest(order, signature, analytics, options, apiUrl);
 
   /**
    * Builds the correct v1 or v2 cancellation contract request. It only returns
@@ -435,25 +488,27 @@ export const createClient = async (
       chainId,
       partner,
       exchangeAddress,
+      apiUrl,
     });
 
   return Object.freeze({
     analytics,
     partner,
     chainId,
+    apiUrl,
     rePermitData,
     spenderAddress,
     exchangeAddress,
-    getQuote: (params: ClientGetQuoteParams): Promise<SwapQuote> =>
-      getQuote({ ...params, chainId, partner }),
+    getQuote,
     prepareOrder,
     prepareSwap,
+    refreshAndPrepareSwap,
     submitOrder,
     getCancelOrderRequest,
     getOrder: (params: ClientGetOrderParams): Promise<Order | undefined> =>
-      getOrder({ ...params, chainId }),
+      getOrder({ ...params, chainId, apiUrl }),
     getAccountOrdersResult: getConfiguredAccountOrdersResult,
     getAccountOrders: (params: ClientGetAccountOrdersParams): Promise<Order[]> =>
-      getAccountOrders({ ...params, chainId, partner, exchangeAddress }),
+      getAccountOrders({ ...params, chainId, partner, exchangeAddress, apiUrl }),
   });
 };

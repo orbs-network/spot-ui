@@ -179,7 +179,7 @@ export function SpotForm({ swapType }: { swapType: SwapType }) {
           inputTokenUsdPrice={inputTokenUsdPrice}
           outputTokenUsdPrice={outputTokenUsdPrice}
           marketQuote={marketQuote}
-          minTradeSizeUsd={minTradeSizeUsd ?? 1}
+          minTradeSizeUsd={minTradeSizeUsd ?? 10}
           overrides={overrides}
           callbacks={callbacks}
           supportLegacyOrders={true}

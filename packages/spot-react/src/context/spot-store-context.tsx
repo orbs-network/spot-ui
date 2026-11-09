@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -11,6 +12,7 @@ import {
   type SpotFormDefaults,
   type SpotStore,
 } from "./create-spot-store";
+import { useSpotTrading } from "./spot-trading-context";
 
 const SpotStoreContext = createContext<StoreApi<SpotStore> | null>(null);
 
@@ -22,6 +24,19 @@ export const SpotStoreProvider = ({
   initialState: SpotFormDefaults;
 }) => {
   const [store] = useState(() => createSpotStore(initialState));
+  const { account, chainId, partner } = useSpotTrading();
+  const walletScope = JSON.stringify([account?.toLowerCase(), chainId, partner]);
+
+  // Stop pending wallet steps when their account or network changes. Submitted
+  // orders can keep tracking without the original wallet.
+  useEffect(() => {
+    return () => store.getState().abortExecutionTask(true);
+  }, [store, walletScope]);
+
+  // Execution belongs to this provider, so closing a control does not stop it.
+  useEffect(() => {
+    return () => store.getState().abortExecutionTask();
+  }, [store]);
 
   return (
     <SpotStoreContext.Provider value={store}>

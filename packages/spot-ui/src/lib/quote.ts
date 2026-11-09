@@ -27,12 +27,14 @@ export interface SwapQuoteParams {
   dexMinAmountOut?: string;
   /** Cancels this HTTP request; no wallet operation or order is created. */
   signal?: AbortSignal;
+  /** Explicit order-service base URL. Defaults to production v2. */
+  apiUrl?: string;
 }
 
 /** Quote response with the request identity needed to validate later preparation. */
 export interface SwapQuote {
   /** Frozen identity of the request that produced this quote. Never a signing payload. */
-  readonly request: Readonly<Omit<SwapQuoteParams, "signal">>;
+  readonly request: Readonly<Omit<SwapQuoteParams, "signal" | "apiUrl">>;
   /** Local receipt time in milliseconds, not a server guarantee of expiry. */
   readonly receivedAt: number;
   /** Service-reported USD value of the input amount as a decimal string, when available. */
@@ -72,7 +74,7 @@ const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/i;
  */
 export const getQuote = async ({
   chainId, partner, inToken, inAmount, outToken, user, slippage,
-  dexMinAmountOut = "-1", signal,
+  dexMinAmountOut = "-1", signal, apiUrl,
 }: SwapQuoteParams): Promise<SwapQuote> => {
   signal?.throwIfAborted();
   if (!Number.isSafeInteger(chainId) || chainId <= 0) {
@@ -90,8 +92,14 @@ export const getQuote = async ({
   try { slippageBps = getSlippageBps(slippage); }
   catch (error) { throw new QuoteError(error instanceof Error ? error.message : "Invalid slippage", "invalid-request"); }
   const query = new URLSearchParams({ chainId: String(chainId), partner });
+  let endpoint: string;
+  try {
+    endpoint = getApiEndpoint(apiUrl);
+  } catch (error) {
+    throw new QuoteError(error instanceof Error ? error.message : "Invalid apiUrl", "invalid-request");
+  }
   let response: Response;
-  try { response = await fetch(`${getApiEndpoint()}/quote?${query}`, {
+  try { response = await fetch(`${endpoint}/quote?${query}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ inToken, inAmount, outToken, user, slippage: slippageBps, outAmount: dexMinAmountOut }),

@@ -5,6 +5,7 @@ import {
 } from "@orbs-network/spot-ui";
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { ExecutionPhase } from "../types";
+import { isExecutionLocked } from "../execution-state";
 import { useSpotTrading } from "./spot-trading-context";
 import { useSpotStore } from "./spot-store-context";
 
@@ -49,9 +50,9 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
   const isMarketOrder = useSpotStore((store) => store.state.isMarketOrder);
   const frozenForm = useSpotStore((store) => {
     const execution = store.state.currentExecution;
-    return execution.phase !== ExecutionPhase.IDLE
-      ? execution.form
-      : undefined;
+    const keepFormFrozen = isExecutionLocked(execution.phase) ||
+      execution.phase === ExecutionPhase.SUCCESS;
+    return keepFormFrozen ? execution.form : undefined;
   });
   const params = useMemo<CalculateOrderFormParams>(
     () => ({

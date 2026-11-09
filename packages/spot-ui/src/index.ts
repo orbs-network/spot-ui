@@ -65,6 +65,7 @@ export {
   type ClientGetAccountOrdersParams,
   type ClientGetOrderParams,
   type ClientGetQuoteParams,
+  type RefreshAndPrepareSwapParams,
 } from "./lib/client";
 
 export { SpotError, type SpotErrorCode, type SpotErrorOptions } from "./lib/errors";

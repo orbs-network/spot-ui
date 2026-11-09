@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
 import { resumeExecution } from "../resume-execution";
 import { useSpotStoreApi } from "../context/spot-store-context";
 import { useSpotTrading } from "../context/spot-trading-context";
@@ -7,16 +7,13 @@ import { useSpotTrading } from "../context/spot-trading-context";
 export const useResumeExecution = (): (() => void) => {
   const store = useSpotStoreApi();
   const { callbacks } = useSpotTrading();
-  const active = useRef<AbortController | undefined>(undefined);
-  useEffect(() => () => active.current?.abort(), []);
   return useCallback(() => {
-    if (active.current) return;
-    const controller = new AbortController();
-    active.current = controller;
+    const controller = store.getState().acquireExecutionController();
+    if (!controller) return;
     void resumeExecution({ store, callbacks, signal: controller.signal })
       .catch(() => undefined)
       .finally(() => {
-        if (active.current === controller) active.current = undefined;
+        store.getState().releaseExecutionController(controller);
       });
   }, [callbacks, store]);
 };

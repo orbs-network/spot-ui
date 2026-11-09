@@ -7,7 +7,7 @@ React SDK for building Swap, TWAP, Limit, Stop-Loss, and Take-Profit order inter
 | I'm building… | Use… |
 | --- | --- |
 | A React order form | `SpotProvider` with `Module.SWAP` or an advanced module, then `useExecution()` |
-| A DEX router with an existing wallet flow | `client.getQuote` → `client.prepareSwap` → DEX signing → `client.submitOrder` → `waitForOrder`; no provider required |
+| A DEX router with an existing wallet flow | `client.getQuote` → `client.refreshAndPrepareSwap` → DEX signing → `client.submitOrder` → `waitForOrder`; no provider required |
 | A custom flow that needs SDK wallet orchestration | `submitSwap` for swaps; `calculateOrder` + `executeOrder` with `client.prepareOrder` for advanced orders |
 
 Every path can import its SDK functions and types from `spot-react` alone.
@@ -62,6 +62,11 @@ history cache, or cancellation state. If that scope changes during execution,
 the reset waits until the frozen execution reaches a definitive terminal outcome;
 unconfirmed attempts retain their snapshot until reconciliation. Changing
 partner or chain reconfigures only the resources whose keys actually changed.
+
+Changing `overrides.state` updates defaults for future form resets without wiping
+current fields or execution results. Execution belongs to the provider and
+continues when a submitting control unmounts. Wallet scope changes stop pending
+wallet steps while submitted-order tracking continues; provider unmount stops it.
 
 The completed integration should:
 
@@ -175,6 +180,7 @@ function SpotOrderForm({ module }: { module: Module }) {
     inputAmountUi,
     quotedInputAmountUi,
     quotedOutputAmountRaw,
+    minimumOutputAmountRaw,
     isQuoteLoading,
     inputTokenUsdPrice,
     outputTokenUsdPrice,
@@ -223,6 +229,8 @@ function SpotOrderForm({ module }: { module: Module }) {
 
     return {
       quotedOutputAmountRaw: currentQuotedOutputAmountRaw,
+      minimumOutputAmountRaw:
+        !shouldQuote || isStale ? undefined : minimumOutputAmountRaw,
       isLoading,
       noLiquidity:
         shouldQuote && !isLoading && !currentQuotedOutputAmountRaw,
@@ -232,6 +240,7 @@ function SpotOrderForm({ module }: { module: Module }) {
     isQuoteLoading,
     outputCurrency,
     quotedOutputAmountRaw,
+    minimumOutputAmountRaw,
     quotedInputAmountUi,
     inputAmountUi,
   ]);
@@ -638,8 +647,10 @@ internal identity, duplicate starts are rejected atomically, and stale async
 writes cannot replace a newer attempt. Host callbacks are observational:
 synchronous throws and rejected callback promises never change a wallet or API result.
 
-Once an attempt begins, `useOrderForm()` exposes its frozen form and
-`useExecution()` exposes its captured tokens, account, and chain. Preparation runs
+During active or unconfirmed execution, `useOrderForm()` exposes its frozen form.
+Failure and rejection recalculate from current inputs for a retry; successful
+results retain their form until reset. `useExecution()` retains the attempt's
+captured tokens, account, and chain. Preparation runs
 after wrapping and approval; the resulting payload is retained through signing,
 submission, and recovery. Host quote, token, chain, or time updates cannot replace
 an unresolved order.
@@ -842,11 +853,15 @@ strings; price impact is a signed decimal percentage string such as `"-0.0333"`.
 
 Keep wrapping, approval, and EIP-712 signing in the DEX's existing wallet flow.
 After confirmed approval to `client.spenderAddress`, call
-`client.prepareSwap(quote, account)`,
+`await client.refreshAndPrepareSwap({ quote, account, signal })`,
 sign its `signingRequest`, then call `client.submitOrder(prepared.order, signature, { signal })`.
-The manual router flow fetches a current quote after wrapping/approval and checks
-its net output against the original `quote.minimumAmountOut` before pure preparation. A lower
-quote requires fresh review; keep the reviewed minimum when it is still covered.
+The helper replays the original quote request, preserving its preview user,
+slippage, and DEX minimum. It compares the fresh `minimumAmountOut` against the
+original `quote.minimumAmountOut`; a lower minimum throws `QUOTE_MINIMUM_DECREASED` before
+signing and requires a new review. An equal or higher minimum prepares the
+original reviewed quote without changing its minimum.
+`client.prepareSwap(quote, account)` remains available for synchronous local
+preparation without a refresh or price check.
 All swaps have a fixed 3-minute expiration from preparation, immediately before
 signing.
 Call `waitForOrder({ order })`; it derives the ID, chain, and deadline from the

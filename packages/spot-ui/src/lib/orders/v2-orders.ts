@@ -254,18 +254,20 @@ const parseOrdersPayload = (
 };
 
 /** Fetches one v2 order by its full hash, without loading account history. */
-export const getOrder = async ({ orderId, chainId, signal }: {
+export const getOrder = async ({ orderId, chainId, signal, apiUrl }: {
   orderId: string;
   chainId: number;
   signal?: AbortSignal;
+  apiUrl?: string;
 }): Promise<Order | undefined> => {
   if (!orderId.trim()) throw new SpotError("INVALID_ARGUMENT", "An order ID is required");
   // The full order hash already binds the signed exchange. Partner aliases can
   // resolve to legacy adapters and hide new Spot orders (Quick uses "quickswap").
   const query = new URLSearchParams({ hash: orderId, chainId: String(chainId) });
+  const endpoint = getApiEndpoint(apiUrl);
   let response: Response;
   try {
-    response = await fetch(`${getApiEndpoint()}/orders?${query}`, { signal, cache: "no-store" });
+    response = await fetch(`${endpoint}/orders?${query}`, { signal, cache: "no-store" });
   } catch (error) {
     if (signal?.aborted || (error instanceof Error && error.name === "AbortError")) throw error;
     throw new SpotError("ORDER_LOOKUP_FAILED", error instanceof Error ? error.message : "Failed to fetch order", { cause: error });
@@ -376,6 +378,7 @@ export const getOrders = async ({
   page,
   limit,
   getv1orders = true,
+  apiUrl,
 }: {
   chainId?: number;
   signal?: AbortSignal;
@@ -385,9 +388,10 @@ export const getOrders = async ({
   page?: number;
   limit?: number;
   getv1orders?: boolean;
+  apiUrl?: string;
 }): Promise<Order[]> => {
   const targetResults = await Promise.allSettled(
-    getOrderApiEndpoints(getv1orders).map((endpoint) =>
+    getOrderApiEndpoints(getv1orders, apiUrl).map((endpoint) =>
       fetchOrdersForTarget({
         endpoint,
         chainId,

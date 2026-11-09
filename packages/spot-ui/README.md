@@ -12,7 +12,7 @@ install only `spot-react` and import SDK helpers and types from it.
 | I'm building… | Use… |
 | --- | --- |
 | A React order form | `spot-react`: `SpotProvider` with `Module.SWAP` or an advanced module, then `useExecution()` |
-| A DEX router with an existing wallet flow | `client.getQuote` → `client.prepareSwap` → DEX signing → `client.submitOrder` → `waitForOrder` |
+| A DEX router with an existing wallet flow | `client.getQuote` → `client.refreshAndPrepareSwap` → DEX signing → `client.submitOrder` → `waitForOrder` |
 | A custom flow that needs SDK wallet orchestration | `submitSwap` for swaps; `calculateOrder` + `executeOrder` with `client.prepareOrder` for advanced orders |
 
 ```sh
@@ -30,6 +30,7 @@ modern browser or Node.js 18+. Import from the package root.
 | `client.getQuote(params)` | Quote using the client's partner and chain | Same quote request and result as `getQuote` |
 | `getQuote(params)` | Quote the full input amount for a swap | Fetches `/quote` directly from order-sink v2 |
 | `client.prepareSwap(quote, userAddress)` | Prepare a raw exact-input swap without UI, decimals, balances, or USD inputs | No wallet/network work |
+| `client.refreshAndPrepareSwap({ quote, account, signal? })` | Re-quote and check the protected minimum before preparing the reviewed swap | One quote request; no wallet work |
 | `submitSwap(params)` | Wrap/approve/verify/sign/submit through the host wallet | Returns a submitted intent, not a fill |
 | `executeOrder(params)` | Shared wallet orchestration for a prepared order factory | Resolves at acceptance; host owns UI state |
 | `waitForOrder(params)` | Track a submitted order until filled or a terminal/uncertain outcome | Serial, bounded polling with cancellation |
@@ -58,6 +59,11 @@ each caller receives a deep copy, and failed requests are evicted. Nonces are
 allocated across clients within the loaded SDK instance. The host still owns
 client resource lifetime and invalidation.
 
+Clients use the production v2 service regardless of page URL parameters. To use
+a trusted alternative, pass `{ apiUrl: "https://order-sink-dev.orbs.network" }`
+to `createClient`. The endpoint stays fixed for that client's lifetime. Pass
+`apiUrl: client.apiUrl` to standalone tracking or history calls for that service.
+
 ## Existing DEX routers: use the SDK directly
 
 A DEX can add Spot as one candidate in its existing quote competition without a
@@ -65,7 +71,7 @@ A DEX can add Spot as one candidate in its existing quote competition without a
 and modal. Compare like-for-like protected minima for the same raw input, token
 pair, chain, and account, retaining the DEX's gas/fee ranking policy.
 
-For existing DEX wallet flows, prefer `client.prepareSwap` → DEX signing →
+For existing DEX wallet flows, prefer `client.refreshAndPrepareSwap` → DEX signing →
 `client.submitOrder`. No `walletInteractions` object is required.
 
 ```ts
@@ -75,12 +81,11 @@ import { waitForOrder } from "@orbs-network/spot-ui";
 // The DEX completes native wrapping if needed, then confirms ERC-20 approval
 // for quote.request.inToken/inAmount to client.spenderAddress.
 // Keep the reviewed route frozen and check the current account/chain/balance.
-const reviewedMinimum = quote.minimumAmountOut;
-const freshQuote = await client.getQuote({ ...quote.request, signal: settlementController.signal });
-if (BigInt(freshQuote.netAmountOut) < BigInt(reviewedMinimum)) {
-  throw new Error("The quote moved below the reviewed minimum. Refresh and review the swap.");
-}
-const prepared = client.prepareSwap(quote, account);
+const prepared = await client.refreshAndPrepareSwap({
+  quote,
+  account,
+  signal: settlementController.signal,
+});
 const signature = await dexWallet.signOrder(prepared.signingRequest);
 // Recheck the active context before submitting. Do not reprepare after signing.
 const order = await client.submitOrder(prepared.order, signature, { signal: settlementController.signal });
@@ -96,18 +101,24 @@ pass the returned `signerAddress` and `typedData` to that wallet. Forward the
 original signature unchanged. Prepare after wrapping and confirmed approval,
 immediately before signing, so start/deadline/nonce are fresh.
 `prepared.approvalRequest` also exposes the configured token, amount, and spender.
-`prepareSwap` uses `userAddress` for the signer and recipient, and signs the
-quote's authoritative `minimumAmountOut`. Display that exact value in review;
+`refreshAndPrepareSwap` uses `account` for the signer and recipient, and signs the
+original quote's authoritative `minimumAmountOut`. Display that exact value in review;
 the service has already applied the requested slippage. Pass it unchanged and
 do not apply slippage a second time.
 `quote.request.user` records the quote request and may be a disconnected preview
 address; it does not bind the signing account.
-`prepareSwap` constructs locally; `submitOrder` only posts the signed order and
-returns the accepted order. Neither performs wallet operations or starts polling.
-The manual router flow must fetch a current quote after wrapping/approval and
-compare its net output against the original quote's `minimumAmountOut` before pure preparation.
-Preserve the original reviewed minimum when the fresh quote still covers it;
-a lower result requires a fresh review.
+`refreshAndPrepareSwap` replays the original quote request, including its preview
+`user`, `slippage`, and `dexMinAmountOut`, through the client's configured endpoint.
+It compares the fresh `minimumAmountOut` with the original reviewed
+`quote.minimumAmountOut`. A lower minimum throws `SpotError` with code
+`QUOTE_MINIMUM_DECREASED` before signing; obtain a new quote and let the user review it.
+An equal or higher minimum prepares the original quote and preserves its exact
+reviewed minimum. The refresh does not mutate the quote or its request.
+
+The synchronous `client.prepareSwap(quote, userAddress)` remains available for
+pure local preparation; it performs no refresh or price check. `submitOrder`
+only posts the signed order and returns the accepted order. Neither method
+performs wallet operations or starts polling.
 
 `submitOrder` accepts an optional `{ signal }` and has a fixed 30-second timeout
 covering both the POST and response-body read. A pre-aborted signal prevents the
@@ -144,10 +155,11 @@ checks that balance and wraps only a shortfall; progress updates expose the
 actual wrapped base-unit amount as `wrapAmountRaw`.
 The fixed 3-minute window starts at final preparation after wrapping and approval,
 immediately before signing.
-`submitSwap` and React's form executor re-quote at that point. If fresh net output
-is below the original reviewed `quote.minimumAmountOut`, they reject with `INVALID_QUOTE` and require a new
-review. Otherwise they sign the exact reviewed minimum. The host's paused quote
-UI remains frozen during this controlled execution check.
+`submitSwap` uses `refreshAndPrepareSwap` at that point: a fresh `minimumAmountOut`
+below the reviewed minimum rejects with `QUOTE_MINIMUM_DECREASED`; an equal or higher minimum
+keeps the original quote and signed minimum. React's calculated-form executor
+separately checks fresh net output against its reviewed form minimum before
+preparation. The host's paused quote UI remains frozen during these controlled checks.
 
 Progress updates include `phase`, `event`, `steps`, `stepIndex`, transaction hashes,
 and the prepared payload. Observers are best-effort; use `signal` and
@@ -185,14 +197,17 @@ signed order might have been accepted.
 
 Capabilities currently declare exact input and signer-as-recipient only. Gate
 exact-output or alternate-recipient trades with `isSwapSupported` before wallet
-work. `prepareSwap` and the optional `submitSwap` derive their exact-input,
+work. Both preparation methods and the optional `submitSwap` derive their exact-input,
 token, amount, and protected-minimum inputs from the quote, and use the explicit
-`userAddress` as signer and recipient.
+execution account as signer and recipient.
 
 ### Migrating to quote-based preparation
 
-`client.prepareSwap(quote, userAddress)` takes the quote and execution account
-positionally. `submitSwap` accepts `quote` and `userAddress` in its options object.
+Use `await client.refreshAndPrepareSwap({ quote, account, signal })` to refresh
+and validate the protected minimum before local preparation.
+`client.prepareSwap(quote, userAddress)` remains synchronous and takes the quote
+and execution account positionally. `submitSwap` accepts `quote` and `userAddress`
+in its options object and performs the same refresh check internally.
 Remove `minimumOutputAmountRaw`, `swapperAddress`, `recipient`, and `tradeType`
 from swap execution calls. Route capability checks stay in
 `isSwapSupported`; live wallet identity checks stay in the host's wallet flow.
@@ -421,7 +436,8 @@ at the top level.
 Omit stale quotes while a replacement is loading. Swap forms also require
 `minimumOutputAmountRaw: quote.minimumAmountOut`; the other modules derive minimum output from their
 price controls. `minTradeSizeUsd` is a positive threshold owned by the host.
-Supply the input token's USD price for form readiness and the raw balance for
+Supply the quote's positive `inputAmountUsd` or the input token's positive USD
+price for form readiness, and the raw balance for
 balance validation. Minimum-trade-size validation applies to swaps as well as
 advanced modules. Swap forms ignore `priceProtectionPercent` and
 `userInput.isMarketOrder`; the shared form shape still accepts them.
@@ -541,7 +557,7 @@ the client-owned instance. Initialization also works without `window`.
 
 `@orbs-network/liquidity-hub-sdk` is deprecated. Use `@orbs-network/spot-ui`
 for all new swap integrations and migrate existing integrations to Spot. Existing
-DEX route adapters should start with `client.prepareSwap`, DEX-owned signing,
+DEX route adapters should start with `client.refreshAndPrepareSwap`, DEX-owned signing,
 `client.submitOrder`, and `waitForOrder`, without a provider or calculated UI form.
 `submitSwap` remains an optional convenience when SDK wallet orchestration is desired.
 This changes the execution flow as well as the package import.
@@ -554,7 +570,7 @@ This changes the execution flow as well as the package import.
 | `slippage: 0.5` | Still `0.5` for 0.5%; Spot converts to integer basis points for the service |
 | `dexMinAmountOut` and `signal` | Forward both to `getQuote`; use `"-1"` when no DEX minimum is available |
 | Fixed Permit2 spender | Read allowance and approve using `client.spenderAddress`; `prepared.approvalRequest` exposes the configured approval data |
-| Sign `quote.eip712` | Call `client.prepareSwap` immediately before signing `prepared.signingRequest` |
+| Sign `quote.eip712` | Await `client.refreshAndPrepareSwap({ quote, account, signal })` immediately before signing `prepared.signingRequest` |
 | `sdk.swap(quote, signature)` returning a transaction hash | `client.submitOrder(prepared.order, signature)` returning an accepted order |
 | Wait for the swap transaction receipt | Poll `client.getOrder({ orderId: order.id })` until filled, cancelled, expired, or confirmation times out |
 

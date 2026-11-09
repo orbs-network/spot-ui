@@ -173,6 +173,7 @@ export const executeOrder = async (
     const failedExecution = beginExecution({
       account: params.account,
       partner: params.client?.partner,
+      apiUrl: params.client?.apiUrl,
       form,
       inputToken: params.inputToken,
       outputToken: params.outputToken,
@@ -212,6 +213,7 @@ export const executeOrder = async (
   const startedExecution = beginExecution({
     account,
     partner: client.partner,
+    apiUrl: client.apiUrl,
     form,
     inputToken,
     outputToken,
