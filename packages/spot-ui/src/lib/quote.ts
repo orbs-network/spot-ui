@@ -19,7 +19,7 @@ export interface SwapQuoteParams {
   /**
    * Account supplied to the quote service. Before connection, a host can use
    * `0x0000000000000000000000000000000000000001` for a preview.
-   * Pass the connected account separately as `userAddress` when preparing or
+   * Pass the connected account separately as `account` when preparing or
    * submitting the swap; this quote field does not determine the signer.
    */
   user: string;
@@ -182,7 +182,7 @@ const parseQuoteAmounts = (
 
 /**
  * Fetches an exact-input swap quote for a token pair and quote user.
- * Use the result with `submitSwap` or `client.prepareSwap`, or pass
+ * Use the result with `client.executeSwap` or `client.prepareSwap`, or pass
  * `netAmountOut` to `calculateOrder` with `Module.SWAP` for a form preview.
  * This request does not open the wallet or create an order.
  *

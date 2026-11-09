@@ -128,7 +128,7 @@ export type Order = {
   dstTokenAddress: string;
   orderDollarValueIn: string;
   fillDelay: number;
-  /** Signed expiration as Unix milliseconds; used by `waitForOrder` and `watchOrder`. */
+  /** Signed expiration as Unix milliseconds; bounds internal swap settlement tracking. */
   deadline: number;
   /** Order-service creation time as Unix milliseconds. */
   createdAt: number;

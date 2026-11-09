@@ -95,7 +95,7 @@ export function eqIgnoreCase(a: string, b: string): boolean {
   return a === b || a.toLowerCase() === b.toLowerCase();
 }
 
-/** @deprecated Import isNativeAddress from @orbs-network/spot-ui instead. */
+/** @deprecated Normalize native input using the host's chain configuration. */
 export const isNativeAddress = (address?: string): boolean =>
   nativeTokenAddresses.some((candidate) =>
     eqIgnoreCase(candidate, address ?? ""),

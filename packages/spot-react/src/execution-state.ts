@@ -48,6 +48,7 @@ const ALLOWED_TRANSITIONS: Record<ExecutionPhase, ReadonlySet<ExecutionPhase>> =
     ExecutionPhase.REJECTED,
   ]),
   [ExecutionPhase.SUBMITTING]: new Set([
+    ExecutionPhase.SUBMITTING,
     ExecutionPhase.SETTLING,
     ExecutionPhase.SUCCESS,
     ExecutionPhase.FAILED,

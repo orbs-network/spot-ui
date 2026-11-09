@@ -187,14 +187,14 @@ export const structurallyShareOrders = (
 export const loadOrderHistory = async ({
   client, account, signal, supportLegacyOrders, previousOrders, legacyLoaded,
 }: {
-  client: Pick<SpotClient, "getAccountOrdersResult">;
+  client: Pick<SpotClient, "getAccountOrders">;
   account: string;
   signal: AbortSignal;
   supportLegacyOrders: boolean;
   previousOrders?: Order[];
   legacyLoaded: boolean;
 }): Promise<{ orders: Order[]; legacyLoaded: boolean }> => {
-  const result = await client.getAccountOrdersResult({
+  const result = await client.getAccountOrders({
     signal, account, legacyOrders: supportLegacyOrders && !legacyLoaded,
   });
   if (signal.aborted) throw signal.reason;

@@ -1,8 +1,7 @@
 import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
-import { getExplorerUrl, getWrappedNativeCurrency } from "@/lib/utils";
+import { getExplorerUrl, getWrappedNativeCurrency, isNativeAddress } from "@/lib/utils";
 import {
-  isNativeAddress,
   OnApproveSuccessCallback,
   OnWrapSuccessCallback,
   ParsedError,

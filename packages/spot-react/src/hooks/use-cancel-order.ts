@@ -1,9 +1,9 @@
 import { ExecutionStatus } from "../types";
 import {
-  isTxRejected,
   OrderStatus,
   type Order,
 } from "@orbs-network/spot-ui";
+import { isTxRejected } from "@orbs-network/spot-ui/internal";
 import { useClient } from "../context/use-client";
 import { useSpotTrading } from "../context/spot-trading-context";
 import {

@@ -52,7 +52,7 @@ Classify state before wiring it:
 - Use type-only imports for `SpotClient`, `CalculatedOrderForm`, request types, and `Order`.
 - Give exported adapter methods explicit return types.
 - Prefer a narrow host `SpotWalletPort` over leaking a wallet SDK's large client type into the integration.
-- Treat caught values as `unknown`; narrow with `isTxRejected` and the host's error formatter.
+- Treat caught values as `unknown`; narrow with the host wallet library's error guards and the host's error formatter.
 - Use `satisfies` when defining constant calculation inputs or wallet ports so literal enum values remain precise.
 - Exhaustively map `Module`, `OrderStatus`, and `InputErrors` when the host presents module-specific UI or translations.
 - Do not cast UI decimal strings into raw values. Let `calculateOrder` perform decimal conversion and validation.
@@ -80,10 +80,10 @@ Classify state before wiring it:
 - [ ] Field errors and `form.errors.primary` are localized, and submission uses `form.canSubmit`.
 - [ ] Explicit `tradeCount` is not silently clamped after amount changes.
 - [ ] The client is reused per partner/chain, and rejected initialization can be retried.
-- [ ] Native input is wrapped and normalized to the wrapped token before approval/signing.
+- [ ] SDK-managed adapters provide `shouldWrap()` and confirmed `wrapNativeToken`; native protocol input uses the configured wrapped address. Manual wallet flows confirm host wrapping before preparation/signing.
 - [ ] Allowance uses the normalized input token, exact raw input amount, and `client.spenderAddress`.
 - [ ] Wallet writes wait for confirmed receipts; post-approval allowance is verified with a bounded retry.
-- [ ] `prepareOrder` runs immediately before signing, after wrapping and approval.
+- [ ] `prepareOrder` runs immediately before signing, after confirmed approval.
 - [ ] The signing adapter returns the original `0x` signature unchanged.
 - [ ] Concurrent submission and cancellation prompts are prevented.
 - [ ] Ambiguous submission failures are reconciled before another order is prepared.

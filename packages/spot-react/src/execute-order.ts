@@ -1,19 +1,15 @@
 import {
-  executeOrder as executeWalletOrder,
-  isNativeAddress,
-  eqIgnoreCase,
   Module,
+  OrderSettlementError,
   SpotError,
-  isTxRejected,
   type Address,
   type CalculatedOrderForm,
   type Order,
-  type PreparedOrder,
   type SpotClient,
   type Partners,
-  type SpotAnalytics,
   type SwapQuote,
 } from "@orbs-network/spot-ui";
+import { executeClientOrder, isNativeAddress, eqIgnoreCase, isTxRejected } from "@orbs-network/spot-ui/internal";
 import {
   ExecutionPhase,
   type Callbacks,
@@ -45,6 +41,7 @@ interface ExecutionStoreActions {
     executionId: number,
     value: SwapExecution,
   ) => boolean;
+  subscribeExecution?: (listener: () => void) => () => void;
 }
 
 export interface ExecuteOrderParams extends ExecutionStoreActions {
@@ -62,9 +59,9 @@ export interface ExecuteOrderParams extends ExecutionStoreActions {
   callbacks?: Callbacks;
   addNewOrder: (order: Order) => void;
   refetchActiveOrders: () => unknown;
+  onOrderUpdate?: (order: Order) => void;
   wait?: (milliseconds: number) => Promise<void>;
   signal?: AbortSignal;
-  waitForOrderFill?: (order: Order, executionId: number) => Promise<Order>;
 }
 
 const waitFor = (milliseconds: number): Promise<void> =>
@@ -135,9 +132,6 @@ const validateExecutionInputs = (
     throw new Error("Order form is not submittable");
   }
 
-  if (params.form.module === Module.SWAP && !params.waitForOrderFill) {
-    throw new Error("Swap settlement tracking is unavailable");
-  }
   const inputAmountRaw = params.form.inputAmount.raw;
   // The shared wallet runner validates this spending amount before wallet access.
   const inputs: ValidatedExecutionInputs = {
@@ -153,40 +147,6 @@ const validateExecutionInputs = (
     inputs.quote = captureSwapQuote(params.quote, inputs, params.form);
   }
   return inputs;
-};
-
-const prepareExecutionOrder = async (
-  { client, orderInputToken, outputToken, account, quote }: ValidatedExecutionInputs,
-  form: CalculatedOrderForm,
-  signal?: AbortSignal,
-  analytics?: SpotAnalytics,
-): Promise<PreparedOrder> => {
-  if (quote) {
-    const { order, signingRequest, approvalRequest, values } = await client.refreshAndPrepareSwap({
-      quote,
-      account,
-      signal,
-      analytics,
-    });
-    // Keep React's review metadata while using the exact payload prepared by the SDK.
-    return {
-      order,
-      signingRequest,
-      approvalRequest,
-      form,
-      values: {
-        ...form.values,
-        currentTimeMillis: values.currentTimeMillis,
-        deadlineMillis: values.deadlineMillis,
-      },
-    };
-  }
-  return client.prepareOrder({
-    form,
-    inputTokenAddress: orderInputToken.address,
-    outputTokenAddress: outputToken.address,
-    swapperAddress: account,
-  });
 };
 
 export const executeOrder = async (
@@ -218,6 +178,7 @@ export const executeOrder = async (
     const parsedError = parseExecutionError(error);
     const failedExecution = beginExecution({
       account: params.account,
+      client: params.client,
       partner: params.client?.partner ?? params.partner,
       apiUrl: params.client?.apiUrl,
       form,
@@ -258,6 +219,7 @@ export const executeOrder = async (
   });
   const startedExecution = beginExecution({
     account,
+    client,
     partner: client.partner,
     apiUrl: client.apiUrl,
     form,
@@ -302,50 +264,66 @@ export const executeOrder = async (
     inputAmountRaw,
     callbacks,
   };
+  const isSwap = form.module === Module.SWAP;
+  let accepted = false;
+  const recordAcceptance = (order: Order): void => {
+    if (accepted) return;
+    accepted = true;
+    observe(() => addNewOrder(order));
+    if (!isSwap) observe(() => refetchActiveOrders());
+    observe(() => callbacks?.onOrderCreated?.(order));
+  };
+  const controller = new AbortController();
+  const checkScope = () => {
+    if (params.signal?.aborted) controller.abort(params.signal.reason);
+    else if (getCurrentExecution().executionId !== executionId) {
+      controller.abort(new Error("Execution is no longer current"));
+    }
+  };
+  params.signal?.addEventListener("abort", checkScope, { once: true });
+  const unsubscribe = params.subscribeExecution?.(checkScope);
+  checkScope();
 
   try {
-    const { order } = await executeWalletOrder({
-      client,
+    const { order } = await executeClientOrder(client, {
+      form,
       analytics,
       account,
       inputTokenAddress: orderInputToken.address,
-      inputAmountRaw,
-      nativeInput: isNativeAddress(inputToken.address),
       completedWrapTxHash: completedWrap?.txHash,
+      outputTokenAddress: outputToken.address,
+      quote: inputs.quote,
       walletInteractions,
       wait,
-      signal: params.signal,
-      prepareOrder: () => prepareExecutionOrder(inputs, form, params.signal, analytics),
+      signal: controller.signal,
       validateContext: () => {
         if (getCurrentExecution().executionId !== executionId) throw new Error("Execution is no longer current");
       },
       onUpdate: (update) => {
         transition(update.phase as ExecutionPhase, getExecutionProgress(update, progressContext));
         notifyExecutionProgress(update, progressContext);
+        const order = update.order;
+        if (order && update.event === "accepted") recordAcceptance(order);
+        if (order && update.event === "updated") {
+          observe(() => params.onOrderUpdate?.(order));
+        }
       },
     });
-    const isSwap = form.module === Module.SWAP;
-    transition(isSwap ? ExecutionPhase.SETTLING : ExecutionPhase.SUCCESS, {
+    recordAcceptance(order);
+    transition(ExecutionPhase.SUCCESS, {
       orderId: order.id.toString(),
       order,
     });
-
-    observe(() => addNewOrder(order));
-    if (!isSwap) observe(() => refetchActiveOrders());
-    observe(() => callbacks?.onOrderCreated?.(order));
-    if (isSwap) {
-      const filledOrder = await params.waitForOrderFill!(order, executionId);
-      transition(ExecutionPhase.SUCCESS, { order: filledOrder });
-      return filledOrder;
-    }
     return order;
   } catch (error) {
-    const failedPhase = execution.phase;
+    const settlementOrder = error instanceof OrderSettlementError ? error.order : undefined;
+    if (settlementOrder) recordAcceptance(settlementOrder);
+    const failedPhase = error instanceof OrderSettlementError ? ExecutionPhase.SETTLING : execution.phase;
     const normalizedError = normalizeError(error);
     // The shared runner checks cancellation after its "submitting" progress event,
     // before starting the POST. That known preflight abort remains safe to retry.
     const abortedBeforeSubmission = failedPhase === ExecutionPhase.SUBMITTING &&
-      params.signal?.aborted && error === params.signal.reason;
+      controller.signal.aborted && error === controller.signal.reason;
     const unconfirmed = !abortedBeforeSubmission && isUnconfirmedExecutionError(error, failedPhase);
     const rejected = !unconfirmed && isTxRejected(error);
     // Error reporting must not hide the original wallet/API error if the
@@ -353,6 +331,7 @@ export const executeOrder = async (
     tryTransition(
       unconfirmed ? ExecutionPhase.UNCONFIRMED : rejected ? ExecutionPhase.REJECTED : ExecutionPhase.FAILED,
       {
+        ...(settlementOrder ? { order: settlementOrder, orderId: settlementOrder.id } : {}),
         error: normalizedError,
         parsedError: parseExecutionError(error),
       },
@@ -364,5 +343,9 @@ export const executeOrder = async (
       observe(() => callbacks?.onSubmitOrderFailed?.(parseExecutionError(error)));
     }
     throw normalizedError;
+  } finally {
+    unsubscribe?.();
+    params.signal?.removeEventListener("abort", checkScope);
+    controller.abort();
   }
 };

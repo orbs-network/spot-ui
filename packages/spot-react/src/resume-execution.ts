@@ -1,4 +1,4 @@
-import { getOrders, Module, OrderSettlementError, OrderStatus, type Order, type RePermitOrder } from "@orbs-network/spot-ui";
+import { getOrders, Module, OrderSettlementError, type Order, type RePermitOrder } from "@orbs-network/spot-ui";
 import type { StoreApi } from "zustand/vanilla";
 import type { SpotStore } from "./context/create-spot-store";
 import { ExecutionPhase, type Callbacks, type SwapExecution } from "./types";
@@ -67,21 +67,17 @@ export async function resumeExecution({ store, callbacks, signal, disableAnalyti
     signal.throwIfAborted();
     let order = execution.order;
     const recoveredAcceptance = !order;
-    // The poller stops at deadline + grace. A later recovery must read fresh
-    // history before handing it the saved, still-open snapshot again.
-    if (!order || (order.status === OrderStatus.Open && order.deadline + 60_000 <= Date.now())) {
-      if (!execution.account || !execution.chainId || (!order && !execution.preparedOrder)) {
+    // Unknown acceptance needs history discovery; saved orders go straight to
+    // the SDK's bounded read-only recovery, even after the original deadline.
+    if (!order) {
+      if (!execution.account || !execution.chainId || !execution.preparedOrder) {
         throw new Error("The original swap status is still unknown. Check its account history before starting another swap.");
       }
       const orders = await getOrders({
         swapper: execution.account, chainId: execution.chainId, getv1orders: false, signal,
         apiUrl: execution.apiUrl,
       });
-      const previousOrder = order;
-      order = previousOrder
-        ? orders.find(candidate => candidate.id.toLowerCase() === previousOrder.id.toLowerCase() &&
-            candidate.chainId === previousOrder.chainId && candidate.historyKey === previousOrder.historyKey)
-        : execution.preparedOrder && findAcceptedOrder(orders, execution.preparedOrder.order);
+      order = findAcceptedOrder(orders, execution.preparedOrder.order);
       if (!order) {
         throw new OrderSettlementError(
           "The original order has not appeared in history yet. Check its status again before starting another swap.",
@@ -103,14 +99,16 @@ export async function resumeExecution({ store, callbacks, signal, disableAnalyti
     transition(ExecutionPhase.SUCCESS, { order: completed, orderId: completed.id });
     return completed;
   } catch (error) {
-    // SDK watchOrder reports tracking outcomes; this covers recovery lookup failures before it starts.
+    // The SDK reports settlement outcomes; this covers recovery lookup failures before it starts.
     if (!trackingStarted) {
       observe(() => execution.form?.module === Module.SWAP
         ? analytics.onSettlementError(error)
         : analytics.onRecoveryError(error));
     }
+    const settlementOrder = error instanceof OrderSettlementError ? error.order : undefined;
     transition(isUnconfirmedExecutionError(error, ExecutionPhase.SETTLING)
       ? ExecutionPhase.UNCONFIRMED : ExecutionPhase.FAILED, {
+      ...(settlementOrder ? { order: settlementOrder, orderId: settlementOrder.id } : {}),
       error: normalizeError(error), parsedError: parseExecutionError(error),
     });
     throw error;

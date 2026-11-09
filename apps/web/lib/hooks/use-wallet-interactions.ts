@@ -9,8 +9,11 @@ import type {
 import { useCallback, useMemo } from "react";
 import { erc20Abi, type PublicClient, type WalletClient } from "viem";
 import { useConnection, usePublicClient, useWalletClient } from "wagmi";
-import { getWrappedNativeCurrency } from "../utils";
+import { getWrappedNativeCurrency, isNativeAddress } from "../utils";
 import { wagmiConfig } from "../wagmi-config";
+import { useDerivedSwap } from "./use-derived-swap";
+import { useWrappedNativeTransaction } from "./use-wrap";
+import { useRefetchSelectedCurrenciesBalances } from "./use-balances";
 
 type BalanceReadContext = {
   walletClient: Pick<WalletClient, "getChainId" | "getAddresses">;
@@ -39,9 +42,12 @@ const assertBalanceReadContext = async ({
 };
 
 export const useWalletInteractions = () => {
+  const { inputCurrency } = useDerivedSwap();
   const { chain, chainId } = useConnection({ config: wagmiConfig });
   const { data: walletClient } = useWalletClient({ config: wagmiConfig, chainId });
   const publicClient = usePublicClient({ config: wagmiConfig, chainId });
+  const { mutateAsync: convertNativeToken, complete } = useWrappedNativeTransaction();
+  const { mutateAsync: refetchBalances } = useRefetchSelectedCurrenciesBalances();
 
   const waitForTx = useCallback(
     async (hash: `0x${string}`) => {
@@ -52,8 +58,14 @@ export const useWalletInteractions = () => {
         throw new Error("Failed to get transaction receipt");
       }
       const receipt = await result.json();
+      if (receipt?.replacementReason === "cancelled" || receipt?.replacementReason === "replaced") {
+        throw new Error("Transaction was cancelled or replaced");
+      }
       if (receipt?.status === "reverted") {
         throw new Error("Transaction reverted");
+      }
+      if (receipt?.status !== "success") {
+        throw new Error("Transaction confirmation is unavailable");
       }
       return hash;
     },
@@ -61,8 +73,6 @@ export const useWalletInteractions = () => {
   );
 
   return useMemo((): WalletInteractions => {
-    const wrappedNativeCurrency = getWrappedNativeCurrency(chainId);
-
     const requireWalletClient = () => {
       if (!walletClient) throw new Error("Wallet client not found");
       return walletClient;
@@ -78,29 +88,22 @@ export const useWalletInteractions = () => {
     };
 
     return {
+      shouldWrap: () => isNativeAddress(inputCurrency?.address),
       wrapNativeToken: async (amount: string) => {
-        const { client, chain } = getWriteContext();
-        if (!wrappedNativeCurrency?.address) {
-          throw new Error("Wrapped native token not found for chain");
+        const { operation, contextChanged } = await convertNativeToken({ action: "wrap", amount });
+        if (contextChanged) {
+          throw new Error("Wallet account or network changed. Review the wrapped balance before continuing.");
         }
-        const hash = await client.writeContract({
-          abi: [
-            {
-              name: "deposit",
-              type: "function",
-              stateMutability: "payable",
-              inputs: [],
-              outputs: [],
-            },
-          ],
-          functionName: "deposit",
-          address: wrappedNativeCurrency.address as `0x${string}`,
-          args: [],
-          value: BigInt(amount),
-          chain,
-          account: client.account,
-        });
-        return waitForTx(hash);
+        if (operation.action !== "wrap" || operation.amount !== amount) {
+          // Finish recovery of the previous conversion, then require a fresh review.
+          // Never count its receipt as the requested wrap or immediately deposit again.
+          const wrappedAddress = getWrappedNativeCurrency(chainId)?.address;
+          await refetchBalances(wrappedAddress ? [wrappedAddress] : []);
+          complete(operation.hash);
+          throw new Error("A previous token conversion is confirmed. Review its balance before wrapping a different amount.");
+        }
+        complete(operation.hash);
+        return operation.hash;
       },
       approveToken: async (props: ApproveTokenProps) => {
         const { client, chain } = getWriteContext();
@@ -173,5 +176,5 @@ export const useWalletInteractions = () => {
         return String(result);
       },
     };
-  }, [walletClient, publicClient, chain, chainId, waitForTx]);
+  }, [walletClient, publicClient, chain, chainId, waitForTx, inputCurrency?.address, convertNativeToken, complete, refetchBalances]);
 };

@@ -12,9 +12,15 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
-      name: 'SpotSDK',
-      fileName: 'spot-ui',
+      entry: {
+        'spot-ui': resolve(__dirname, 'src/index.ts'),
+        internal: resolve(__dirname, 'src/internal.ts'),
+      },
+      // Shared chunks keep telemetry state identical across public and internal imports.
+      formats: ['es', 'cjs'],
+      fileName: (format, entryName) => entryName === 'spot-ui'
+        ? format === 'es' ? 'spot-ui.js' : 'spot-ui.umd.cjs'
+        : `internal.${format === 'es' ? 'js' : 'cjs'}`,
     },
   },
 })

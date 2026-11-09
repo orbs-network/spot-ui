@@ -1,9 +1,5 @@
-import {
-  createAnalytics,
-  type AnalyticsContext,
-  type SpotAnalytics,
-  type SpotClient,
-} from "@orbs-network/spot-ui";
+import type { SpotClient } from "@orbs-network/spot-ui";
+import { createAnalytics, getClientAnalytics, type AnalyticsContext, type SpotAnalytics } from "@orbs-network/spot-ui/internal";
 import type { SwapExecution } from "./types";
 
 type ExecutionAnalyticsInputs = Pick<SwapExecution,
@@ -44,7 +40,7 @@ export const createOperationAnalytics = (
 ): SpotAnalytics => {
   try {
     return client && !disableAnalytics
-      ? client.analytics.createOperation(context)
+      ? getClientAnalytics(client).createOperation(context)
       : createAnalytics(context, { disableAnalytics });
   } catch {
     // A custom reporter must not prevent the wallet or its original error from being reached.

@@ -1,9 +1,9 @@
 import {
-  isNativeAddress,
   Module,
   type CalculatedOrderForm,
   type OrderFormNotReadyReason,
 } from "@orbs-network/spot-ui";
+import { isNativeAddress } from "@orbs-network/spot-ui/internal";
 import type { SpotTradingState } from "./context/spot-trading-context";
 import { isExecutionActive, isExecutionLocked } from "./execution-state";
 import { ExecutionPhase } from "./types";

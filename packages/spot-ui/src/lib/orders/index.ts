@@ -111,7 +111,7 @@ export interface AccountOrdersResult {
  * legacy source. Successful sources are retained when another source fails.
  * @throws If pagination is invalid, the request is aborted, or no requested source succeeds.
  */
-export const getAccountOrdersResult = async ({
+export const getAccountOrders = async ({
   signal,
   page,
   chainId,
@@ -174,13 +174,3 @@ export const getAccountOrdersResult = async ({
     legacyLoaded: hasLegacySource && legacyResult.status === "fulfilled",
   };
 };
-
-/**
- * Loads normalized account history, newest first, with the same filters as
- * `getAccountOrdersResult`. Use that method when the host needs `legacyLoaded`
- * to distinguish unavailable legacy history from a successful empty response.
- * Successful sources can supply partial results when another source fails.
- */
-export const getAccountOrders = async (
-  params: GetAccountOrdersParams,
-): Promise<Order[]> => (await getAccountOrdersResult(params)).orders;

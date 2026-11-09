@@ -1,9 +1,16 @@
-import type { PrepareSwapParams } from "./swap";
 import { snapshotSwapQuote, type SwapQuote } from "./quote";
 import type { Partners } from "./types";
 import { eqIgnoreCase, isNativeAddress } from "./utils";
 import { SpotError } from "./errors";
 import { getSlippageBps } from "./swap-amounts";
+
+/** Reviewed quote and connected signer shared by validation and wallet orchestration. */
+export interface ReviewedSwapInput {
+  /** Quote for the same client chain and partner; its request supplies the pair, input, and slippage. */
+  quote: SwapQuote;
+  /** Connected signer and output recipient, independent of the quote's preview user. */
+  userAddress: string;
+}
 
 interface ValidationContext {
   chainId: number;
@@ -52,7 +59,7 @@ export const captureValidatedSwap = (
   userAddress: string,
   chainId: number,
   partner: Partners,
-): PrepareSwapParams => {
+): ReviewedSwapInput => {
   const context = quote && validatedQuotes.get(quote);
   if (context && context.chainId === chainId && context.partner === partner &&
     typeof userAddress === "string" && context.account === userAddress.toLowerCase()) {

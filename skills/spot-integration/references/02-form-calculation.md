@@ -73,7 +73,7 @@ in [Swap and Migration](07-swap-and-migration.md). Do not apply slippage again.
 Let the SDK derive remaining order values, protection, deadlines, and defaults.
 `Module.SWAP` uses one limit trade, fixed 3-minute expiration from preparation,
 no inversion, and 500 bps signed oracle protection; price/duration overrides do
-not change those rules. Raw `prepareSwap`/`submitSwap` uses the same expiration.
+not change those rules. Raw `client.prepareSwap` and `client.executeSwap` use the same expiration.
 
 For missing native-token USD values on a new chain, check the host's wrapped-native mapping and price normalization before changing SDK calculations. See [Chain Integration](06-chain-integration.md) for price-provider and cache checks. A token amount from a router quote and its USD valuation are separate inputs; one can succeed while the other is unavailable.
 

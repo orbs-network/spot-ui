@@ -1,23 +1,21 @@
 import {
-  isSwapSupported, waitForOrder,
+  isSwapSupported,
   type PreparedSwap,
-  type SpotClient, type SubmittedSwap, type SwapQuote, type SwapTradeType,
+  type SpotClient, type CompletedSwap, type Order, type SwapQuote, type SwapTradeType,
 } from "@orbs-network/spot-ui";
 
 export interface SpotRoute {
   quote: SwapQuote;
-  nativeInput: boolean;
 }
 
 /** One candidate in the DEX's existing quote competition. No SpotProvider needed. */
 export async function quoteSpotRoute(params: {
   client: SpotClient;
   account: string;
-  inToken: string; // Already normalized to the wrapped ERC-20 for native input.
+  inToken: string; // Protocol ERC-20 input; use the wrapped address for a native selection.
   outToken: string;
   inAmount: string;
   slippage: number; // Percent: 0.5 = 0.5%; convert host bps to percent once here.
-  nativeInput: boolean;
   recipient?: string;
   tradeType?: SwapTradeType;
   /** For this exact input/chain/pair; host retains any gas/fee ranking policy. */
@@ -32,67 +30,63 @@ export async function quoteSpotRoute(params: {
   });
   const minimumOutputAmountRaw = quote.minimumAmountOut;
   if (params.dexMinimumOutputRaw !== undefined && BigInt(minimumOutputAmountRaw) <= BigInt(params.dexMinimumOutputRaw)) return undefined;
-  return { quote, nativeInput: params.nativeInput };
+  return { quote };
 }
 
 /**
- * Pure local preparation for a host that already checked the quote.
- * Use refreshSpotRoute to refresh and compare protected minima before signing.
- */
-export function prepareSpotRoute(params: {
-  client: SpotClient;
-  route: SpotRoute;
-  account: string;
-}): PreparedSwap {
-  return params.client.prepareSwap(params.route.quote, params.account);
-}
-
-/**
- * Call after confirmed wrapping/approval, immediately before signing.
+ * Call after host wrapping, refreshed wrapped balance, and confirmed approval, immediately before signing.
  * Reuses quotes up to 20 seconds old or refreshes the exact request and checks its minimum.
  * A lower refreshed minimum throws QUOTE_MINIMUM_DECREASED. The reviewed minimum stays signed.
  * Both paths prepare fresh signing timestamps and nonce; no separate age check is needed.
  * The DEX owns its execution lock and live account/chain/balance checks.
  */
-export async function refreshSpotRoute(params: {
+export async function prepareSpotRoute(params: {
   client: SpotClient;
   route: SpotRoute;
   account: string;
   signal?: AbortSignal;
+  /** Optional finite, non-negative quote reuse window; 0 forces a refresh. */
+  maxQuoteAgeMillis?: number;
 }): Promise<PreparedSwap> {
-  return params.client.refreshAndPrepareSwap({
+  return params.client.prepareSwap({
     quote: params.route.quote,
     account: params.account,
     signal: params.signal,
+    maxQuoteAgeMillis: params.maxQuoteAgeMillis,
   });
 }
 
 /**
  * The DEX signs prepared.signingRequest with its existing wallet code, then
- * rechecks the live context before calling this submission-only adapter.
+ * rechecks the live context before submitting and waiting for the swap fill.
  * Forward the original signature; no wallet callbacks or provider are needed.
+ * If tracking fails, retain OrderSettlementError.order and orderId for read-only recovery.
  */
 export async function submitSignedSpotRoute(params: {
   client: SpotClient;
   prepared: PreparedSwap;
   signature: `0x${string}`;
-}): Promise<SubmittedSwap> {
-  const order = await params.client.submitOrder(params.prepared.order, params.signature);
+  signal?: AbortSignal;
+}): Promise<CompletedSwap> {
+  const order = await params.client.submitSignedSwap(params.prepared, params.signature, {
+    signal: params.signal,
+  });
   return {
-    type: "intent", status: "submitted", orderId: order.id, order,
+    type: "intent", status: "completed", orderId: order.id, order,
     deadlineMillis: order.deadline,
   };
 }
 
-/** Keep this at app/store scope if the confirmation modal unmounts after submission. */
-export function trackSpotRoute(submitted: SubmittedSwap, signal?: AbortSignal) {
-  return waitForOrder({ order: submitted.order, signal });
+/** Resume an accepted order using read-only lookups; no signature or resubmission. */
+export function resumeSpotRoute(client: SpotClient, order: Order, signal?: AbortSignal) {
+  return client.executeOrder({ order, signal });
 }
 
 // The DEX keeps its own selector, wallet steps, progress UI, and execution lock.
-// Native input: wrap route.quote.request.inAmount when route.nativeInput is true.
+// Quote the wrapped ERC-20 address for native input. After user review, the
+// manual host flow confirms wrapping before preparation and signing.
 // Approve the quote's ERC-20 input token/amount to client.spenderAddress and verify
-// confirmed allowance before refreshSpotRoute. Never reprepare after signing.
+// confirmed allowance before prepareSpotRoute. Never reprepare after signing.
 // Check the active abort signal and account/chain before each wallet step and POST.
 // Once the POST starts, preserve any accepted ID even if the form unmounts.
 // Pause/cancel quote requests through wallet execution and any active swap loading UI.

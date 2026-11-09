@@ -67,7 +67,7 @@ const history = useOrders();
 | `useDisclaimer()` | Disclaimer string key or `undefined` |
 | `useInputErrors()` | `{ type, args }` or `undefined` |
 | `useSubmitButton()` | `disabled`, `loading`, and `disabledReason` when disabled |
-| `execution` | `submitOrder`, `phase`, `status`, `returnToOrderForm`, `startNewOrder`, `error`, `isPreparingOrder`, `isExecuting`, `isSuccess`, `isFailed`, `isRejected`, `canDismiss`, `currentStep`, `currentStepIndex`, `totalSteps`, `executionSteps`, `inputToken`, `outputToken`, `wrapTxHash`, `approvalTxHash` |
+| `execution` | `submitOrder`, `phase`, `status`, `returnToOrderForm`, `startNewOrder`, `error`, `isPreparingOrder`, `isExecuting`, `isSuccess`, `isFailed`, `isRejected`, `canDismiss`, `currentStep`, `currentStepIndex`, `totalSteps`, `executionSteps`, `inputToken`, `outputToken`, `approvalTxHash` |
 | `history` | Provider-scoped state with `data: { all, open, completed, cancelled, expired }` |
 
 
@@ -522,11 +522,10 @@ function SpotOrderFlow() {
     currentStep,
     currentStepIndex,
     totalSteps,
-    wrapTxHash,
     approvalTxHash,
   } = useExecution();
   const form = useOrderForm();
-  const progressTxHash = approvalTxHash || wrapTxHash;
+  const progressTxHash = approvalTxHash;
   const explorerUrl = getDexExplorerUrl(chainId, progressTxHash);
 
   const swapStatus =
@@ -581,7 +580,7 @@ Style the `SwapFlow` wrapper with the DEX theme. Do not copy the reference scree
 - `currentStepIndex` / `totalSteps` — progress tracking
 - `executionSteps` — ordered steps required for this execution
 - `error` — parsed `{ code, message }` failure for display
-- `returnToOrderForm()` — dismisses a definitive failed/rejected execution while preserving the form and completed wrap metadata for retry; active and unconfirmed executions reject the reset
+- `returnToOrderForm()` — dismisses a definitive failed/rejected execution while preserving the form for retry; active and unconfirmed executions reject the reset
 - `startNewOrder()` — resets Spot's form and retry state after a confirmed terminal execution; active and unconfirmed executions reject the reset
 
 Use `phase` when the DEX needs precise progress. It transitions through `idle`,
@@ -590,15 +589,15 @@ with definitive `failed`/`rejected` and retained `unconfirmed` branches. Map the
 the chosen progress UI. Keep the modal open while `isExecuting` is true; the
 SDK also rejects reset actions during those phases.
 - `isPreparingOrder` — whether client initialization or allowance preparation is pending
-- `inputToken`, `outputToken` — resolved tokens (after wrap if needed)
-- `wrapTxHash`, `approvalTxHash` — transaction hashes for explorer links
+- `inputToken`, `outputToken` — captured selected input and output tokens
+- `wrapTxHash`, `approvalTxHash` — confirmed wrapping/approval hashes for explorer links
 
 ### `useOrderForm()` provides:
 - Amounts: `inputAmount`, `outputAmount`, and `minOutputAmountTotal`, each with `raw`, `ui`, and `usd`
 - Prices: `marketPrice`, `limitPrice`, `triggerPrice`, and `tradePrice`
 - Trade config: `trades.totalTrades` and structured per-trade amounts
 - Timing: `schedule`; exact start and deadline timestamps are assigned by
-  `prepareOrder` after wrapping and approval, immediately before signing, and
+  `prepareOrder` after confirmed wrapping/approval, immediately before signing, and
   are available on `PreparedOrder.values`.
 - Fees: `fees.raw`, `fees.ui`, `fees.usd`, and `fees.percentage`
 - Type: `values.orderType`, `values.isMarketOrder`, and `values.isTriggerPrice`
@@ -779,7 +778,7 @@ const formattedAmount = useAmountUi(decimals, amountWei);
 
 `useClient()` exposes the shared initialized client for advanced read access,
 including RePermit configuration. Submission must still go through
-`useExecution()` so allowance, wrapping, approval, signing, error handling,
+`useExecution()` so allowance, approval, signing, error handling,
 and frozen execution values stay on one supported path.
 
 ```tsx
@@ -793,13 +792,10 @@ const permitData = client?.rePermitData;
 
 ```tsx
 import {
-  getTwapConfig,      // (partner, chainId) => legacy v1 timing config
-  isNativeAddress,    // (address) => boolean
-  eqIgnoreCase,       // (a, b) => case-insensitive address comparison
   getOrderExecutionRate,   // (srcFilled, dstFilled, srcDecimals, dstDecimals) => rate
   getOrderLimitPriceRate,  // (order, srcDecimals, dstDecimals) => rate
   getTriggerPriceRate,     // (order, srcDecimals, dstDecimals) => rate
-  getOrderFillDelayMillis, // (order, twapConfig) => milliseconds
+  getOrderFillDelayMillis, // (order, config?) => milliseconds
 } from "@orbs-network/spot-react";
 ```
 

@@ -3,12 +3,10 @@ import {
   getOrderFillDelayMillis,
   getOrderLimitPriceRate,
   getTriggerPriceRate,
-  getTwapConfig,
-  toAmountUI,
-  toAmountRaw,
   type Order,
   type OrderFill,
 } from "@orbs-network/spot-ui";
+import { getTwapConfig, toAmountUI, toAmountRaw } from "@orbs-network/spot-ui/internal";
 import { useMemo } from "react";
 import { useSpotTrading } from "../context/spot-trading-context";
 import type { Token } from "../types";

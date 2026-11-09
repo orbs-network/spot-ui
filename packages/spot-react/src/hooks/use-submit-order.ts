@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { waitForSwapOrder } from "../wait-for-swap-order";
+import { updateTrackedOrderInCache } from "../wait-for-swap-order";
 import { executeOrder } from "../execute-order";
 import { canBeginExecution } from "../execution-state";
 import { useOrderForm } from "../context/order-form-context";
@@ -46,9 +46,8 @@ export const useSubmitOrder = (): (() => void) => {
       callbacks,
       addNewOrder,
       refetchActiveOrders,
-      waitForOrderFill: (order, executionId) => {
-        return waitForSwapOrder({ store, callbacks, order, executionId, signal: controller.signal });
-      },
+      onOrderUpdate: (order) => updateTrackedOrderInCache(store, order, callbacks),
+      subscribeExecution: (listener) => store.subscribe(listener),
       getCurrentExecution: () => store.getState().state.currentExecution,
       beginExecution: store.getState().beginExecution,
       replaceExecution: store.getState().replaceExecution,

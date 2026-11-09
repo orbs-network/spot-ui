@@ -1,4 +1,5 @@
-import { createClient, type SpotAnalytics, type SpotClient } from "@orbs-network/spot-ui";
+import type { SpotClient } from "@orbs-network/spot-ui";
+import { createClientWithAnalytics, type SpotAnalytics } from "@orbs-network/spot-ui/internal";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ClientResourceState } from "./create-spot-store";
 import { useSpotTrading } from "./spot-trading-context";
@@ -38,7 +39,7 @@ export const useConfigureClient = (): void => {
     }
     // All client scopes share one opt-out policy, including pending configuration
     // and cancellations that finish after the provider changes account or chain.
-    return createClient(partner, chainId, { disableAnalytics, analytics: analyticsPolicy });
+    return createClientWithAnalytics(partner, chainId, { disableAnalytics }, analyticsPolicy);
   }, [chainId, partner, disableAnalytics, analyticsPolicy]);
 
   useEffect(() => {

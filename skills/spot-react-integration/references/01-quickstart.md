@@ -1,5 +1,7 @@
 # Quickstart
 
+Protocol quotes and orders use ERC-20 input addresses. SDK-managed execution calls the required `walletInteractions.shouldWrap()` once before allowance reads or wallet writes, awaits its boolean result, and calls `wrapNativeToken` only when true. React can display native input and its native balance while normalizing execution to the configured `wrappedNativeToken`. The host implements the wrapping transaction and waits for its successful receipt; users can review before wrapping.
+
 If there is no DEX, start with [Starting without a DEX](08-starting-without-dex.md). An existing React app keeps its stack and components; build its missing trading services. Scaffold a minimal application only when no app exists, then return to the provider path below.
 
 ## Discover the host before asking
@@ -31,32 +33,49 @@ Install only missing dependencies with the host package manager. Select a concre
 
 `@orbs-network/spot-react` includes `spot-ui` and re-exports its SDK API, so a separate core install is unnecessary. Existing React 18/19 applications must still verify the selected package's peer range. No wallet library or host React Query provider is required. Add `@orbs-network/swap-ui` only when adopting the documented progress flow, after checking its actual exports and adapting its appearance.
 
+## Client execution without a provider
+
+Use `client.executeSwap({ quote, account, walletInteractions, signal })` for a
+reviewed quote. For calculated forms, use `client.executeOrder` with `form`,
+`inputTokenAddress`, `outputTokenAddress`, `account`, and `walletInteractions`;
+its only optional execution input is `signal`. It prepares
+from the form's reviewed amounts/minimum directly; use `executeSwap` for
+quote-aware refresh checks. The configured client owns late
+preparation, allowance verification, signing, and submission through the host
+wallet callbacks. Swaps resolve after a fill; advanced orders resolve at acceptance.
+The client owns settlement, so keep the host's loading state until it resolves
+and do not start a second poller. No execution function or preparation callback
+needs to be imported.
+
+The separate preparation and signed-submission path below remains available for
+advanced integrations that control wallet steps independently.
+
 ## Provider path
 
 Read [Provider](02-provider.md) and only the relevant [Panels](03-panels.md) sections.
 
 1. Keep editable/source values in the DEX's existing state. Build small adapters for token shape, raw balances, current quotes, and wallet methods; share them through a local DEX context only when multiple components need them.
 2. Pass the actual partner, connected account/chain, tokens, host wrapped-native token, amount, balance, available USD valuation, quote, callbacks, and wallet adapter directly to `SpotProvider`. Stabilize objects/functions with the host's React patterns. The provider loads protocol configuration itself.
-3. For swaps, pass the original SDK quote as `marketQuote: { quote, isLoading, noLiquidity }`; the provider derives output/minimum/USD fields and preserves the exact request. Advanced adapters may keep flat `quotedOutputAmountRaw` and USD fields. Withhold stale quotes/amounts and show loading until the request matches current inputs. Swap execution checks the captured quote against the reviewed form before wallet writes, then calls `client.refreshAndPrepareSwap` after approval without a second preparation.
+3. For swaps, pass the original SDK quote as `marketQuote: { quote, isLoading, noLiquidity }`; the provider derives output/minimum/USD fields and preserves the exact request. Advanced adapters may keep flat `quotedOutputAmountRaw` and USD fields. Withhold stale quotes/amounts and show loading until the request matches current inputs. Swap execution checks the captured quote against the reviewed form before wallet writes, then calls `client.prepareSwap` after approval without a second preparation.
 4. Use the focused public hooks to render the requested controls, errors, and submit gating through existing DEX components. Do not silently reset selected TWAP trade counts when a smaller amount makes them invalid.
-5. Adapt the installed `walletInteractions` contract to the host wallet. The common methods are `getAllowance`, `wrapNativeToken`, `approveToken`, `signOrder`, and `cancelOrder`; write methods wait for successful receipts, and signing returns the original signature bytes. Implement extra methods only when required by the installed execution/retry path.
+5. Adapt the installed `walletInteractions` contract: `shouldWrap`, `wrapNativeToken`, `getAllowance`, `approveToken`, `signOrder`, and `cancelOrder`. The no-argument predicate decides from the DEX's captured input/account/chain context, may be async, and must return a boolean. Return true for native selections. Write methods wait for successful receipts; signing returns the original bytes. Implement `getTokenBalance` for completed-wrap retries.
 6. Use `useExecution` and `useSubmitButton` for review/progress state, duplicate prevention, and disabled/loading behavior. Pause obsolete quote requests through execution. Show swaps as successful only after fill; preserve and reconcile unknown attempts before another submission.
 7. Refetch balances through lifecycle callbacks. Preserve the host input on failure/rejection; clear it only after success and use the installed reset/dismissal methods. Keep provider ownership stable across transient controls.
 8. Add requested history/cancellation under the same provider or a context-preserving portal. Use `order.historyKey` for identity and the SDK's configured history/cancellation APIs.
 
 ## Provider-less router preparation
 
-Use this path when the host already owns route competition and wallet orchestration. Validate the installed re-exports, then keep wrapping/approval/signing in that flow. After confirmed wallet steps and bounded allowance verification, prefer:
+Use this path when the host already owns route competition and wallet orchestration. Inspect the installed preparation declaration's parameters and return type; the name alone cannot distinguish current async preparation from older sync positional preparation. Keep wrapping/approval/signing in the DEX flow. With the current async object-based API, after confirmed wallet steps and bounded allowance verification, call:
 
 ```ts
-const prepared = await client.refreshAndPrepareSwap({ quote, account, signal });
+const prepared = await client.prepareSwap({ quote, account, signal });
 ```
 
-Use this call only if the installed client actually exports it. Current builds check age internally: a quote up to 20 seconds old skips HTTP; otherwise the helper replays the original request, including preview `user`, slippage, and `dexMinAmountOut`, and compares refreshed `minimumAmountOut` against the reviewed minimum. A lower minimum throws `QUOTE_MINIMUM_DECREASED` and requires fresh review. Both paths retain the reviewed minimum and prepare new signing timestamps/nonce. Direct callers can set finite, non-negative `maxQuoteAgeMillis` (`0` forces refresh) when the installed API supports it. `isQuoteFresh` remains optional for host UI/cache policy, not an extra preparation step.
+Use this call only after verifying that object/promise signature. Current builds check age internally: a quote up to 20 seconds old skips HTTP; otherwise the helper replays the original request, including preview `user`, slippage, and `dexMinAmountOut`, and compares refreshed `minimumAmountOut` against the reviewed minimum. A lower minimum throws `QUOTE_MINIMUM_DECREASED` and requires fresh review. Both paths retain the reviewed minimum and prepare new signing timestamps/nonce. Direct callers can set finite, non-negative `maxQuoteAgeMillis` (`0` forces refresh) when the installed API supports it. `isQuoteFresh` remains optional for host UI/cache policy, not an extra preparation step.
 
-If the helper is absent, choose a compatible upgrade within the authorized task or implement the verified older API's explicit manual flow: retain an immutable reviewed snapshot, re-quote its exact original request after wallet steps, and compare integer `fresh.minimumAmountOut` with the reviewed minimum. Stop for fresh review if lower. Otherwise call the installed pure `client.prepareSwap(reviewedQuote, account)` immediately before signing. Do not substitute a `netAmountOut` comparison, silently accept a new reviewed minimum, or fabricate an SDK error code on an older release.
+If the installed release has the older sync `prepareSwap(quote, userAddress): PreparedSwap`, choose an authorized compatible upgrade or implement its explicit manual flow: retain an immutable reviewed snapshot, re-quote its exact original request after wallet steps, and compare integer `fresh.minimumAmountOut` with the reviewed minimum. Stop for fresh review if lower. Otherwise call that version-verified sync `client.prepareSwap(reviewedQuote, account)` immediately before signing. That older method performs no refresh/minimum check. Do not substitute a `netAmountOut` comparison, silently accept a new reviewed minimum, or fabricate an SDK error code on an older release.
 
-Validate live account/chain and host balance/minimum-trade policy before wallet writes and submission. The execution account supplies signer/recipient separately from the quote's preview user. Submit the original prepared order/signature once and track the accepted order with installed `waitForOrder`/`watchOrder` at a scope that survives modal closure. Pure `prepareSwap` alone performs no refresh check.
+Validate live account/chain and host balance/minimum-trade policy before wallet writes and submission. The execution account supplies signer/recipient separately from the quote's preview user. Submit once with installed `client.submitSignedSwap(prepared, signature, { signal })`. It waits internally and returns the completed `Order`. Keep the operation at a scope that survives modal closure. Preserve `OrderSettlementError.orderId` and its optional `order` on uncertain outcomes; resume a saved snapshot with `client.executeOrder({ order, signal })` without signing or submitting again.
 
 ## Missing partner or chain activation
 

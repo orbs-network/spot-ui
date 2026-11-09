@@ -1,4 +1,5 @@
-import { watchOrder, type Order } from "@orbs-network/spot-ui";
+import type { Order } from "@orbs-network/spot-ui";
+import { createClientWithAnalytics, resumeClientOrder } from "@orbs-network/spot-ui/internal";
 import type { StoreApi } from "zustand/vanilla";
 import type { SpotStore } from "./context/create-spot-store";
 import { observe } from "./execution-state";
@@ -25,7 +26,17 @@ export const addAcceptedOrderToCache = (store: StoreApi<SpotStore>, order: Order
   return store.getState().orders.key === key;
 };
 
-/** React cache adapter around the framework-neutral SDK settlement poller. */
+/** Apply SDK settlement snapshots only to the original account/adapter/partner/chain cache. */
+export const updateTrackedOrderInCache = (
+  store: StoreApi<SpotStore>, order: Order, callbacks?: Callbacks,
+): void => {
+  const state = store.getState();
+  if (matchesOrderScope(state.orders.key, order, state.state.currentExecution.partner)) {
+    state.updateOrder(order, callbacks);
+  }
+};
+
+/** Resume the SDK's settlement flow without signing or submitting the accepted order again. */
 export const waitForSwapOrder = async ({ store, callbacks, order, executionId, signal }: {
   store: StoreApi<SpotStore>;
   callbacks?: Callbacks;
@@ -40,23 +51,34 @@ export const waitForSwapOrder = async ({ store, callbacks, order, executionId, s
   signal.addEventListener("abort", checkScope, { once: true });
   const unsubscribe = store.subscribe(checkScope);
   checkScope();
+  const analytics = store.getState().state.currentExecution.analytics;
+  let sdkTrackingStarted = false;
   try {
-    let settled = order;
     if (!controller.signal.aborted) observe(() => addAcceptedOrderToCache(store, order));
-    const apiUrl = store.getState().state.currentExecution.apiUrl;
-    const analytics = store.getState().state.currentExecution.analytics;
-    for await (const current of watchOrder({ order, signal: controller.signal, apiUrl, analytics })) {
-      if (controller.signal.aborted) continue;
-      // Cache updates and host callbacks belong to the React adapter.
-      observe(() => {
-        const state = store.getState();
-        if (matchesOrderScope(state.orders.key, order, state.state.currentExecution.partner)) {
-          state.updateOrder(current, callbacks);
-        }
-      });
-      settled = current;
+    const execution = store.getState().state.currentExecution;
+    const { apiUrl, partner, chainId } = execution;
+    let client = execution.client;
+    if (!client) {
+      if (!partner || !chainId) throw new Error("The original order's client scope is unavailable");
+      client = await createClientWithAnalytics(partner, chainId, { apiUrl }, analytics);
     }
-    return settled;
+    checkScope();
+    controller.signal.throwIfAborted();
+    if (client.chainId !== order.chainId || client.chainId !== chainId ||
+      client.partner !== partner || (apiUrl !== undefined && client.apiUrl !== apiUrl)) {
+      throw new Error("The recovery client does not match the original order scope");
+    }
+    sdkTrackingStarted = true;
+    return await resumeClientOrder(client, { order, signal: controller.signal }, {
+      analytics,
+      onUpdate: (current) => {
+        if (controller.signal.aborted) return;
+        observe(() => updateTrackedOrderInCache(store, current, callbacks));
+      },
+    });
+  } catch (error) {
+    if (!sdkTrackingStarted) observe(() => analytics?.onRecoveryError(error));
+    throw error;
   } finally {
     unsubscribe();
     signal.removeEventListener("abort", checkScope);

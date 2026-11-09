@@ -2,12 +2,9 @@
 // Existing DEX wallet flows should start with router-swap.ts instead.
 import {
   calculateOrder,
-  submitSwap,
   type OrderWalletInteractions,
-  type SubmittedSwap,
-  isNativeAddress,
+  type CompletedSwap,
   Module,
-  toAmountRaw,
   type Address,
   type CalculatedOrderForm,
   type SpotClient,
@@ -15,7 +12,7 @@ import {
   type Token,
 } from "@orbs-network/spot-ui";
 
-/** Supply confirmed wallet operations bound to the preview's account and chain. */
+/** Supply shouldWrap plus confirmed wrap/approval operations bound to the preview's account and chain. */
 export type SwapWallet = OrderWalletInteractions;
 
 export interface SwapPreview {
@@ -23,7 +20,6 @@ export interface SwapPreview {
   account: Address;
   inputToken: Token;
   outputToken: Token;
-  orderInputToken: Token;
   quote: SwapQuote;
   form: CalculatedOrderForm;
 }
@@ -32,10 +28,13 @@ export interface SwapPreview {
 export async function createSwapPreview(params: {
   client: SpotClient;
   account: Address;
+  /** Protocol ERC-20 input; use the configured wrapped token for a native selection. */
   inputToken: Token;
   outputToken: Token;
-  wrappedNativeToken?: Token;
   inputAmountUi: string;
+  /** Matching integer base units, converted with the host's wallet/token library. */
+  inputAmountRaw: string;
+  /** Spendable selected-input balance; native balance is valid when wallet.shouldWrap will return true. */
   inputBalanceRaw: string;
   inputTokenUsdPrice: string;
   outputTokenUsdPrice?: string;
@@ -48,18 +47,12 @@ export async function createSwapPreview(params: {
   if (!Number.isFinite(slippage) || slippage < 0 || slippage >= 100) {
     throw new Error("UI slippage must be at least 0 and less than 100%");
   }
-  const orderInputToken = isNativeAddress(inputToken.address)
-    ? params.wrappedNativeToken
-    : inputToken;
-  if (!orderInputToken || isNativeAddress(orderInputToken.address)) {
-    throw new Error("Provide the chain's wrapped native token for native input");
-  }
-  const inputAmountRaw = toAmountRaw(params.inputAmountUi, inputToken.decimals);
+  const { inputAmountRaw } = params;
   if (!/^\d+$/.test(inputAmountRaw) || BigInt(inputAmountRaw) <= 0n) {
     throw new Error("Enter a positive input amount");
   }
   const quote = await client.getQuote({
-    inToken: orderInputToken.address,
+    inToken: inputToken.address,
     outToken: outputToken.address,
     inAmount: inputAmountRaw,
     user: account,
@@ -81,20 +74,22 @@ export async function createSwapPreview(params: {
     priceProtectionPercent: 5, // Module.SWAP always signs 500 bps, regardless of this input.
     userInput: { inputAmountUi: params.inputAmountUi, isMarketOrder: false },
   });
-  return { client, account, inputToken, outputToken, orderInputToken, quote, form };
+  if (BigInt(form.inputAmount.raw) !== BigInt(inputAmountRaw)) {
+    throw new Error("Host raw input amount does not match the reviewed UI amount");
+  }
+  return { client, account, inputToken, outputToken, quote, form };
 }
 
-/** Call after review. Resolves when the order is accepted, before settlement. */
-export async function submitReviewedSwap(preview: SwapPreview, wallet: SwapWallet): Promise<SubmittedSwap> {
-  const { client, account, inputToken, quote, form } = preview;
+/** Call after review. Resolves only after the swap fill is confirmed. */
+export async function submitReviewedSwap(preview: SwapPreview, wallet: SwapWallet): Promise<CompletedSwap> {
+  const { client, account, quote, form } = preview;
   if (form.module !== Module.SWAP || !form.canSubmit) {
     throw new Error(form.errors.primary?.type ?? "Swap form is not submittable");
   }
   if (form.values.minOutputAmountTotal !== quote.minimumAmountOut) {
     throw new Error("Swap quote does not match the reviewed minimum");
   }
-  return submitSwap({
-    client, quote, userAddress: account,
-    nativeInput: isNativeAddress(inputToken.address), walletInteractions: wallet,
+  return client.executeSwap({
+    quote, account, walletInteractions: wallet,
   });
 }

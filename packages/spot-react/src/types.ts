@@ -10,10 +10,11 @@ import {
   type CancelOrderRequest,
   type OrderWalletInteractions,
   type PreparedOrder,
-  type SpotAnalytics,
+  type SpotClient,
   type SwapQuote,
   type Token,
 } from "@orbs-network/spot-ui";
+import type { SpotAnalytics } from "@orbs-network/spot-ui/internal";
 import type { ComponentType, ReactNode } from "react";
 export enum ExecutionStatus {
   LOADING = 1,
@@ -166,7 +167,7 @@ export interface SpotProps {
   disableAnalytics?: boolean;
   inputToken?: Token;
   outputToken?: Token;
-  /** Host-owned chain metadata; may be undefined only before a chain is known. */
+  /** Host-owned chain metadata used to normalize native input for order execution. */
   wrappedNativeToken: Token | undefined;
   /** Raw input-token balance; undefined represents a disconnected/loading state. */
   inputBalanceRaw: string | undefined;
@@ -209,6 +210,8 @@ export type SwapExecution = {
   phase: ExecutionPhase;
   account?: Address;
   partner?: Partners;
+  /** Original client retained for read-only settlement recovery after wallet changes. */
+  client?: SpotClient;
   /** Captured order service for wallet-independent settlement and recovery. */
   apiUrl?: string;
   /** Reporter captured for this attempt, retained for wallet-independent status recovery. */

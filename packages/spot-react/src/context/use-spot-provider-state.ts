@@ -1,8 +1,4 @@
-import {
-  eqIgnoreCase,
-  isNativeAddress,
-  toAmountRaw,
-} from "@orbs-network/spot-ui";
+import { eqIgnoreCase, isNativeAddress, toAmountRaw } from "@orbs-network/spot-ui/internal";
 import { useMemo } from "react";
 import type { MarketQuote, SpotProps } from "../types";
 import {

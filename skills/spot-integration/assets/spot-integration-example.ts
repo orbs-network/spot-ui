@@ -1,12 +1,8 @@
 import {
-  Module,
   calculateOrder,
-  executeOrder,
-  waitForOrder,
   createClient,
   getQuote,
-  isNativeAddress,
-  isTxRejected,
+  Module,
   type CalculateOrderFormParams,
   type CalculatedOrderForm,
   type CancelOrderRequest,
@@ -26,12 +22,14 @@ export interface SpotWalletPort extends OrderWalletInteractions {
 export interface SpotIntegrationOptions {
   partner: Partners;
   chainId: number;
-  wrappedNativeToken?: Token;
   wallet: SpotWalletPort;
 }
 
 export interface SubmitSpotOrderParams {
   form: CalculatedOrderForm;
+  /** Original reviewed SDK quote, required for SWAP forms. */
+  quote?: SwapQuote;
+  /** Protocol ERC-20 input; normalize a native selection to the configured wrapped token. */
   inputToken: Token;
   outputToken: Token;
   account: string;
@@ -41,8 +39,8 @@ export interface SubmitSpotOrderParams {
 
 export interface SubmittedSpotOrder {
   order: Order;
-  approvalTxHash?: `0x${string}`;
   wrapTxHash?: `0x${string}`;
+  approvalTxHash?: `0x${string}`;
 }
 
 export class SpotIntegration {
@@ -106,35 +104,34 @@ export class SpotIntegration {
       params.signal?.throwIfAborted();
       const client = await this.getClient();
       params.signal?.throwIfAborted();
-      const isNativeInput = isNativeAddress(params.inputToken.address);
-      const orderInputToken = isNativeInput
-        ? this.options.wrappedNativeToken
-        : params.inputToken;
-      if (!orderInputToken) {
-        throw new Error(
-          "The host must provide the connected chain's wrapped-native token",
-        );
-      }
 
-      const result = await executeOrder({
-        client, account: params.account,
-        inputTokenAddress: orderInputToken.address, inputAmountRaw: params.form.inputAmount.raw,
-        nativeInput: isNativeInput, walletInteractions: this.options.wallet,
-        signal: params.signal,
-        prepareOrder: () => client.prepareOrder({
-          form: params.form, inputTokenAddress: orderInputToken.address,
-          outputTokenAddress: params.outputToken.address, swapperAddress: params.account,
-        }),
-      });
-      const completedOrder = params.form.module === Module.SWAP
-        ? await waitForOrder({ order: result.order, signal: params.signal })
-        : result.order;
-      return { order: completedOrder, approvalTxHash: result.approvalTxHash as `0x${string}` | undefined, wrapTxHash: result.wrapTxHash as `0x${string}` | undefined };
-    } catch (error: unknown) {
-      if (isTxRejected(error)) {
-        throw new Error("The wallet request was rejected");
+      const quote = params.quote;
+      if (params.form.module === Module.SWAP) {
+        if (!quote?.request) throw new Error("The original reviewed swap quote is required");
+        if (quote.request.inToken.toLowerCase() !== params.inputToken.address.toLowerCase() ||
+          quote.request.outToken.toLowerCase() !== params.outputToken.address.toLowerCase() ||
+          BigInt(quote.request.inAmount) !== BigInt(params.form.inputAmount.raw) ||
+          BigInt(quote.netAmountOut) !== BigInt(params.form.outputAmount.raw) ||
+          BigInt(quote.minimumAmountOut) !== BigInt(params.form.values.minOutputAmountPerTrade)) {
+          throw new Error("Swap quote does not match the reviewed form or tokens");
+        }
       }
-      throw error;
+      const walletParams = {
+        account: params.account,
+        walletInteractions: this.options.wallet, signal: params.signal,
+      };
+      const result = params.form.module === Module.SWAP && quote
+        ? await client.executeSwap({ ...walletParams, quote })
+        : await client.executeOrder({
+            ...walletParams, form: params.form,
+            inputTokenAddress: params.inputToken.address,
+            outputTokenAddress: params.outputToken.address,
+          });
+      return {
+        order: result.order,
+        wrapTxHash: result.wrapTxHash as `0x${string}` | undefined,
+        approvalTxHash: result.approvalTxHash as `0x${string}` | undefined,
+      };
     } finally {
       this.isSubmitting = false;
     }
@@ -145,7 +142,8 @@ export class SpotIntegration {
     signal?: AbortSignal,
   ): Promise<Order[]> {
     const client = await this.getClient();
-    return client.getAccountOrders({ account, signal });
+    const { orders } = await client.getAccountOrders({ account, signal });
+    return orders;
   }
 
   public async cancelOrder(order: Order): Promise<`0x${string}`> {

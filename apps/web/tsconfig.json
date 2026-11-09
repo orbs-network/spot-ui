@@ -22,6 +22,7 @@
     "paths": {
       "@/*": ["./*"],
       "@orbs-network/spot-ui": ["../../packages/spot-ui/src/index.ts"],
+      "@orbs-network/spot-ui/internal": ["../../packages/spot-ui/src/internal.ts"],
       "@orbs-network/spot-react": ["../../packages/spot-react/src/index.ts"]
     }
   },

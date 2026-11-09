@@ -1,9 +1,33 @@
 "use client";
 
-import { setUIVersion } from "@orbs-network/spot-ui";
+import { setUIVersion } from "@orbs-network/spot-ui/internal";
 import pkg from "../package.json";
 import { SpotProvider } from "./context/spot-provider";
-export * from "./types";
+export {
+  ExecutionStatus,
+  ExecutionPhase,
+  Disclaimer,
+  Steps,
+  type Order,
+  type Token,
+  type OrderFill,
+  type CancelOrderProps,
+  type ApproveTokenProps,
+  type WalletInteractions,
+  type GetAllowanceProps,
+  type InitialState,
+  type Overrides,
+  type OnApproveSuccessCallback,
+  type OnWrapSuccessCallback,
+  type OnCancelOrderSuccess,
+  type ParsedError,
+  type ObserverResult,
+  type Callbacks,
+  type MarketQuote,
+  type ClientErrorFallbackProps,
+  type SpotErrorFallbackProps,
+  type SpotProps,
+} from "./types";
 export { useOrderForm } from "./context/order-form-context";
 export { useClient } from "./context/use-client";
 export { useAmountUi } from "./hooks/helper-hooks";
@@ -37,8 +61,6 @@ export {
   type SpotClient,
   type CreateClientOptions,
   type SubmitOrderOptions,
-  type SpotAnalytics,
-  type AnalyticsContext,
   type AccountOrdersResult,
   type GetOrdersParams,
   type QuoteErrorKind,
@@ -46,16 +68,13 @@ export {
   type SwapQuoteParams,
   type PrepareSwapParams,
   type PreparedSwap,
-  type SubmitSwapParams,
-  type SubmittedSwap,
+  type ExecuteSwapParams,
+  type CompletedSwap,
   type SwapTradeType,
   type ExecuteOrderParams,
-  type OrderExecutionUpdate,
-  type OrderExecutionPhase,
-  type OrderExecutionStep,
+  type ExecutedOrder,
+  type ResumeOrderParams,
   type OrderWalletInteractions,
-  type SignableOrder,
-  type WaitForOrderParams,
   type PrepareOrderParams,
   type PreparedOrder,
   type PreparedOrderValues,
@@ -67,7 +86,6 @@ export {
   type ClientGetAccountOrdersParams,
   type ClientGetOrderParams,
   type ClientGetQuoteParams,
-  type RefreshAndPrepareSwapParams,
   type SpotErrorCode,
   type SpotErrorOptions,
   type Signature,
@@ -104,25 +122,15 @@ export {
   getQuote,
   isQuoteFresh,
   isSwapSupported,
-  submitSwap,
-  executeOrder,
-  waitForOrder,
-  watchOrder,
   getOrders,
-  getTwapConfig,
   calculateOrder,
   calculateOrderForm,
-  toAmountRaw,
-  toAmountUI,
   invertPriceInput,
   createClient,
-  isNativeAddress,
-  eqIgnoreCase,
   getOrderExecutionRate,
   getOrderLimitPriceRate,
   getOrderFillDelayMillis,
   getTriggerPriceRate,
-  isTxRejected,
 
   // Errors
   QuoteError,
@@ -130,16 +138,11 @@ export {
   OrderSettlementError,
 
   // Constants
-  SWAP_CAPABILITIES,
   DISCLAIMER_URL,
   ORBS_TWAP_FAQ_URL,
   ORBS_SLTP_FAQ_URL,
   ORBS_LOGO,
   ORBS_WEBSITE_URL,
-  // Analytics
-  analytics,
-  createAnalytics,
-  setUIVersion,
 } from "@orbs-network/spot-ui";
 
 export { SpotProvider };

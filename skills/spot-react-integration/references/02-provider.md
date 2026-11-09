@@ -134,6 +134,8 @@ const marketQuote = useMemo<MarketQuote>(() => {
   inputAmountUi,
 ]);
 
+// Preserve the selected native/ERC-20 token for display. Native execution uses
+// wrappedNativeToken and the shouldWrap/wrapNativeToken wallet callbacks.
 const inputToken = useMemo((): Token | undefined => {
   if (!inputCurrency) return undefined;
   return {
@@ -155,11 +157,13 @@ const outputToken = useMemo((): Token | undefined => {
 }, [outputCurrency]);
 
 const walletInteractions = useMemo<WalletInteractions>(() => ({
-  wrapNativeToken: async (amountWei) => {
-    const txHash = await dexWallet.wrapNativeToken(amountWei);
+  shouldWrap: () => dexWallet.shouldWrap(),
+  wrapNativeToken: async (amountRaw) => {
+    const txHash = await dexWallet.wrapNativeToken(amountRaw);
     await dexWallet.waitForReceipt(txHash);
     return txHash;
   },
+  getTokenBalance: ({ tokenAddress }) => dexWallet.getTokenBalance({ tokenAddress }),
   approveToken: async ({ tokenAddress, amount, spenderAddress }) => {
     const txHash = await dexWallet.approveToken({
       tokenAddress,
@@ -188,9 +192,6 @@ const walletInteractions = useMemo<WalletInteractions>(() => ({
   getAllowance: async ({ tokenAddress, spenderAddress }) => {
     return dexWallet.getAllowance({ tokenAddress, spenderAddress });
   },
-  getTokenBalance: async ({ tokenAddress }) => {
-    return dexWallet.getTokenBalance({ tokenAddress });
-  },
 }), [dexWallet]);
 
 const callbacks = useMemo<Callbacks>(() => ({
@@ -207,15 +208,9 @@ const callbacks = useMemo<Callbacks>(() => ({
     refetchBalances(); // refetch balances when order progress changes
   },
 
-  // Wrap & approve
+  // Approval
   onWrapRequest: () => {},
-  onWrapSuccess: ({
-    txHash: _txHash,
-    amount: _amount,
-  }) => {
-    toast.success("Wrapped");
-    refetchBalances(); // refetch balances after wrap
-  },
+  onWrapSuccess: ({ txHash, amount }) => {},
   onApproveRequest: () => {},
   onApproveSuccess: ({
     txHash: _txHash,
@@ -293,7 +288,7 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 | `account` | `Address` | No | Connected wallet address |
 | `inputToken` | `Token` | No | `{ address, symbol, decimals, logoUrl? }` |
 | `outputToken` | `Token` | No | `{ address, symbol, decimals, logoUrl? }` |
-| `wrappedNativeToken` | `Token \| undefined` | Yes | Host-provided wrapped-native token; pass `undefined` only before a chain is known |
+| `wrappedNativeToken` | `Token \| undefined` | Yes | Host metadata for native input normalization and native/wrapped pair detection |
 | `inputBalanceRaw` | `string \| undefined` | Yes | Raw input-token balance; `undefined` while disconnected/loading/unavailable, with read errors shown by the host |
 | `inputTokenUsdPrice` | `string \| undefined` | Yes | USD price of 1 input token; may be `undefined` when current quote input USD supplies valuation or the price is unavailable |
 | `outputTokenUsdPrice` | `string` | No | USD price of 1 output token |
@@ -307,22 +302,26 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 ## WalletInteractions
 
 `spot-react` is wallet-library agnostic. The DEX must pass a `walletInteractions`
-object that adapts its existing wallet stack to five required methods and an
-optional balance reader for completed-wrap retries:
+object that adapts its existing wallet stack to six required methods, plus an
+optional balance reader required for completed-wrap retries:
 
 | Method | What to do |
 | --- | --- |
-| `wrapNativeToken(amountWei)` | Deposit the native token into the chain's wrapped token contract. Wait for confirmation, throw if reverted, return the transaction hash. |
+| `shouldWrap()` | Return a boolean or promise: true wraps native input, false skips wrapping. Called once before allowance reads/writes; errors stop execution. |
+| `wrapNativeToken(amountRaw)` | Deposit native base units into the configured wrapped token, wait for a successful receipt, return its hash. |
+| `getTokenBalance({ tokenAddress })` | Optional on a first attempt; required to verify live wrapped funds before reusing a completed wrap. Return raw integer balance. |
 | `approveToken({ tokenAddress, amount, spenderAddress })` | Approve the token for `spenderAddress`. You may approve `amount` or a higher allowance according to DEX policy. Wait for confirmation, throw if reverted, return the transaction hash. |
 | `cancelOrder({ order, contractAddress, args, abi })` | Call `cancel` on `contractAddress` using the supplied `abi` and `args`. Wait for confirmation, throw if reverted, return the transaction hash. |
 | `signOrder({ signerAddress, typedData })` | Adapt the framework-neutral EIP-712 request to the host wallet and return its original `0x`-prefixed signature. |
 | `getAllowance({ tokenAddress, spenderAddress })` | Read ERC-20 allowance for the connected account and return the raw wei value as a string. |
-| `getTokenBalance({ tokenAddress })` | Optional for fresh attempts; required when reusing completed-wrap metadata. Return the captured account's current raw ERC-20 balance as a string on the captured chain. |
 
 The write methods should not return immediately after wallet submission. Wait for the transaction receipt so Spot can show correct progress and surface reverted transactions as failures.
-Before reusing a previous native wrap, the executor checks the current wrapped
-balance and wraps only a shortfall. `onWrapSuccess.amount` is the amount actually
-wrapped in that step.
+Pass the selected input and its current raw balance to `SpotProvider`, including
+native selections. For native input, supply the chain's `wrappedNativeToken` and
+implement `shouldWrap()` to return true. React normalizes the protocol
+input to that ERC-20 address; the shared runner awaits the predicate and the
+confirmed `wrapNativeToken` result before signing. ERC-20 selections should return
+false. The host still owns balance and gas-fund policy.
 
 `typedData` contains the standard EIP-712 `domain`, `types`, `primaryType`, and
 `message` fields. `signerAddress` is separate because signer selection is not
@@ -337,7 +336,7 @@ standard representations.
 - `inputBalanceRaw` is a required provider prop whose value is a raw integer string. Pass `undefined` while disconnected, loading, or unavailable; surface read errors in the host UI rather than replacing them with zero.
 - `inputTokenUsdPrice` is a required prop whose value may be `undefined`. A current positive input USD total from `marketQuote.quote` or the flat `marketQuote.inputAmountUsd` can satisfy valuation without a separate unit-price source. Otherwise supply a positive, finite one-token USD price; while both are unavailable, the calculated form remains unready. `outputTokenUsdPrice` is optional for display; preserve available quote output/minimum USD totals as well.
 - Get `chainId` from the connected account/wallet hook wherever Spot needs chain identity. Avoid mixing router, quote, and account chain sources.
-- Always pass the `wrappedNativeToken` prop from the DEX's chain configuration. Its value may be `undefined` only before a chain is known; Spot does not maintain a network registry or infer this token.
+- Pass `wrappedNativeToken` from the DEX's chain configuration for native input normalization and pair detection. Return true from `shouldWrap` for native selections, and implement confirmed wrapping in `wrapNativeToken`.
 - `chainId` and `account` may be missing while disconnected. Keep the form rendered; only swap the submit area to the DEX's connect-wallet or switch-network control.
 - When `chainId` is missing or unsupported, `SpotProvider` does not initialize a client and submission remains disabled. The DEX UI should show its connect/switch-network control.
 - `spot-ui` initializes a client internally using `partner` and the connected supported `chainId`. Do not add a separate configuration fetch or pass the response through DEX context.
@@ -384,7 +383,7 @@ const onClose = useCallback(() => {
 }, [canDismiss, isSuccess, isUnconfirmed, returnToOrderForm, setInputAmount, startNewOrder, status]);
 ```
 
-- `returnToOrderForm()` — dismisses a definitive failure/rejection while preserving the form and completed-wrap metadata for retry; active and unconfirmed executions reject the reset
+- `returnToOrderForm()` — dismisses a definitive failure/rejection while preserving the form for retry; active and unconfirmed executions reject the reset
 - `startNewOrder()` — resets Spot's internal form and retry state after a confirmed terminal outcome; active and unconfirmed executions reject the reset
 - `setInputAmount("")` — only clear the DEX input when the order was successful
 - Delay resets briefly so the close animation can finish before state changes
@@ -420,8 +419,8 @@ codes or numeric wallet codes, with `0` as fallback; optional `reason`, `orderId
 HTTP `status`, and `serviceCode` preserve classification details.
 
 Before wallet writes, swap execution captures the original quote and checks it
-against the reviewed form/client/pair/input. After wrapping/approval it calls
-`client.refreshAndPrepareSwap({ quote, account, signal })`. It checks age
+against the reviewed form/client/pair/input. After confirmed approval it calls
+`await client.prepareSwap({ quote, account, signal })`. It checks age
 internally, reusing quotes up to 20 seconds old or replaying the same request.
 A lower refreshed `minimumAmountOut` rejects with `QUOTE_MINIMUM_DECREASED`.
 Both paths retain the original signed minimum and prepare fresh timestamps/nonce;
@@ -434,7 +433,7 @@ with no automatic POST retry.
 ## Balance Refetch
 
 Balance refetching is handled via callbacks, not a prop. Wire `refetchBalances` into:
-- `onWrapSuccess` — after token wrap completes
+- `onWrapSuccess` — after native wrapping confirms; keep the native selection stable during execution
 - `onOrderCreated` — after the order is accepted by the order sink
 - `onOrderFilled` — after an observed order reaches completed status
 - `onOrdersProgressUpdate` — when one or more observed orders change fill progress

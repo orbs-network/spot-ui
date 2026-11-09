@@ -26,6 +26,7 @@ export default defineConfig({
       // external so their implementations are not copied into this bundle.
       external: [
         '@orbs-network/spot-ui',
+        '@orbs-network/spot-ui/internal',
         'react',
         'react/jsx-runtime',
         /^zustand(?:\/.*)?$/,
@@ -36,6 +37,7 @@ export default defineConfig({
           react: 'React',
           'react/jsx-runtime': 'jsxRuntime',
           '@orbs-network/spot-ui': 'SpotUI',
+          '@orbs-network/spot-ui/internal': 'SpotUIInternal',
           zustand: 'Zustand',
           'zustand/vanilla': 'ZustandVanilla',
         },

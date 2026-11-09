@@ -70,13 +70,18 @@ quote competition. React integrations that already install `@orbs-network/spot-r
 can import all the same SDK functions and types from it, without separately
 installing `spot-ui`. No React provider is required for these functions. `getQuote` carries request
 identity and the authoritative `minimumAmountOut`, and
-`client.refreshAndPrepareSwap` reuses quotes up to 20 seconds old, or refreshes
+`client.prepareSwap` reuses quotes up to 20 seconds old, or refreshes
 the original request and checks its minimum, before preparing raw amounts without a UI form. The DEX can
 keep its wrapping, approval, and signing flow, then post the signed order with
-`client.submitOrder`. Use `waitForOrder({ order })` for settlement tracking; the
-order contains its ID, chain, and deadline, so tracking needs no client.
-`submitSwap` remains optional for integrations wanting SDK wallet orchestration.
-Call `client.refreshAndPrepareSwap({ quote, account, signal })` immediately before signing. All swaps
+`client.submitSignedSwap(prepared, signature)`, which waits internally for the swap to fill.
+Use `client.executeSwap({ quote, account, walletInteractions })` for the default
+SDK-coordinated flow. It checks allowance, approves, prepares, signs, and submits through the
+host wallet callbacks, then waits for the fill. For calculated forms,
+`client.executeOrder` prepares from the reviewed form's amounts and minimum;
+use `client.executeSwap` when quote-age refresh is needed.
+Swap forms resolve after a fill; advanced orders resolve at acceptance. Separate preparation and signed
+submission remain available for DEX integrations that own those steps.
+Call `await client.prepareSwap({ quote, account, signal })` immediately before signing. All swaps
 have a fixed 3-minute expiration from preparation, including calculated form swaps.
 
 See the [typed router adapter](packages/spot-ui/examples/router-swap.ts) and
@@ -100,12 +105,15 @@ For `Module.SWAP`, pass the quote's `netAmountOut` as
 retains the request for an exact refresh when needed before signing. Missing or invalid quotes block submission.
 Do not apply slippage again to the returned minimum.
 The form creates one limit order with that exact minimum and a
-fixed 3-minute expiration. Native input is wrapped before approval; signing,
-submission, history, and cancellation use the existing Spot flow.
+fixed 3-minute expiration. Protocol input uses the configured wrapped ERC-20
+address for a native selection. SDK-managed execution awaits the host's required
+`shouldWrap()` boolean decision and confirms `wrapNativeToken` when true.
+React normalizes native input using `wrappedNativeToken`; users can review first.
+Signing, submission, history, and cancellation use the existing Spot flow.
 The demo pauses quote requests during execution, including settlement, and
 resumes quoting after execution finishes.
-The Swap panel polls only the submitted order ID (`/orders?hash=...`) every two
-seconds and shows success only after that order is filled. Its polling updates
+The SDK polls only the submitted order ID (`/orders?hash=...`) every two
+seconds and shows success only after that order is filled. Its execution updates
 only that order in the local cache and is independent of account-history polling.
 Expired or cancelled orders show an error. Temporary lookup failures are retried;
 if confirmation remains unavailable past the order

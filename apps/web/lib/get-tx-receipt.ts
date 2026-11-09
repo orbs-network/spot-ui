@@ -8,12 +8,14 @@ export const getTxReceipt = async (chainId: number, hash: `0x${string}`) => {
 
   while (attempt < maxRetries) {
     try {
+      let replacementReason: "repriced" | "cancelled" | "replaced" | undefined;
       const receipt = await publicClient.waitForTransactionReceipt({
         hash,
         confirmations: 2,
         retryDelay: delay,
+        onReplaced: ({ reason }) => { replacementReason = reason; },
       });
-      return receipt;
+      return { ...receipt, replacementReason };
     } catch (error) {
       attempt++;
       if (attempt >= maxRetries) {

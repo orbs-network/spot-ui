@@ -19,11 +19,6 @@ export {
   type Token,
 } from "./lib/types";
 
-export {
-  toAmountRaw,
-  toAmountUI,
-} from "./lib/order-form/amounts";
-
 export { invertPriceInput } from "./lib/order-form/prices";
 
 export type {
@@ -56,6 +51,9 @@ export {
   type SubmitOrderOptions,
   type SpotClient,
   type PrepareOrderParams,
+  type ExecuteOrderParams,
+  type ExecutedOrder,
+  type ResumeOrderParams,
   type Eip712TypedData,
   type OrderSigningRequest,
   type ApprovalRequest,
@@ -66,12 +64,10 @@ export {
   type ClientGetAccountOrdersParams,
   type ClientGetOrderParams,
   type ClientGetQuoteParams,
-  type RefreshAndPrepareSwapParams,
+  type PrepareSwapParams,
 } from "./lib/client";
 
 export { SpotError, type SpotErrorCode, type SpotErrorOptions } from "./lib/errors";
-
-export { getTwapConfig } from "./lib/orders/legacy-twap-config";
 
 export {
   DISCLAIMER_URL,
@@ -83,20 +79,15 @@ export {
 
 export { getOrders, type GetOrdersParams, type AccountOrdersResult } from "./lib/orders";
 
-export { analytics, createAnalytics, setUIVersion, type AnalyticsContext, type SpotAnalytics } from "./lib/analytics";
-
 export {
-  isNativeAddress,
-  eqIgnoreCase,
   getOrderFillDelayMillis,
   getOrderExecutionRate,
   getOrderLimitPriceRate,
   getTriggerPriceRate,
-  isTxRejected,
 } from "./lib/utils";
 
 export { getQuote, isQuoteFresh, QuoteError, type QuoteErrorKind, type SwapQuote, type SwapQuoteParams } from "./lib/quote";
 
-export { SWAP_CAPABILITIES, isSwapSupported, submitSwap, type PrepareSwapParams, type PreparedSwap, type SubmitSwapParams, type SubmittedSwap, type SwapTradeType } from "./lib/swap";
-export { executeOrder, type ExecuteOrderParams, type OrderExecutionUpdate, type OrderExecutionPhase, type OrderExecutionStep, type OrderWalletInteractions, type SignableOrder } from "./lib/execute-order";
-export { waitForOrder, watchOrder, OrderSettlementError, type WaitForOrderParams } from "./lib/wait-for-order";
+export { isSwapSupported, type PreparedSwap, type ExecuteSwapParams, type CompletedSwap, type SwapTradeType } from "./lib/swap";
+export { type OrderWalletInteractions } from "./lib/execute-order";
+export { OrderSettlementError } from "./lib/order-settlement-error";

@@ -23,8 +23,8 @@ guide take precedence for an already installed SDK.
 | I'm building… | Use… |
 | --- | --- |
 | A React order form | `spot-react`: `SpotProvider` with `Module.SWAP` or an advanced module, then `useExecution()` |
-| A DEX router with an existing wallet flow | `client.getQuote` → `client.refreshAndPrepareSwap` → DEX signing → `client.submitOrder` → `waitForOrder` |
-| A custom flow that needs SDK wallet orchestration | `submitSwap` for swaps; `calculateOrder` + `executeOrder` with `client.prepareOrder` for advanced orders |
+| SDK wallet orchestration | `client.executeSwap` for quotes; `calculateOrder` + `client.executeOrder` for calculated forms |
+| A DEX router that controls wallet steps | `client.getQuote` → `client.prepareSwap` → DEX signing → `client.submitSignedSwap`; submission waits for the fill |
 
 ```sh
 npm install @orbs-network/spot-ui
@@ -40,26 +40,25 @@ modern browser or Node.js 18+. Import from the package root.
 | `createClient(partner, chainId)` | Create a client with validated configuration for one partner and chain | Shares bounded `/config` requests/templates; no wallet interaction |
 | `client.getQuote(params)` | Quote using the client's partner and chain | Same quote request and result as `getQuote` |
 | `getQuote(params)` | Quote the full input amount for a swap | Fetches `/quote` directly from order-sink v2 |
-| `client.prepareSwap(quote, userAddress)` | Prepare a raw exact-input swap without UI, decimals, balances, or USD inputs | No wallet/network work |
-| `client.refreshAndPrepareSwap({ quote, account, signal?, maxQuoteAgeMillis? })` | Reuse a recent quote or refresh/check its minimum, then prepare the reviewed swap | Zero or one quote request; no wallet work |
-| `submitSwap(params)` | Wrap/approve/verify/sign/submit through the host wallet | Returns a submitted intent, not a fill |
-| `executeOrder(params)` | Shared wallet orchestration for a prepared order factory | Resolves at acceptance; host owns UI state |
-| `waitForOrder(params)` | Track a submitted order until filled or a terminal/uncertain outcome | Serial, bounded polling with cancellation |
-| `watchOrder(params)` | Stream matching order snapshots for progress/history consumers | Same tracking loop and minimal inputs as `waitForOrder` |
-| `isSwapSupported(params)` / `SWAP_CAPABILITIES` | Gate unsupported exact-output/custom-recipient requests | Synchronous |
+| `client.executeSwap({ quote, account, walletInteractions, ...options })` | Execute a reviewed quote through the host wallet and wait for its fill | Returns a completed swap intent |
+| `client.executeOrder({ form, account, inputTokenAddress, outputTokenAddress, walletInteractions, signal? })` | Execute a calculated form with internal late preparation | Swaps resolve after a fill; advanced orders resolve at acceptance |
+| `client.prepareSwap({ quote, account, signal?, maxQuoteAgeMillis? })` | Advanced: refresh/check the quote and prepare its unsigned swap | Zero or one quote request; no wallet work |
+| `client.submitSignedSwap(prepared, signature, { signal }?)` | Advanced: submit an already signed `PreparedSwap` and wait for its fill | One POST followed by bounded internal polling |
+| `isSwapSupported(params)` | Gate unsupported exact-output/custom-recipient requests | Synchronous |
 | `calculateOrder(params)` | Calculate display values, validation, and execution amounts | Synchronous; no requests |
 | `client.prepareOrder(params)` | Build a fresh order and its signing/approval requests from a valid form | No requests; stamps timestamps and nonce |
-| `client.submitOrder(order, signature, { signal }?)` | Submit an already signed order | One POST with a fixed 30-second fetch/body timeout; resolves at acceptance |
+| `client.submitSignedOrder(order, signature, { signal }?)` | Submit an already signed order | Swaps resolve after a fill; advanced orders resolve at acceptance |
+| `client.executeOrder({ order, signal? })` | Resume a saved order without wallet work or another submission | Swaps resume bounded settlement polling; advanced orders return their snapshot |
 | `client.getOrder({ orderId, signal })` | Look up one v2 order by its full ID | One hash-filtered request; no automatic polling |
-| `client.getAccountOrders({ account, ... })` | Load account history on the client's partner and chain | Fetches configured history sources |
-| `client.getAccountOrdersResult(params)` | Load history with legacy-source completion information | Returns `{ orders, legacyLoaded }` |
+| `client.getAccountOrders({ account, ... })` | Load account history on the client's partner and chain | Returns `{ orders, legacyLoaded }` from configured history sources |
 | `client.getCancelOrderRequest(order)` | Build the cancellation contract call | Host sends and confirms the transaction |
 | `getOrders(filters)` | Search history without initializing a client | Filters can span accounts, chains, and exchanges |
 
 The SDK owns protocol configuration and order calculations. The host owns token
 metadata, wrapped native tokens, balances, USD prices, form state, wallet
-operations, client caching, and polling lifecycles. Use `waitForOrder` for bounded
-swap settlement tracking. Keep one current form model for both review and signing.
+operations, client caching, and polling lifecycles. Client execution and signed
+submission include bounded swap settlement tracking. Keep one current form model
+for both review and signing.
 
 `calculateOrderForm` remains available as a deprecated alias of `calculateOrder`
 for existing integrations.
@@ -73,7 +72,113 @@ client resource lifetime and invalidation.
 Clients use the production v2 service regardless of page URL parameters. To use
 a trusted alternative, pass `{ apiUrl: "https://order-sink-dev.orbs.network" }`
 to `createClient`. The endpoint stays fixed for that client's lifetime. Pass
-`apiUrl: client.apiUrl` to standalone tracking or history calls for that service.
+`apiUrl: client.apiUrl` to standalone history calls for that service.
+
+## Client wallet orchestration
+
+Use `client.executeSwap` as the default flow for a reviewed quote:
+
+```ts
+const completed = await client.executeSwap({
+  quote,
+  account,
+  walletInteractions,
+  signal,
+});
+// completed.order is filled; completed.status is "completed".
+```
+
+For a reviewed calculated form, use `client.executeOrder`:
+
+```ts
+const result = await client.executeOrder({
+  form,
+  account,
+  inputTokenAddress,
+  outputTokenAddress,
+  walletInteractions,
+  signal,
+});
+```
+
+Its `ExecuteOrderParams` options take the form, account, token addresses, and
+wallet adapter, with optional `signal`. Execution prepares from
+the reviewed form's amounts and protected minimum. It does not accept a quote or
+refresh quote age; use `client.executeSwap({ quote, ... })` for the quote-aware
+flow. Swap execution resolves after a confirmed fill. Limit, TWAP, and other
+advanced orders resolve when the service accepts them, since their fills may take
+much longer.
+
+The result includes `order`, `preparedOrder`, and optional
+`approvalTxHash`. `signal` stops later wallet steps or settlement
+tracking without cancelling an accepted order. Retain `OrderSettlementError.order`
+and `orderId` when settlement becomes uncertain. React's provider keeps wallet
+progress, accepted snapshots, and live-context checks in its internal execution
+path; use its execution hooks for progress UI.
+
+The client supplies its partner, chain, endpoint, and shared account execution
+lock. Both execution methods use the same internal wallet runner and settlement
+poller. The required `walletInteractions.shouldWrap()` callback is called
+once before allowance reads or writes and may return a boolean or promise. True
+requests confirmed wrapping through `wrapNativeToken`; false skips it. Errors,
+missing callbacks, and non-boolean results stop execution. Allowance is verified
+with bounded retries, and signing follows fresh preparation. Protocol input
+addresses and quotes must use the actual wrapped ERC-20 token for native input.
+React handles that normalization using the host's `wrappedNativeToken` metadata.
+The host still owns balance/minimum-trade policy and keeps uncertain submissions
+locked until they are reconciled.
+
+All swaps expire three minutes after final preparation, immediately before
+signing. `client.executeSwap` uses `prepareSwap` at that point with its default
+20-second quote reuse window. A lower refreshed `minimumAmountOut` rejects with
+`QUOTE_MINIMUM_DECREASED`; an equal or higher minimum preserves the original
+reviewed quote and signed minimum. React's provider uses the same quote-aware
+helper for its calculated swap forms; public form-only `executeOrder` signs the
+form's reviewed minimum directly.
+Pause host quote updates while the reviewed attempt is executing.
+
+`client.executeSwap` returns a `CompletedSwap`:
+`{ type: "intent", status: "completed", orderId, order, deadlineMillis,
+wrapTxHash?, approvalTxHash? }`. Its order is filled. `deadlineMillis` equals the
+protocol-rounded `order.deadline` in Unix milliseconds. `type: "intent"` lets
+routers distinguish signed-order execution from transaction-hash routes. Keep
+confirmed wallet transaction hashes in host state; the SDK does not invent one
+for an intent.
+
+`client.submitSignedSwap` submits an already signed prepared swap and waits for
+its fill, returning the completed `Order`. `client.submitSignedOrder` also waits
+for swaps, while returning accepted advanced orders. All four client methods use
+one settlement flow; there is no public polling helper or second React poller.
+
+The internal poller reads the submitted order serially, normally every two
+seconds, bounded by `order.deadline` plus 60 seconds for indexing. Missing
+snapshots or request failures back off at 2, 4, 8, 16, then 30 seconds; a matching
+snapshot resets the delay. `OrderSettlementError.reason` is `cancelled`, `expired`,
+`aborted`, or `unconfirmed`. Its `orderId` and optional `order` retain the accepted
+or latest snapshot for recovery. Aborted/unconfirmed tracking does not prove the
+order failed; never submit a replacement or DEX fallback automatically.
+
+Resume a saved order through the same client without signing or submitting again:
+
+```ts
+const completed = await client.executeOrder({
+  order: savedOrder,
+  signal,
+});
+```
+
+This overload performs only read-only status tracking for swaps and returns an
+advanced order snapshot directly. Keep the client and accepted order at app/store
+scope when settlement must outlive closing a modal.
+If the original deadline-plus-60-second tracking window has already passed,
+recovery allows a fresh lookup window of up to 30 seconds. It does not change the
+signed order deadline. React sends a saved accepted order directly to this
+overload; only unknown acceptance requires history discovery first.
+
+Capabilities currently declare exact input and signer-as-recipient only. Gate
+exact-output or alternate-recipient trades with `isSwapSupported` before wallet
+work. Swap preparation and execution derive the pair, raw input, and protected
+minimum from the reviewed quote; `account` supplies signer and recipient.
 
 ## Existing DEX routers: use the SDK directly
 
@@ -82,29 +187,24 @@ A DEX can add Spot as one candidate in its existing quote competition without a
 and modal. Compare like-for-like protected minima for the same raw input, token
 pair, chain, and account, retaining the DEX's gas/fee ranking policy.
 
-For existing DEX wallet flows, prefer `client.refreshAndPrepareSwap` → DEX signing →
-`client.submitOrder`. No `walletInteractions` object is required.
+For existing DEX wallet flows, prefer `client.prepareSwap` → DEX signing →
+`client.submitSignedSwap`. No `walletInteractions` object is required.
 
 ```ts
-import { waitForOrder } from "@orbs-network/spot-ui";
 // React hosts can import the same APIs from @orbs-network/spot-react instead.
 
 // The DEX completes native wrapping if needed, then confirms ERC-20 approval
 // for quote.request.inToken/inAmount to client.spenderAddress.
 // Keep the reviewed route frozen and check the current account/chain/balance.
-const prepared = await client.refreshAndPrepareSwap({
+const prepared = await client.prepareSwap({
   quote,
   account,
   signal: settlementController.signal,
 });
 const signature = await dexWallet.signOrder(prepared.signingRequest);
 // Recheck the active context before submitting. Do not reprepare after signing.
-const order = await client.submitOrder(prepared.order, signature, { signal: settlementController.signal });
-// Persist the returned order in the app-level intent tracker.
-const filled = await waitForOrder({
-  order,
-  signal: settlementController.signal,
-});
+const order = await client.submitSignedSwap(prepared, signature, { signal: settlementController.signal });
+// The returned order is filled; settlement was tracked internally.
 ```
 
 `dexWallet.signOrder` above represents the DEX's existing EIP-712 signing code;
@@ -112,13 +212,13 @@ pass the returned `signerAddress` and `typedData` to that wallet. Forward the
 original signature unchanged. Prepare after wrapping and confirmed approval,
 immediately before signing, so start/deadline/nonce are fresh.
 `prepared.approvalRequest` also exposes the configured token, amount, and spender.
-`refreshAndPrepareSwap` uses `account` for the signer and recipient, and signs the
+`prepareSwap` uses `account` for the signer and recipient, and signs the
 original quote's authoritative `minimumAmountOut`. Display that exact value in review;
 the service has already applied the requested slippage. Pass it unchanged and
 do not apply slippage a second time.
 `quote.request.user` records the quote request and may be a disconnected preview
 address; it does not bind the signing account.
-`refreshAndPrepareSwap` checks quote age internally. By default, a quote up to
+`prepareSwap` checks quote age internally. By default, a quote up to
 20,000 ms old skips the HTTP request; an older quote, a future timestamp, or an
 invalid timestamp triggers a refresh. Direct callers can set the finite,
 non-negative `maxQuoteAgeMillis` option; `0` always forces a refresh. Callers do
@@ -136,7 +236,7 @@ not a server expiry or execution guarantee; the signed minimum stays protected.
 
 ```ts
 // Force a refresh even when the reviewed quote was just received.
-const prepared = await client.refreshAndPrepareSwap({
+const prepared = await client.prepareSwap({
   quote,
   account,
   signal,
@@ -144,13 +244,18 @@ const prepared = await client.refreshAndPrepareSwap({
 });
 ```
 
-The synchronous `client.prepareSwap(quote, userAddress)` remains available for
-pure local preparation; it performs no refresh or price check. `submitOrder`
-only posts the signed order and returns the accepted order. Neither method
-performs wallet operations or starts polling.
+`prepareSwap` is asynchronous and accepts a `PrepareSwapParams` object.
+The old synchronous positional signature is removed.
+`client.submitSignedSwap(prepared, signature, options?)` accepts the complete `PreparedSwap`
+returned by preparation and the original wallet signature. It forwards `prepared.order`
+to the same submission flow without preparing or signing again. It returns the
+completed `Order` after internal settlement tracking. `client.submitSignedOrder`
+also waits for swaps; advanced orders return at acceptance. Neither signed
+submission method performs wallet operations.
 
-`submitOrder` accepts an optional `{ signal }` and has a fixed 30-second timeout
-covering both the POST and response-body read. A pre-aborted signal prevents the
+Both submission methods accept an optional `{ signal }`. Their submission request
+has a fixed 30-second timeout covering the POST and response-body read; swap
+settlement then uses its separate deadline-based bound. A pre-aborted signal prevents the
 POST. An abort or timeout after sending leaves acceptance uncertain; reconcile
 the signed order before another submission. The SDK never retries this POST automatically.
 
@@ -168,76 +273,21 @@ accepted order ID even if the form unmounts. Pause/cancel quote requests while
 executing and preserve the reviewed minimum. Raw protocol preparation needs no
 USD prices; form integrations can retain `calculateOrder` for display/validation.
 
-### Optional wallet orchestration
-
-Use `submitSwap({ client, quote, userAddress: account, walletInteractions, ... })` when the host wants the SDK to coordinate wallet
-steps. It reuses the executor used by `spot-react`: confirmed native wrapping,
-allowance checks, confirmed approval, up to three allowance reads, late preparation,
-unchanged signature forwarding, and one submission. The DEX still implements
-wallet callbacks. Quotes name the wrapped ERC-20 input token; `nativeInput: true`
-opts into wrapping. `completedWrapTxHash` is retry metadata for an already
-confirmed wrap of this exact account/chain/token/amount.
-Reusing it requires the otherwise optional
-`walletInteractions.getTokenBalance({ tokenAddress })`, returning the captured
-account's current wrapped-token balance as a raw integer string. The executor
-checks that balance and wraps only a shortfall; progress updates expose the
-actual wrapped base-unit amount as `wrapAmountRaw`.
-The fixed 3-minute window starts at final preparation after wrapping and approval,
-immediately before signing.
-`submitSwap` uses `refreshAndPrepareSwap` at that point with its default 20-second
-reuse window. If a refresh is needed, `minimumAmountOut` below the reviewed minimum
-rejects with `QUOTE_MINIMUM_DECREASED`; an equal or higher minimum keeps the
-original quote and signed minimum. React's calculated-form executor
-uses the same `refreshAndPrepareSwap` helper, attaching its reviewed form to the
-returned prepared swap. The host's paused quote UI remains frozen during this check.
-
-Progress updates include `phase`, `event`, `steps`, `stepIndex`, transaction hashes,
-and the prepared payload. Observers are best-effort; use `signal` and
-`validateContext` to stop obsolete work before the next wallet request/submission.
-The executor prevents concurrent wallet submissions per client/account. The host
-owns the longer lock/loading state through settlement. `SpotProvider` continues
-to use this shared orchestration for its form lifecycle.
-
-`submitSwap` returns `{ type: "intent", status: "submitted", orderId, order,
-deadlineMillis, wrapTxHash?, approvalTxHash? }`. `deadlineMillis` equals the accepted
-`order.deadline`, including protocol rounding to seconds. For DEX-controlled
-submission, build equivalent intent metadata from the returned `order.id` and
-`order.deadline`, retaining confirmed transaction hashes in the host's state.
-Neither path invents a transaction hash or reports a fill at acceptance.
-`type: "intent"` lets a router distinguish this signed-order route from routes
-that return an on-chain transaction hash. `status: "submitted"` records acceptance,
-so this result cannot be mistaken for settlement success. These fields remain
-constant because `SubmittedSwap` describes that specific lifecycle stage.
-If the DEX calls this identifier `intentId`, assign `orderId` to that existing field;
-otherwise retain `orderId`. Build display summaries in the host.
-
-`waitForOrder({ order })` requires only the submitted order. No initialized client
-or configuration request is needed. It derives the lookup identity from `order.id`
-and `order.chainId`, and the expiration from `order.deadline`
-(milliseconds), polls serially with a two-second normal delay, and stops at that
-deadline plus 60 seconds for indexing. Errors or missing snapshots back off at
-2, 4, 8, 16, then 30 seconds; a matching snapshot resets the delay to two seconds.
-`signal` is optional for cancellation.
-The promise resolves with the completed order. Progress/history consumers can
-iterate `watchOrder({ order, signal })` with `for await`; React uses that same
-stream to update its cache, with no second polling loop. `OrderSettlementError.reason` is
-`cancelled`, `expired`, `aborted`, or `unconfirmed`; the last two are not proof that
-the on-chain order failed. Never execute a DEX fallback automatically after a
-signed order might have been accepted.
-
-Capabilities currently declare exact input and signer-as-recipient only. Gate
-exact-output or alternate-recipient trades with `isSwapSupported` before wallet
-work. Both preparation methods and the optional `submitSwap` derive their exact-input,
-token, amount, and protected-minimum inputs from the quote, and use the explicit
-execution account as signer and recipient.
-
 ### Migrating to quote-based preparation
 
-Use `await client.refreshAndPrepareSwap({ quote, account, signal })` to handle
-quote freshness and validate a refreshed minimum before local preparation.
-`client.prepareSwap(quote, userAddress)` remains synchronous and takes the quote
-and execution account positionally. `submitSwap` accepts `quote` and `userAddress`
-in its options object and performs the same refresh check internally.
+Use `await client.prepareSwap({ quote, account, signal })` to handle
+quote freshness, validate a refreshed minimum, and prepare the reviewed order.
+Replace positional `client.prepareSwap(quote, userAddress)` calls with this
+object-based async call, and await the result before reading the signing request.
+After signing, use `client.submitSignedSwap(prepared, signature, { signal })` to submit
+that exact prepared swap. Use `client.submitSignedOrder(order, signature, { signal })`
+for signed generic and advanced orders.
+Prefer `client.executeSwap({ quote, account, walletInteractions, ...options })`
+for SDK wallet orchestration; it performs the same refresh check internally.
+Replace package-level execution calls with the configured client's methods.
+Remove the `client` argument, rename execution `userAddress` to `account`, and
+use `ExecuteSwapParams` for the options. Standalone execution helpers and the
+`SubmitSwapParams` compatibility type are removed.
 Remove `minimumOutputAmountRaw`, `swapperAddress`, `recipient`, and `tradeType`
 from swap execution calls. Route capability checks stay in
 `isSwapSupported`; live wallet identity checks stay in the host's wallet flow.
@@ -251,10 +301,10 @@ refetching solely to change its quote-request user.
 Quotes include a frozen `request` identity and local `receivedAt` timestamp. Match
 all request inputs before using a cached quote. `isQuoteFresh(quote, maxAgeMillis)`
 remains available for host UI/cache policy and compatibility, but
-`refreshAndPrepareSwap` already uses it internally. It checks local age, not
+`prepareSwap` already uses it internally. It checks local age, not
 server expiry or execution availability. Wallet steps never silently
 replace the reviewed minimum. The quote-request user is metadata; execution uses
-the separately supplied `userAddress` and live wallet context checks.
+the separately supplied `account` and live wallet context checks.
 
 SDK validation, configuration, and execution failures use `SpotError` with a
 stable `code`. Check `error instanceof SpotError`, then `error.code` (for example,
@@ -298,12 +348,15 @@ For a form-driven UI (the raw router path above does not require a form):
 1. Reuse a client for the selected partner and chain. Quote the current amount.
 2. Calculate the form and display its amounts and validation errors. Submit only
    when `form.canSubmit` is true.
-3. Wrap native input if necessary, check allowance, and approve the wrapped/ERC-20
-   token against `client.spenderAddress`. Wallet writes must wait for confirmation.
+3. For SDK-managed execution, provide `shouldWrap` and `wrapNativeToken` in the
+   wallet adapter. The user can review first; execution awaits the predicate,
+   confirms any wrapping, then approval to `client.spenderAddress`. For the
+   manual preparation/signing path, the host performs these steps itself.
 4. Call `prepareOrder` immediately before signing. Sign its `signingRequest` with
-   the host wallet, then pass the original signature to `submitOrder`.
-5. For swap UX, keep loading until `getOrder` returns `OrderStatus.Completed`.
-   Order acceptance alone is not swap completion.
+   the host wallet, then pass the original signature to `submitSignedOrder`.
+5. Await the execution/submission method. Swaps resolve with `OrderStatus.Completed`
+   after internal settlement; advanced orders resolve at acceptance. Do not start
+   another poller for the same operation.
 
 Disable concurrent submissions. If submission fails ambiguously, reconcile the
 order's status before creating another signed order; the service may already
@@ -370,7 +423,7 @@ quoting without initialized client configuration.
 
 For a disconnected preview, `user` remains required: pass a preview account such
 as the one above and include it in the quote cache key.
-At execution, pass the connected account as `userAddress`; the quote-request user
+At execution, pass the connected account as `account`; the quote-request user
 does not need to match it. A refetch solely to bind the signer is unnecessary.
 Use the wrapped-token address when
 quoting native input. `dexMinAmountOut` is optional,
@@ -385,12 +438,16 @@ only public SDK exports and contains two separate operations (the router example
 
 - `createSwapPreview(params)` fetches a quote and returns its calculated form.
   Supply host token metadata, the connected account, balance, USD prices, and
-  minimum trade size. Its example default `slippage: 0.5` means 0.5% for the quote
+  minimum trade size. Supply the protocol ERC-20 input address (the wrapped token
+  for a native selection), and the spendable selected-input balance. Configure
+  `wallet.shouldWrap` to return true when that balance is native funds.
+  Convert the UI input with the host's token
+  library and pass its matching integer `inputAmountRaw`. Its default `slippage: 0.5` means 0.5% for the quote
   request; the preview passes `quote.minimumAmountOut` unchanged to the form.
-- `submitReviewedSwap(preview, wallet)` wraps, checks/approves allowance, prepares
-  the order, signs, and submits. Its `SwapWallet` interface describes the four
-  methods the host adapts to its wallet library and delegates execution to `submitSwap`. It returns the accepted order
-  and its protocol-rounded expiration, before settlement.
+- `submitReviewedSwap(preview, wallet)` checks/approves allowance, prepares
+  the order, signs, and submits. Its `SwapWallet` interface includes `shouldWrap`
+  and confirmed native wrapping alongside allowance/approval/signing; these are the methods the host adapts to its wallet library and delegates execution to `client.executeSwap`. It returns the completed swap
+  and its protocol-rounded expiration after a confirmed fill.
 
 Render `preview.form` for review, then pass that same snapshot to submission.
 Refresh the preview after an amount, token, account, chain, partner, or UI
@@ -432,12 +489,11 @@ Unknown service statuses remain `Open`, even after the deadline. Service statuse
 deadline has passed, unless completion or cancellation takes precedence. Partial
 fills remain available on expired orders; elapsed time alone does not prove expiry.
 
-`client.getOrder` performs one request per call. Use `waitForOrder` for swap
-settlement: it polls serially, normally every two seconds with bounded backoff
-for errors/missing snapshots, stops at a terminal status,
-supports cancellation, and bounds confirmation at the signed `order.deadline`
-plus 60 seconds for indexing. The host owns when tracking starts and stops. If
-confirmation remains unavailable, direct the user to order history instead of
+`client.getOrder` performs one request per call. Client execution and signed
+submission track swap settlement internally with serial polling, bounded backoff,
+and confirmation bounded by the signed `order.deadline` plus 60 seconds. Resume a
+saved swap with `client.executeOrder({ order, signal })`; it does not submit again.
+If confirmation remains unavailable, direct the user to order history instead of
 claiming the swap completed.
 
 `spot-react` already manages this settlement step for `Module.SWAP`. Its
@@ -499,8 +555,9 @@ use `form.errors.primary` and `form.errors.all` to explain `canSubmit: false`.
 `form.inputAmount`, `outputAmount`, `minOutputAmountTotal`, `tradePrice`, and
 `fees` use structured amounts. `trades` contains per-trade amounts; `schedule`
 contains duration, interval, and validation. Price `raw` values are canonical
-rates, and their `display` values follow `isPriceInverted`. Use `toAmountRaw`
-and `toAmountUI` to convert with the correct token decimals.
+rates, and their `display` values follow `isPriceInverted`. Use the host's exact
+unit conversion with the correct token decimals to convert between display
+amounts and integer base-unit strings.
 
 Percentages use percentage units (`3` means 3%); `slippageBps` uses basis points
 (`300` means 3%). Time durations use `{ value, unit: TimeUnit.Minutes }` or the
@@ -522,7 +579,7 @@ subtract a fee. Protocol fee configuration belongs to the partner/backend.
 | `signingRequest` | `{ signerAddress, typedData }` for the host wallet adapter |
 | `approvalRequest` | `{ tokenAddress, amount, spenderAddress }` for the signed input |
 
-Call it after wrapping and approval, immediately before signing. It assigns a
+Call it after confirmed approval, immediately before signing. It assigns a
 monotonic nonce shared across clients in the loaded SDK instance and fresh
 start/deadline values. The deadline
 includes a one-minute margin for advanced orders; swaps use exactly 3 minutes
@@ -532,7 +589,7 @@ submissions rather than creating a new client for each operation.
 
 Return the wallet's original `0x`-prefixed signature. Do not split it into
 `{ v, r, s }`, normalize its bytes, or replace it with the quote API's payload.
-`submitOrder` sends the prepared order and signature unchanged. `spot-ui` does
+`submitSignedOrder` sends the prepared order and signature unchanged. `spot-ui` does
 not invoke a wallet itself.
 
 For cancellation, call `client.getCancelOrderRequest(order)`. Send its
@@ -543,8 +600,15 @@ confirmation. Build explorer links using host chain metadata.
 
 ## Account history and identity
 
-Use `client.getAccountOrders({ account })` for the account-history UI and
-`waitForOrder({ order })` for swap settlement. Keep these polling lifecycles
+Use `client.getAccountOrders({ account })` for the account-history UI. Swap
+settlement is handled internally by execution and signed submission. Account history returns an
+`AccountOrdersResult`; destructure its orders for the list:
+
+```ts
+const { orders, legacyLoaded } = await client.getAccountOrders({ account });
+```
+
+Keep these polling lifecycles
 separate. Use `order.historyKey` for list/cache identity: legacy numeric IDs can
 repeat across deployments. `order.id` is the protocol/display ID; only v2 IDs
 are supported by `getOrder`.
@@ -559,8 +623,11 @@ default, including the client's configured Spot adapter alongside the partner's
 legacy adapters. `Partners.Quick` maps to the history service's `quickswap` key.
 `getv1orders: false` limits it to order-sink v2. Separately,
 `legacyOrders: false` excludes legacy TWAP subgraph history. Both default to
-true. Use `getAccountOrdersResult` and its `legacyLoaded` flag to recognize a
-partial legacy-source result during an outage. Account-history `page` and
+true. The returned `legacyLoaded` flag is true only when a configured, requested
+legacy TWAP source succeeds. It is false when that source is unavailable,
+disabled, or failed, and does not describe current-service completeness. Retry a
+failed legacy source while retaining successful history; once loaded, it can be
+cached separately from current-order polling. Account-history `page` and
 `limit` apply to legacy history; the configured v2 lookup does not forward them.
 
 For standalone order-sink searches, use `getOrders({ chainId, swapper, exchange,
@@ -632,9 +699,10 @@ not debounced, so rapid request/success transitions remain separate records.
 Count `submission.succeeded` for accepted submissions and `settlement.filled`
 for completed swaps. These are separate events; no additional success/status
 booleans are needed.
-Tracking an order returned by submission keeps its operation association. For an
-order restored from storage, pass the captured reporter as the optional `analytics`
-argument to `watchOrder`/`waitForOrder` when telemetry correlation is needed.
+Settlement reporting is internal. Resume an accepted order with
+`client.executeOrder({ order, signal })`. If tracking stops or fails, retain
+`OrderSettlementError.order` and `orderId` so the same intent can be checked
+without signing or submitting again.
 
 To disable analytics for a client:
 
@@ -642,31 +710,21 @@ To disable analytics for a client:
 const client = await createClient(Partners.Thena, 56, { disableAnalytics: true });
 ```
 
-For a host-controlled telemetry preference, create a reporter first and pass it
-as `createClient(..., { analytics: reporter })`. Calling
-`reporter.setDisabled(true)` also suppresses pending client initialization and
-operations created from that client. `disableAnalytics: true` always takes
-precedence over a supplied reporter.
-
-Standalone `getQuote` accepts `disableAnalytics: true` as well. For host-owned
-wallet/cancellation flows, use `client.analytics.createOperation(context)` to
-isolate the reporter for each attempt. `createAnalytics(context, {
-disableAnalytics })` creates a contextual reporter before a client is available;
-it does not initialize protocol configuration.
+Use `disableAnalytics` when creating a client to apply the host's telemetry
+preference to its operations. Standalone `getQuote` accepts
+`disableAnalytics: true` as well. React hosts use the provider's `disableAnalytics`
+prop. Reporting and operation association are handled internally.
 
 Delivery is best effort: HTTP failures and timeouts are contained and never
-change trading results. Disabling a reporter suppresses its child operations and
-pending telemetry. The deprecated global `analytics` export remains available
-for compatibility; SDK-owned flows use scoped reporters. Initialization also
-works without `window`.
+change trading results. Initialization also works without `window`.
 
 ## Migrating from Liquidity Hub
 
 `@orbs-network/liquidity-hub-sdk` is deprecated. Use `@orbs-network/spot-ui`
 for all new swap integrations and migrate existing integrations to Spot. Existing
-DEX route adapters should start with `client.refreshAndPrepareSwap`, DEX-owned signing,
-`client.submitOrder`, and `waitForOrder`, without a provider or calculated UI form.
-`submitSwap` remains an optional convenience when SDK wallet orchestration is desired.
+DEX route adapters should start with `client.prepareSwap`, DEX-owned signing,
+`client.submitSignedSwap`, which waits for the fill, without a provider or calculated UI form.
+`client.executeSwap` is the default flow when SDK wallet orchestration is desired.
 This changes the execution flow as well as the package import.
 
 | Liquidity Hub | Spot replacement |
@@ -677,12 +735,13 @@ This changes the execution flow as well as the package import.
 | `slippage: 0.5` | Still `0.5` for 0.5%; Spot converts to integer basis points for the service |
 | `dexMinAmountOut` and `signal` | Forward both to `getQuote`; use `"-1"` when no DEX minimum is available |
 | Fixed Permit2 spender | Read allowance and approve using `client.spenderAddress`; `prepared.approvalRequest` exposes the configured approval data |
-| Sign `quote.eip712` | Await `client.refreshAndPrepareSwap({ quote, account, signal })` immediately before signing `prepared.signingRequest` |
-| `sdk.swap(quote, signature)` returning a transaction hash | `client.submitOrder(prepared.order, signature)` returning an accepted order |
-| Wait for the swap transaction receipt | Poll `client.getOrder({ orderId: order.id })` until filled, cancelled, expired, or confirmation times out |
+| Sign `quote.eip712` | Await `client.prepareSwap({ quote, account, signal })` immediately before signing `prepared.signingRequest` |
+| `sdk.swap(quote, signature)` returning a transaction hash | `client.submitSignedSwap(prepared, signature)` returning a completed order |
+| Wait for the swap transaction receipt | Await swap execution/submission; it tracks completion internally |
 
 See the complete [typed swap example](examples/swap.ts). Keep input and output
-amounts as integer strings, wrap native input before approval, and preserve the
+amounts as integer strings, use the wrapped address for native protocol input,
+implement `shouldWrap`/`wrapNativeToken` for SDK-managed execution, and preserve the
 wallet's original signature. All swaps use a fixed 3-minute expiration from preparation.
 All swaps sign 500 bps (5%) oracle protection independently of the UI-slippage minimum.
 Do not reuse legacy Liquidity Hub quotes or signatures for Spot orders.

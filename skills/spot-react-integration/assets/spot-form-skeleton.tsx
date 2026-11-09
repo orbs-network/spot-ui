@@ -459,13 +459,19 @@ export function SpotForm({
   /** DEX: Stable callback controlling automatic/manual refresh and cancellation. */
   onQuotePauseChange: (paused: boolean) => void;
 }) {
+  // DEX: supply the selected input and its balance. For native selections,
+  // provide wrappedNativeToken and return true from shouldWrap for execution-time wrapping.
   const inputToken = useMemo<Token | undefined>(() => undefined, []);
   const outputToken = useMemo<Token | undefined>(() => undefined, []);
   const wrappedNativeToken = useMemo<Token | undefined>(() => undefined, []);
   const walletInteractions = useMemo<WalletInteractions>(
     () => ({
-      // DEX: call the wrapped native token deposit method, wait for receipt, return tx hash.
-      wrapNativeToken: async (_amountWei) => {
+      // DEX: decide from the captured selected input/account/chain; this callback takes no arguments.
+      shouldWrap: () => {
+        throw new Error("DEX: implement shouldWrap (true for native input, false for ERC-20 input)");
+      },
+      // DEX: deposit into this chain's wrapped contract; wait for a successful receipt.
+      wrapNativeToken: async (_amountRaw) => {
         throw new Error("DEX: implement wrapNativeToken");
       },
       // DEX: approve tokenAddress for spenderAddress. amount is the requested source amount in wei.
@@ -484,8 +490,7 @@ export function SpotForm({
       getAllowance: async (_props) => {
         throw new Error("DEX: implement getAllowance");
       },
-      // DEX: current raw ERC-20 balance for the captured account/chain.
-      // Required only when retrying with completed native-wrap metadata.
+      // DEX: read the connected account's wrapped-token balance for safe completed-wrap retries.
       getTokenBalance: async (_props) => {
         throw new Error("DEX: implement getTokenBalance");
       },
@@ -497,7 +502,6 @@ export function SpotForm({
       // DEX: Wire callbacks for toasts and balance refetch
       onWrapSuccess: () => {
         // refetchBalances();
-        // toast.success("Wrapped");
       },
       onOrdersProgressUpdate: () => {
         // refetchBalances();

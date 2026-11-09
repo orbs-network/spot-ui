@@ -5,7 +5,7 @@
 Use the configured client so partner and chain stay aligned with order submission:
 
 ```ts
-const orders = await client.getAccountOrders({
+const { orders, legacyLoaded } = await client.getAccountOrders({
   account,
   signal: abortController.signal,
 });
@@ -13,17 +13,33 @@ const orders = await client.getAccountOrders({
 
 V2 account history uses one request per configured endpoint. The SDK supplies `swapper`, `chainId`, and `exchange` (the partner's legacy adapters plus the client's current configured Spot adapter). `Partners.Quick` uses the history service's `quickswap` key. The public `page` and `limit` options apply only to legacy history. Use `AbortSignal` when the host lifecycle can cancel an obsolete request. `legacyOrders` defaults to `true`; disable it only when the product intentionally excludes legacy TWAP orders.
 
-The method merges configured v1 and v2 history and sorts it newest first. For swap
-settlement, use `waitForOrder({ order, signal })`. It derives the full signed hash,
-chain, and deadline from the submitted order and performs direct single-order
-lookups, without an initialized client or account-history polling. Only
-`OrderStatus.Completed` confirms a fill. Requests are serial with a normal
-two-second delay; errors/missing snapshots back off at 2, 4, 8, 16, then 30 seconds,
-resetting after a matching snapshot. Tracking ends by `order.deadline` plus 60
-seconds for indexing. Unknown statuses remain open. Service statuses `expired`,
-`failed`, and `partially_completed` map to `Expired` after the deadline, with
-completion and cancellation taking precedence. React consumes the same
-`watchOrder` stream.
+The method returns `AccountOrdersResult`: `{ orders, legacyLoaded }`. Its orders
+merge configured v1 and v2 history and are sorted newest first. `legacyLoaded`
+is true only when a configured, requested legacy TWAP source succeeds; false also
+covers an unavailable or disabled source. It does not indicate current-service
+completeness. Retry a failed legacy fetch while preserving successful orders;
+once legacy history loads, cache it and disable repeated legacy requests during
+current-order polling.
+
+Swap execution and signed submission include settlement internally. They query
+only the submitted order, rather than polling account history, and resolve after
+`OrderStatus.Completed`. Advanced limit/TWAP orders resolve at acceptance.
+The internal poller uses serial requests with a normal two-second delay; missing
+snapshots and request failures back off up to thirty seconds. Tracking ends by
+`order.deadline` plus sixty seconds for indexing. React consumes the same
+execution updates to refresh its cache, without starting another poller.
+
+For read-only recovery of an accepted snapshot, use
+`client.executeOrder({ order, signal })`. It does not sign or submit
+again. Preserve `OrderSettlementError.orderId` and its optional `order` on
+aborted/unconfirmed tracking; these outcomes do not establish that the order
+failed. If the original deadline-plus-60-second window has passed, recovery gives
+fresh status lookups up to 30 seconds without changing the signed deadline.
+A saved accepted snapshot can resume directly; discover the original order in
+history first only when acceptance is unknown.
+Unknown service statuses remain open. Reported expired/failed/partial
+statuses map to `Expired` after the deadline, with completion/cancellation taking
+precedence.
 
 Use the host data layer's polling, visibility, retry, and invalidation rules. Avoid overlapping polls, stop polling when the view is no longer active, and refetch after submission or cancellation. Do not call `createClient` for every poll.
 

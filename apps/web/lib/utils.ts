@@ -7,6 +7,7 @@ import { formatUnits, parseUnits, zeroAddress } from "viem";
 import _ from "lodash";
 import { wCurrencies } from "./wrapped-currencies";
 import {
+  BUNGEE_NATIVE_TOKEN_ADDRESS,
   DEFAULT_TOKENS,
   NATIVE_TOKENS_LOGO_URLS,
   POPULAR_TOKENS,
@@ -26,9 +27,16 @@ export const eqCompare = (a: string, b: string) => {
   return a.toLowerCase() === b.toLowerCase();
 };
 
-export const isNativeAddress = (address?: string) => {
-  return eqCompare(address ?? "", zeroAddress);
-};
+const nativeTokenAddresses = new Set([
+  zeroAddress,
+  BUNGEE_NATIVE_TOKEN_ADDRESS.toLowerCase(),
+  "0x0000000000000000000000000000000000001010",
+  "0x000000000000000000000000000000000000dead",
+  "0x000000000000000000000000000000000000800a",
+]);
+
+export const isNativeAddress = (address?: string) =>
+  nativeTokenAddresses.has(address?.toLowerCase() ?? "");
 
 export const getWrappedNativeCurrency = (chainId?: number): Currency | undefined => {
   if(!chainId) return undefined;

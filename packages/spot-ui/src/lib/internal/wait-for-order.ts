@@ -1,40 +1,35 @@
-import { getOrder } from "./orders/v2-orders";
-import { OrderStatus, type Order } from "./types";
-import { SpotError } from "./errors";
-import { getApiEndpoint } from "./api-config";
+import { OrderSettlementError } from "../order-settlement-error";
+import { getOrder } from "../orders/v2-orders";
+import { OrderStatus, type Order } from "../types";
+import { SpotError } from "../errors";
+import { getApiEndpoint } from "../api-config";
 import {
   bindSubmittedOrderAnalytics,
   createAnalytics,
   getSubmittedOrderAnalytics,
   resolveAnalyticsReporter,
   type SpotAnalytics,
-} from "./analytics";
-import { observe } from "./observe";
+} from "../analytics";
+import { observe } from "../observe";
 
 const INITIAL_POLL_DELAY_MILLIS = 2_000;
 const MAX_POLL_DELAY_MILLIS = 30_000;
+const RECOVERY_WINDOW_MILLIS = 30_000;
 
-/**
- * Tracking ended without a confirmed completed order.
- * `reason` distinguishes a reported cancellation/expiry from stopped (`aborted`)
- * or timed-out (`unconfirmed`) tracking. The latter two do not cancel the order;
- * check its history before submitting a replacement.
- */
-export class OrderSettlementError extends Error {
-  readonly name = "OrderSettlementError";
-  constructor(message: string, readonly reason: "cancelled" | "expired" | "unconfirmed" | "aborted", readonly orderId: string) { super(message); }
-}
-
-/** Clientless tracking inputs shared by {@link waitForOrder} and {@link watchOrder}. */
+/** Submitted order and optional progress/cancellation settings for {@link waitForOrder}. */
 export interface WaitForOrderParams {
   /** Submitted order; its ID, chain, and deadline identify and bound tracking. */
   order: Order;
   /** Stops tracking with reason `"aborted"`; does not cancel the order itself. */
   signal?: AbortSignal;
+  /** Matching order snapshots, including the terminal result; observer failures do not interrupt tracking. */
+  onUpdate?: (order: Order) => void;
   /** Use the submitting client's apiUrl when it uses a custom order service. */
   apiUrl?: string;
   /** Swap settlement reporter; submitted and client-fetched orders retain theirs automatically. */
   analytics?: SpotAnalytics;
+  /** Internal recovery may refresh an old open snapshot after its original tracking window. */
+  refreshExpired?: boolean;
 }
 
 /** Bounds even a lookup whose transport ignores cancellation. */
@@ -80,7 +75,7 @@ function isSettled(order: Order): boolean {
  *   updateOrderHistory(current);
  * }
  */
-export async function* watchOrder({ order, signal, apiUrl, analytics }: WaitForOrderParams): AsyncGenerator<Order, void, unknown> {
+async function* watchOrder({ order, signal, apiUrl, analytics, refreshExpired }: WaitForOrderParams): AsyncGenerator<Order, void, unknown> {
   const context = {
     account: order?.maker,
     chainId: order?.chainId,
@@ -105,6 +100,10 @@ export async function* watchOrder({ order, signal, apiUrl, analytics }: WaitForO
     throw error;
   }
   const { chainId, deadline, historyKey } = order;
+  const originalCutoff = deadline + 60_000;
+  const trackingCutoff = refreshExpired && originalCutoff <= Date.now()
+    ? Date.now() + RECOVERY_WINDOW_MILLIS
+    : originalCutoff;
   const reportSnapshot = (current: Order) => {
     bindSubmittedOrderAnalytics(current, reporter);
     observe(() => reporter.onSettlementUpdate(current));
@@ -117,7 +116,7 @@ export async function* watchOrder({ order, signal, apiUrl, analytics }: WaitForO
     "Swap tracking stopped. Check order history before starting another swap.", "aborted", orderId,
   ));
   const armDeadline = () => {
-    const remaining = deadline + 60_000 - Date.now();
+    const remaining = trackingCutoff - Date.now();
     if (remaining <= 0) {
       controller.abort(new OrderSettlementError(
         "Unable to confirm the swap. Check order history before starting another swap.", "unconfirmed", orderId,
@@ -180,9 +179,9 @@ export async function* watchOrder({ order, signal, apiUrl, analytics }: WaitForO
  * Waits for a submitted order to complete and returns its latest snapshot.
  * Uses the order's ID, chain, and millisecond deadline; no client or wallet is needed.
  * Missing/indexing results and request failures are retried until one minute after
- * the deadline. Use {@link watchOrder} when intermediate snapshots are needed.
+ * the deadline. Use `onUpdate` to receive intermediate and terminal snapshots.
  *
- * @param params - Submitted order and optional tracking cancellation signal.
+ * @param params - Submitted order and optional progress observer, cancellation signal, and service settings.
  * @returns The order with `OrderStatus.Completed`, confirming the fill.
  * @throws {@link OrderSettlementError} on cancellation, expiry, abort, or unconfirmed settlement.
  * An abort or timeout stops tracking only; check history before submitting a replacement.
@@ -192,6 +191,14 @@ export async function* watchOrder({ order, signal, apiUrl, analytics }: WaitForO
  */
 export async function waitForOrder(params: WaitForOrderParams): Promise<Order> {
   let current = params.order;
-  for await (const update of watchOrder(params)) current = update;
-  return current;
+  try {
+    for await (const update of watchOrder(params)) {
+      current = update;
+      observe(() => params.onUpdate?.(update));
+    }
+    return current;
+  } catch (error) {
+    if (error instanceof OrderSettlementError) error.order = current;
+    throw error;
+  }
 }

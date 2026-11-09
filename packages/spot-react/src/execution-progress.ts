@@ -1,10 +1,8 @@
 import {
-  toAmountUI,
   type Address,
-  type OrderExecutionStep,
-  type OrderExecutionUpdate,
   type PreparedOrder,
 } from "@orbs-network/spot-ui";
+import { toAmountUI, type OrderExecutionStep, type OrderExecutionUpdate } from "@orbs-network/spot-ui/internal";
 import { observe, normalizeError } from "./execution-state";
 import { Steps, type Callbacks, type SwapExecution, type Token } from "./types";
 
@@ -50,6 +48,7 @@ export const getExecutionProgress = (
     wrapTxHash: update.wrapTxHash,
     approveTxHash: update.approvalTxHash,
     ...(update.preparedOrder ? { preparedOrder: update.preparedOrder } : {}),
+    ...(update.order ? { order: update.order, orderId: update.order.id } : {}),
     ...(completedWrap ? { completedWrap } : {}),
   };
 };

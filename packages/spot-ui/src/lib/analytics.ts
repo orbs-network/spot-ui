@@ -729,6 +729,3 @@ export function bindSubmittedOrderAnalytics(order: Order, reporter: SpotAnalytic
 export function getSubmittedOrderAnalytics(order: Order): SpotAnalytics | undefined {
   return isObject(order) ? submittedAnalytics.get(order) : undefined;
 }
-
-/** @deprecated Use client.analytics for client-scoped events. */
-export const analytics = new Analytics();
