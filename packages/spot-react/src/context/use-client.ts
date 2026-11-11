@@ -1,11 +1,10 @@
 import type { SpotClient } from "@orbs-network/spot-ui";
-import { createClientWithAnalytics, type SpotAnalytics } from "@orbs-network/spot-ui/internal";
+import { createAnalytics, createClientWithAnalytics, getClientAnalytics, type SpotAnalytics } from "@orbs-network/spot-ui/internal";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ClientResourceState } from "./create-spot-store";
 import { useSpotTrading } from "./spot-trading-context";
 import { useSpotStore, useSpotStoreApi } from "./spot-store-context";
 import { observe } from "../execution-state";
-import { createOperationAnalytics } from "../analytics";
 
 const getClientKey = (partner: string, chainId: number | undefined, disableAnalytics: boolean): string =>
   `${partner}:${chainId}:${disableAnalytics ? "telemetry-off" : "telemetry-on"}`;
@@ -26,7 +25,7 @@ export const useConfigureClient = (): void => {
   const store = useSpotStoreApi();
   const analyticsPolicyRef = useRef<SpotAnalytics | undefined>(undefined);
   if (!analyticsPolicyRef.current) {
-    analyticsPolicyRef.current = createOperationAnalytics({}, undefined, disableAnalytics);
+    analyticsPolicyRef.current = createAnalytics({}, { disableAnalytics });
   }
   const analyticsPolicy = analyticsPolicyRef.current;
   const enabled = Boolean(chainId && hasChainId);
@@ -46,7 +45,11 @@ export const useConfigureClient = (): void => {
     // Apply suppression before reconfiguration starts another client request.
     observe(() => analyticsPolicy.setDisabled(disableAnalytics));
     const state = store.getState();
-    observe(() => state.state.currentExecution.analytics?.setDisabled(disableAnalytics));
+    // A live provider preference updates its owned clients, including a captured
+    // execution client retained after a wallet/chain change.
+    for (const client of new Set([state.client.data, state.state.currentExecution.client])) {
+      if (client) observe(() => getClientAnalytics(client).setDisabled(disableAnalytics));
+    }
   }, [analyticsPolicy, disableAnalytics, store]);
 
   useEffect(() => {

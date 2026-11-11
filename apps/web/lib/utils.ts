@@ -12,7 +12,7 @@ import {
   NATIVE_TOKENS_LOGO_URLS,
   POPULAR_TOKENS,
 } from "./consts";
-import { OrderType, Partners } from "@orbs-network/spot-react";
+import { OrderVariant, Partners } from "@orbs-network/spot-react";
 import { getChain } from "./chains";
 
 export const getBaseCurrencies = (chainId?: number) => {
@@ -317,24 +317,24 @@ export const getSpotPartnerProdLink = (partner?: string) => {
 
 
 
-export const getOrderTitle = (type?: OrderType): string => {
+export const getOrderTitle = (type?: OrderVariant): string => {
   if (!type) return "";
   switch (type) {
-    case OrderType.SWAP:
+    case OrderVariant.SWAP:
       return "Swap";
-    case OrderType.LIMIT:
+    case OrderVariant.LIMIT:
       return "Limit";
-    case OrderType.TWAP_LIMIT:
+    case OrderVariant.TWAP_LIMIT:
       return "TWAP Limit";
-    case OrderType.TWAP_MARKET:
+    case OrderVariant.TWAP_MARKET:
       return "TWAP Market";
-    case OrderType.TAKE_PROFIT_MARKET:
+    case OrderVariant.TAKE_PROFIT_MARKET:
       return "Take Profit Market";
-    case OrderType.TAKE_PROFIT_LIMIT:
+    case OrderVariant.TAKE_PROFIT_LIMIT:
       return "Take Profit Limit";
-    case OrderType.STOP_LOSS_LIMIT:
+    case OrderVariant.STOP_LOSS_LIMIT:
       return "Stop Loss Limit";
-    case OrderType.STOP_LOSS_MARKET:
+    case OrderVariant.STOP_LOSS_MARKET:
       return "Stop Loss Market";
     default:
       return type || "";

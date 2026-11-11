@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useSwapParams } from "./use-swap-params";
-import { Field, SwapType } from "../types";
+import { Field, TABS } from "../types";
 import { useSwapStore } from "./store";
 import { eqCompare } from "../utils";
 
@@ -38,7 +38,7 @@ export const useActionHandlers = () => {
   );
 
   const handleSwapTypeChange = useCallback(
-    (swapType: SwapType) => {
+    (swapType: TABS) => {
       setSwapType(swapType);
     },
     [setSwapType]

@@ -1,30 +1,29 @@
 import BN from "bignumber.js";
 import {
   DEFAULT_FILL_DELAY,
-  SWAP_ORDER_DURATION_MILLIS,
   MAX_ORDER_DURATION_MILLIS,
   MIN_FILL_DELAY_MILLIS,
   MIN_ORDER_DURATION_MILLIS,
 } from "./constants";
-import { Module, TimeUnit, type TimeDuration } from "../types";
+import { OrderType, TimeUnit, type TimeDuration } from "../types";
 import { findTimeUnit, getTimeDurationMillis } from "../utils";
+import { getOrderEpochSeconds } from "../order-timing";
 import type {
   CalculateOrderScheduleParams,
   CalculatedOrderSchedule,
 } from "./types";
 
 export const getDuration = (
-  module: Module,
+  orderType: OrderType,
   totalTrades: number,
   fillDelay: TimeDuration,
   customDuration?: TimeDuration,
 ): TimeDuration => {
   const minDuration = getTimeDurationMillis(fillDelay) * 2 * totalTrades;
 
-  if (module === Module.SWAP) return { unit: TimeUnit.Minutes, value: SWAP_ORDER_DURATION_MILLIS / TimeUnit.Minutes };
   if (customDuration) return customDuration;
-  if (module === Module.LIMIT) return { unit: TimeUnit.Days, value: 7 };
-  if (module === Module.STOP_LOSS || module === Module.TAKE_PROFIT) {
+  if (orderType === OrderType.LIMIT) return { unit: TimeUnit.Days, value: 7 };
+  if (orderType === OrderType.STOP_LOSS || orderType === OrderType.TAKE_PROFIT) {
     return { unit: TimeUnit.Days, value: 1 };
   }
 
@@ -34,10 +33,10 @@ export const getDuration = (
 
 export const getTrades = (
   maxPossibleTrades: number,
-  module: Module,
+  orderType: OrderType,
   selectedTrades?: number,
 ): number => {
-  if (module !== Module.TWAP) return 1;
+  if (orderType !== OrderType.TWAP) return 1;
   if (selectedTrades !== undefined) return selectedTrades;
   return Math.max(1, Math.ceil(maxPossibleTrades / 2));
 };
@@ -75,10 +74,10 @@ export const getMaxFillDelayError = (
 };
 
 export const getMaxOrderDurationError = (
-  module: Module,
+  orderType: OrderType,
   duration: TimeDuration,
 ): { isError: boolean; value: number } => {
-  if (module === Module.STOP_LOSS || module === Module.TAKE_PROFIT) {
+  if (orderType === OrderType.STOP_LOSS || orderType === OrderType.TAKE_PROFIT) {
     const max = 60 * 24 * 60 * 60 * 1000;
     return {
       isError: getTimeDurationMillis(duration) > max,
@@ -92,11 +91,22 @@ export const getMaxOrderDurationError = (
 };
 
 export const getMinOrderDurationError = (
-  duration: TimeDuration,
-): { isError: boolean; value: number } => ({
-  isError: getTimeDurationMillis(duration) < MIN_ORDER_DURATION_MILLIS,
-  value: MIN_ORDER_DURATION_MILLIS,
-});
+  orderType: OrderType,
+  schedule: CalculatedOrderSchedule,
+): { isError: boolean; value: number } => {
+  // The first fill can execute immediately; each subsequent fill needs a new
+  // protocol epoch. Use the same rounded seconds that will be signed. Client
+  // preparation already adds its existing 60-second deadline grace separately.
+  const scheduledDuration = orderType === OrderType.TWAP
+    ? Math.max(0, schedule.totalTrades - 1) * getOrderEpochSeconds(schedule.fillDelayMillis, schedule.totalTrades) * 1000
+    : 0;
+  const minimum = Math.max(MIN_ORDER_DURATION_MILLIS, scheduledDuration);
+  const durationMillis = getTimeDurationMillis(schedule.duration);
+  return {
+    isError: !Number.isFinite(durationMillis) || durationMillis < minimum,
+    value: minimum,
+  };
+};
 
 export const getMinFillDelayError = (
   fillDelay: TimeDuration,
@@ -108,20 +118,20 @@ export const getMinFillDelayError = (
 export const getMaxTradesError = (
   totalTrades: number,
   maxTrades: number,
-  module: Module,
+  orderType: OrderType,
 ): { isError: boolean; value: number } => ({
-  isError: module === Module.TWAP && BN(totalTrades).isGreaterThan(maxTrades),
+  isError: orderType === OrderType.TWAP && BN(totalTrades).isGreaterThan(maxTrades),
   value: maxTrades,
 });
 
 const normalizeTotalTrades = (
-  module: Module,
+  orderType: OrderType,
   requestedTrades: number,
 ): number => {
   const finiteTrades = Number.isFinite(requestedTrades)
     ? Math.floor(requestedTrades)
     : 1;
-  return module === Module.TWAP ? Math.max(1, finiteTrades) : 1;
+  return orderType === OrderType.TWAP ? Math.max(1, finiteTrades) : 1;
 };
 
 const getDurationMillis = (duration: TimeDuration): number => {
@@ -132,10 +142,10 @@ const getDurationMillis = (duration: TimeDuration): number => {
 export const calculateOrderSchedule = (
   params: CalculateOrderScheduleParams,
 ): CalculatedOrderSchedule => {
-  const totalTrades = normalizeTotalTrades(params.module, params.totalTrades);
+  const totalTrades = normalizeTotalTrades(params.orderType, params.totalTrades);
   const fillDelay = params.fillDelay ?? { ...DEFAULT_FILL_DELAY };
   const duration = getDuration(
-    params.module,
+    params.orderType,
     totalTrades,
     fillDelay,
     params.duration,

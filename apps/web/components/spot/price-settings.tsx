@@ -1,5 +1,5 @@
 import {
-  Module,
+  OrderType,
   useLimitPrice,
   usePriceDisplay,
   useTriggerPrice,
@@ -30,12 +30,12 @@ const LimitPricePanel = () => {
     displayOutputToken,
     isTypedValue,
   } = useLimitPrice();
-  const { swapModule } = useSpotFormContext();
+  const { orderType } = useSpotFormContext();
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        {swapModule !== Module.LIMIT ? (
+        {orderType !== OrderType.LIMIT ? (
           <Switch checked={isEnabled} onCheckedChange={toggle} />
         ) : null}
         <div className="flex justify-between w-full items-center">
@@ -72,9 +72,9 @@ const TriggerPricePanel = () => {
     displayOutputToken,
     isTypedValue,
   } = useTriggerPrice();
-  const { swapModule } = useSpotFormContext();
+  const { orderType } = useSpotFormContext();
 
-  if (swapModule !== Module.TAKE_PROFIT && swapModule !== Module.STOP_LOSS) {
+  if (orderType !== OrderType.TAKE_PROFIT && orderType !== OrderType.STOP_LOSS) {
     return null;
   }
 
@@ -84,7 +84,7 @@ const TriggerPricePanel = () => {
         <SpotFormLabel
           title={t("stopLossLabel")}
           tooltip={t(
-            swapModule === Module.STOP_LOSS
+            orderType === OrderType.STOP_LOSS
               ? "stopLossTooltip"
               : "takeProfitTooltip",
           )}

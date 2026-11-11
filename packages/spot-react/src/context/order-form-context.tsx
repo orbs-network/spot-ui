@@ -17,17 +17,13 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
     outputToken,
     inputAmountUi,
     quotedOutputAmountRaw,
-    minimumOutputAmountRaw,
-    inputAmountUsd,
-    quotedOutputAmountUsd,
-    minimumOutputAmountUsd,
     inputTokenUsdPrice,
     outputTokenUsdPrice,
     minTradeSizeUsd,
     inputBalanceRaw,
     displayFeePercent,
     priceProtectionPercent,
-    module,
+    orderType,
   } = useSpotTrading();
   const tradeCount = useSpotStore((store) => store.state.tradeCount);
   const tradeInterval = useSpotStore((store) => store.state.tradeInterval);
@@ -56,14 +52,10 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
   });
   const params = useMemo<CalculateOrderFormParams>(
     () => ({
-      module,
+      orderType,
       inputTokenDecimals: inputToken?.decimals ?? 0,
       outputTokenDecimals: outputToken?.decimals ?? 0,
       quotedOutputAmountRaw,
-      minimumOutputAmountRaw,
-      inputAmountUsd,
-      quotedOutputAmountUsd,
-      minimumOutputAmountUsd,
       inputTokenUsdPrice,
       outputTokenUsdPrice,
       minTradeSizeUsd,
@@ -84,16 +76,12 @@ export const OrderFormProvider = ({ children }: { children: ReactNode }) => {
       },
     }),
     [
-      minimumOutputAmountRaw,
-      inputAmountUsd,
-      quotedOutputAmountUsd,
-      minimumOutputAmountUsd,
       outputToken?.decimals,
       outputTokenUsdPrice,
       displayFeePercent,
       quotedOutputAmountRaw,
       minTradeSizeUsd,
-      module,
+      orderType,
       priceProtectionPercent,
       inputBalanceRaw,
       inputToken?.decimals,

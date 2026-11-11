@@ -4,12 +4,11 @@ import { useEffect, useState } from "react";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useQueryClient } from "@tanstack/react-query";
 import { useConnection } from "wagmi";
-import { formatUnits } from "viem";
 import BN from "bignumber.js";
 import { useActionHandlers } from "@/lib/hooks/use-action-handlers";
 import { useBalance, useRefetchSelectedCurrenciesBalances } from "@/lib/hooks/use-balances";
 import { useDerivedSwap } from "@/lib/hooks/use-derived-swap";
-import { useDirectSwapExecution, type SwapReview } from "@/lib/hooks/use-direct-swap-execution";
+import { useDirectSwapExecution, type SwapReviewContext } from "@/lib/hooks/use-direct-swap-execution";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { useSpotClient } from "@/lib/hooks/use-spot-client";
 import { useSpotPartners } from "@/lib/hooks/use-spot-partners";
@@ -44,16 +43,27 @@ export const SwapForm = () => {
   const contextKey = JSON.stringify([chainId, partner, account?.toLowerCase(), inputCurrency?.address.toLowerCase(),
     outputCurrency?.address.toLowerCase(), parsedInputAmount, inputAmount, slippage]);
   const execution = useDirectSwapExecution({ contextKey, walletInteractions, refreshBalances });
-  const [review, setReview] = useState<SwapReview>();
+  const wrappedInputCurrency = getWrappedNativeCurrency(chainId);
+  const wrappedBalance = useBalance(wrappedInputCurrency);
+  const useWrappedBalance = execution.phase === "price-changed" && execution.hasConfirmedWrap &&
+    execution.review?.contextKey === contextKey && isNativeAddress(inputCurrency?.address);
+  const [reviewContext, setReviewContext] = useState<SwapReviewContext>();
   const [isOpen, setIsOpen] = useState(false);
   const queryClient = useQueryClient();
   const setPauseQuote = useSwapStore(state => state.setPauseQuote);
+  const hasPreparedQuote = Boolean(execution.sdkExecution?.preparedOrder);
   useEffect(() => {
-    const pause = execution.isActive || execution.phase === "unconfirmed";
+    const pause = (execution.isActive && hasPreparedQuote) ||
+      execution.phase === "settling" || execution.phase === "unconfirmed" || execution.phase === "success";
     setPauseQuote(pause);
     if (pause) void queryClient.cancelQueries({ queryKey: SWAP_QUOTE_QUERY_KEY });
     return () => setPauseQuote(false);
-  }, [execution.isActive, execution.phase, queryClient, setPauseQuote]);
+  }, [execution.isActive, execution.phase, hasPreparedQuote, queryClient, setPauseQuote]);
+  useEffect(() => {
+    if (execution.phase === "price-changed") {
+      void queryClient.invalidateQueries({ queryKey: SWAP_QUOTE_QUERY_KEY });
+    }
+  }, [execution.phase, execution.priceChangedAt, queryClient]);
 
   const inputAddress = isNativeAddress(inputCurrency?.address)
     ? getWrappedNativeCurrency(chainId)?.address : inputCurrency?.address;
@@ -62,21 +72,37 @@ export const SwapForm = () => {
     quote.request.outToken.toLowerCase() === outputCurrency?.address.toLowerCase() &&
     quote.request.inAmount === parsedInputAmount && quote.request.slippage === slippage);
   const hasAmount = BN(parsedInputAmount || "0").gt(0);
-  const insufficientBalance = !execution.canUseConfirmedWrap && inputBalanceRaw !== undefined && BN(inputBalanceRaw).lt(parsedInputAmount || "0");
+  const availableBalanceRaw = useWrappedBalance ? wrappedBalance.wei : inputBalanceRaw;
+  const balanceLoading = useWrappedBalance ? wrappedBalance.isLoading : isBalanceLoading;
+  const insufficientBalance = availableBalanceRaw !== undefined && BN(availableBalanceRaw).lt(parsedInputAmount || "0");
   const canReview = Boolean(supported && client && account && inputCurrency && outputCurrency && hasAmount &&
-    quoteMatches && !isLoadingTrade && (!isBalanceLoading || execution.canUseConfirmedWrap) &&
-    (inputBalanceRaw !== undefined || execution.canUseConfirmedWrap) && !insufficientBalance);
+    quoteMatches && !isLoadingTrade && !balanceLoading &&
+    availableBalanceRaw !== undefined && !insufficientBalance);
+  const hasCurrentReviewQuote = quoteMatches && (execution.phase !== "price-changed" ||
+    (quote && execution.priceChangedAt !== undefined && quote.receivedAt > execution.priceChangedAt));
+  const reviewScope = execution.review ?? reviewContext;
+  const review = reviewScope ? {
+    ...reviewScope,
+    quote: reviewScope.contextKey === contextKey && hasCurrentReviewQuote ? quote : undefined,
+  } : undefined;
+  const priceChangedNotice = reviewScope?.contextKey !== contextKey
+    ? "The wallet or swap changed. Close this dialog and review the current swap."
+    : quoteError ? "A current quote is unavailable. Update the quote to review the new price."
+    : !review?.quote ? "The price changed. Waiting for an updated quote…"
+    : balanceLoading ? "Checking your balance…"
+    : insufficientBalance ? `Insufficient ${useWrappedBalance ? wrappedInputCurrency?.symbol : inputCurrency?.symbol} balance. Check your balance before accepting.`
+    : "The price changed. Review the updated amounts before accepting.";
   const showReview = () => {
-    if (execution.isActive || execution.phase === "unconfirmed" || execution.phase === "success") {
+    if (execution.isActive || execution.phase === "unconfirmed" || execution.phase === "success" ||
+      (execution.phase === "price-changed" && execution.review?.contextKey === contextKey)) {
       setIsOpen(true);
       return;
     }
     if (!canReview || !client || !quote || !account || !inputCurrency || !outputCurrency) return;
     execution.reset();
-    setReview({
-      client, account, contextKey, quote: structuredClone(quote),
+    setReviewContext({
+      client, account, contextKey,
       inputToken: { ...inputCurrency }, outputToken: { ...outputCurrency }, inputAmountUi: inputAmount,
-      outputAmountUi: formatUnits(BigInt(quote.netAmountOut), outputCurrency.decimals),
     });
     setIsOpen(true);
   };
@@ -86,10 +112,10 @@ export const SwapForm = () => {
     if (!open && execution.phase === "success") {
       if (execution.review?.contextKey === contextKey) setInputAmount("");
       execution.reset();
-      setReview(undefined);
+      setReviewContext(undefined);
     } else if (!open && execution.phase === "failed") {
       execution.reset();
-      setReview(undefined);
+      setReviewContext(undefined);
     }
   };
   const isLocked = execution.isActive || execution.phase === "unconfirmed";
@@ -102,7 +128,6 @@ export const SwapForm = () => {
     : insufficientBalance ? "Insufficient balance"
     : quoteError ? "Quote unavailable"
     : "Review Swap";
-  const shown = execution.review ?? review;
 
   return (
     <FormContainer>
@@ -128,8 +153,17 @@ export const SwapForm = () => {
         </>
       )}
       <SwapReviewDialog open={isOpen} onOpenChange={onOpenChange} review={review} execution={execution}
-        canConfirm={Boolean(shown && shown.contextKey === contextKey && canReview)}
-        onConfirm={() => { if (shown && shown.contextKey === contextKey && canReview) void execution.execute(shown); }}
+        canConfirm={Boolean(review?.quote && review.contextKey === contextKey && canReview)}
+        reviewNotice={execution.phase === "price-changed" ? <>
+          <p role="status" className="text-sm text-muted-foreground">{priceChangedNotice}</p>
+          {quoteError && reviewScope?.contextKey === contextKey && <Button type="button" variant="outline"
+            onClick={() => void refetchTrade()}>Update quote</Button>}
+        </> : undefined}
+        onConfirm={() => {
+          if (review?.quote && review.contextKey === contextKey && canReview) {
+            void execution.execute({ ...review, quote: review.quote });
+          }
+        }}
         onReviewAgain={showReview} />
       <SpotFooter client={client} />
     </FormContainer>

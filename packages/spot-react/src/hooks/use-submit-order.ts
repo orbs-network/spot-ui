@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { updateTrackedOrderInCache } from "../wait-for-swap-order";
+import { updateTrackedOrderInCache } from "../order-cache";
 import { executeOrder } from "../execute-order";
 import { canBeginExecution } from "../execution-state";
 import { useOrderForm } from "../context/order-form-context";
@@ -18,9 +18,7 @@ export const useSubmitOrder = (): (() => void) => {
     callbacks,
     account,
     walletInteractions,
-    quote,
     partner,
-    disableAnalytics,
   } = useSpotTrading();
   const addNewOrder = useAddNewOrder();
   const refetchActiveOrders = useRefetchActiveOrders();
@@ -38,17 +36,18 @@ export const useSubmitOrder = (): (() => void) => {
       outputToken,
       wrappedNativeToken,
       form,
-      quote,
       client,
       partner,
-      disableAnalytics,
       walletInteractions,
       callbacks,
       addNewOrder,
       refetchActiveOrders,
-      onOrderUpdate: (order) => updateTrackedOrderInCache(store, order, callbacks),
+      onOrderUpdate: (order) => updateTrackedOrderInCache(store, order, callbacks, client?.partner ?? partner),
       subscribeExecution: (listener) => store.subscribe(listener),
       getCurrentExecution: () => store.getState().state.currentExecution,
+      getExecution: store.getState().getExecution,
+      finishExecution: store.getState().finishExecution,
+      queueWrapTransaction: store.getState().queueWrapTransaction,
       beginExecution: store.getState().beginExecution,
       replaceExecution: store.getState().replaceExecution,
     }).catch(() => undefined).finally(() => {
@@ -61,9 +60,7 @@ export const useSubmitOrder = (): (() => void) => {
     chainId,
     client,
     partner,
-    disableAnalytics,
     form,
-    quote,
     inputToken,
     outputToken,
     wrappedNativeToken,

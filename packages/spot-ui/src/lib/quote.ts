@@ -25,20 +25,18 @@ export interface SwapQuoteParams {
   user: string;
   /** Percentage: 0.5 means 0.5%. Sent to the API as integer basis points, rounded to the nearest bps. Does not set the signed order's slippage field. */
   slippage: number;
-  /** DEX minimum output in output-token base units. Defaults to "-1" when no DEX quote is available. */
+  /** Optional DEX minimum in output-token base units. Omitted or undefined sends outAmount: "-1" to the API. */
   dexMinAmountOut?: string;
   /** Cancels this HTTP request; no wallet operation or order is created. */
   signal?: AbortSignal;
   /** Explicit order-service base URL. Defaults to production v2. */
   apiUrl?: string;
-  /** Disable telemetry for this standalone quote request. Client-bound quotes use client settings. */
-  disableAnalytics?: boolean;
 }
 
 /** Quote response with the request identity needed to validate later preparation. */
 export interface SwapQuote {
   /** Frozen identity of the request that produced this quote. Never a signing payload. */
-  readonly request: Readonly<Omit<SwapQuoteParams, "signal" | "apiUrl" | "disableAnalytics">>;
+  readonly request: Readonly<Omit<SwapQuoteParams, "signal" | "apiUrl">>;
   /** Local receipt time in milliseconds, not a server guarantee of expiry. */
   readonly receivedAt: number;
   /** Service-reported USD value of the input amount as a decimal string, when available. */
@@ -182,9 +180,10 @@ const parseQuoteAmounts = (
 
 /**
  * Fetches an exact-input swap quote for a token pair and quote user.
- * Use the result with `client.executeSwap` or `client.prepareSwap`, or pass
- * `netAmountOut` to `calculateOrder` with `Module.SWAP` for a form preview.
+ * Use the result with `client.createSwapExecution`.
  * This request does not open the wallet or create an order.
+ * Configure analytics on `createClient` and use `client.getQuote`; per-quote
+ * `disableAnalytics` options are rejected before analytics or quote requests.
  *
  * @param params - Chain, partner, tokens, raw input amount, quote user or preview address, and slippage percentage.
  * @returns The service's base-unit amounts, optional USD/price-impact metadata, and a frozen copy of the request.
@@ -192,15 +191,23 @@ const parseQuoteAmounts = (
  * Request cancellation propagates the abort error instead of a QuoteError.
  */
 export const getQuote = async (params: SwapQuoteParams): Promise<SwapQuote> => {
+  assertClientAnalyticsPolicy(params);
   let reporter: SpotAnalytics;
   try {
-    reporter = createAnalytics(getQuoteAnalyticsContext(params), {
-      disableAnalytics: params?.disableAnalytics,
-    });
+    reporter = createAnalytics(getQuoteAnalyticsContext(params));
   } catch {
     reporter = createAnalytics({}, { disableAnalytics: true });
   }
   return fetchQuote(params, reporter);
+};
+
+const assertClientAnalyticsPolicy = (params: SwapQuoteParams): void => {
+  if (params && typeof params === "object" && "disableAnalytics" in params) {
+    throw new QuoteError(
+      "Quote requests do not accept disableAnalytics. Configure it in createClient options and use client.getQuote instead.",
+      "invalid-request",
+    );
+  }
 };
 
 /** Quote-user metadata remains separate from the account that may later sign. */
@@ -225,6 +232,7 @@ export const fetchQuote = async (
   params: SwapQuoteParams,
   reporter: SpotAnalytics,
 ): Promise<SwapQuote> => {
+  assertClientAnalyticsPolicy(params);
   try {
     observe(() => reporter.onQuoteRequest(getQuoteAnalyticsContext(params)));
     const {

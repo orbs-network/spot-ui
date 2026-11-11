@@ -2,7 +2,7 @@ import {
   ORBS_TWAP_FAQ_URL,
   useDisclaimer,
   useInputErrors,
-  type ClientErrorFallbackProps,
+  type SpotErrorFallbackProps,
 } from "@orbs-network/spot-react";
 import { AlertTriangleIcon, InfoIcon } from "lucide-react";
 import { useTranslations } from "@/lib/use-translations";
@@ -46,10 +46,10 @@ export const InputsErrorPanel = () => {
   );
 };
 
-export const ClientErrorFallback = ({
+export const ErrorFallback = ({
   retry,
   isRetrying,
-}: ClientErrorFallbackProps) => {
+}: SpotErrorFallbackProps) => {
   const t = useTranslations();
 
   return (
@@ -57,13 +57,14 @@ export const ClientErrorFallback = ({
       role="alert"
       className="flex flex-col items-center gap-3 rounded-lg bg-card p-4"
     >
-      <p className="text-sm font-medium">{t("orderConfigurationError")}</p>
+      <p className="text-sm font-medium">{t("orderFormError")}</p>
       <Button
         type="button"
         onClick={() => void retry()}
+        disabled={isRetrying}
         isLoading={isRetrying}
       >
-        {t("retryOrderConfiguration")}
+        {t("retryOrderForm")}
       </Button>
     </div>
   );

@@ -1,76 +1,101 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, type ReactNode } from "react";
 import { SwapFlow, SwapStatus, type Step } from "@orbs-network/swap-ui";
-import { DISCLAIMER_URL } from "@orbs-network/spot-react";
 import { formatUnits } from "viem";
-import type { SwapReview, useDirectSwapExecution } from "@/lib/hooks/use-direct-swap-execution";
-import { getExplorerUrl } from "@/lib/utils";
+import type { SwapQuote } from "@orbs-network/spot-react";
+import type { SwapReviewContext, useDirectSwapExecution } from "@/lib/hooks/use-direct-swap-execution";
+import { formatDecimals, getExplorerAddressUrl, getExplorerUrl, getWrappedNativeCurrency, makeEllipsisAddress } from "@/lib/utils";
+import { useTranslations } from "@/lib/use-translations";
+import { ReviewActions, ReviewFooter } from "../review-footer";
 import { Button } from "../ui/button";
 import { CurrencyLogo } from "../ui/currency-logo";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
-import { Switch } from "../ui/switch";
 import { Spinner } from "../ui/spinner";
 import { FormatNumber } from "../spot/format-number";
+import { OrderDetails } from "../spot/order-details";
+import styles from "../review-flow.module.css";
 
 type Execution = ReturnType<typeof useDirectSwapExecution>;
+type ReviewPreview = SwapReviewContext & { quote?: SwapQuote };
 
-const getStep = (execution: Execution, review: SwapReview): Step => {
+const getStep = (execution: Execution, review: ReviewPreview): Step => {
   if (execution.phase === "wrapping") return { title: `Wrap ${review.inputToken.symbol}`, footerText: "Proceed in wallet" };
-  if (execution.phase === "approving") return { title: `Approve ${review.quote.request.inToken.toLowerCase() === review.inputToken.address.toLowerCase() ? review.inputToken.symbol : `wrapped ${review.inputToken.symbol}`}`, footerText: "Proceed in wallet" };
-  if (execution.phase === "signing") return { title: "Sign swap order", footerText: "Proceed in wallet" };
-  if (execution.phase === "settling") return { title: "Submitting and executing swap", footerText: "Checking your order until the swap fills…" };
+  if (execution.phase === "approving") return { title: `Approve ${review.quote?.request.inToken.toLowerCase() === review.inputToken.address.toLowerCase() ? review.inputToken.symbol : `wrapped ${review.inputToken.symbol}`}`, footerText: "Proceed in wallet" };
+  if (execution.phase === "signing") return execution.sdkExecution?.preparedOrder
+    ? { title: "Sign swap order", footerText: "Proceed in wallet" }
+    : { title: "Updating swap quote", footerText: "Fetching the final quote…" };
+  if (execution.phase === "settling") return { title: "Checking order status", footerText: "Checking the latest order status…" };
   return { title: "Checking swap", footerText: "Checking allowance and the protected quote…" };
 };
 
-export const SwapReviewDialog = ({ open, onOpenChange, review, execution, canConfirm, onConfirm, onReviewAgain }: {
+export const SwapReviewDialog = ({ open, onOpenChange, review, execution, canConfirm, reviewNotice, onConfirm, onReviewAgain }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  review?: SwapReview;
+  review?: ReviewPreview;
   execution: Execution;
   canConfirm: boolean;
+  reviewNotice?: ReactNode;
   onConfirm: () => void;
   onReviewAgain: () => void;
 }) => {
-  const [disclaimerAccepted, setDisclaimerAccepted] = useState(true);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const t = useTranslations();
   const shown = execution.review ?? review;
   if (!shown) return null;
-  const minimum = formatUnits(BigInt(shown.quote.minimumAmountOut), shown.outputToken.decimals);
+  const quote = execution.sdkExecution?.preparedOrder?.quote ?? review?.quote;
+  const minimum = quote
+    ? formatUnits(BigInt(quote.minimumAmountOut), shown.outputToken.decimals)
+    : undefined;
   const output = execution.phase === "success" && execution.order
     ? formatUnits(BigInt(execution.order.dstAmountFilled), shown.outputToken.decimals)
-    : shown.outputAmountUi;
-  const status = execution.isActive ? SwapStatus.LOADING
+    : quote ? formatUnits(BigInt(quote.netAmountOut), shown.outputToken.decimals) : undefined;
+  const inputDisplay = formatDecimals(shown.inputAmountUi, 2, shown.inputToken.decimals);
+  const outputDisplay = output === undefined ? "—" : formatDecimals(output, 2, shown.outputToken.decimals);
+  // Preparation also runs between wallet steps; only the initial check stays on review.
+  const isInitialPreparation = execution.phase === "preparing" && execution.steps.length === 0;
+  const isPriceChanged = execution.phase === "price-changed";
+  const isSubmitted = execution.isActive && !isInitialPreparation;
+  const status = isSubmitted ? SwapStatus.LOADING
     : execution.phase === "success" ? SwapStatus.SUCCESS
     : execution.phase === "failed" || execution.phase === "unconfirmed" ? SwapStatus.FAILED : undefined;
   const reviewContent = (
     <>
       <SwapFlow.Main
         fromTitle="From" toTitle="To"
-        inUsd={shown.quote.inputAmountUsd ? <FormatNumber value={shown.quote.inputAmountUsd} prefix="$" decimalScale={2} /> : undefined}
-        outUsd={shown.quote.netAmountOutUsd ? <FormatNumber value={shown.quote.netAmountOutUsd} prefix="$" decimalScale={2} /> : undefined}
+        inUsd={quote?.inputAmountUsd ? <FormatNumber value={quote.inputAmountUsd} prefix="$" decimalScale={2} /> : undefined}
+        outUsd={quote?.netAmountOutUsd ? <FormatNumber value={quote.netAmountOutUsd} prefix="$" decimalScale={2} /> : undefined}
       />
-      <div className="flex flex-col gap-4">
-        <dl className="flex justify-between gap-4 text-sm">
-          <dt className="text-muted-foreground">Minimum received</dt>
-          <dd className="text-right tabular-nums"><FormatNumber value={minimum} decimalScale={6} /> {shown.outputToken.symbol}</dd>
-        </dl>
-        <div className="flex items-center justify-between gap-4 text-sm">
-          <label htmlFor="swap-disclaimer">Accept <a href={DISCLAIMER_URL} target="_blank" rel="noopener noreferrer" className="text-primary">disclaimer</a></label>
-          <Switch id="swap-disclaimer" checked={disclaimerAccepted} onCheckedChange={setDisclaimerAccepted} />
-        </div>
-        {!canConfirm && <p role="status" className="text-sm text-muted-foreground">The wallet or swap changed. Close this dialog and review the current swap.</p>}
-        <Button type="button" onClick={onConfirm} disabled={!canConfirm || !disclaimerAccepted}>Confirm Swap</Button>
-      </div>
+      {!isSubmitted && <ReviewFooter details={<>
+        <OrderDetails.MinOutputAmount
+          outputToken={shown.outputToken}
+          minOutputAmount={minimum}
+          label={t("minReceived")}
+          tooltip={t("minDstAmountTooltip")}
+        />
+        <OrderDetails.DetailRow title={t("recipient")}>
+          <a href={getExplorerAddressUrl(shown.client.chainId, shown.account)} target="_blank" rel="noopener noreferrer">{makeEllipsisAddress(shown.account)}</a>
+        </OrderDetails.DetailRow>
+      </>}>
+        {!isInitialPreparation && (reviewNotice ?? (!canConfirm && <p role="status" className="text-sm text-muted-foreground">
+          {quote ? "The wallet or swap changed. Close this dialog and review the current swap."
+            : "A current quote is unavailable. Close this dialog and try again."}
+        </p>))}
+        <ReviewActions onConfirm={onConfirm} disabled={!canConfirm} isPreparing={isInitialPreparation}
+          actionText={isPriceChanged ? "Accept new price" : "Confirm Swap"} />
+      </ReviewFooter>}
     </>
   );
   const failedContent = (
     <div className="flex flex-col gap-4">
       <SwapFlow.Failed error={<p role="alert" className="text-sm break-words">{execution.error?.message}</p>} />
+      {execution.wrapTxHash && <p className="text-sm text-muted-foreground">
+        A wrap is already confirmed. Select {getWrappedNativeCurrency(shown.client.chainId)?.symbol || "the wrapped token"} and review its balance before trying again.
+      </p>}
       {execution.phase === "unconfirmed" ? (
         <>
           <p className="text-sm text-muted-foreground">Check the original order before starting another swap.</p>
-          <Button type="button" onClick={() => void execution.resume()}>Check order status</Button>
+          <Button type="button" onClick={() => void execution.checkOrderStatus()}>Check order status</Button>
         </>
       ) : (
         <Button type="button" onClick={onReviewAgain} disabled={!canConfirm}>Review again</Button>
@@ -87,7 +112,8 @@ export const SwapReviewDialog = ({ open, onOpenChange, review, execution, canCon
         </DialogHeader>
         {execution.isActive && <p role="status" className="sr-only">{getStep(execution, shown).title}</p>}
         <SwapFlow
-          inAmount={shown.inputAmountUi} outAmount={output}
+          className={styles.flow}
+          inAmount={inputDisplay} outAmount={outputDisplay}
           inToken={shown.inputToken} outToken={shown.outputToken}
           swapStatus={status} currentStep={getStep(execution, shown)}
           totalSteps={execution.steps.length || undefined} currentStepIndex={execution.stepIndex}

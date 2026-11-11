@@ -4,6 +4,10 @@
   "private": true,
   "scripts": {
     "prepare": "node scripts/setup-git-hooks.mjs",
+    "test": "pnpm build:spot-ui && pnpm build:spot-react && pnpm test:spot-ui && pnpm test:spot-react && pnpm test:web",
+    "test:spot-ui": "pnpm --filter @orbs-network/spot-ui exec vitest run",
+    "test:spot-react": "pnpm --filter @orbs-network/spot-react exec vitest run",
+    "test:web": "pnpm --filter web exec vitest run",
     "dev": "pnpm --filter web dev",
     "start": "pnpm --filter web start",
     "build": "pnpm build:spot-ui && pnpm build:liquidity-hub && pnpm build:spot-react && pnpm --filter web build",

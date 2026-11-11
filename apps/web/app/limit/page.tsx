@@ -1,10 +1,8 @@
 "use client";
 
 import { SpotForm } from "@/components/spot/spot-form";
-import { SwapType } from "@/lib/types";
+import { OrderType } from "@orbs-network/spot-react";
 
 export default function LimitPage() {
-  return (
-    <SpotForm swapType={SwapType.LIMIT} />
-  );
+  return <SpotForm orderType={OrderType.LIMIT} />;
 }

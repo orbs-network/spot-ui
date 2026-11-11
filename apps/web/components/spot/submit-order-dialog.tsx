@@ -1,9 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
-  DISCLAIMER_URL,
   ExecutionPhase,
   ExecutionStatus,
-  Module,
   useExecution,
   useOrderForm,
   useSubmitButton,
@@ -20,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
-import { Switch } from "../ui/switch";
+import { ReviewActions } from "../review-footer";
 import { SubmitSwapButton } from "../submit-swap-button";
 import { SubmitOrderPanel } from "./submit-order-panel";
 import { useSpotFormContext } from "./spot-form-context";
@@ -29,12 +27,10 @@ const OrderSubmissionError = ({
   code,
   message,
   onClose,
-  onResume,
 }: {
   code: ParsedError["code"];
   message: string;
   onClose: () => void;
-  onResume?: () => void;
 }) => (
   <div className="flex flex-col gap-4" role="alert">
     <div className="flex flex-col gap-2 bg-destructive/50 p-2 rounded-md">
@@ -46,7 +42,6 @@ const OrderSubmissionError = ({
       </div>
     </div>
     <div className="w-full flex justify-center gap-2">
-      {onResume && <Button onClick={onResume}>Check order status</Button>}
       <Button onClick={onClose}>Close</Button>
     </div>
   </div>
@@ -61,42 +56,14 @@ const OrderReview = ({
   isPreparingOrder: boolean;
   orderTitle: string;
 }) => {
-  const isSwap = useOrderForm().module === Module.SWAP;
   const { disabled: submitDisabled } = useSubmitButton();
-  const [disclaimerAccepted, setDisclaimerAccepted] = useState(true);
 
   return (
     <SubmitOrderPanel
       orderTitle={orderTitle}
       reviewDetails={
-        <>
-          <div className="flex gap-2 justify-between">
-            <p className="text-sm">
-              Accept{" "}
-              <a
-                href={DISCLAIMER_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary"
-              >
-                Disclaimer
-              </a>
-            </p>
-            <Switch
-              aria-label="Accept disclaimer"
-              checked={disclaimerAccepted}
-              onCheckedChange={setDisclaimerAccepted}
-            />
-          </div>
-          <Button
-            disabled={!disclaimerAccepted || isPreparingOrder || submitDisabled}
-            onClick={onSubmitOrder}
-            isLoading={isPreparingOrder}
-            aria-label={isPreparingOrder ? "Checking allowance" : undefined}
-          >
-            {!isPreparingOrder ? (isSwap ? "Confirm Swap" : "Create Order") : null}
-          </Button>
-        </>
+        <ReviewActions onConfirm={onSubmitOrder} disabled={submitDisabled}
+          isPreparing={isPreparingOrder} actionText="Create Order" />
       }
     />
   );
@@ -106,11 +73,10 @@ const OpenOrderReviewButton = ({ onClick }: { onClick: () => void }) => {
   const t = useTranslations();
   const { disabled, loading } = useSubmitButton();
   const { isExecuting, isUnconfirmed } = useExecution();
-  const isSwap = useOrderForm().module === Module.SWAP;
   const isExecutionAction = isExecuting || isUnconfirmed;
-  let text = isSwap ? "Review Swap" : t("placeOrder");
+  let text = t("placeOrder");
   if (isUnconfirmed) text = "Check order status";
-  else if (isExecuting) text = isSwap ? "Executing swap…" : t("creatingOrder");
+  else if (isExecuting) text = t("creatingOrder");
   else if (loading) text = t("fetchingQuote");
 
   return (
@@ -133,18 +99,29 @@ export const SubmitOrderDialog = () => {
     error,
     isPreparingOrder,
     isExecuting,
+    totalSteps,
     phase,
     isUnconfirmed,
-    resumeTracking,
+    checkOrderStatus,
   } = useExecution();
   const { setInputAmount } = useSpotFormContext();
   const form = useOrderForm();
-  const isSwap = form.module === Module.SWAP;
-  const orderTitle = isSwap ? "Swap" : getOrderTitle(form.values.orderType);
+  const orderTitle = getOrderTitle(form.values.orderVariant);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const onOpen = useCallback(() => setIsOpen(true), []);
+  const onStartNewOrder = useCallback(() => {
+    if (!startNewOrder()) return;
+    setInputAmount("");
+    setIsOpen(false);
+  }, [setInputAmount, startNewOrder]);
   const onClose = useCallback(() => {
-    if (isExecuting) return;
+    if (isExecuting) {
+      if (!startNewOrder()) return;
+      setInputAmount("");
+      setIsOpen(false);
+      return;
+    }
     setIsOpen(false);
     if (status === ExecutionStatus.SUCCESS) {
       setInputAmount("");
@@ -164,26 +141,37 @@ export const SubmitOrderDialog = () => {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <OpenOrderReviewButton onClick={onOpen} />
-      <DialogContent showCloseButton={!isExecuting}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain"
+        onOpenAutoFocus={event => { event.preventDefault(); titleRef.current?.focus(); }}>
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle ref={titleRef} tabIndex={-1}>
             {isUnconfirmed ? "Order status unconfirmed" : error
-              ? (isSwap ? "Swap not completed" : "Error Creating Order")
-              : !status || isPreparingOrder
-                ? (isSwap ? "Review Swap" : `${orderTitle} order`)
-                : isSwap ? (isExecuting ? "Executing swap" : "Swap") : " "}
+              ? "Error Creating Order"
+              : !status || (isPreparingOrder && !totalSteps)
+                ? `${orderTitle} order`
+                : " "}
           </DialogTitle>
           <DialogDescription className="sr-only">
             Review the amounts and minimum received before signing your order.
           </DialogDescription>
         </DialogHeader>
-        {phase === ExecutionPhase.SETTLING && <p role="status" className="sr-only">Waiting for your swap to fill.</p>}
-        {error ? (
+        {phase === ExecutionPhase.SETTLING && <p role="status" className="sr-only">Checking the original order status.</p>}
+        {isUnconfirmed ? (
+          <div className="flex flex-col gap-4">
+            <p role="status" className="text-sm text-muted-foreground">
+              The original order may still have been accepted. Check its status before placing a replacement.
+              You can create a separate order while the original remains available for status checks.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="button" onClick={checkOrderStatus}>Check order status</Button>
+              <Button type="button" variant="outline" onClick={onStartNewOrder}>Create another order</Button>
+            </div>
+          </div>
+        ) : error ? (
           <OrderSubmissionError
             code={error.code}
-            message={isUnconfirmed ? `${error.message.split("\n")[0]} Check the original order's status before starting another swap.` : error.message}
+            message={error.message}
             onClose={onClose}
-            onResume={isUnconfirmed ? resumeTracking : undefined}
           />
         ) : (
           <OrderReview

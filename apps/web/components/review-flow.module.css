@@ -1,0 +1,12 @@
+.flow {
+  min-width: 0;
+}
+
+.flow :global(.orbs_MainTokenLeft),
+.flow :global(.orbs_TradePreviewToken) {
+  min-width: 0;
+}
+
+.flow :global(.orbs_MainTokenAmount) {
+  overflow-wrap: anywhere;
+}

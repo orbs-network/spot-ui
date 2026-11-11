@@ -1,5 +1,5 @@
 import {
-  Module,
+  OrderType,
   TimeUnit,
   useDuration,
   useFillDelay,
@@ -129,9 +129,9 @@ const FillDelayPanel = () => {
 };
 
 export const OrderSettings = () => {
-  const { swapModule } = useSpotFormContext();
+  const { orderType } = useSpotFormContext();
 
-  if (swapModule !== Module.TWAP) return <DurationPanel />;
+  if (orderType !== OrderType.TWAP) return <DurationPanel />;
   return (
     <>
       <TradesPanel />

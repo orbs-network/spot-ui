@@ -3,34 +3,17 @@ import {
   type ComponentType,
   type ReactNode,
 } from "react";
-import type { ClientErrorFallbackProps } from "../types";
+import type { SpotErrorFallbackProps } from "../types";
 import { useClient } from "./use-client";
 import { useSpotTrading } from "./spot-trading-context";
-
-const DefaultClientErrorFallback = ({
-  error,
-  retry,
-  isRetrying,
-}: ClientErrorFallbackProps) => (
-  <div className="spot-client-error-fallback" role="alert">
-    <p>{error.message || "Unable to load Spot configuration."}</p>
-    <button
-      type="button"
-      className="spot-client-error-retry"
-      disabled={isRetrying}
-      onClick={retry}
-    >
-      {isRetrying ? "Retrying…" : "Retry"}
-    </button>
-  </div>
-);
+import { DefaultErrorFallback } from "./default-error-fallback";
 
 export const ClientErrorNotice = ({
   children,
-  fallback: ClientErrorFallback = DefaultClientErrorFallback,
+  fallback: ErrorFallback = DefaultErrorFallback,
 }: {
   children: ReactNode;
-  fallback?: ComponentType<ClientErrorFallbackProps>;
+  fallback?: ComponentType<SpotErrorFallbackProps>;
 }) => {
   const { hasChainId } = useSpotTrading();
   const { data: client, error, isFetching, refetch } = useClient();
@@ -42,7 +25,7 @@ export const ClientErrorNotice = ({
     <>
       {children}
       {!client && error && hasChainId ? (
-        <ClientErrorFallback
+        <ErrorFallback
           error={error}
           retry={retry}
           isRetrying={isFetching}

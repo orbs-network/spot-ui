@@ -1,4 +1,4 @@
-import { Module } from "@orbs-network/spot-ui";
+import { OrderType } from "@orbs-network/spot-ui";
 import { useCallback, useMemo } from "react";
 import { useOrderForm } from "../context/order-form-context";
 import { useSpotTrading } from "../context/spot-trading-context";
@@ -8,7 +8,7 @@ import { usePriceInput } from "./use-price-input";
 export const useLimitPrice = () => {
   const { marketPriceLoading, inputToken, outputToken, callbacks } =
     useSpotTrading();
-  const { limitPrice, values, module, isInverted } = useOrderForm();
+  const { limitPrice, values, orderType, isInverted } = useOrderForm();
   const updateState = useSpotStore((state) => state.updateState);
 
   const { onInputChange, onPercentageChange, onReset } =
@@ -19,11 +19,11 @@ export const useLimitPrice = () => {
     // Keep typed trigger and limit prices in their current units.
     updateState({
       isMarketOrder: !values.isMarketOrder,
-      ...(!values.isMarketOrder && module === Module.STOP_LOSS
+      ...(!values.isMarketOrder && orderType === OrderType.STOP_LOSS
         ? { limitPricePercent: undefined }
         : {}),
     });
-  }, [module, updateState, values.isMarketOrder]);
+  }, [orderType, updateState, values.isMarketOrder]);
 
   return useMemo(
     () => ({

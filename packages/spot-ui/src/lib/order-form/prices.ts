@@ -5,7 +5,7 @@ import {
   DEFAULT_TAKE_PROFIT_LIMIT_PERCENTAGE,
   DEFAULT_TAKE_PROFIT_PERCENTAGE,
 } from "./constants";
-import { InputErrors, Module, type InputError } from "../types";
+import { InputErrors, OrderType, type InputError } from "../types";
 import {
   calculateUsdAmount,
   normalizeAmount,
@@ -128,29 +128,29 @@ export const invertPriceInput = (value?: string): string | undefined => {
 };
 
 const getDefaultTriggerPricePercentage = (
-  module: Module,
+  orderType: OrderType,
 ): string | undefined => {
-  if (module === Module.STOP_LOSS) return DEFAULT_STOP_LOSS_PERCENTAGE;
-  if (module === Module.TAKE_PROFIT) return DEFAULT_TAKE_PROFIT_PERCENTAGE;
+  if (orderType === OrderType.STOP_LOSS) return DEFAULT_STOP_LOSS_PERCENTAGE;
+  if (orderType === OrderType.TAKE_PROFIT) return DEFAULT_TAKE_PROFIT_PERCENTAGE;
   return undefined;
 };
 
 const getDefaultLimitPricePercentage = (
-  module: Module,
+  orderType: OrderType,
   isMarketOrder: boolean,
 ): string | undefined => {
   if (isMarketOrder) return undefined;
-  if (module === Module.STOP_LOSS) {
+  if (orderType === OrderType.STOP_LOSS) {
     return DEFAULT_STOP_LOSS_LIMIT_PERCENTAGE;
   }
-  if (module === Module.TAKE_PROFIT) {
+  if (orderType === OrderType.TAKE_PROFIT) {
     return DEFAULT_TAKE_PROFIT_LIMIT_PERCENTAGE;
   }
   return undefined;
 };
 
 const getTriggerPriceError = (
-  module: Module,
+  orderType: OrderType,
   inputAmount: string | undefined,
   marketPrice: string,
   triggerPrice: string,
@@ -158,18 +158,18 @@ const getTriggerPriceError = (
   if (
     BN(inputAmount || "0").isZero() ||
     !marketPrice ||
-    (module !== Module.STOP_LOSS && module !== Module.TAKE_PROFIT)
+    (orderType !== OrderType.STOP_LOSS && orderType !== OrderType.TAKE_PROFIT)
   ) {
     return undefined;
   }
 
-  if (module === Module.STOP_LOSS && BN(triggerPrice || 0).gte(marketPrice)) {
+  if (orderType === OrderType.STOP_LOSS && BN(triggerPrice || 0).gte(marketPrice)) {
     return {
       type: InputErrors.STOP_LOSS_TRIGGER_PRICE_GREATER_THAN_MARKET_PRICE,
       value: marketPrice,
     };
   }
-  if (module === Module.TAKE_PROFIT && BN(triggerPrice || 0).lte(marketPrice)) {
+  if (orderType === OrderType.TAKE_PROFIT && BN(triggerPrice || 0).lte(marketPrice)) {
     return {
       type: InputErrors.TAKE_PROFIT_TRIGGER_PRICE_LESS_THAN_MARKET_PRICE,
       value: marketPrice,
@@ -201,11 +201,11 @@ export const calculateTriggerPriceValues = (
   params: CalculateTriggerPriceValuesParams,
 ): CalculatedTriggerPriceValues => {
   const enabled =
-    params.module === Module.STOP_LOSS ||
-    params.module === Module.TAKE_PROFIT;
+    params.orderType === OrderType.STOP_LOSS ||
+    params.orderType === OrderType.TAKE_PROFIT;
   const resolvedPercentage =
     params.triggerPricePercent === undefined
-      ? getDefaultTriggerPricePercentage(params.module)
+      ? getDefaultTriggerPricePercentage(params.orderType)
       : params.triggerPricePercent;
   const price = calculatePriceInput({
     tokenDecimals: params.outputTokenDecimals,
@@ -219,7 +219,7 @@ export const calculateTriggerPriceValues = (
     enabled,
     display: calculateOrderPriceDisplay(params, price),
     error: getTriggerPriceError(
-      params.module,
+      params.orderType,
       params.inputAmountRaw,
       normalizeAmount(params.marketPrice),
       price.raw,
@@ -233,7 +233,6 @@ const getLimitPriceError = (
   limitPrice: string,
 ): InputError | undefined => {
   if (
-    params.module === Module.SWAP ||
     BN(params.inputAmountRaw || "0").isZero() ||
     !marketPrice ||
     params.isMarketOrder
@@ -242,8 +241,8 @@ const getLimitPriceError = (
   }
 
   if (
-    (params.module === Module.STOP_LOSS ||
-      params.module === Module.TAKE_PROFIT) &&
+    (params.orderType === OrderType.STOP_LOSS ||
+      params.orderType === OrderType.TAKE_PROFIT) &&
     params.triggerPrice &&
     BN(limitPrice || 0).gte(params.triggerPrice)
   ) {
@@ -266,7 +265,7 @@ export const calculateLimitPriceValues = (
 ): CalculatedLimitPriceValues => {
   const resolvedPercentage =
     params.limitPricePercent === undefined
-      ? getDefaultLimitPricePercentage(params.module, params.isMarketOrder)
+      ? getDefaultLimitPricePercentage(params.orderType, params.isMarketOrder)
       : params.limitPricePercent;
   const price = calculatePriceInput({
     tokenDecimals: params.outputTokenDecimals,
@@ -284,27 +283,13 @@ export const calculateLimitPriceValues = (
   };
 };
 
-const calculateSwapLimitPrice = (
-  params: CalculateOrderFormParams,
-  inputAmount: string,
-): string => {
-  if (!BN(inputAmount || 0).gt(0)) return "";
-
-  // Convert the whole-quote minimum into a UI unit price for the shared price model.
-  const priceRaw = BN(params.minimumOutputAmountRaw || 0)
-    .div(inputAmount)
-    .times(BN(10).pow(params.inputTokenDecimals))
-    .toFixed();
-  return toAmountUI(priceRaw, params.outputTokenDecimals);
-};
-
 export const calculateOrderPrices = (
   params: CalculateOrderFormParams,
   inputAmount: string,
   marketPrice: string,
 ): CalculatedOrderPrices => {
   const triggerPrice = calculateTriggerPriceValues({
-    module: params.module,
+    orderType: params.orderType,
     marketPrice,
     inputAmountRaw: inputAmount,
     triggerPrice: params.userInput.triggerPriceUi,
@@ -316,22 +301,18 @@ export const calculateOrderPrices = (
     outputUsdPrice: params.outputTokenUsdPrice,
   });
   const isMarketOrder =
-    params.module === Module.LIMIT || params.module === Module.SWAP
+    params.orderType === OrderType.LIMIT
       ? false
       : params.userInput.isMarketOrder;
   const limitPrice = calculateLimitPriceValues({
-    module: params.module,
+    orderType: params.orderType,
     isMarketOrder,
     marketPrice,
     inputAmountRaw: inputAmount,
-    limitPrice: params.module === Module.SWAP
-      ? calculateSwapLimitPrice(params, inputAmount)
-      : params.userInput.limitPriceUi,
-    limitPricePercent: params.module === Module.SWAP
-      ? null
-      : params.userInput.limitPricePercent,
+    limitPrice: params.userInput.limitPriceUi,
+    limitPricePercent: params.userInput.limitPricePercent,
     triggerPrice: triggerPrice.raw,
-    isInverted: params.module === Module.SWAP ? false : params.userInput.isPriceInverted,
+    isInverted: params.userInput.isPriceInverted,
     inputTokenDecimals: params.inputTokenDecimals,
     outputTokenDecimals: params.outputTokenDecimals,
     inputUsdPrice: params.inputTokenUsdPrice,

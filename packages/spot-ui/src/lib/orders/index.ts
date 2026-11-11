@@ -61,8 +61,8 @@ export const getOrders = async ({
   return orders.sort((a, b) => b.createdAt - a.createdAt);
 };
 
-/** Account history filters. Client methods provide the chain, partner, and current adapter. */
-export interface GetAccountOrdersParams {
+/** Order history filters. Client methods provide the chain and partner. */
+export interface GetClientOrdersParams {
   /** Cancels the history requests; it does not cancel any orders. */
   signal?: AbortSignal;
   /** Zero-based legacy history page. V2 always fetches all orders. */
@@ -71,14 +71,14 @@ export interface GetAccountOrdersParams {
   limit?: number;
   chainId: number;
   partner: Partners;
-  /** Current configured adapter, included alongside the partner's legacy adapters. */
-  exchangeAddress?: string;
-  /** Wallet address that created the orders. */
-  account: string;
+  /** Wallet address that created the orders; omit to include all wallets. */
+  account?: string;
   /** Include legacy TWAP subgraph history where configured. Defaults to true. */
   legacyOrders?: boolean;
   /** Include orders from order-sink.orbs.network. Defaults to true. */
   getv1orders?: boolean;
+  /** Reject an order-service response containing rows that cannot be normalized. Defaults to false. */
+  rejectInvalidOrders?: boolean;
   /** Explicit order-service base URL; custom services exclude production legacy history. */
   apiUrl?: string;
 }
@@ -104,25 +104,25 @@ export interface AccountOrdersResult {
 }
 
 /**
- * Loads account history from order-sink services and the optional legacy TWAP subgraph.
- * Chain, partner, and current exchange-adapter filters are normally supplied by a client.
+ * Loads order history from order-sink services and the optional legacy TWAP subgraph.
+ * Chain and partner filters are normally supplied by a client.
  *
  * @returns Newest-first orders and `legacyLoaded`, allowing a host to retry a failed
  * legacy source. Successful sources are retained when another source fails.
  * @throws If pagination is invalid, the request is aborted, or no requested source succeeds.
  */
-export const getAccountOrders = async ({
+export const getClientOrders = async ({
   signal,
   page,
   chainId,
   limit,
   partner,
-  exchangeAddress,
   account,
   legacyOrders = true,
   getv1orders = true,
+  rejectInvalidOrders = false,
   apiUrl,
-}: GetAccountOrdersParams): Promise<AccountOrdersResult> => {
+}: GetClientOrdersParams): Promise<AccountOrdersResult> => {
   
   assertValidPagination(page, limit);
   const twapConfig = getTwapConfig(partner, chainId);
@@ -139,7 +139,7 @@ export const getAccountOrders = async ({
           page,
           limit,
           filters: {
-            accounts: [account],
+            ...(account === undefined ? {} : { accounts: [account] }),
             configs: [twapConfig],
           },
         }),
@@ -148,8 +148,8 @@ export const getAccountOrders = async ({
       signal,
       account,
       partner,
-      exchangeAddress,
       getv1orders,
+      rejectInvalidOrders,
       apiUrl,
     }),
   ]);

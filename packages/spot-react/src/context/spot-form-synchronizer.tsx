@@ -4,7 +4,7 @@ import type { SpotFormDefaults } from "./create-spot-store";
 import { useSpotStore, useSpotStoreApi } from "./spot-store-context";
 
 /**
- * Applies defaults when the partner, chain, module, or token pair changes.
+ * Applies defaults when the partner, chain, orderType, or token pair changes.
  * The provider store itself remains mounted, so client/history resources and
  * cancellation state are not discarded. A change during execution is deferred
  * until the frozen order reaches a terminal phase.

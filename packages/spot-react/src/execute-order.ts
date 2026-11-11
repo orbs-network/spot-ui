@@ -1,25 +1,24 @@
 import {
-  Module,
   OrderSettlementError,
-  SpotError,
   type Address,
   type CalculatedOrderForm,
   type Order,
   type SpotClient,
   type Partners,
-  type SwapQuote,
 } from "@orbs-network/spot-ui";
-import { executeClientOrder, isNativeAddress, eqIgnoreCase, isTxRejected } from "@orbs-network/spot-ui/internal";
+import { isNativeAddress, isTxRejected, toAmountUI } from "@orbs-network/spot-ui/internal";
 import {
   ExecutionPhase,
   type Callbacks,
-  type StartedSwapExecution,
-  type SwapExecution,
+  type StartedOrderExecutionState,
+  type OrderExecutionState,
   type Token,
   type WalletInteractions,
 } from "./types";
 import {
-  getReusableCompletedWrap,
+  createIdleExecution,
+  ExecutionScopeChangedError,
+  getMatchingCompletedWrap,
   isUnconfirmedExecutionError,
   normalizeError,
   observe,
@@ -31,15 +30,19 @@ import {
   type ExecutionProgressContext,
 } from "./execution-progress";
 import { createOperationAnalytics, getExecutionAnalyticsContext } from "./analytics";
+import { createOrderWalletAdapter } from "./create-order-wallet-adapter";
 
 interface ExecutionStoreActions {
-  getCurrentExecution: () => SwapExecution;
+  getCurrentExecution: () => OrderExecutionState;
+  getExecution: (executionId: number) => OrderExecutionState | undefined;
+  finishExecution: (executionId: number) => void;
+  queueWrapTransaction?: <T>(scope: string, action: () => Promise<T>) => Promise<T>;
   beginExecution: (
-    value: Omit<SwapExecution, "executionId" | "phase">,
-  ) => StartedSwapExecution | undefined;
+    value: Omit<OrderExecutionState, "executionId" | "phase">,
+  ) => StartedOrderExecutionState | undefined;
   replaceExecution: (
     executionId: number,
-    value: SwapExecution,
+    value: OrderExecutionState,
   ) => boolean;
   subscribeExecution?: (listener: () => void) => () => void;
 }
@@ -51,30 +54,15 @@ export interface ExecuteOrderParams extends ExecutionStoreActions {
   outputToken?: Token;
   wrappedNativeToken?: Token;
   form: CalculatedOrderForm;
-  quote?: SwapQuote;
   client?: SpotClient;
   partner?: Partners;
-  disableAnalytics?: boolean;
   walletInteractions: WalletInteractions;
   callbacks?: Callbacks;
   addNewOrder: (order: Order) => void;
   refetchActiveOrders: () => unknown;
   onOrderUpdate?: (order: Order) => void;
-  wait?: (milliseconds: number) => Promise<void>;
   signal?: AbortSignal;
 }
-
-const waitFor = (milliseconds: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
-
-const parseBaseUnitAmount = (value: string, label: string): bigint => {
-  if (!/^\d+$/.test(value)) {
-    throw new Error(
-      `${label} must be a non-negative integer base-unit amount`,
-    );
-  }
-  return BigInt(value);
-};
 
 interface ValidatedExecutionInputs {
   account: Address;
@@ -84,33 +72,7 @@ interface ValidatedExecutionInputs {
   outputToken: Token;
   client: SpotClient;
   inputAmountRaw: string;
-  quote?: SwapQuote;
 }
-
-const captureSwapQuote = (
-  quote: SwapQuote | undefined,
-  inputs: ValidatedExecutionInputs,
-  form: CalculatedOrderForm,
-): SwapQuote => {
-  if (!quote?.request) {
-    throw new SpotError("INVALID_QUOTE", "Pass the original swap quote in marketQuote.quote before submitting");
-  }
-  // Freeze both values and request identity before wrapping or approval can await.
-  const reviewedQuote = Object.freeze({ ...quote, request: Object.freeze({ ...quote.request }) });
-  const request = reviewedQuote.request;
-  const matchesForm = request.chainId === inputs.chainId &&
-    request.chainId === inputs.client.chainId &&
-    request.partner === inputs.client.partner &&
-    eqIgnoreCase(request.inToken, inputs.orderInputToken.address) &&
-    eqIgnoreCase(request.outToken, inputs.outputToken.address) &&
-    parseBaseUnitAmount(request.inAmount, "Quoted input") === BigInt(inputs.inputAmountRaw) &&
-    parseBaseUnitAmount(reviewedQuote.netAmountOut, "Quoted output") === BigInt(form.outputAmount.raw) &&
-    parseBaseUnitAmount(reviewedQuote.minimumAmountOut, "Minimum output") === BigInt(form.values.minOutputAmountPerTrade);
-  if (!matchesForm) {
-    throw new SpotError("QUOTE_CONTEXT_MISMATCH", "Swap quote does not match the reviewed form, tokens, or client");
-  }
-  return reviewedQuote;
-};
 
 const validateExecutionInputs = (
   params: ExecuteOrderParams,
@@ -143,9 +105,6 @@ const validateExecutionInputs = (
     client: params.client,
     inputAmountRaw,
   };
-  if (params.form.module === Module.SWAP) {
-    inputs.quote = captureSwapQuote(params.quote, inputs, params.form);
-  }
   return inputs;
 };
 
@@ -161,12 +120,11 @@ export const executeOrder = async (
     getCurrentExecution,
     beginExecution,
     replaceExecution,
-    wait = waitFor,
+    queueWrapTransaction,
   } = params;
   const analytics = createOperationAnalytics(
     getExecutionAnalyticsContext({ ...params, partner: params.client?.partner ?? params.partner }),
     params.client,
-    params.disableAnalytics,
   );
   let inputs: ValidatedExecutionInputs;
   try {
@@ -183,9 +141,11 @@ export const executeOrder = async (
       apiUrl: params.client?.apiUrl,
       form,
       analytics,
+      callbacks,
       inputToken: params.inputToken,
       outputToken: params.outputToken,
       chainId: params.chainId,
+      completedWrap: getCurrentExecution().completedWrap,
     });
     if (failedExecution) {
       replaceExecution(failedExecution.executionId, {
@@ -210,11 +170,12 @@ export const executeOrder = async (
     inputAmountRaw,
   } = inputs;
   const previousExecution = getCurrentExecution();
-  const completedWrap = getReusableCompletedWrap({
+  const completedWrap = getMatchingCompletedWrap({
     execution: previousExecution,
     account,
     chainId,
     inputTokenAddress: inputToken.address,
+    wrappedTokenAddress: orderInputToken.address,
     inputAmountRaw,
   });
   const startedExecution = beginExecution({
@@ -224,6 +185,7 @@ export const executeOrder = async (
     apiUrl: client.apiUrl,
     form,
     analytics,
+    callbacks,
     inputToken,
     outputToken,
     chainId,
@@ -233,12 +195,12 @@ export const executeOrder = async (
   if (!startedExecution) return undefined;
 
   const executionId = startedExecution.executionId;
-  let execution: SwapExecution = startedExecution;
+  let execution: OrderExecutionState = startedExecution;
   const tryTransition = (
     phase: ExecutionPhase,
-    changes: Partial<SwapExecution> = {},
+    changes: Partial<OrderExecutionState> = {},
   ): boolean => {
-    const nextExecution: SwapExecution = {
+    const nextExecution: OrderExecutionState = {
       ...execution,
       ...changes,
       executionId,
@@ -250,7 +212,7 @@ export const executeOrder = async (
   };
   const transition = (
     phase: ExecutionPhase,
-    changes: Partial<SwapExecution> = {},
+    changes: Partial<OrderExecutionState> = {},
   ): void => {
     if (!tryTransition(phase, changes)) {
       throw new Error("Execution is no longer current");
@@ -264,44 +226,69 @@ export const executeOrder = async (
     inputAmountRaw,
     callbacks,
   };
-  const isSwap = form.module === Module.SWAP;
   let accepted = false;
   const recordAcceptance = (order: Order): void => {
     if (accepted) return;
     accepted = true;
     observe(() => addNewOrder(order));
-    if (!isSwap) observe(() => refetchActiveOrders());
+    observe(() => refetchActiveOrders());
     observe(() => callbacks?.onOrderCreated?.(order));
   };
   const controller = new AbortController();
   const checkScope = () => {
     if (params.signal?.aborted) controller.abort(params.signal.reason);
-    else if (getCurrentExecution().executionId !== executionId) {
-      controller.abort(new Error("Execution is no longer current"));
+    else if (!params.getExecution(executionId)) {
+      controller.abort(new ExecutionScopeChangedError("Execution is no longer current"));
     }
   };
   params.signal?.addEventListener("abort", checkScope, { once: true });
   const unsubscribe = params.subscribeExecution?.(checkScope);
   checkScope();
+  const isScopeDismissal = (error: unknown): boolean => controller.signal.aborted &&
+    error === controller.signal.reason && error instanceof ExecutionScopeChangedError;
 
   try {
-    const { order } = await executeClientOrder(client, {
+    let confirmedWrapAmountRaw: string | undefined;
+    let confirmedWrapHash: string | undefined;
+    const wallet = createOrderWalletAdapter({
+      wallet: walletInteractions,
+      guard: () => { checkScope(); controller.signal.throwIfAborted(); },
+      hasConfirmedWrap: Boolean(completedWrap),
+      queueWrapTransaction: queueWrapTransaction
+        ? action => queueWrapTransaction(`${account.toLowerCase()}:${chainId}`, action)
+        : undefined,
+      onWrapConfirmed: (hash, amountRaw) => {
+        confirmedWrapAmountRaw = amountRaw;
+        confirmedWrapHash = hash;
+        tryTransition(execution.phase, {
+          wrapTxHash: hash,
+          completedWrap: { account, chainId, inputTokenAddress: inputToken.address, wrappedTokenAddress: orderInputToken.address, inputAmountRaw, txHash: hash },
+        });
+        observe(() => callbacks?.onWrapSuccess?.({ txHash: hash, amount: toAmountUI(amountRaw, orderInputToken.decimals) }));
+      },
+      onApproveConfirmed: hash => { tryTransition(execution.phase, { approveTxHash: hash }); },
+    });
+    const sdkExecution = client.createOrderExecution({
       form,
-      analytics,
       account,
       inputTokenAddress: orderInputToken.address,
-      completedWrapTxHash: completedWrap?.txHash,
       outputTokenAddress: outputToken.address,
-      quote: inputs.quote,
-      walletInteractions,
-      wait,
+      walletInteractions: wallet,
       signal: controller.signal,
-      validateContext: () => {
-        if (getCurrentExecution().executionId !== executionId) throw new Error("Execution is no longer current");
-      },
-      onUpdate: (update) => {
-        transition(update.phase as ExecutionPhase, getExecutionProgress(update, progressContext));
-        notifyExecutionProgress(update, progressContext);
+    });
+    transition(execution.phase, { sdkExecution });
+    const order = await sdkExecution.run({
+      onProgress: (update) => {
+        const progress = getExecutionProgress(update, progressContext);
+        progress.wrapTxHash ??= execution.wrapTxHash;
+        progress.approveTxHash ??= execution.approveTxHash;
+        transition(update.phase as ExecutionPhase, progress);
+        if (!isScopeDismissal(update.error) &&
+          !(update.phase === "wrapping" && update.event === "success" && update.wrapTxHash === confirmedWrapHash)) {
+          notifyExecutionProgress(update.phase === "wrapping" && confirmedWrapAmountRaw
+            ? { ...update, wrapAmountRaw: confirmedWrapAmountRaw }
+            : update, progressContext);
+        }
         const order = update.order;
         if (order && update.event === "accepted") recordAcceptance(order);
         if (order && update.event === "updated") {
@@ -316,6 +303,15 @@ export const executeOrder = async (
     });
     return order;
   } catch (error) {
+    // Advanced execution finishes at acceptance; a later cancellation or
+    // adapter error cannot undo the order already accepted by the service.
+    const acceptedOrder = execution.order ?? execution.sdkExecution?.order;
+    if (acceptedOrder) {
+      const order = structuredClone(acceptedOrder) as Order;
+      recordAcceptance(order);
+      tryTransition(ExecutionPhase.SUCCESS, { orderId: order.id, order, error: undefined, parsedError: undefined });
+      return order;
+    }
     const settlementOrder = error instanceof OrderSettlementError ? error.order : undefined;
     if (settlementOrder) recordAcceptance(settlementOrder);
     const failedPhase = error instanceof OrderSettlementError ? ExecutionPhase.SETTLING : execution.phase;
@@ -324,6 +320,17 @@ export const executeOrder = async (
     // before starting the POST. That known preflight abort remains safe to retry.
     const abortedBeforeSubmission = failedPhase === ExecutionPhase.SUBMITTING &&
       controller.signal.aborted && error === controller.signal.reason;
+    if (isScopeDismissal(error) && failedPhase !== ExecutionPhase.SETTLING &&
+      (failedPhase !== ExecutionPhase.SUBMITTING || abortedBeforeSubmission)) {
+      const dismissedExecution: OrderExecutionState = {
+        ...createIdleExecution(execution.completedWrap),
+        executionId,
+        wrapTxHash: execution.wrapTxHash,
+        approveTxHash: execution.approveTxHash,
+      };
+      if (replaceExecution(executionId, dismissedExecution)) execution = dismissedExecution;
+      return undefined;
+    }
     const unconfirmed = !abortedBeforeSubmission && isUnconfirmedExecutionError(error, failedPhase);
     const rejected = !unconfirmed && isTxRejected(error);
     // Error reporting must not hide the original wallet/API error if the
@@ -339,7 +346,7 @@ export const executeOrder = async (
 
     if (rejected) {
       observe(callbacks?.onSubmitOrderRejected);
-    } else if (failedPhase !== ExecutionPhase.SETTLING) {
+    } else if (!unconfirmed && failedPhase !== ExecutionPhase.SETTLING) {
       observe(() => callbacks?.onSubmitOrderFailed?.(parseExecutionError(error)));
     }
     throw normalizedError;
@@ -347,5 +354,6 @@ export const executeOrder = async (
     unsubscribe?.();
     params.signal?.removeEventListener("abort", checkScope);
     controller.abort();
+    params.finishExecution(executionId);
   }
 };

@@ -7,6 +7,7 @@ import {
   ParsedError,
   Partners,
   Order,
+  type MarketQuote,
 } from "@orbs-network/spot-react";
 import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
@@ -178,12 +179,12 @@ export const useCallbacks = () => {
   };
 };
 
-export const useSpotMarketQuote = () => {
+export const useSpotMarketQuote = (): MarketQuote => {
   const { trade, isLoadingTrade } = useDerivedSwap();
 
   return useMemo(() => {
     return {
-      quote: trade?.originalQuote,
+      quotedOutputAmountRaw: isLoadingTrade ? undefined : trade?.outAmount,
       noLiquidity: !isLoadingTrade && !trade,
       isLoading: isLoadingTrade,
     };

@@ -1,3 +1,8 @@
+/** Immutable view of protocol and execution snapshots returned by the SDK. */
+export type DeepReadonly<T> = T extends object
+  ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+  : T;
+
 export type Config = {
   chainName: string;
   chainId: number;
@@ -20,9 +25,7 @@ export type Token = {
   logoUrl?: string;
 };
 
-export enum Module {
-  /** One limit order from a live quote; fixed 5% signed protection, host-owned minimum output. */
-  SWAP = "SWAP",
+export enum OrderType {
   TWAP = "TWAP",
   LIMIT = "LIMIT",
   STOP_LOSS = "STOP_LOSS",
@@ -59,7 +62,7 @@ export enum TimeUnit {
 
 export type TimeDuration = { unit: TimeUnit; value: number };
 
-export enum OrderType {
+export enum OrderVariant {
   /** Single-trade swap with a quoted minimum and a three-minute signed lifetime. */
   SWAP = "swap",
   LIMIT = "limit",
@@ -111,7 +114,7 @@ export type Order = {
   id: string;
   /** Signed hash for V2; empty for legacy V1 orders. */
   hash: string;
-  type: OrderType;
+  type: OrderVariant;
   exchangeAddress?: string;
   twapAddress?: string;
   /** Account that owns the order's input tokens. */

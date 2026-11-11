@@ -3,7 +3,8 @@ import BN from "bignumber.js";
 import {
   Config,
   Order,
-  OrderType,
+  type DeepReadonly,
+  OrderVariant,
   TimeDuration,
   TimeUnit,
 } from "./types";
@@ -114,7 +115,7 @@ export const getExchanges = (config?: Config[]) => {
  * Legacy v1 delays are converted from seconds and include the configured estimated
  * execution delay when `config` is supplied. V2 delays are already normalized.
  */
-export const getOrderFillDelayMillis = (order: Order, config?: Config) => {
+export const getOrderFillDelayMillis = (order: DeepReadonly<Order>, config?: Config) => {
   if (order.version === 1) {
     return (
       (order.fillDelay || 0) * 1000 +
@@ -153,11 +154,11 @@ export const getOrderExecutionRate = (
  * token's decimal precision. Returns `""` for a TWAP market order.
  */
 export const getOrderLimitPriceRate = (
-  order: Order,
+  order: DeepReadonly<Order>,
   srcTokenDecimals: number,
   dstTokenDecimals: number,
 ) => {
-  if (order.type === OrderType.TWAP_MARKET) return "";
+  if (order.type === OrderVariant.TWAP_MARKET) return "";
   const srcBidAmountUi = amountUi(srcTokenDecimals, order.srcAmountPerTrade);
   const dstMinAmountUi = amountUi(dstTokenDecimals, order.dstMinAmountPerTrade);
   return BN(dstMinAmountUi).div(srcBidAmountUi).toFixed();
@@ -169,11 +170,11 @@ export const getOrderLimitPriceRate = (
  * each token's decimal precision. Returns `""` for a TWAP market order.
  */
 export const getTriggerPriceRate = (
-  order: Order,
+  order: DeepReadonly<Order>,
   srcTokenDecimals: number,
   dstTokenDecimals: number,
 ) => {
-  if (order.type === OrderType.TWAP_MARKET) return "";
+  if (order.type === OrderVariant.TWAP_MARKET) return "";
   const srcBidAmountUi = amountUi(srcTokenDecimals, order.srcAmountPerTrade);
   const dstMinAmountUi = amountUi(dstTokenDecimals, order.triggerPricePerTrade);
   return BN(dstMinAmountUi).div(srcBidAmountUi).toFixed();

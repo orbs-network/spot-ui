@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import dts from 'vite-plugin-dts'
 import { resolve } from 'path'
+import { finalizeNodeDeclarations } from '../../scripts/node-compatible-declarations.mjs'
 
 export default defineConfig({
   plugins: [
@@ -8,11 +9,24 @@ export default defineConfig({
       insertTypesEntry: true,
       entryRoot: 'src',
       // Emit this package's declarations against the public SDK dependency.
-      compilerOptions: { rootDir: resolve(__dirname), paths: {} },
+      compilerOptions: { rootDir: resolve(__dirname), paths: {}, declarationMap: false },
       tsconfigPath: './tsconfig.json',
       include: ['src'],
       pathsToAliases: false,
+      afterBuild: finalizeNodeDeclarations,
     }),
+    {
+      name: 'spot-react-client-boundary',
+      enforce: 'post',
+      generateBundle(_options, bundle) {
+        // UMD places Rollup's banner inside its factory; frameworks read top-level directives.
+        for (const chunk of Object.values(bundle)) {
+          if (chunk.type === 'chunk' && chunk.isEntry && !/^(["'])use client\1;/.test(chunk.code)) {
+            chunk.code = '"use client";\n' + chunk.code
+          }
+        }
+      },
+    },
   ],
   build: {
     lib: {

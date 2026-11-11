@@ -65,61 +65,62 @@ pnpm build:spot-react  # Build the React provider and hooks
 
 ## DEX route adapters
 
-Use `@orbs-network/spot-ui` directly to add Spot as a candidate in an existing DEX
-quote competition. React integrations that already install `@orbs-network/spot-react`
-can import all the same SDK functions and types from it, without separately
-installing `spot-ui`. No React provider is required for these functions. `getQuote` carries request
-identity and the authoritative `minimumAmountOut`, and
-`client.prepareSwap` reuses quotes up to 20 seconds old, or refreshes
-the original request and checks its minimum, before preparing raw amounts without a UI form. The DEX can
-keep its wrapping, approval, and signing flow, then post the signed order with
-`client.submitSignedSwap(prepared, signature)`, which waits internally for the swap to fill.
-Use `client.executeSwap({ quote, account, walletInteractions })` for the default
-SDK-coordinated flow. It checks allowance, approves, prepares, signs, and submits through the
-host wallet callbacks, then waits for the fill. For calculated forms,
-`client.executeOrder` prepares from the reviewed form's amounts and minimum;
-use `client.executeSwap` when quote-age refresh is needed.
-Swap forms resolve after a fill; advanced orders resolve at acceptance. Separate preparation and signed
-submission remain available for DEX integrations that own those steps.
-Call `await client.prepareSwap({ quote, account, signal })` immediately before signing. All swaps
-have a fixed 3-minute expiration from preparation, including calculated form swaps.
+Use `@orbs-network/spot-ui` directly, or its public re-exports from `spot-react`,
+to add Spot as a quote candidate. No React provider is required. Preserve the
+reviewed quote and create one execution session:
 
-See the [typed router adapter](packages/spot-ui/examples/router-swap.ts) and
-[SDK guide](packages/spot-ui/README.md#existing-dex-routers-use-the-sdk-directly).
+```ts
+const execution = client.createSwapExecution({
+  quote, account, walletInteractions, signal,
+});
+const order = await execution.run({ onProgress });
+```
+
+`run()` returns a completed swap `Order`. To control individual steps, await
+`wrap()`, `approve()`, `sign()`, `submit()`, and `waitForCompletion()` on that
+same session. Preparation happens late inside `sign()`; `submit()` uses its
+stored exact payload/signature and returns acceptance. Read accepted/latest
+state from `execution.order`, and keep the session outside transient modals.
+See the [typed router adapter](packages/spot-ui/examples/router-swap.ts).
+
+Wallet approval requests separate the exact required input `amount` from the
+suggested spending cap `approvalAmount`, which defaults to the maximum uint256.
+Compare live allowance only with `amount`. The host's approval callback may use
+the suggestion, the exact amount, or its own cap policy without mutating the request.
+
+For calculated advanced-order forms, create an order session with
+`client.createOrderExecution({ form, account, inputTokenAddress,
+outputTokenAddress, walletInteractions, signal })`. Its `run()`
+returns the accepted `Order`; later fills are available through history.
+Constructors snapshot new reviewed input and perform no wallet work. The session
+retains its own acceptance; saved orders use normal status/history reads.
 
 ## Quote-based swaps
 
-The demo Swap tab uses Spot orders. `getQuote` imported from `@orbs-network/spot-react`
-posts `{ inToken, inAmount, outToken, user, slippage, outAmount }` to the order-sink v2 `/quote`
-endpoint with `chainId` and `partner` query parameters.
-UI and SDK slippage use percentages (`0.5` means 0.5%); the SDK converts to
-integer basis points for the API (`50`), rounded to the nearest bps.
-`dexMinAmountOut` maps to `outAmount`
-and defaults to `"-1"` when no DEX quote is available. The caller's abort signal
-is forwarded to fetch.
+`client.getQuote` carries request identity and the authoritative
+`minimumAmountOut`. Amounts are integer base-unit strings. Slippage uses
+percentages (`0.5` means 0.5%); the SDK sends integer basis points to the API.
+`dexMinAmountOut` is optional: omit it when no DEX route is available and the SDK
+sends `"-1"`. The abort signal is forwarded to the quote request.
 
-Swaps use the public Spot client directly, without a React provider. Preserve the
-original quote and pass it to `client.executeSwap({ quote, account,
-walletInteractions, signal })`, or use `prepareSwap` → host signing →
-`submitSignedSwap` when the DEX owns wallet steps. Keep the existing swap form,
-review/modal state, and optional `swap-ui` presentation.
+Swap previews use the quote and token metadata directly. Preserve the returned
+minimum unchanged. Protocol native input uses the configured wrapped ERC-20
+address; host wallet callbacks decide wrapping and confirm transaction receipts.
+At `sign()`, the session reuses a quote up to twenty seconds old or refreshes the
+original request and verifies its minimum before preparing fresh signing data.
+Swaps sign a three-minute lifetime and fixed 500 bps oracle protection.
 
-`quote.minimumAmountOut` is authoritative and already includes UI slippage; do
-not apply slippage again. Protocol input uses the configured wrapped ERC-20
-address for a native selection. SDK-managed execution awaits the host's required
-`shouldWrap()` decision and confirms `wrapNativeToken` when true. Manual wallet
-flows complete wrapping and approval before preparation/signing.
+Keep host loading and duplicate guards active until `run()` or
+`waitForCompletion()` completes, and pause obsolete quote requests. Preserve
+`execution.order` or `OrderSettlementError.order`/`orderId` if tracking stops.
+Check saved accepted state with `client.getOrder({ orderId, signal })` or
+configured history. The host owns any further polling. Reconcile uncertain
+acceptance before creating a replacement. Do not start another settlement poller.
 
-The SDK waits internally for a confirmed fill. Keep host loading/duplicate guards
-active until the client promise completes, pause obsolete quote requests during
-execution, and preserve `OrderSettlementError.order`/`orderId` for read-only
-recovery. No provider hooks or second settlement poller are needed. Swaps have a
-fixed three-minute signed expiration and fixed 500 bps oracle protection.
-
-`AdvancedOrdersProvider` supports only TWAP, Limit, Stop-Loss, and Take-Profit
-forms. It can coexist with the independent swap flow in the same application.
-Its `marketQuote` accepts current advanced-order valuation, including optional
-SDK quotes; a quote object does not imply swap execution.
+`AdvancedOrdersProvider` supports only the four `OrderType` values: TWAP, Limit,
+Stop-Loss, and Take-Profit. Its `marketQuote` has only optional
+`quotedOutputAmountRaw`, `isLoading`, and `noLiquidity` fields. Pass token USD
+prices through separate provider props; direct swaps use the SDK quote flow above.
 
 ## Migrating from Liquidity Hub
 
@@ -237,7 +238,7 @@ cache. Each client receives a deep copy, failed requests are evicted, and nonce
 allocation is shared within the loaded SDK instance. Hosts still own client
 resource lifetime and invalidation.
 
-The client owns the configuration-derived spender, exchange, signing payload, approval/cancellation requests, submission, and configured order history. Pure calculations remain package-level functions. The `calculateOrder` helper accepts raw DEX form state and produces defaults, prices, trades, schedules, validation, raw/token-formatted/USD values, and the execution values shared by order construction and React displays. Form calculation is time-independent; `prepareOrder` assigns the exact start and deadline immediately before signing. A missing client represents initialization loading; after automatic retries, `AdvancedOrdersProvider` keeps the host form mounted and renders a retryable, host-customizable `clientErrorFallback` alongside it.
+The client owns the configuration-derived spender, exchange, signing payload, approval/cancellation requests, submission, and configured order history. Pure calculations remain package-level functions. The `calculateOrder` helper accepts raw DEX form state and produces defaults, prices, trades, schedules, validation, raw/token-formatted/USD values, and the execution values shared by order construction and React displays. Form calculation is time-independent; `execution.sign()` assigns the exact start and deadline after confirmed prerequisites. A missing client represents initialization loading; after automatic retries, `AdvancedOrdersProvider` keeps the host form mounted and renders a retryable, host-customizable `errorFallback` alongside it. The same fallback handles calculation/rendering failures and receives `error`, `retry`, and `isRetrying`; retry refetches configuration for initialization errors or resets the boundary for rendering errors.
 
 The client rejects configurations whose domain or order chain differs from the requested chain, and rejects malformed or zero RePermit and exchange-adapter addresses. `domain.verifyingContract` is used as the ERC-20 approval spender and v2 cancellation contract; the returned adapter, reactor, and executor are used for v2 orders. The endpoint remains security-critical because the SDK does not independently verify deployed bytecode or contract identity, so it must be served by the trusted Orbs service over TLS.
 

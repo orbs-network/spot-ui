@@ -1,7 +1,8 @@
+"use client";
+
 import { SpotForm } from "@/components/spot/spot-form";
-import { SwapType } from "@/lib/types";
+import { OrderType } from "@orbs-network/spot-react";
 
 export default function StopLossPage() {
-    return <SpotForm swapType={SwapType.STOP_LOSS} />
-  }
-  
+  return <SpotForm orderType={OrderType.STOP_LOSS} />;
+}

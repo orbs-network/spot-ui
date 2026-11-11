@@ -21,7 +21,7 @@ Classify state before wiring it:
 
 | Class | Examples | Treatment |
 | --- | --- | --- |
-| Editable source state | module, amount, price input, trade count, interval, duration | Store once in the existing local/global app state |
+| Editable source state | order type, amount, price input, trade count, interval, duration | Store once in the existing local/global app state |
 | External source state | quote, balances, USD prices, account, chain | Reuse existing data/wallet caches and freshness metadata |
 | Pure derived state | `CalculatedOrderForm`, validation, display amounts | Memoized/computed selector over exact primitive dependencies; never mirror into writable state |
 | Keyed resource | `SpotClient` | One shared promise/client per partner+chain, outside broad render subscriptions |
@@ -41,7 +41,7 @@ Classify state before wiring it:
 ## Architecture
 
 - Keep the SDK adapter at the host's service/state boundary. Existing UI components should consume narrow host-owned state rather than call wallet and order APIs ad hoc.
-- Keep one source of truth for selected module, tokens, amount, quote, price controls, schedule, account, and chain.
+- Keep one source of truth for selected order type, tokens, amount, quote, price controls, schedule, account, and chain.
 - Make the form calculation a pure derived value. Do not copy calculated raw execution values back into editable state.
 - Keep configured operations on the `SpotClient`; do not expose RePermit internals throughout the application.
 - Model client initialization, submission, cancellation, and history as distinct state machines so one failure does not unmount or erase the order form.
@@ -54,7 +54,7 @@ Classify state before wiring it:
 - Prefer a narrow host `SpotWalletPort` over leaking a wallet SDK's large client type into the integration.
 - Treat caught values as `unknown`; narrow with the host wallet library's error guards and the host's error formatter.
 - Use `satisfies` when defining constant calculation inputs or wallet ports so literal enum values remain precise.
-- Exhaustively map `Module`, `OrderStatus`, and `InputErrors` when the host presents module-specific UI or translations.
+- Exhaustively map `OrderType`, `OrderStatus`, and `InputErrors` when the host presents order-specific UI or translations.
 - Do not cast UI decimal strings into raw values. Let `calculateOrder` perform decimal conversion and validation.
 
 ## Final Checklist
@@ -72,7 +72,7 @@ Classify state before wiring it:
 - [ ] For new chains, the [chain integration checks](06-chain-integration.md) pass through the app's actual read client, token loader, and price adapter, including native-token balance and USD values; unavailable external checks are reported explicitly.
 - [ ] A current raw output quote is passed for the complete current input amount; stale quotes are omitted.
 - [ ] Swaps use `getQuote`, exact net output/minimum, fixed 3-minute expiration from preparation, and 500 bps signed protection. They do not reuse Liquidity Hub payloads.
-- [ ] Swap quotes pause and in-flight quotes are cancelled during execution; duplicate submissions stay blocked through single-order settlement polling.
+- [ ] Swap estimates may update through wrap/approval; output and minimum freeze from `preparedOrder.quote` before signing, with obsolete display requests cancelled then. Duplicate submissions stay blocked through single-order settlement polling.
 - [ ] Swap success is shown only after a fill; terminal failures, uncertain confirmation, and lifecycle cleanup are handled as described in [Swap and Migration](07-swap-and-migration.md).
 - [ ] `inputTokenUsdPrice` and `outputTokenUsdPrice` are one-token USD prices, and `inputBalanceRaw` is raw.
 - [ ] `minTradeSizeUsd`, `priceProtectionPercent`, and optional `displayFeePercent` use the documented units.
@@ -80,10 +80,11 @@ Classify state before wiring it:
 - [ ] Field errors and `form.errors.primary` are localized, and submission uses `form.canSubmit`.
 - [ ] Explicit `tradeCount` is not silently clamped after amount changes.
 - [ ] The client is reused per partner/chain, and rejected initialization can be retried.
-- [ ] SDK-managed adapters provide `shouldWrap()` and confirmed `wrapNativeToken`; native protocol input uses the configured wrapped address. Manual wallet flows confirm host wrapping before preparation/signing.
+- [ ] SDK-managed adapters provide required boolean/async `shouldWrap` and `shouldApprove` decisions; invoked wrap/approval transaction callbacks return confirmed hashes, never undefined; native protocol input uses the configured wrapped address. Manual wallet flows confirm host wrapping before preparation/signing.
 - [ ] Allowance uses the normalized input token, exact raw input amount, and `client.spenderAddress`.
-- [ ] Wallet writes wait for confirmed receipts; post-approval allowance is verified with a bounded retry.
-- [ ] `prepareOrder` runs immediately before signing, after confirmed approval.
+- [ ] Wallet writes wait for confirmed successful receipts; `shouldApprove` reads host allowance for the exact token, raw amount, and spender.
+- [ ] `ApprovalRequest.amount` stays the exact required input. `approvalAmount` is a suggested write cap (maximum uint256 by default); host cap policy builds its own transaction without mutating the SDK request.
+- [ ] Session `sign()` prepares fresh values after confirmed prerequisites and stores the exact payload/signature.
 - [ ] The signing adapter returns the original `0x` signature unchanged.
 - [ ] Concurrent submission and cancellation prompts are prevented.
 - [ ] Ambiguous submission failures are reconciled before another order is prepared.

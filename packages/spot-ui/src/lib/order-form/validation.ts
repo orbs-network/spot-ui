@@ -1,5 +1,8 @@
 import BN from "bignumber.js";
-import { InputErrors, Module, type InputError } from "../types";
+import { InputErrors, OrderType, type InputError } from "../types";
+import { SpotError } from "../errors";
+import { getOrderEpochSeconds } from "../order-timing";
+import { assertOrderSlippageBps } from "./price-protection";
 import {
   getMaxFillDelayError,
   getMaxOrderDurationError,
@@ -15,6 +18,7 @@ import type {
   CalculatedOrderPrices,
   CalculatedOrderSchedule,
   CalculatedOrderTradePlan,
+  CalculatedOrderValues,
   OrderFormNotReadyReason,
 } from "./types";
 
@@ -44,6 +48,17 @@ const formatDurationErrorValue = (milliseconds: number): string => {
   return `${minutes.toFixed(minutes % 1 ? 1 : 0)} ${minutes === 1 ? "minute" : "minutes"}`;
 };
 
+const formatMinimumDuration = (milliseconds: number): string => {
+  let remaining = milliseconds;
+  const parts: string[] = [];
+  for (const [unit, label] of [[86_400_000, "day"], [3_600_000, "hour"], [60_000, "minute"], [1000, "second"]] as const) {
+    const amount = Math.floor(remaining / unit);
+    if (amount > 0) parts.push(`${amount} ${label}${amount === 1 ? "" : "s"}`);
+    remaining %= unit;
+  }
+  return parts.join(" ");
+};
+
 export const calculateTradesError = (
   params: CalculateOrderFormParams,
   marketPrice: string,
@@ -69,7 +84,7 @@ export const calculateTradesError = (
   const maxTradesError = getMaxTradesError(
     totalTrades,
     maxTrades,
-    params.module,
+    params.orderType,
   );
   if (maxTradesError.isError) {
     return {
@@ -113,16 +128,14 @@ export const calculateFillDelayError = (
 };
 
 export const calculateDurationError = (
-  module: Module,
+  orderType: OrderType,
   inputAmount: string,
   marketPrice: string | undefined,
   schedule: CalculatedOrderSchedule,
 ): InputError | undefined => {
-  // Swaps use the SDK's fixed duration rather than advanced-order duration limits.
-  if (module === Module.SWAP) return undefined;
   if (BN(inputAmount || "0").isZero() || !marketPrice) return undefined;
 
-  const maxError = getMaxOrderDurationError(module, schedule.duration);
+  const maxError = getMaxOrderDurationError(orderType, schedule.duration);
   if (maxError.isError) {
     return {
       type: InputErrors.MAX_ORDER_DURATION,
@@ -133,17 +146,39 @@ export const calculateDurationError = (
     };
   }
 
-  const minError = getMinOrderDurationError(schedule.duration);
+  const minError = getMinOrderDurationError(orderType, schedule);
   if (minError.isError) {
     return {
       type: InputErrors.MIN_ORDER_DURATION,
       value: minError.value,
       args: {
-        duration: `${Math.floor(minError.value / 60_000).toFixed(0)} minutes`,
+        duration: formatMinimumDuration(minError.value),
       },
     };
   }
   return undefined;
+};
+
+/** Recheck the schedule/protection actually consumed by signing before wallet work. */
+export const assertOrderExecutionValues = (
+  orderType: OrderType,
+  values: CalculatedOrderValues,
+): void => {
+  assertOrderSlippageBps(values.slippageBps);
+  if (orderType !== OrderType.TWAP) return;
+  if (!Number.isSafeInteger(values.totalTrades) || values.totalTrades < 1) {
+    throw new SpotError("INVALID_ARGUMENT", "TWAP totalTrades must be a positive safe integer");
+  }
+  if (values.totalTrades > 1) {
+    const epoch = getOrderEpochSeconds(values.fillDelayMillis, values.totalTrades);
+    if (!Number.isFinite(values.fillDelayMillis) || !Number.isSafeInteger(epoch) || epoch <= 0) {
+      throw new SpotError("INVALID_ARGUMENT", "Multiple TWAP trades require a positive finite interval");
+    }
+  }
+  const minimum = getMinOrderDurationError(orderType, values);
+  if (minimum.isError) {
+    throw new SpotError("FORM_NOT_SUBMITTABLE", `TWAP duration must be at least ${formatMinimumDuration(minimum.value)} to cover its trade schedule`);
+  }
 };
 
 const calculateMinTradeSizeError = (
@@ -168,14 +203,6 @@ const calculateBalanceError = (
   return { type: InputErrors.INSUFFICIENT_BALANCE, value: inputBalanceRaw };
 };
 
-const hasValidSwapQuote = (params: CalculateOrderFormParams): boolean => {
-  if (params.module !== Module.SWAP) return true;
-  const minimum = params.minimumOutputAmountRaw || "";
-  const output = params.quotedOutputAmountRaw || "";
-  return /^\d+$/.test(minimum) && /^\d+$/.test(output) &&
-    BN(minimum || 0).gt(0) && BN(minimum || 0).lte(output || 0);
-};
-
 interface FormReadiness {
   hasRequiredInputs: boolean;
   isReady: boolean;
@@ -191,16 +218,13 @@ const calculateFormReadiness = (
   const hasMarketQuote = BN(marketPrice || 0).gt(0);
   const hasUsdValue = hasInputUsdValue(params, inputAmount);
   const hasRequiredInputs = hasInputAmount && hasMarketQuote && hasUsdValue;
-  const validSwapQuote = hasValidSwapQuote(params);
 
   // Report the first missing prerequisite, before errors in editable form fields.
   let notReadyReason: OrderFormNotReadyReason | undefined;
   if (!hasInputAmount) notReadyReason = "empty-input";
   else if (!hasMarketQuote) notReadyReason = "awaiting-quote";
   else if (!hasUsdValue) notReadyReason = "missing-usd-value";
-  else if (!validSwapQuote) notReadyReason = "invalid-swap-minimum";
-
-  return { hasRequiredInputs, isReady: hasRequiredInputs && validSwapQuote, notReadyReason };
+  return { hasRequiredInputs, isReady: hasRequiredInputs, notReadyReason };
 };
 
 export const validateOrderForm = (
@@ -217,15 +241,7 @@ export const validateOrderForm = (
   );
   const balanceError = calculateBalanceError(inputAmount.raw, params.inputBalanceRaw);
   const readiness = calculateFormReadiness(params, inputAmount, marketPrice);
-  const swapMinimumError: InputError | undefined =
-    readiness.hasRequiredInputs && !readiness.isReady
-      ? {
-          type: InputErrors.INVALID_SWAP_MINIMUM,
-          value: params.minimumOutputAmountRaw ?? "",
-        }
-      : undefined;
   const orderedErrors = [
-    swapMinimumError,
     minTradeSizeError,
     prices.triggerPrice.error,
     prices.limitPrice.error,
@@ -241,7 +257,6 @@ export const validateOrderForm = (
       primary: primaryError,
       all: orderedErrors,
       minTradeSize: minTradeSizeError,
-      swapMinimum: swapMinimumError,
       triggerPrice: prices.triggerPrice.error,
       limitPrice: prices.limitPrice.error,
       trades: tradePlan.error,

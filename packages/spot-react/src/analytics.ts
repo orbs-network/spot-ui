@@ -1,8 +1,8 @@
 import type { SpotClient } from "@orbs-network/spot-ui";
 import { createAnalytics, getClientAnalytics, type AnalyticsContext, type SpotAnalytics } from "@orbs-network/spot-ui/internal";
-import type { SwapExecution } from "./types";
+import type { OrderExecutionState } from "./types";
 
-type ExecutionAnalyticsInputs = Pick<SwapExecution,
+type ExecutionAnalyticsInputs = Pick<OrderExecutionState,
   "account" | "chainId" | "partner" | "form" | "inputToken" | "outputToken" | "orderId"
 >;
 
@@ -16,7 +16,7 @@ export const getExecutionAnalyticsContext = ({
     chainId,
     partner,
     orderId,
-    module: form?.module,
+    orderType: form?.orderType,
     inputTokenAddress: inputToken?.address,
     inputTokenSymbol: inputToken?.symbol,
     outputTokenAddress: outputToken?.address,
@@ -32,16 +32,15 @@ export const getExecutionAnalyticsContext = ({
   };
 };
 
-/** Each attempt owns its metadata and delivery lifetime, including before client initialization. */
+/** Attempt metadata inherits the owning client policy; unowned fallback reporting stays silent. */
 export const createOperationAnalytics = (
   context: AnalyticsContext,
   client?: SpotClient,
-  disableAnalytics = false,
 ): SpotAnalytics => {
   try {
-    return client && !disableAnalytics
+    return client
       ? getClientAnalytics(client).createOperation(context)
-      : createAnalytics(context, { disableAnalytics });
+      : createAnalytics(context, { disableAnalytics: true });
   } catch {
     // A custom reporter must not prevent the wallet or its original error from being reached.
     return createAnalytics(context, { disableAnalytics: true });

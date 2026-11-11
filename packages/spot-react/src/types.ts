@@ -1,6 +1,6 @@
 import {
   Partners,
-  Module,
+  OrderType,
   Order,
   TimeDuration,
   type Address,
@@ -9,9 +9,9 @@ import {
   type CalculatedOrderForm,
   type CancelOrderRequest,
   type OrderWalletInteractions,
+  type OrderExecution as SdkOrderExecution,
   type PreparedOrder,
   type SpotClient,
-  type SwapQuote,
   type Token,
 } from "@orbs-network/spot-ui";
 import type { SpotAnalytics } from "@orbs-network/spot-ui/internal";
@@ -36,7 +36,7 @@ export enum ExecutionPhase {
   REJECTED = "rejected",
 }
 export type { Order, Token } from "@orbs-network/spot-ui";
-export { OrderStatus, type OrderFill, OrderType, Module } from "@orbs-network/spot-ui";
+export { OrderStatus, type OrderFill, OrderVariant, OrderType } from "@orbs-network/spot-ui";
 
 
 
@@ -131,34 +131,16 @@ export type Callbacks = {
 
 
 export type MarketQuote = {
-  /** Optional SDK quote supplying market amounts and USD display values. */
-  quote?: SwapQuote;
   quotedOutputAmountRaw?: string;
-  /** Quoted minimum in output-token base units. */
-  minimumOutputAmountRaw?: string;
-  /** Exact USD value of the current input amount (quote.inputAmountUsd). */
-  inputAmountUsd?: string;
-  /** Exact USD value of the current net output quote. */
-  quotedOutputAmountUsd?: string;
-  /** Exact USD value of the current minimum output quote. */
-  minimumOutputAmountUsd?: string;
   isLoading?: boolean;
   noLiquidity?: boolean;
 };
 
-export interface ClientErrorFallbackProps {
+export interface SpotErrorFallbackProps {
   error: Error;
   retry: () => Promise<void>;
   isRetrying: boolean;
 }
-
-export interface SpotErrorFallbackProps {
-  error: Error;
-  resetErrorBoundary: (...args: unknown[]) => void;
-}
-
-/** Order modules supported by the React form provider. Swaps use the direct SDK client. */
-export type AdvancedOrderModule = Exclude<Module, Module.SWAP>;
 
 /** Inputs for advanced order forms, execution, cancellation, and history. */
 export interface AdvancedOrdersProviderProps {
@@ -167,7 +149,7 @@ export interface AdvancedOrdersProviderProps {
   chainId?: number;
   account?: Address;
   partner: Partners;
-  /** Disable telemetry for this provider, including active operations. Defaults to false. */
+  /** Disable analytics for clients created by this provider. Defaults to false. */
   disableAnalytics?: boolean;
   inputToken?: Token;
   outputToken?: Token;
@@ -179,7 +161,7 @@ export interface AdvancedOrdersProviderProps {
   inputTokenUsdPrice: string | undefined;
   outputTokenUsdPrice?: string;
   priceProtectionPercent: number;
-  module: AdvancedOrderModule;
+  orderType: OrderType;
   marketQuote: MarketQuote;
   overrides?: Overrides;
   /** Display-only estimate; protocol fee collection is configured separately. */
@@ -188,9 +170,7 @@ export interface AdvancedOrdersProviderProps {
   minTradeSizeUsd: number;
   inputAmountUi: string;
   supportLegacyOrders?: boolean;
-  /** Host-rendered, retryable UI for client initialization failures. */
-  clientErrorFallback?: ComponentType<ClientErrorFallbackProps>;
-  /** Host-rendered fallback for unexpected calculation or rendering errors. */
+  /** Host-rendered, retryable UI for client initialization or rendering failures. */
   errorFallback?: ComponentType<SpotErrorFallbackProps>;
 }
 
@@ -205,11 +185,12 @@ export interface CompletedWrap {
   account: Address;
   chainId: number;
   inputTokenAddress: string;
+  wrappedTokenAddress: string;
   inputAmountRaw: string;
   txHash: string;
 }
 
-export type SwapExecution = {
+export type OrderExecutionState = {
   executionId?: number;
   phase: ExecutionPhase;
   account?: Address;
@@ -220,6 +201,8 @@ export type SwapExecution = {
   apiUrl?: string;
   /** Reporter captured for this attempt, retained for wallet-independent status recovery. */
   analytics?: SpotAnalytics;
+  /** Lifecycle callbacks captured for this attempt, including background recovery. */
+  callbacks?: Callbacks;
   parsedError?: ParsedError;
   error?: Error;
   stepIndex?: number;
@@ -236,10 +219,12 @@ export type SwapExecution = {
   hasApproval?: boolean;
   form?: CalculatedOrderForm;
   preparedOrder?: PreparedOrder;
+  /** SDK object owns confirmed wallet steps and the current prepared/accepted payload. */
+  sdkExecution?: SdkOrderExecution;
   completedWrap?: CompletedWrap;
 };
 
-export type StartedSwapExecution = SwapExecution & {
+export type StartedOrderExecutionState = OrderExecutionState & {
   executionId: number;
   phase: ExecutionPhase.PREPARING;
 };
@@ -261,7 +246,7 @@ export interface State {
     error?: string;
   }>;
 
-  currentExecution: SwapExecution;
+  currentExecution: OrderExecutionState;
 }
 
 export { Partners };

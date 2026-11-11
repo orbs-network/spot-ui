@@ -1,6 +1,6 @@
 import { eqIgnoreCase, isNativeAddress, toAmountRaw } from "@orbs-network/spot-ui/internal";
 import { useMemo } from "react";
-import type { MarketQuote, AdvancedOrdersProviderProps } from "../types";
+import type { AdvancedOrdersProviderProps } from "../types";
 import {
   createSpotFormDefaults,
   type SpotFormDefaults,
@@ -13,35 +13,14 @@ interface AdvancedOrdersProviderState {
   trading: SpotTradingState;
 }
 
-const resolveMarketQuote = (marketQuote: MarketQuote): MarketQuote => {
-  if (marketQuote.isLoading) {
-    return { isLoading: true, noLiquidity: marketQuote.noLiquidity };
-  }
-  const { quote } = marketQuote;
-  // The original quote is authoritative; flat fields support other quote adapters.
-  return {
-    ...marketQuote,
-    quotedOutputAmountRaw: quote?.netAmountOut ?? marketQuote.quotedOutputAmountRaw,
-    minimumOutputAmountRaw: quote?.minimumAmountOut ?? marketQuote.minimumOutputAmountRaw,
-    inputAmountUsd: quote?.inputAmountUsd ?? marketQuote.inputAmountUsd,
-    quotedOutputAmountUsd: quote?.netAmountOutUsd ?? marketQuote.quotedOutputAmountUsd,
-    minimumOutputAmountUsd: quote?.minimumAmountOutUsd ?? marketQuote.minimumOutputAmountUsd,
-  };
-};
-
 export const useAdvancedOrdersProviderState = (props: AdvancedOrdersProviderProps): AdvancedOrdersProviderState => {
   // The asynchronous client loader checks remote partner/chain support.
   const hasChainId =
     Number.isSafeInteger(props.chainId) && Number(props.chainId) > 0;
   const wrappedNativeAddress = props.wrappedNativeToken?.address;
-  const {
-    quote,
-    quotedOutputAmountRaw: marketOutputAmountRaw,
-    minimumOutputAmountRaw,
-    inputAmountUsd,
-    quotedOutputAmountUsd,
-    minimumOutputAmountUsd,
-  } = resolveMarketQuote(props.marketQuote);
+  const marketOutputAmountRaw = props.marketQuote.isLoading
+    ? undefined
+    : props.marketQuote.quotedOutputAmountRaw;
   const isNativePair = Boolean(
     wrappedNativeAddress &&
       ((isNativeAddress(props.inputToken?.address) &&
@@ -61,16 +40,16 @@ export const useAdvancedOrdersProviderState = (props: AdvancedOrdersProviderProp
   const initialState = useMemo(
     () =>
       createSpotFormDefaults({
-        module: props.module,
+        orderType: props.orderType,
         overrides: props.overrides,
       }),
-    [props.module, props.overrides],
+    [props.orderType, props.overrides],
   );
   // Changing saved defaults must not reset the current form or execution.
   const formScopeKey = JSON.stringify([
     props.partner,
     props.chainId,
-    props.module,
+    props.orderType,
     props.inputToken?.address,
     props.inputToken?.decimals,
     props.outputToken?.address,
@@ -84,12 +63,7 @@ export const useAdvancedOrdersProviderState = (props: AdvancedOrdersProviderProp
       minTradeSizeUsd: props.minTradeSizeUsd,
       account: props.account,
       walletInteractions: props.walletInteractions,
-      quote,
       quotedOutputAmountRaw,
-      minimumOutputAmountRaw,
-      inputAmountUsd,
-      quotedOutputAmountUsd,
-      minimumOutputAmountUsd,
       marketPriceLoading,
       noLiquidity,
       priceProtectionPercent: props.priceProtectionPercent,
@@ -97,7 +71,7 @@ export const useAdvancedOrdersProviderState = (props: AdvancedOrdersProviderProp
       hasChainId,
       partner: props.partner,
       disableAnalytics: props.disableAnalytics ?? false,
-      module: props.module,
+      orderType: props.orderType,
       displayFeePercent: props.displayFeePercent ?? 0,
       callbacks: props.callbacks,
       inputTokenUsdPrice: props.inputTokenUsdPrice,
@@ -110,11 +84,6 @@ export const useAdvancedOrdersProviderState = (props: AdvancedOrdersProviderProp
       overrides: props.overrides,
     }),
     [
-      minimumOutputAmountRaw,
-      inputAmountUsd,
-      quotedOutputAmountUsd,
-      minimumOutputAmountUsd,
-      quote,
       props.account,
       props.callbacks,
       props.chainId,
@@ -123,7 +92,7 @@ export const useAdvancedOrdersProviderState = (props: AdvancedOrdersProviderProp
       props.inputToken,
       props.inputTokenUsdPrice,
       props.minTradeSizeUsd,
-      props.module,
+      props.orderType,
       props.outputToken,
       props.outputTokenUsdPrice,
       props.wrappedNativeToken,

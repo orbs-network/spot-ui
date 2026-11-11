@@ -1,8 +1,8 @@
-import { Module } from "@orbs-network/spot-react";
+import { OrderType } from "@orbs-network/spot-react";
 import { createContext, useContext, type ReactNode } from "react";
 
 interface SpotFormContextValue {
-  swapModule: Module;
+  orderType: OrderType;
   setInputAmount: (value: string) => void;
 }
 

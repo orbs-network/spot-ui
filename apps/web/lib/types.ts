@@ -15,14 +15,6 @@ export type Balances = {
 }
 
 
-export enum SwapType {
-    SWAP = 'SWAP',
-    TWAP = 'TWAP',
-    LIMIT = 'LIMIT',
-    STOP_LOSS = 'STOP_LOSS',
-    TAKE_PROFIT = 'TAKE_PROFIT',
-}
-
 export type WrappedNativeAction = "wrap" | "unwrap";
 
 export enum Field {

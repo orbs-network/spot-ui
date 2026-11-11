@@ -1,5 +1,4 @@
 import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
-import { SwapType } from "../types";
 import { useSwapStore } from "./store";
 import { useSwapParams } from "./use-swap-params";
 import { useCurrency } from "./use-currencies";
@@ -88,7 +87,7 @@ export const useDerivedSwap = () => {
   return {
     inputCurrency,
     outputCurrency,
-    swapType: swapType as SwapType,
+    swapType,
     inputAmount: store.inputAmount,
     parsedInputAmount,
     trade,

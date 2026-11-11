@@ -11,7 +11,7 @@ import { TABS } from "../types";
 /**
  * Shares a host client for the selected partner and active chain outside the advanced provider.
  * `data` is undefined while configuration loads; use `error` and `refetch` for failures.
- * Swap execution owns its telemetry; advanced-order initialization belongs to its provider.
+ * Its creation options control analytics for quotes, executions, and tracking.
  */
 export const useSpotClient = (): Pick<
   UseQueryResult<SpotClient>, "data" | "error" | "isLoading" | "refetch"

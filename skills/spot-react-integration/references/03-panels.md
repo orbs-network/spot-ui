@@ -1,6 +1,6 @@
 # Hook-Driven Panels
 
-Use `useOrderForm()` for the authoritative calculated form and the other focused named hooks in leaf components so they depend only on the contract they render. Use `useExecution()` for submission state and `useOrders()` for history. Keep the module and network selector configuration in host state. Client initialization uses the order-sink `/config` API to determine partner/chain availability.
+Use `useOrderForm()` for the authoritative calculated form and the other focused named hooks in leaf components so they depend only on the contract they render. Use `useExecution()` for submission state and `useOrders()` for history. Keep the order type and network selector configuration in host state. Client initialization uses the order-sink `/config` API to determine partner/chain availability.
 
 The snippets below are intentionally framework-neutral. Replace placeholder components such as `CurrencyInputPanel`, `Select`, `Button`, `Dialog`, `ConnectWalletButton`, `SwitchNetworkButton`, and `DisclaimerAccept` with existing DEX components, and source variables such as `address`, `chainId`, `inputValue`, and `setInputAmount` from the DEX state/hooks.
 
@@ -67,7 +67,7 @@ const history = useOrders();
 | `useDisclaimer()` | Disclaimer string key or `undefined` |
 | `useInputErrors()` | `{ type, args }` or `undefined` |
 | `useSubmitButton()` | `disabled`, `loading`, and `disabledReason` when disabled |
-| `execution` | `submitOrder`, `phase`, `status`, `returnToOrderForm`, `startNewOrder`, `error`, `isPreparingOrder`, `isExecuting`, `isSuccess`, `isFailed`, `isRejected`, `canDismiss`, `currentStep`, `currentStepIndex`, `totalSteps`, `executionSteps`, `inputToken`, `outputToken`, `approvalTxHash` |
+| `execution` | `submitOrder`, `phase`, `status`, `returnToOrderForm`, `startNewOrder`, `checkOrderStatus`, `error`, `isPreparingOrder`, `isExecuting`, `isUnconfirmed`, `hasUnconfirmedExecutions`, `isCheckingOrderStatus`, `isSuccess`, `isFailed`, `isRejected`, `canDismiss`, `currentStep`, `currentStepIndex`, `totalSteps`, `executionSteps`, `inputToken`, `outputToken`, `approvalTxHash` |
 | `history` | Provider-scoped state with `data: { all, open, completed, cancelled, expired }` |
 
 
@@ -78,15 +78,15 @@ Cancel orders use `useCancelOrder` (see Cancel Order below).
 For a small proof of integration, form sections can live near the main form. For a production DEX integration, split sections into focused components and put shared DEX adapter state/actions behind a local context hook instead of threading many props through the tree.
 
 ```tsx
-function SpotFormContent({ module }) {
+function SpotFormContent({ orderType }) {
   return (
     <div className="flex flex-col gap-4">
-      <ModuleTabs />
+      <OrderTypeTabs />
       <TokenInputsSection />
       <PriceConfigSection />
-      {module === Module.TWAP && <TradeSizeSection />}
-      {module === Module.TWAP && <TradeIntervalSection />}
-      {module !== Module.TWAP && <DurationSection />}
+      {orderType === OrderType.TWAP && <TradeSizeSection />}
+      {orderType === OrderType.TWAP && <TradeIntervalSection />}
+      {orderType !== OrderType.TWAP && <DurationSection />}
       <InputErrorPanel />
       <DisclaimerPanel />
       <SubmitOrderSection />
@@ -122,10 +122,10 @@ If Spot reuses the DEX token selector, keep it on the connected/account chain an
 ## Price Panels
 
 ```tsx
-function PriceConfigSection({ module }: { module: AdvancedOrderModule }) {
+function PriceConfigSection({ orderType }: { orderType: OrderType }) {
   const { onInvert, isInverted, displayInputToken, isMarketOrder } =
     usePriceDisplay();
-  const showTrigger = module === Module.STOP_LOSS || module === Module.TAKE_PROFIT;
+  const showTrigger = orderType === OrderType.STOP_LOSS || orderType === OrderType.TAKE_PROFIT;
 
   return (
     <div>
@@ -136,7 +136,7 @@ function PriceConfigSection({ module }: { module: AdvancedOrderModule }) {
         onInvert={onInvert}
       />
       {showTrigger && <TriggerPriceRow />}
-      <LimitPriceRow showToggle={module !== Module.LIMIT} />
+      <LimitPriceRow showToggle={orderType !== OrderType.LIMIT} />
     </div>
   );
 }
@@ -391,14 +391,17 @@ Render the form normally even without `chainId` or `account`. Only the submit ar
 function SubmitOrderSection({ supportedChains }: { supportedChains: number[] }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { disabled, loading } = useSubmitButton();
-  const { status, isSuccess, canDismiss, isUnconfirmed, returnToOrderForm, startNewOrder } =
+  const { status, isSuccess, isExecuting, canDismiss, isUnconfirmed, hasUnconfirmedExecutions,
+    isCheckingOrderStatus, checkOrderStatus, returnToOrderForm, startNewOrder } =
     useExecution();
 
   const onClose = useCallback(() => {
     if (!canDismiss) return;
     setIsModalOpen(false);
     if (isUnconfirmed) return;
-    if (isSuccess) {
+    if (isExecuting) {
+      if (startNewOrder()) setInputAmount("");
+    } else if (isSuccess) {
       setInputAmount("");
       setTimeout(() => {
         startNewOrder();
@@ -408,7 +411,14 @@ function SubmitOrderSection({ supportedChains }: { supportedChains: number[] }) 
         returnToOrderForm();
       }, 500);
     }
-  }, [canDismiss, isSuccess, isUnconfirmed, returnToOrderForm, setInputAmount, startNewOrder, status]);
+  }, [canDismiss, isExecuting, isSuccess, isUnconfirmed, returnToOrderForm, setInputAmount, startNewOrder, status]);
+
+  const onCreateAnotherOrder = useCallback(() => {
+    if (startNewOrder()) {
+      setInputAmount("");
+      setIsModalOpen(false);
+    }
+  }, [setInputAmount, startNewOrder]);
 
   return (
     <>
@@ -425,8 +435,16 @@ function SubmitOrderSection({ supportedChains }: { supportedChains: number[] }) 
           {isUnconfirmed ? "Check order status" : loading ? t("fetchingQuote") : t("placeOrder")}
         </Button>
       )}
+      {hasUnconfirmedExecutions && !isUnconfirmed && (
+        <div role="status">
+          <p>A previous order's submission is unconfirmed.</p>
+          <Button onClick={checkOrderStatus} disabled={isCheckingOrderStatus}>
+            {isCheckingOrderStatus ? "Checking order status…" : "Check previous order status"}
+          </Button>
+        </div>
+      )}
       {/* Keep progress mounted while a captured attempt is reconciled. */}
-      <SubmitOrderModal isOpen={isModalOpen} onClose={onClose} />
+      <SubmitOrderModal isOpen={isModalOpen} onClose={onClose} onCreateAnotherOrder={onCreateAnotherOrder} />
     </>
   );
 }
@@ -438,14 +456,19 @@ objects remain separate; validated configuration requests/templates share a
 60-second, 32-entry LRU cache, returning deep copies and evicting failures. While
 initialization runs, submit loading follows client state. A missing chain disables
 submission; configuration failures stop loading and retain disabled submission.
-After retries, `AdvancedOrdersProvider` renders `clientErrorFallback` with `error`, `retry`,
-and `isRetrying`; provide a localized DEX-native component.
+After retries, `AdvancedOrdersProvider` keeps children mounted and renders
+`errorFallback` alongside them with `error`, `retry`, and `isRetrying`. Provide
+one localized DEX-native component for both initialization and calculation/rendering
+failures. `retry(): Promise<void>` refetches configuration for initialization errors
+or resets the boundary for rendering errors.
 
 When the installed API exposes `useSubmitButton().disabledReason`, use it to
 diagnose the existing gate instead of rebuilding readiness rules. Client reasons
-lead to `useClient()` and its retry action; quote/balance/token reasons lead to
-the corresponding discovered host source. `unconfirmed-order` requires status
-reconciliation, while `validation-error` leads to `useInputErrors()`.
+lead to `useClient()` and the fallback's retry action; quote/balance/token reasons lead to
+the corresponding discovered host source. `unconfirmed-order` offers status
+reconciliation or explicit background retention through `startNewOrder()`;
+`order-completed` requires `startNewOrder()` before another submission, while
+`validation-error` leads to `useInputErrors()`.
 Form prerequisite details are in `useOrderForm().notReadyReason` when supported.
 Map codes to the host's UI copy and tell the person the required action in plain
 language. Older versions without these fields require inspection of the public
@@ -568,22 +591,25 @@ Style the `SwapFlow` wrapper with the DEX theme. Do not copy the reference scree
 ### `useExecution()` provides:
 - `submitOrder` — trigger the order creation flow
 - `status` — `ExecutionStatus` (`LOADING`, `SUCCESS`, `FAILED`) or undefined
-- `isExecuting` — true through preparation, wallet steps, and submission; use it to pause quotes and block close/reset
-- `isUnconfirmed`, `resumeTracking` — retain an uncertain attempt and check its status before another submission
-- `canDismiss` — whether the view may close; closing an unconfirmed view must preserve its input and execution snapshot
-- `isSuccess`, `isFailed` — terminal flags; advanced-order creation succeeds at acceptance
+- `isExecuting` — true through preparation, wallet steps, and submission for the visible attempt; use it to pause that form's obsolete quotes
+- `isUnconfirmed`, `checkOrderStatus` — retain an uncertain visible attempt and check its original payload without resubmission; an explicit `startNewOrder()` can retain it in the background and open an independent form
+- `hasUnconfirmedExecutions` — show a status-recovery action for unresolved background attempts even when the visible form is new, including while a check runs; call the same `checkOrderStatus` action
+- `isCheckingOrderStatus` — a foreground or background status check is running; disable the recovery action until it finishes
+- `canDismiss` — permits closing the view during execution; use `startNewOrder()` to release the form. Closing an unconfirmed view must preserve its input and execution snapshot
+- `isSuccess`, `isFailed` — terminal flags; advanced-order creation succeeds at acceptance and `order-completed` disables another submission until `startNewOrder()`
 - `currentStep` — current step: WRAP, APPROVE, CREATE
 - `currentStepIndex` / `totalSteps` — progress tracking
 - `executionSteps` — ordered steps required for this execution
 - `error` — parsed `{ code, message }` failure for display
 - `returnToOrderForm()` — dismisses a definitive failed/rejected execution while preserving the form for retry; active and unconfirmed executions reject the reset
-- `startNewOrder()` — resets Spot's form and retry state after a confirmed terminal execution; active and unconfirmed executions reject the reset
+- `startNewOrder()` — resets the visible form and execution; active or unconfirmed attempts retain their original snapshots for background work or status recovery. A stale reset callback returns `false`
 
 Use `phase` when the DEX needs precise progress. It transitions through `idle`,
 `preparing`, `wrapping`, `approving`, `signing`, `submitting`, and `success`,
 with definitive `failed`/`rejected` and retained `unconfirmed` branches. Map the coarser `status` to
-the chosen progress UI. Keep the modal open while `isExecuting` is true; the
-SDK also rejects reset actions during those phases.
+the chosen progress UI. Closing during `isExecuting` may call `startNewOrder()`
+to continue that attempt in the background and allow another reviewed order.
+Keep the provider mounted so its tasks and callbacks continue.
 - `isPreparingOrder` — whether client initialization or allowance preparation is pending
 - `inputToken`, `outputToken` — captured selected input and output tokens
 - `wrapTxHash`, `approvalTxHash` — confirmed wrapping/approval hashes for explorer links
@@ -593,19 +619,19 @@ SDK also rejects reset actions during those phases.
 - Prices: `marketPrice`, `limitPrice`, `triggerPrice`, and `tradePrice`
 - Trade config: `trades.totalTrades` and structured per-trade amounts
 - Timing: `schedule`; exact start and deadline timestamps are assigned by
-  `prepareOrder` after confirmed wrapping/approval, immediately before signing, and
+  the execution session inside `sign()` after confirmed prerequisites, and
   are available on `PreparedOrder.values`.
 - Fees: `fees.raw`, `fees.ui`, `fees.usd`, and `fees.percentage`
-- Type: `values.orderType`, `values.isMarketOrder`, and `values.isTriggerPrice`
+- Type: `values.orderVariant`, `values.isMarketOrder`, and `values.isTriggerPrice`
 - Validation: `errors`, `isReady`, `notReadyReason`, and `canSubmit`
 
 Use `useClient()` only when review UI also needs configuration such as
 `spenderAddress` or `rePermitData`.
 
 ```tsx
-function SubmitOrderModal({ isOpen, onClose }) {
+function SubmitOrderModal({ isOpen, onClose, onCreateAnotherOrder }) {
   const [accepted, setAccepted] = useState(true);
-  const { submitOrder, status, error, isPreparingOrder, isUnconfirmed, resumeTracking } =
+  const { submitOrder, status, error, isPreparingOrder, isUnconfirmed, isCheckingOrderStatus, checkOrderStatus } =
     useExecution();
   const { disabled } = useSubmitButton();
 
@@ -614,8 +640,9 @@ function SubmitOrderModal({ isOpen, onClose }) {
       <DialogContent>
         {isUnconfirmed ? (
           <div role="status">
-            <p>Check the previous order before starting another.</p>
-            <Button onClick={resumeTracking}>Check order status</Button>
+            <p>The original order may still complete. Check its status or review another order.</p>
+            <Button onClick={checkOrderStatus} disabled={isCheckingOrderStatus}>Check order status</Button>
+            <Button onClick={onCreateAnotherOrder}>Create another order</Button>
           </div>
         ) : error ? (
           <ErrorDisplay error={error} onClose={onClose} />
@@ -677,7 +704,7 @@ Each order's cancel status is tracked independently, so multiple cancellations c
 
 Build order history using `useOrders()` for the list and `useHistoryOrder()` for individual order display. The history query and polling are active only while a component using `useOrders()` is mounted:
 
-History starts after the Spot client configuration succeeds. V2 account-history requests use `swapper`, `chainId`, and `exchange` (the partner's legacy adapters plus the configured Spot adapter), without v2 pagination; let `useOrders()` own this fetching. QuickSwap uses the history service's `quickswap` key. Swap execution independently polls only the submitted signed order ID and chain, without legacy exchange-name filters, and does not need a mounted `useOrders()` consumer. When `supportLegacyOrders` is enabled, legacy v1 orders are fetched with the first successful history snapshot and retained while v2 history continues polling.
+History starts after the Spot client configuration succeeds. V2 account-history requests use `swapper`, `chainId`, and `exchange`, without v2 pagination; let `useOrders()` own this fetching. The `exchange` filter is the exact `Partners` enum value: `Partners.Quick` sends `quick`, with no adapter address appended. Swap execution independently polls only the submitted signed order ID and chain and does not need a mounted `useOrders()` consumer. When `supportLegacyOrders` is enabled, legacy v1 orders are fetched with the first successful history snapshot and retained while v2 history continues polling.
 
 `useHistoryOrder` returns each amount as `{ raw, ui }`; historical USD values
 are intentionally omitted when the service response does not provide them.

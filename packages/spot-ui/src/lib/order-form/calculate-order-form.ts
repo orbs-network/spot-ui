@@ -1,5 +1,6 @@
 import BN from "bignumber.js";
-import { Module } from "../types";
+import { OrderType } from "../types";
+import { SpotError } from "../errors";
 import {
   calculateAmountValues,
   calculateMarketPriceValues,
@@ -39,11 +40,7 @@ const withUsdAmount = (amount: CalculatedAmount, usd?: string): CalculatedAmount
 const calculateOutputAmountValues = (
   params: CalculateOrderFormParams,
   amountRaw: string,
-  quotedUsd?: string,
-): CalculatedAmount => withUsdAmount(
-  calculateAmountValues(amountRaw, params.outputTokenDecimals, params.outputTokenUsdPrice),
-  params.module === Module.SWAP ? quotedUsd : undefined,
-);
+): CalculatedAmount => calculateAmountValues(amountRaw, params.outputTokenDecimals, params.outputTokenUsdPrice);
 
 const calculateOrderInputAmount = (
   params: CalculateOrderFormParams,
@@ -80,7 +77,7 @@ const calculateOrderTradePlan = (
   );
   const totalTrades = getTrades(
     maxTrades,
-    params.module,
+    params.orderType,
     params.userInput.tradeCount,
   );
 
@@ -128,7 +125,6 @@ const calculateOrderFormTrades = (
     minOutputAmountPerTrade: calculateOutputAmountValues(
       params,
       values.minOutputAmountPerTrade,
-      params.minimumOutputAmountUsd,
     ),
     triggerOutputAmountPerTrade: calculateOutputAmountValues(params, values.triggerOutputAmountPerTrade),
     error: tradePlan.error,
@@ -152,7 +148,7 @@ const calculateOrderFormSchedule = (
     schedule,
   ),
   durationError: calculateDurationError(
-    params.module,
+    params.orderType,
     inputAmount,
     marketPrice,
     schedule,
@@ -162,12 +158,12 @@ const calculateOrderFormSchedule = (
 /**
  * Calculates display amounts, prices, trade schedules, and validation for an order form.
  * This is a local calculation: the host supplies the quote, token data, and user inputs.
- * Recalculate when those inputs change and check `canSubmit` before `client.prepareOrder`.
+ * Recalculate when those inputs change and check `canSubmit` before `client.createOrderExecution`.
  *
  * @param params Form inputs in UI units, with quotes and balances in token base units.
  * @returns A form snapshot with `errors` for input validation. `isReady` means the
- * required amount, market quote, and input USD value are available (plus a
- * valid minimum output for SWAP); `canSubmit` also requires the form to pass validation.
+ * required amount, market quote, and input USD value are available;
+ * `canSubmit` also requires the form to pass validation.
  * The USD value can come from `inputAmountUsd` or the input token's unit price.
  * `notReadyReason` identifies a missing prerequisite when `isReady` is false.
  * Once ready, use `errors` to explain validation failures that block `canSubmit`.
@@ -176,6 +172,9 @@ const calculateOrderFormSchedule = (
 export const calculateOrder = (
   params: CalculateOrderFormParams,
 ): CalculatedOrderForm => {
+  if (!Object.values(OrderType).includes(params?.orderType)) {
+    throw new SpotError("INVALID_ARGUMENT", "orderType must be TWAP, LIMIT, STOP_LOSS, or TAKE_PROFIT; use createSwapExecution for swaps");
+  }
   const inputAmountValues = calculateOrderInputAmount(params);
   const inputAmount = inputAmountValues.raw;
   const marketPriceValues = calculateMarketPriceValues({
@@ -192,11 +191,9 @@ export const calculateOrder = (
   );
   const prices = calculateOrderPrices(params, inputAmount, marketPrice);
   const values = calculateOrderValues({
-    module: params.module,
+    orderType: params.orderType,
     inputTokenDecimals: params.inputTokenDecimals,
     totalInputAmount: inputAmount,
-    quotedOutputAmountRaw: params.quotedOutputAmountRaw,
-    minimumOutputAmountRaw: params.minimumOutputAmountRaw,
     fillDelay: params.userInput.tradeInterval,
     duration: params.userInput.orderDuration,
     totalTrades: tradePlan.totalTrades,
@@ -224,10 +221,10 @@ export const calculateOrder = (
   );
 
   return {
-    module: params.module,
-    isInverted: params.module === Module.SWAP ? false : Boolean(params.userInput.isPriceInverted),
+    orderType: params.orderType,
+    isInverted: Boolean(params.userInput.isPriceInverted),
     inputAmount: inputAmountValues,
-    outputAmount: calculateOutputAmountValues(params, values.outputAmount, params.quotedOutputAmountUsd),
+    outputAmount: calculateOutputAmountValues(params, values.outputAmount),
     marketPrice: marketPriceValues,
     trades,
     schedule,
@@ -236,7 +233,6 @@ export const calculateOrder = (
     minOutputAmountTotal: calculateOutputAmountValues(
       params,
       values.minOutputAmountTotal,
-      params.minimumOutputAmountUsd,
     ),
     tradePrice: calculateOutputAmountValues(params, values.tradePrice),
     fees: {

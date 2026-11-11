@@ -1,9 +1,8 @@
+"use client";
 
 import { SpotForm } from "@/components/spot/spot-form";
-import { SwapType } from "@/lib/types";
+import { OrderType } from "@orbs-network/spot-react";
 
 export default function TwapPage() {
-  return (
-    <SpotForm swapType={SwapType.TWAP} />
-  );
+  return <SpotForm orderType={OrderType.TWAP} />;
 }

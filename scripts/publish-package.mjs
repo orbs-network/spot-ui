@@ -15,6 +15,7 @@ const targets = {
     directory: 'packages/spot-ui',
     checks: [
       ['build:spot-ui'],
+      ['test:spot-ui'],
     ],
   },
   'spot-react': {
@@ -23,6 +24,8 @@ const targets = {
     checks: [
       ['build:spot-ui'],
       ['build:spot-react'],
+      ['test:spot-ui'],
+      ['test:spot-react'],
     ],
   },
   'liquidity-hub': {

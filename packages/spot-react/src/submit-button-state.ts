@@ -12,6 +12,7 @@ export type SubmitDisabledReason =
   | OrderFormNotReadyReason
   | "execution-in-progress"
   | "unconfirmed-order"
+  | "order-completed"
   | "missing-chain"
   | "client-loading"
   | "client-error"
@@ -79,6 +80,9 @@ const getDisabledReason = (
 
 /** Pure derivation shared by the hook's disabled/loading state and diagnostics. */
 export const getSubmitButtonState = (input: SubmitButtonInputs): SubmitButtonResult => {
+  if (input.executionPhase === ExecutionPhase.SUCCESS) {
+    return { disabled: true, loading: false, disabledReason: "order-completed" };
+  }
   const { form, inputToken, outputToken, wrappedNativeToken } = input;
   const isExecuting = isExecutionActive(input.executionPhase);
   const isWrappedNativeTokenMissing = Boolean(

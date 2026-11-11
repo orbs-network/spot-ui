@@ -14,7 +14,6 @@ import { observe } from "../observe";
 
 const INITIAL_POLL_DELAY_MILLIS = 2_000;
 const MAX_POLL_DELAY_MILLIS = 30_000;
-const RECOVERY_WINDOW_MILLIS = 30_000;
 
 /** Submitted order and optional progress/cancellation settings for {@link waitForOrder}. */
 export interface WaitForOrderParams {
@@ -23,13 +22,11 @@ export interface WaitForOrderParams {
   /** Stops tracking with reason `"aborted"`; does not cancel the order itself. */
   signal?: AbortSignal;
   /** Matching order snapshots, including the terminal result; observer failures do not interrupt tracking. */
-  onUpdate?: (order: Order) => void;
+  onProgress?: (order: Order) => void;
   /** Use the submitting client's apiUrl when it uses a custom order service. */
   apiUrl?: string;
   /** Swap settlement reporter; submitted and client-fetched orders retain theirs automatically. */
   analytics?: SpotAnalytics;
-  /** Internal recovery may refresh an old open snapshot after its original tracking window. */
-  refreshExpired?: boolean;
 }
 
 /** Bounds even a lookup whose transport ignores cancellation. */
@@ -75,7 +72,7 @@ function isSettled(order: Order): boolean {
  *   updateOrderHistory(current);
  * }
  */
-async function* watchOrder({ order, signal, apiUrl, analytics, refreshExpired }: WaitForOrderParams): AsyncGenerator<Order, void, unknown> {
+async function* watchOrder({ order, signal, apiUrl, analytics }: WaitForOrderParams): AsyncGenerator<Order, void, unknown> {
   const context = {
     account: order?.maker,
     chainId: order?.chainId,
@@ -100,10 +97,7 @@ async function* watchOrder({ order, signal, apiUrl, analytics, refreshExpired }:
     throw error;
   }
   const { chainId, deadline, historyKey } = order;
-  const originalCutoff = deadline + 60_000;
-  const trackingCutoff = refreshExpired && originalCutoff <= Date.now()
-    ? Date.now() + RECOVERY_WINDOW_MILLIS
-    : originalCutoff;
+  const trackingCutoff = deadline + 60_000;
   const reportSnapshot = (current: Order) => {
     bindSubmittedOrderAnalytics(current, reporter);
     observe(() => reporter.onSettlementUpdate(current));
@@ -179,7 +173,7 @@ async function* watchOrder({ order, signal, apiUrl, analytics, refreshExpired }:
  * Waits for a submitted order to complete and returns its latest snapshot.
  * Uses the order's ID, chain, and millisecond deadline; no client or wallet is needed.
  * Missing/indexing results and request failures are retried until one minute after
- * the deadline. Use `onUpdate` to receive intermediate and terminal snapshots.
+ * the deadline. Use `onProgress` to receive intermediate and terminal snapshots.
  *
  * @param params - Submitted order and optional progress observer, cancellation signal, and service settings.
  * @returns The order with `OrderStatus.Completed`, confirming the fill.
@@ -194,7 +188,7 @@ export async function waitForOrder(params: WaitForOrderParams): Promise<Order> {
   try {
     for await (const update of watchOrder(params)) {
       current = update;
-      observe(() => params.onUpdate?.(update));
+      observe(() => params.onProgress?.(update));
     }
     return current;
   } catch (error) {

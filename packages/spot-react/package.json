@@ -8,11 +8,15 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/spot-react.js",
-      "require": "./dist/spot-react.umd.cjs"
-    },
-    "./styles.css": "./dist/style.css"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/spot-react.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/spot-react.umd.cjs"
+      }
+    }
   },
   "files": [
     "dist"
@@ -38,7 +42,10 @@
   },
   "devDependencies": {
     "@types/react": "^19.0.2",
-    "react": "^19.0.0",
+    "@types/react-dom": "19.2.3",
+    "jsdom": "26.1.0",
+    "react": "^19.2.3",
+    "react-dom": "19.2.3",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "vite-plugin-dts": "^4.4.0",

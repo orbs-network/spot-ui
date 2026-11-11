@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useCallback, useState } from "react";
 import {
   AdvancedOrdersProvider,
-  Module,
+  OrderType,
   Partners,
   TimeUnit,
   useDisclaimer,
@@ -22,8 +22,7 @@ import {
   useSubmitButton,
   useTrades,
   useTriggerPrice,
-  type ClientErrorFallbackProps,
-  type AdvancedOrderModule,
+  type SpotErrorFallbackProps,
   type MarketQuote,
   type Token,
   type WalletInteractions,
@@ -57,14 +56,14 @@ const DISCLAIMER_DEFAULTS = {
     "In extreme market movements, slippage may occur and the executed price of the market order may be worse than the specified trigger price.",
 };
 
-function ClientErrorFallback({
+function ErrorFallback({
   error,
   retry,
   isRetrying,
-}: ClientErrorFallbackProps) {
+}: SpotErrorFallbackProps) {
   return (
     <div role="alert">
-      {/* DEX: Translate and style this with the host error component. */}
+      {/* DEX: Translate initialization and rendering errors with the host error component. */}
       <p>{error.message}</p>
       <button type="button" disabled={isRetrying} onClick={retry}>
         {isRetrying ? "Retrying..." : "Retry"}
@@ -81,14 +80,14 @@ function OutputAmount() {
   return <p>Estimated output: {amount.ui || "—"}</p>;
 }
 
-function PriceConfigSection({ module }: { module: AdvancedOrderModule }) {
+function PriceConfigSection({ orderType }: { orderType: OrderType }) {
   return (
     <div>
       <PriceHeader />
-      {(module === Module.STOP_LOSS || module === Module.TAKE_PROFIT) && (
-        <TriggerPriceSection module={module} />
+      {(orderType === OrderType.STOP_LOSS || orderType === OrderType.TAKE_PROFIT) && (
+        <TriggerPriceSection orderType={orderType} />
       )}
-      <LimitPriceSection module={module} />
+      <LimitPriceSection orderType={orderType} />
     </div>
   );
 }
@@ -112,7 +111,7 @@ function PriceHeader() {
   );
 }
 
-function LimitPriceSection({ module }: { module: AdvancedOrderModule }) {
+function LimitPriceSection({ orderType }: { orderType: OrderType }) {
   const {
     price,
     onInputChange,
@@ -123,11 +122,11 @@ function LimitPriceSection({ module }: { module: AdvancedOrderModule }) {
     onReset,
     displayOutputToken,
   } = useLimitPrice();
-  const showInput = module === Module.LIMIT || isEnabled;
+  const showInput = orderType === OrderType.LIMIT || isEnabled;
 
   return (
     <div>
-      {module !== Module.LIMIT && (
+      {orderType !== OrderType.LIMIT && (
         <label>
           <input
             type="checkbox"
@@ -161,7 +160,7 @@ function LimitPriceSection({ module }: { module: AdvancedOrderModule }) {
   );
 }
 
-function TriggerPriceSection({ module }: { module: AdvancedOrderModule }) {
+function TriggerPriceSection({ orderType }: { orderType: OrderType }) {
   const {
     price,
     onInputChange,
@@ -175,7 +174,7 @@ function TriggerPriceSection({ module }: { module: AdvancedOrderModule }) {
     <div>
       {/* DEX: Translate as "Stop loss" or "Take profit" in your UI */}
       <label>
-        {module === Module.STOP_LOSS
+        {orderType === OrderType.STOP_LOSS
           ? "Stop-loss trigger"
           : "Take-profit trigger"}
       </label>
@@ -320,7 +319,7 @@ function SubmitOrderSection({
     isExecuting,
     isUnconfirmed,
     canDismiss,
-    resumeTracking,
+    checkOrderStatus,
     orderId,
     account,
     chainId,
@@ -339,7 +338,9 @@ function SubmitOrderSection({
     if (!canDismiss) return;
     setIsModalOpen(false);
     if (isUnconfirmed) return;
-    if (isSuccess) {
+    if (isExecuting) {
+      if (startNewOrder()) setInputAmount("");
+    } else if (isSuccess) {
       setInputAmount("");
       setTimeout(() => {
         startNewOrder();
@@ -351,6 +352,7 @@ function SubmitOrderSection({
     }
   }, [
     canDismiss,
+    isExecuting,
     isSuccess,
     isUnconfirmed,
     returnToOrderForm,
@@ -371,13 +373,16 @@ function SubmitOrderSection({
       {isModalOpen && (
         <div className="modal">
           {/* DEX: Replace with your Dialog/Modal component */}
+          {isExecuting && (
+            <button type="button" onClick={onClose}>Continue in background</button>
+          )}
 
           {isUnconfirmed ? (
             <div role="status">
               <p>{error?.message || "Order status needs confirmation."}</p>
               {orderId && <p>Order: {orderId}</p>}
               <p>Account: {account} · Chain: {chainId}</p>
-              <button type="button" onClick={resumeTracking}>Check order status</button>
+              <button type="button" onClick={checkOrderStatus}>Check order status</button>
               <button type="button" onClick={onClose}>Close</button>
             </div>
           ) : error ? (
@@ -425,9 +430,10 @@ function SubmitOrderSection({
                 </>
               )}
               {/* DEX: Render SwapFlow when status is set and !isPreparingOrder.
-                  Hide close/dismiss while isExecuting. Render UNCONFIRMED above
-                  as recovery, with no fresh submit/reset. Creation succeeds on
-                  confirmed acceptance. */}
+                  Closing active progress calls startNewOrder() above to release
+                  the form; keep the provider mounted for background callbacks.
+                  Render UNCONFIRMED above as recovery, with no fresh submit/reset.
+                  Creation succeeds on confirmed acceptance. */}
             </>
           )}
         </div>
@@ -439,33 +445,38 @@ function SubmitOrderSection({
 // ============ Main Export ============
 
 export function SpotForm({
-  module,
+  orderType,
   marketQuote,
   onQuotePauseChange,
   // DEX: Add your props (inputCurrency, outputCurrency, etc.)
 }: {
-  module: AdvancedOrderModule;
-  /** DEX: Supply current raw/USD quote fields or an original SDK quote for valuation. */
+  orderType: OrderType;
+  /** DEX: Supply quotedOutputAmountRaw, isLoading, and noLiquidity; pass unit USD prices separately. */
   marketQuote: MarketQuote;
   /** DEX: Stable callback controlling automatic/manual refresh and cancellation. */
   onQuotePauseChange: (paused: boolean) => void;
 }) {
   // DEX: supply the selected input and its balance. For native selections,
-  // provide wrappedNativeToken and return true from shouldWrap for execution-time wrapping.
+  // provide wrappedNativeToken; shouldWrap decides whether the wrapping write is needed.
   const inputToken = useMemo<Token | undefined>(() => undefined, []);
   const outputToken = useMemo<Token | undefined>(() => undefined, []);
   const wrappedNativeToken = useMemo<Token | undefined>(() => undefined, []);
   const walletInteractions = useMemo<WalletInteractions>(
     () => ({
-      // DEX: decide from the captured selected input/account/chain; this callback takes no arguments.
+      // DEX: return a boolean or promise from the captured selected input/account/chain.
       shouldWrap: () => {
-        throw new Error("DEX: implement shouldWrap (true for native input, false for ERC-20 input)");
+        throw new Error("DEX: implement shouldWrap");
       },
-      // DEX: deposit into this chain's wrapped contract; wait for a successful receipt.
+      // DEX: confirm the native deposit and return its hash; throw on failure.
       wrapNativeToken: async (_amountRaw) => {
         throw new Error("DEX: implement wrapNativeToken");
       },
-      // DEX: approve tokenAddress for spenderAddress. amount is the requested source amount in wei.
+      // DEX: compare live allowance with request.amount (exact input), never request.approvalAmount.
+      shouldApprove: async (_request) => {
+        throw new Error("DEX: implement shouldApprove");
+      },
+      // DEX: choose props.approvalAmount (suggested max uint256), props.amount, or host cap policy.
+      // Build a host transaction without mutating props; confirm and return its hash or throw.
       approveToken: async (_props) => {
         throw new Error("DEX: implement approveToken");
       },
@@ -476,14 +487,6 @@ export function SpotForm({
       // DEX: return the wallet's original 0x-prefixed EIP-712 signature unchanged.
       signOrder: async (_props) => {
         throw new Error("DEX: implement signOrder");
-      },
-      // DEX: read ERC-20 allowance for tokenAddress/spenderAddress and return the raw wei string.
-      getAllowance: async (_props) => {
-        throw new Error("DEX: implement getAllowance");
-      },
-      // DEX: read the connected account's wrapped-token balance for safe completed-wrap retries.
-      getTokenBalance: async (_props) => {
-        throw new Error("DEX: implement getTokenBalance");
       },
     }),
     [],
@@ -531,7 +534,7 @@ export function SpotForm({
       account={account}
       walletInteractions={walletInteractions}
       partner={Partners.Quick} // DEX: Replace with your partner
-      module={module}
+      orderType={orderType}
       priceProtectionPercent={3}
       minTradeSizeUsd={5}
       inputAmountUi={inputAmount}
@@ -543,16 +546,16 @@ export function SpotForm({
       inputTokenUsdPrice={inputTokenUsdPrice}
       outputTokenUsdPrice={outputTokenUsdPrice}
       callbacks={callbacks}
-      clientErrorFallback={ClientErrorFallback}
+      errorFallback={ErrorFallback}
       displayFeePercent={0.25}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* DEX: Token inputs section using your CurrencyInputPanel */}
         <OutputAmount />
-        <PriceConfigSection module={module} />
-        {module === Module.TWAP && <TradeSizeSection />}
-        {module === Module.TWAP && <TradeIntervalSection />}
-        {module !== Module.TWAP && <DurationSection />}
+        <PriceConfigSection orderType={orderType} />
+        {orderType === OrderType.TWAP && <TradeSizeSection />}
+        {orderType === OrderType.TWAP && <TradeIntervalSection />}
+        {orderType !== OrderType.TWAP && <DurationSection />}
         <InputErrorPanel />
         <DisclaimerPanel />
         <SubmitOrderSection setInputAmount={setInputAmount} onQuotePauseChange={onQuotePauseChange} />

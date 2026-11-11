@@ -1,7 +1,8 @@
+"use client";
+
 import { SpotForm } from "@/components/spot/spot-form";
-import { SwapType } from "@/lib/types";
+import { OrderType } from "@orbs-network/spot-react";
 
 export default function TakeProfitPage() {
-    return <SpotForm swapType={SwapType.TAKE_PROFIT} />
-  }
-  
+  return <SpotForm orderType={OrderType.TAKE_PROFIT} />;
+}

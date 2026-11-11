@@ -1,7 +1,8 @@
 import {
   isSwapSupported,
   type PreparedSwap,
-  type SpotClient, type CompletedSwap, type Order, type SwapQuote, type SwapTradeType,
+  type SpotClient, type Order, type SwapQuote, type SwapTradeType,
+  type OrderWalletInteractions, type OrderExecutionUpdate, type SwapExecution,
 } from "@orbs-network/spot-ui";
 
 export interface SpotRoute {
@@ -26,7 +27,7 @@ export async function quoteSpotRoute(params: {
   const quote = await params.client.getQuote({
     inToken: params.inToken, outToken: params.outToken, inAmount: params.inAmount,
     user: params.account, slippage: params.slippage,
-    dexMinAmountOut: params.dexMinimumOutputRaw ?? "-1", signal: params.signal,
+    dexMinAmountOut: params.dexMinimumOutputRaw, signal: params.signal,
   });
   const minimumOutputAmountRaw = quote.minimumAmountOut;
   if (params.dexMinimumOutputRaw !== undefined && BigInt(minimumOutputAmountRaw) <= BigInt(params.dexMinimumOutputRaw)) return undefined;
@@ -34,61 +35,62 @@ export async function quoteSpotRoute(params: {
 }
 
 /**
- * Call after host wrapping, refreshed wrapped balance, and confirmed approval, immediately before signing.
- * Reuses quotes up to 20 seconds old or refreshes the exact request and checks its minimum.
- * A lower refreshed minimum throws QUOTE_MINIMUM_DECREASED. The reviewed minimum stays signed.
- * Both paths prepare fresh signing timestamps and nonce; no separate age check is needed.
- * The DEX owns its execution lock and live account/chain/balance checks.
+ * Capture one reviewed route and its host wallet adapter; construction does no wallet work.
+ * Wallet shouldApprove checks request.amount; approveToken can follow the suggested
+ * request.approvalAmount or choose an exact/host cap without mutating the SDK request.
  */
-export async function prepareSpotRoute(params: {
+export function createSpotRouteExecution(params: {
   client: SpotClient;
   route: SpotRoute;
   account: string;
+  walletInteractions: OrderWalletInteractions;
   signal?: AbortSignal;
-  /** Optional finite, non-negative quote reuse window; 0 forces a refresh. */
-  maxQuoteAgeMillis?: number;
-}): Promise<PreparedSwap> {
-  return params.client.prepareSwap({
+}): SwapExecution {
+  return params.client.createSwapExecution({
     quote: params.route.quote,
     account: params.account,
-    signal: params.signal,
-    maxQuoteAgeMillis: params.maxQuoteAgeMillis,
-  });
-}
-
-/**
- * The DEX signs prepared.signingRequest with its existing wallet code, then
- * rechecks the live context before submitting and waiting for the swap fill.
- * Forward the original signature; no wallet callbacks or provider are needed.
- * If tracking fails, retain OrderSettlementError.order and orderId for read-only recovery.
- */
-export async function submitSignedSpotRoute(params: {
-  client: SpotClient;
-  prepared: PreparedSwap;
-  signature: `0x${string}`;
-  signal?: AbortSignal;
-}): Promise<CompletedSwap> {
-  const order = await params.client.submitSignedSwap(params.prepared, params.signature, {
+    walletInteractions: params.walletInteractions,
     signal: params.signal,
   });
-  return {
-    type: "intent", status: "completed", orderId: order.id, order,
-    deadlineMillis: order.deadline,
-  };
 }
 
-/** Resume an accepted order using read-only lookups; no signature or resubmission. */
-export function resumeSpotRoute(client: SpotClient, order: Order, signal?: AbortSignal) {
-  return client.executeOrder({ order, signal });
+/** Read-only UI preview. Actual wrap/approve steps check the decisions again. */
+export async function previewSpotRouteSteps(execution: SwapExecution): Promise<{
+  wrapRequired: boolean;
+  approvalRequired: boolean;
+}> {
+  const wrapRequired = await execution.shouldWrap();
+  const approvalRequired = await execution.shouldApprove();
+  return { wrapRequired, approvalRequired };
 }
 
-// The DEX keeps its own selector, wallet steps, progress UI, and execution lock.
-// Quote the wrapped ERC-20 address for native input. After user review, the
-// manual host flow confirms wrapping before preparation and signing.
-// Approve the quote's ERC-20 input token/amount to client.spenderAddress and verify
-// confirmed allowance before prepareSpotRoute. Never reprepare after signing.
-// Check the active abort signal and account/chain before each wallet step and POST.
-// Once the POST starts, preserve any accepted ID even if the form unmounts.
-// Pause/cancel quote requests through wallet execution and any active swap loading UI.
-// Treat QuoteError.kind/status/code as venue evidence; do not turn every error into "no offer".
-// After submission, reconcile this intent before executing a DEX fallback.
+/** Default orchestration: returns the completed Order after the swap fills. */
+export function runSpotRoute(
+  execution: SwapExecution,
+  onProgress?: (update: OrderExecutionUpdate<PreparedSwap>) => void,
+): Promise<Order> {
+  return execution.run({ onProgress });
+}
+
+/** The same session, with the host controlling when each step begins. */
+export async function runSpotRouteSteps(execution: SwapExecution): Promise<Order> {
+  if (await execution.shouldWrap()) await execution.wrap();
+  if (await execution.shouldApprove()) await execution.approve();
+  await execution.sign(); // Prepares late after prerequisite steps, then stores the original signature.
+  await execution.submit(); // Uses the stored payload/signature once; execution.order is now accepted.
+  return execution.waitForCompletion();
+}
+
+// The DEX keeps its selector, host wallet callbacks, progress UI, and execution lock.
+// Quote the wrapped ERC-20 address for native input. Validate the live account,
+// chain, balance, and minimum-trade policy before each wallet step and submission.
+// The session stores the reviewed request and exact prepared payload/signature.
+// Wallet signing callbacks return their original bytes unchanged.
+// Keep the session outside transient modals; cancel() stops later steps/tracking
+// but cannot undo a transaction or cancel an accepted order.
+// Preserve execution.order or OrderSettlementError.order/orderId if tracking stops.
+// Display quotes may update through wrap/approval. Freeze displayed output/minimum
+// from execution.preparedOrder.quote before signing. The SDK reuses reviewed quotes
+// aged 0–20 seconds at signing; older quotes or invalid/future receipt times trigger
+// a refresh that rejects any minimum below the original reviewed floor. Keep input scope
+// fixed and reconcile uncertain acceptance before replacing an intent or falling back.

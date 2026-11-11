@@ -4,8 +4,7 @@ export { isNativeAddress, eqIgnoreCase, isTxRejected } from "./lib/utils";
 export { getTwapConfig } from "./lib/orders/legacy-twap-config";
 export { toAmountRaw, toAmountUI } from "./lib/order-form/amounts";
 export {
-  executeClientOrder, resumeClientOrder, prepareClientSwap, getClientAnalytics,
-  type InternalExecuteOrderParams, type InternalResumeOrderControls,
+  getClientAnalytics,
 } from "./lib/internal/client";
 export type { OrderExecutionUpdate, OrderExecutionPhase, OrderExecutionStep, SignableOrder } from "./lib/internal/execute-order";
 

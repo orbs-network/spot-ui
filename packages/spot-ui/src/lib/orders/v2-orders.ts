@@ -7,7 +7,7 @@ import {
 import { MAX_UINT_256 } from "../evm-constants";
 import {
   OrderStatus,
-  OrderType,
+  OrderVariant,
   OrderV2,
   Order,
   OrderFill,
@@ -18,7 +18,7 @@ import { SpotError } from "../errors";
 import { SWAP_ORDER_DURATION_MILLIS } from "../order-form/constants";
 import { getFilledAmounts, getFilledOrderTimestamp } from "./order-fills";
 
-const getOrderType = (order: OrderV2): OrderType => {
+const getOrderVariant = (order: OrderV2): OrderVariant => {
   const isLimit = BN(order.order.witness.output.limit || 0).gt(1);
   const { stop, triggerLower, triggerUpper } = order.order.witness.output;
 
@@ -36,11 +36,11 @@ const getOrderType = (order: OrderV2): OrderType => {
       : 1);
 
   if (isTakeProfit) {
-    return isLimit ? OrderType.TAKE_PROFIT_LIMIT : OrderType.TAKE_PROFIT_MARKET;
+    return isLimit ? OrderVariant.TAKE_PROFIT_LIMIT : OrderVariant.TAKE_PROFIT_MARKET;
   }
 
   if (isStopLoss) {
-    return isLimit ? OrderType.STOP_LOSS_LIMIT : OrderType.STOP_LOSS_MARKET;
+    return isLimit ? OrderVariant.STOP_LOSS_LIMIT : OrderVariant.STOP_LOSS_MARKET;
   }
 
   // Swap intents have no module marker in the protocol. Use their signed
@@ -55,21 +55,21 @@ const getOrderType = (order: OrderV2): OrderType => {
     Number.isSafeInteger(deadlineSeconds) &&
     (deadlineSeconds - startSeconds) * 1000 === SWAP_ORDER_DURATION_MILLIS
   ) {
-    return OrderType.SWAP;
+    return OrderVariant.SWAP;
   }
 
   if (!isLimit) {
-    return OrderType.TWAP_MARKET;
+    return OrderVariant.TWAP_MARKET;
   }
   if (chunks > 1 && isLimit) {
-    return OrderType.TWAP_LIMIT;
+    return OrderVariant.TWAP_LIMIT;
   }
 
   if (isLimit) {
-    return OrderType.LIMIT;
+    return OrderVariant.LIMIT;
   }
 
-  return OrderType.TWAP_MARKET;
+  return OrderVariant.TWAP_MARKET;
 };
 
 const getProgress = (order: OrderV2) => {
@@ -135,8 +135,8 @@ const getOrderDollarValueIn = (order: OrderV2) => {
   return amount.isFinite() ? amount.dividedBy(1e18).toFixed() : "0";
 };
 
-const getDstMinAmountPerTrade = (order: OrderV2, type: OrderType) => {
-  return type !== OrderType.SWAP && BN(order.order.witness.output.limit || 0).eq(1)
+const getDstMinAmountPerTrade = (order: OrderV2, type: OrderVariant) => {
+  return type !== OrderVariant.SWAP && BN(order.order.witness.output.limit || 0).eq(1)
     ? ""
     : order.order.witness.output.limit;
 };
@@ -164,7 +164,7 @@ const getAmounts = (order: OrderV2, dstMinAmountPerTrade: string): Amounts => {
 
 export const buildV2Order = (order: OrderV2): Order => {
   const progress = getProgress(order);
-  const type = getOrderType(order);
+  const type = getOrderVariant(order);
 
   const dstMinAmountPerTrade = getDstMinAmountPerTrade(order, type);
   const totalTradesAmount = order.metadata.expectedChunks || 1;
@@ -190,16 +190,16 @@ export const buildV2Order = (order: OrderV2): Order => {
     srcAmount: order.order.witness.input.maxAmount,
     srcAmountPerTrade: order.order.witness.input.amount,
     totalTradesAmount,
-    isMarketPrice: type !== OrderType.SWAP && BN(dstMinAmountPerTrade || 0).lte(1),
+    isMarketPrice: type !== OrderVariant.SWAP && BN(dstMinAmountPerTrade || 0).lte(1),
     chainId: order.order.witness.chainid,
     filledOrderTimestamp: getFilledOrderTimestamp(fills, totalTradesAmount),
     status: getStatus(order, progress),
     repermitDigest: order.metadata.repermitDigest,
     isTriggerPrice:
-      type === OrderType.TAKE_PROFIT_MARKET ||
-      type === OrderType.TAKE_PROFIT_LIMIT ||
-      type === OrderType.STOP_LOSS_LIMIT ||
-      type === OrderType.STOP_LOSS_MARKET,
+      type === OrderVariant.TAKE_PROFIT_MARKET ||
+      type === OrderVariant.TAKE_PROFIT_LIMIT ||
+      type === OrderVariant.STOP_LOSS_LIMIT ||
+      type === OrderVariant.STOP_LOSS_MARKET,
     rawOrder: order,
     ...getAmounts(order, dstMinAmountPerTrade),
   };
@@ -261,8 +261,7 @@ export const getOrder = async ({ orderId, chainId, signal, apiUrl }: {
   apiUrl?: string;
 }): Promise<Order | undefined> => {
   if (!orderId.trim()) throw new SpotError("INVALID_ARGUMENT", "An order ID is required");
-  // The full order hash already binds the signed exchange. Partner aliases can
-  // resolve to legacy adapters and hide new Spot orders (Quick uses "quickswap").
+  // The full order hash already binds the signed exchange.
   const query = new URLSearchParams({ hash: orderId, chainId: String(chainId) });
   const endpoint = getApiEndpoint(apiUrl);
   let response: Response;
@@ -296,25 +295,23 @@ const fetchOrdersForTarget = async ({
   signal,
   account,
   partner,
-  exchangeAddress,
   page,
   limit,
+  rejectInvalidOrders,
 }: {
   endpoint: string;
   chainId?: number;
   signal?: AbortSignal;
   account?: string;
   partner?: Partners;
-  exchangeAddress?: string;
   page?: number;
   limit?: number;
+  rejectInvalidOrders?: boolean;
 }): Promise<Order[]> => {
   const query = new URLSearchParams();
   if (account !== undefined) query.set("swapper", account);
   if (chainId !== undefined) query.set("chainId", chainId.toString());
-  const exchange = [partner === Partners.Quick ? "quickswap" : partner, exchangeAddress]
-    .filter(Boolean).join(",");
-  if (exchange) query.set("exchange", exchange);
+  if (partner !== undefined) query.set("exchange", partner);
   if (page !== undefined) query.set("page", page.toString());
   if (limit !== undefined) query.set("limit", limit.toString());
 
@@ -337,7 +334,13 @@ const fetchOrdersForTarget = async ({
   const orders = payload.orders.flatMap((rawOrder) => {
     try {
       return [buildV2Order(rawOrder as OrderV2)];
-    } catch {
+    } catch (cause) {
+      if (rejectInvalidOrders) {
+        throw new SpotError("INVALID_RESPONSE", "Invalid order history response: an order could not be normalized", {
+          cause,
+          status: response.status,
+        });
+      }
       invalidOrders++;
       return [];
     }
@@ -358,20 +361,20 @@ export const getOrders = async ({
   signal,
   account,
   partner,
-  exchangeAddress,
   page,
   limit,
   getv1orders = true,
+  rejectInvalidOrders = false,
   apiUrl,
 }: {
   chainId?: number;
   signal?: AbortSignal;
   account?: string;
   partner?: Partners;
-  exchangeAddress?: string;
   page?: number;
   limit?: number;
   getv1orders?: boolean;
+  rejectInvalidOrders?: boolean;
   apiUrl?: string;
 }): Promise<Order[]> => {
   const targetResults = await Promise.allSettled(
@@ -382,9 +385,9 @@ export const getOrders = async ({
         signal,
         account,
         partner,
-        exchangeAddress,
         page,
         limit,
+        rejectInvalidOrders,
       }),
     ),
   );

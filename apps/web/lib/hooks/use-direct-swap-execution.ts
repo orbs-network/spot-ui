@@ -3,15 +3,21 @@
 import { useCallback, useEffect, useRef } from "react";
 import {
   OrderSettlementError,
+  OrderStatus,
   SpotError,
   type OrderWalletInteractions,
+  type Order,
+  type PreparedSwap,
+  type OrderExecutionUpdate,
+  type RePermitOrder,
 } from "@orbs-network/spot-react";
 import { getConnection } from "wagmi/actions";
 import { wagmiConfig } from "../wagmi-config";
 import { useSwapStore } from "./store";
+import { createSwapWalletAdapter } from "../create-swap-wallet-adapter";
 import { idleSwapExecution, useDirectSwapStore, type DirectSwapPhase, type DirectSwapState, type SwapReview } from "../swap-execution-store";
 
-export type { DirectSwapPhase, SwapReview } from "../swap-execution-store";
+export type { DirectSwapPhase, SwapReview, SwapReviewContext } from "../swap-execution-store";
 const activePhases = new Set<DirectSwapPhase>(["preparing", "wrapping", "approving", "signing", "settling"]);
 const normalizeError = (error: unknown): Error => error instanceof Error ? error : new Error(String(error));
 
@@ -60,16 +66,20 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
     return () => { ownedController.current?.abort(); };
   }, []);
 
-  const execute = useCallback(async (review: SwapReview): Promise<void> => {
+  const execute = useCallback(async (currentReview: SwapReview): Promise<void> => {
     const saved = useDirectSwapStore.getState();
     if (saved.controller || saved.execution.phase === "unconfirmed") return;
+    const review: SwapReview = {
+      ...currentReview,
+      quote: structuredClone(currentReview.quote),
+      inputToken: { ...currentReview.inputToken },
+      outputToken: { ...currentReview.outputToken },
+    };
     const abort = new AbortController();
     ownedController.current = abort;
     useDirectSwapStore.setState({ controller: abort });
     let execution: DirectSwapState = { ...idleSwapExecution(), phase: "preparing", review };
     let submissionStarted = false;
-    let wrapRequired = false;
-    let wrapAmount = review.quote.request.inAmount;
     const update = (changes: Partial<DirectSwapState>) => {
       if (useDirectSwapStore.getState().controller !== abort) return;
       execution = { ...execution, ...changes };
@@ -78,85 +88,74 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
     const check = () => {
       abort.signal.throwIfAborted();
       if (useDirectSwapStore.getState().controller !== abort) throw new Error("This swap attempt is no longer active.");
+      // Accepted orders track independently of later wallet/form changes.
+      if (execution.sdkExecution?.order) return;
       const connection = getConnection(wagmiConfig);
       if (scope.current !== review.contextKey ||
         useSwapStore.getState().inputAmount !== review.inputAmountUi ||
         connection.chainId !== review.client.chainId ||
         connection.address?.toLowerCase() !== review.account.toLowerCase()) {
-        throw new Error("The wallet or reviewed swap changed. Review the swap again.");
+        abort.abort(new Error("The wallet or reviewed swap changed. Review the swap again."));
+        abort.signal.throwIfAborted();
       }
     };
     update({});
     try {
       check();
-      const wallet: OrderWalletInteractions = {
-        ...walletInteractions,
-        shouldWrap: async () => {
-          check();
-          const amount = review.quote.request.inAmount;
-          wrapRequired = await walletInteractions.shouldWrap();
-          check();
-          const previous = useDirectSwapStore.getState().confirmedWrap;
-          if (wrapRequired && previous?.contextKey === review.contextKey && previous.account === review.account.toLowerCase()) {
-            if (!walletInteractions.getTokenBalance) throw new Error("Read the wrapped-token balance before retrying this swap.");
-            const balance = BigInt(await walletInteractions.getTokenBalance({ tokenAddress: review.quote.request.inToken }));
-            check();
-            wrapAmount = (BigInt(amount) > balance ? BigInt(amount) - balance : BigInt(0)).toString();
-            wrapRequired = BigInt(wrapAmount) > BigInt(0);
-            update({ wrapTxHash: previous.hash });
-          }
-          return wrapRequired;
-        },
-        getAllowance: async (request) => {
-          check();
-          const allowance = await walletInteractions.getAllowance(request);
-          check();
-          if (execution.steps.length === 0) {
-            update({ steps: [
-              ...(wrapRequired ? ["wrap" as const] : []),
-              ...(BigInt(allowance) < BigInt(review.quote.request.inAmount) ? ["approve" as const] : []),
-              "create",
-            ] });
-          }
-          return allowance;
-        },
-        wrapNativeToken: async () => {
-          check();
-          update({ phase: "wrapping" });
-          const hash = await walletInteractions.wrapNativeToken(wrapAmount);
-          useDirectSwapStore.setState({ confirmedWrap: { contextKey: review.contextKey, account: review.account.toLowerCase(), hash } });
-          check();
-          update({ wrapTxHash: hash, stepIndex: execution.stepIndex + 1 });
+      const previousWrap = saved.confirmedWrap;
+      const hasConfirmedWrap = previousWrap?.account === review.account.toLowerCase() &&
+        previousWrap.chainId === review.client.chainId &&
+        previousWrap.tokenAddress === review.quote.request.inToken.toLowerCase();
+      const isPriceRetry = saved.execution.phase === "price-changed" &&
+        saved.execution.review?.contextKey === review.contextKey;
+      const reuseConfirmedWrap = hasConfirmedWrap && isPriceRetry &&
+        previousWrap.contextKey === review.contextKey && previousWrap.amountRaw === review.quote.request.inAmount &&
+        saved.execution.wrapTxHash === previousWrap.hash;
+      if (hasConfirmedWrap) update({ wrapTxHash: previousWrap.hash });
+      if (isPriceRetry) update({ approvalTxHash: saved.execution.approvalTxHash });
+      const wallet = createSwapWalletAdapter({
+        wallet: reuseConfirmedWrap ? { ...walletInteractions, shouldWrap: () => false } : walletInteractions,
+        guard: check, hasConfirmedWrap: Boolean(hasConfirmedWrap),
+        onWrapConfirmed: (hash, amountRaw) => {
+          useDirectSwapStore.setState({ confirmedWrap: {
+            account: review.account.toLowerCase(), chainId: review.client.chainId,
+            tokenAddress: review.quote.request.inToken.toLowerCase(), hash, contextKey: review.contextKey, amountRaw,
+          } });
+          update({ wrapTxHash: hash });
           void refreshBalances([review.quote.request.inToken]).catch(() => undefined);
-          check();
-          return hash;
         },
-        approveToken: async (request) => {
-          check();
-          update({ phase: "approving" });
-          const hash = await walletInteractions.approveToken(request);
-          check();
-          update({ approvalTxHash: hash, stepIndex: execution.stepIndex + 1 });
-          check();
-          return hash;
-        },
-        signOrder: async (request) => {
-          check();
-          update({ phase: "signing", signedOrder: structuredClone(request.typedData.message) });
-          const signature = await walletInteractions.signOrder(request);
-          check();
-          submissionStarted = true;
-          update({ phase: "settling" });
-          return signature;
-        },
-      };
-      const completed = await review.client.executeSwap({
-        quote: review.quote, account: review.account, walletInteractions: wallet, signal: abort.signal,
+        onApproveConfirmed: hash => { update({ approvalTxHash: hash }); },
       });
-      update({ phase: "success", order: completed.order });
+      const onProgress = (progress: OrderExecutionUpdate<PreparedSwap>): void => {
+        if (useDirectSwapStore.getState().controller !== abort) return;
+        if (progress.phase === "submitting") submissionStarted = true;
+        const phase = progress.phase === "submitting" ? "settling" : progress.phase;
+        update({
+          phase,
+          steps: [...progress.steps], stepIndex: progress.stepIndex,
+          wrapTxHash: progress.wrapTxHash ?? execution.wrapTxHash, approvalTxHash: progress.approvalTxHash ?? execution.approvalTxHash,
+          ...(progress.preparedOrder ? { signedOrder: structuredClone(progress.preparedOrder.order) as RePermitOrder } : {}),
+          ...(progress.order ? { order: structuredClone(progress.order) as Order } : {}),
+        });
+      };
+      const sdkExecution = review.client.createSwapExecution({
+        quote: review.quote, account: review.account, walletInteractions: wallet,
+        signal: abort.signal,
+      });
+      update({ sdkExecution });
+      const order = await sdkExecution.run({ onProgress });
+      update({ phase: "success", order });
       useDirectSwapStore.setState({ confirmedWrap: undefined });
       void refreshBalances([review.quote.request.inToken]).catch(() => undefined);
     } catch (cause) {
+      if (cause instanceof SpotError && cause.code === "QUOTE_MINIMUM_DECREASED" &&
+        !submissionStarted && !execution.sdkExecution?.preparedOrder && !execution.sdkExecution?.order && !abort.signal.aborted) {
+        update({
+          phase: "price-changed", priceChangedAt: Date.now(), error: undefined,
+          sdkExecution: undefined, signedOrder: undefined, order: undefined, steps: [], stepIndex: 0,
+        });
+        return;
+      }
       const error = normalizeError(cause);
       const settlement = cause instanceof OrderSettlementError ? cause : undefined;
       const terminal = settlement?.reason === "cancelled" || settlement?.reason === "expired";
@@ -164,8 +163,9 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
         typeof cause.status === "number" && cause.status < 500 && cause.status !== 408 && !cause.cause;
       // The SDK wraps in-flight POST aborts; only its preflight check returns this exact reason.
       const preflightAbort = abort.signal.aborted && cause === abort.signal.reason;
+      const expiredBeforeSubmission = cause instanceof SpotError && cause.code === "ORDER_EXPIRED";
       update({
-        phase: !terminal && !rejectedSubmission && !preflightAbort && (settlement || submissionStarted) ? "unconfirmed" : "failed",
+        phase: !terminal && !rejectedSubmission && !preflightAbort && !expiredBeforeSubmission && (settlement || submissionStarted) ? "unconfirmed" : "failed",
         error,
         ...(settlement?.order ? { order: settlement.order } : {}),
       });
@@ -176,7 +176,7 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
     }
   }, [publish, refreshBalances, walletInteractions]);
 
-  const resume = useCallback(async (): Promise<void> => {
+  const checkOrderStatus = useCallback(async (): Promise<void> => {
     const host = useDirectSwapStore.getState();
     const saved = host.execution;
     if (host.controller || saved.phase !== "unconfirmed" || !saved.review) return;
@@ -186,25 +186,41 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
     publish({ ...saved, phase: "settling", error: undefined });
     try {
       const { client, account } = saved.review;
-      let order = saved.order;
+      const signedOrder = saved.signedOrder ?? saved.sdkExecution?.preparedOrder?.order;
+      const acceptedOrder = saved.order ?? saved.sdkExecution?.order;
+      const order = acceptedOrder
+        ? await client.getOrder({ orderId: acceptedOrder.id, signal: abort.signal })
+        : signedOrder
+          ? (await client.getOrders({ account, legacyOrders: false, getv1orders: false, rejectInvalidOrders: true, signal: abort.signal })).orders.find(candidate =>
+            candidate.version === 2 && "order" in candidate.rawOrder && matchesSignedSwap(signedOrder, candidate.rawOrder.order))
+          : undefined;
+      abort.signal.throwIfAborted();
       if (!order) {
-        if (!saved.signedOrder) throw new Error("Check the original account's order history before starting another swap.");
-        const history = await client.getAccountOrders({ account, getv1orders: false, legacyOrders: false, signal: abort.signal });
-        order = history.orders.find(candidate => candidate.version === 2 && "order" in candidate.rawOrder &&
-          matchesSignedSwap(saved.signedOrder, candidate.rawOrder.order));
-        if (!order) throw new Error("The original order has not appeared in history yet. Check its status again before starting another swap.");
+        const deadline = signedOrder?.deadline;
+        if (!acceptedOrder && typeof deadline === "string" && /^\d+$/.test(deadline) &&
+          BigInt(deadline) > BigInt(0) && BigInt(Date.now()) > BigInt(deadline) * BigInt(1000)) {
+          publish({ ...saved, phase: "failed", error: new SpotError("ORDER_EXPIRED", "The signed swap expired and was not found in order history. Review a new swap before trying again.") });
+          return;
+        }
+        throw new Error("The original order has not appeared in history yet. Check its status again before starting another swap.");
       }
-      publish({ ...saved, phase: "settling", order, error: undefined });
-      const completed = await client.executeOrder({ order, signal: abort.signal });
-      publish({ ...saved, phase: "success", order: completed, error: undefined });
-      useDirectSwapStore.setState({ confirmedWrap: undefined });
-      void refreshBalances([saved.review.quote.request.inToken]).catch(() => undefined);
+      if ((acceptedOrder && (order.id !== acceptedOrder.id || order.historyKey !== acceptedOrder.historyKey)) ||
+        order.chainId !== client.chainId || order.maker.toLowerCase() !== account.toLowerCase() ||
+        (signedOrder && !(order.version === 2 && "order" in order.rawOrder && matchesSignedSwap(signedOrder, order.rawOrder.order)))) {
+        throw new Error("The returned order does not match the original swap.");
+      }
+      if (order.status === OrderStatus.Completed) {
+        publish({ ...saved, phase: "success", order, error: undefined });
+        useDirectSwapStore.setState({ confirmedWrap: undefined });
+        void refreshBalances([saved.review.quote.request.inToken]).catch(() => undefined);
+      } else if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Expired) {
+        const reason = order.status === OrderStatus.Cancelled ? "cancelled" : "expired";
+        publish({ ...saved, phase: "failed", order, error: new OrderSettlementError(`The original swap ${reason === "cancelled" ? "was cancelled" : "expired"}.`, reason, order.id) });
+      } else {
+        publish({ ...saved, phase: "unconfirmed", order, error: new Error("The original swap is still open. Check its status again before starting another swap.") });
+      }
     } catch (cause) {
-      const settlement = cause instanceof OrderSettlementError ? cause : undefined;
-      publish({ ...saved,
-        phase: settlement?.reason === "cancelled" || settlement?.reason === "expired" ? "failed" : "unconfirmed",
-        error: normalizeError(cause), order: settlement?.order ?? useDirectSwapStore.getState().execution.order,
-      });
+      publish({ ...useDirectSwapStore.getState().execution, phase: "unconfirmed", error: normalizeError(cause) });
     } finally {
       abort.abort();
       if (useDirectSwapStore.getState().controller === abort) useDirectSwapStore.setState({ controller: undefined });
@@ -217,6 +233,6 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
   }, [publish]);
 
   return { ...state, isActive: activePhases.has(state.phase),
-    canUseConfirmedWrap: confirmedWrap?.contextKey === contextKey,
-    execute, resume, reset };
+    hasConfirmedWrap: Boolean(confirmedWrap && confirmedWrap.hash === state.wrapTxHash),
+    execute, checkOrderStatus, reset };
 };

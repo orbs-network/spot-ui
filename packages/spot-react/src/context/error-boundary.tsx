@@ -4,17 +4,7 @@ import { useClient } from "./use-client";
 import { useSpotTrading } from "./spot-trading-context";
 import { createOperationAnalytics } from "../analytics";
 import { observe } from "../execution-state";
-
-const DefaultErrorFallback = ({
-  resetErrorBoundary,
-}: SpotErrorFallbackProps) => (
-  <div className="twap-error-fallback" role="alert">
-    <p>Something went wrong</p>
-    <button type="button" onClick={resetErrorBoundary}>
-      Retry
-    </button>
-  </div>
-);
+import { DefaultErrorFallback } from "./default-error-fallback";
 
 export const SpotErrorBoundary = ({
   children,
@@ -24,20 +14,20 @@ export const SpotErrorBoundary = ({
   fallback?: ComponentType<SpotErrorFallbackProps>;
 }) => {
   const { data: client } = useClient();
-  const { partner, chainId, account, module, inputToken, outputToken, disableAnalytics } = useSpotTrading();
+  const { partner, chainId, account, orderType, inputToken, outputToken } = useSpotTrading();
   const reportCrash = useCallback((error: Error) => {
     const reporter = createOperationAnalytics({
       partner,
       chainId,
       account,
-      module,
+      orderType,
       inputTokenAddress: inputToken?.address,
       inputTokenSymbol: inputToken?.symbol,
       outputTokenAddress: outputToken?.address,
       outputTokenSymbol: outputToken?.symbol,
-    }, client, disableAnalytics);
+    }, client);
     observe(() => reporter.onCrash(error));
-  }, [client, partner, chainId, account, module, inputToken, outputToken, disableAnalytics]);
+  }, [client, partner, chainId, account, orderType, inputToken, outputToken]);
   return (
     <InternalErrorBoundary fallback={ErrorFallback} reportCrash={reportCrash}>
       {children}
@@ -71,7 +61,7 @@ class InternalErrorBoundary extends Component<
     this.props.reportCrash(error);
   }
 
-  private resetErrorBoundary = (): void => {
+  private retry = async (): Promise<void> => {
     this.setState({ error: undefined });
   };
 
@@ -82,7 +72,8 @@ class InternalErrorBoundary extends Component<
       return (
         <ErrorFallback
           error={error}
-          resetErrorBoundary={this.resetErrorBoundary}
+          retry={this.retry}
+          isRetrying={false}
         />
       );
     }

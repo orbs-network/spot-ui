@@ -1,11 +1,12 @@
 export {
-  Module,
+  OrderType,
   OrderStatus,
   OrderFilter,
   TimeUnit,
-  OrderType,
+  OrderVariant,
   Partners,
   InputErrors,
+  type DeepReadonly,
   type Config,
   type TimeDuration,
   type OrderFill,
@@ -48,12 +49,8 @@ export type {
 export {
   createClient,
   type CreateClientOptions,
-  type SubmitOrderOptions,
   type SpotClient,
-  type PrepareOrderParams,
-  type ExecuteOrderParams,
-  type ExecutedOrder,
-  type ResumeOrderParams,
+  type CreateOrderExecutionParams,
   type Eip712TypedData,
   type OrderSigningRequest,
   type ApprovalRequest,
@@ -61,10 +58,9 @@ export {
   type PreparedOrderValues,
   type PreparedOrder,
   type CancelOrderRequest,
-  type ClientGetAccountOrdersParams,
+  type ClientGetOrdersParams,
   type ClientGetOrderParams,
   type ClientGetQuoteParams,
-  type PrepareSwapParams,
 } from "./lib/client";
 
 export { SpotError, type SpotErrorCode, type SpotErrorOptions } from "./lib/errors";
@@ -88,6 +84,9 @@ export {
 
 export { getQuote, isQuoteFresh, QuoteError, type QuoteErrorKind, type SwapQuote, type SwapQuoteParams } from "./lib/quote";
 
-export { isSwapSupported, type PreparedSwap, type ExecuteSwapParams, type CompletedSwap, type SwapTradeType } from "./lib/swap";
-export { type OrderWalletInteractions } from "./lib/execute-order";
+export { isSwapSupported, type PreparedSwap, type CreateSwapExecutionParams, type SwapTradeType } from "./lib/swap";
+export type { OrderExecution, SwapExecution, ExecutionRunOptions, TransactionStepResult } from "./lib/execution-session";
+export type {
+  OrderWalletInteractions, OrderExecutionUpdate, OrderExecutionPhase, OrderExecutionStep, SignableOrder,
+} from "./lib/execute-order";
 export { OrderSettlementError } from "./lib/order-settlement-error";

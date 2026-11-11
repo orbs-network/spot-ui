@@ -1,33 +1,22 @@
 import type {
   InputError,
-  Module,
   OrderType,
+  OrderVariant,
   TimeDuration,
 } from "../types";
 
 export interface CalculateOrderFormParams {
-  module: Module;
+  orderType: OrderType;
   inputTokenDecimals: number;
   outputTokenDecimals: number;
   /** Raw output-token quote for the complete `userInput.inputAmountUi`. */
   quotedOutputAmountRaw?: string;
-  /**
-   * Exact minimum output-token base units from the current quote's minimumAmountOut.
-   * The quote already applies the requested slippage; do not apply it again.
-   * Required for Module.SWAP; must be positive and no greater than quotedOutputAmountRaw.
-   * Other modules derive their minimum from the form's price controls.
-   */
-  minimumOutputAmountRaw?: string;
   /** Service-reported USD total for the complete current input amount. */
   inputAmountUsd?: string;
-  /** Service-reported USD total for quotedOutputAmountRaw. Used unchanged for SWAP output display. */
-  quotedOutputAmountUsd?: string;
-  /** Service-reported USD total for minimumOutputAmountRaw. Used unchanged for SWAP minimum display. */
-  minimumOutputAmountUsd?: string;
   inputTokenUsdPrice?: string;
   outputTokenUsdPrice?: string;
   minTradeSizeUsd: number;
-  /** Signed oracle protection percentage for other modules. Module.SWAP always uses 5% (500 bps). */
+  /** Signed oracle protection percentage for this advanced order, finite from 0 to 50 inclusive. */
   priceProtectionPercent: number;
   /** Display-only estimate; fee collection is configured outside the SDK. */
   displayFeePercent?: number;
@@ -36,7 +25,7 @@ export interface CalculateOrderFormParams {
   userInput: {
     /** User-entered decimal amount, for example `"1.5"`. */
     inputAmountUi: string;
-    /** Ignored for SWAP and LIMIT, which always produce a limit order. */
+    /** Ignored for LIMIT, which always produces a limit order. */
     isMarketOrder: boolean;
     tradeCount?: number;
     tradeInterval?: TimeDuration;
@@ -101,10 +90,10 @@ export interface CalculatedLimitPriceValues extends CalculatedPriceInput {
 }
 
 export interface CalculatedOrderValues extends CalculatedOrderSchedule {
-  orderType: OrderType;
+  orderVariant: OrderVariant;
   isMarketOrder: boolean;
   isTriggerPrice: boolean;
-  /** Value signed as witness.slippage. Always 500 (5%) for Module.SWAP. */
+  /** Oracle protection signed as witness.slippage, from 0 to 5,000 basis points inclusive. */
   slippageBps: number;
   inputAmount: string;
   outputAmount: string;
@@ -142,8 +131,6 @@ export interface CalculatedOrderFormErrors {
   primary?: InputError;
   all: InputError[];
   minTradeSize?: InputError;
-  /** Invalid SWAP minimum, reported after the amount, quote, and USD value are available. */
-  swapMinimum?: InputError;
   triggerPrice?: InputError;
   limitPrice?: InputError;
   trades?: InputError;
@@ -157,11 +144,10 @@ export type OrderFormNotReadyReason =
   | "empty-input"
   | "awaiting-quote"
   | "missing-usd-value"
-  | "invalid-swap-minimum"
   | "missing-token-metadata";
 
 export interface CalculatedOrderForm {
-  module: Module;
+  orderType: OrderType;
   isInverted: boolean;
   inputAmount: CalculatedOrderInputAmount;
   outputAmount: CalculatedAmount;
@@ -201,7 +187,7 @@ export interface CalculatedOrderFormValidation {
 }
 
 export interface CalculateOrderScheduleParams {
-  module: Module;
+  orderType: OrderType;
   totalTrades: number;
   fillDelay?: TimeDuration;
   duration?: TimeDuration;
@@ -226,7 +212,7 @@ export interface CalculatePriceDisplayParams {
 }
 
 export interface CalculateTriggerPriceValuesParams {
-  module: Module;
+  orderType: OrderType;
   marketPrice?: string;
   inputAmountRaw?: string;
   triggerPrice?: string;
@@ -239,7 +225,7 @@ export interface CalculateTriggerPriceValuesParams {
 }
 
 export interface CalculateLimitPriceValuesParams {
-  module: Module;
+  orderType: OrderType;
   isMarketOrder: boolean;
   marketPrice?: string;
   inputAmountRaw?: string;
@@ -254,11 +240,9 @@ export interface CalculateLimitPriceValuesParams {
 }
 
 export interface CalculateOrderValuesParams {
-  module: Module;
+  orderType: OrderType;
   inputTokenDecimals: number;
   totalInputAmount: string;
-  quotedOutputAmountRaw?: string;
-  minimumOutputAmountRaw?: string;
   fillDelay?: TimeDuration;
   duration?: TimeDuration;
   totalTrades: number;

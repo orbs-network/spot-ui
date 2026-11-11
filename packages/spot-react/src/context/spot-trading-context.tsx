@@ -2,11 +2,10 @@ import { createContext, useContext, type ReactNode } from "react";
 import {
   type Address,
   type Partners,
-  type SwapQuote,
+  type OrderType,
 } from "@orbs-network/spot-ui";
 import type {
   Callbacks,
-  AdvancedOrderModule,
   Overrides,
   Token,
   WalletInteractions,
@@ -15,13 +14,7 @@ import type {
 /** Complete trading inputs, including connection and integration settings. */
 export interface SpotTradingState {
   walletInteractions: WalletInteractions;
-  quote?: SwapQuote;
   quotedOutputAmountRaw?: string;
-  /** Quoted minimum in output-token base units. */
-  minimumOutputAmountRaw?: string;
-  inputAmountUsd?: string;
-  quotedOutputAmountUsd?: string;
-  minimumOutputAmountUsd?: string;
   marketPriceLoading?: boolean;
   account?: Address;
   noLiquidity?: boolean;
@@ -39,7 +32,7 @@ export interface SpotTradingState {
   hasChainId: boolean;
   priceProtectionPercent: number;
   displayFeePercent: number;
-  module: AdvancedOrderModule;
+  orderType: OrderType;
   callbacks?: Callbacks;
   supportLegacyOrders: boolean;
   overrides?: Overrides;

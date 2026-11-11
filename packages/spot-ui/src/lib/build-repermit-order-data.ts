@@ -1,4 +1,4 @@
-import { Module, type Address, type RePermitData, type RePermitOrder } from "./types";
+import { OrderType, type Address, type RePermitData, type RePermitOrder } from "./types";
 import BN from "bignumber.js";
 import { SpotError } from "./errors";
 import { getOrderEpochSeconds } from "./order-timing";
@@ -27,7 +27,7 @@ export type BuildRePermitOrderDataParams = {
   minOutputAmountPerTrade?: string;
   triggerOutputAmountPerTrade?: string;
   permitData: RePermitData;
-  module: Module;
+  kind: OrderType | "SWAP";
 };
 
 /** Builds an unsigned protocol payload from reviewed inputs without mutating its configuration. */
@@ -46,23 +46,23 @@ export const buildRePermitOrderData = ({
   minOutputAmountPerTrade = "0",
   triggerOutputAmountPerTrade = "0",
   permitData,
-  module,
+  kind,
 }: BuildRePermitOrderDataParams): RePermitData => {
   if (!Number.isSafeInteger(slippageBps) || slippageBps < 0) {
     throw new SpotError("INVALID_ARGUMENT", "slippageBps must be a non-negative safe integer");
   }
   const epoch = getOrderEpochSeconds(fillDelayMillis, totalTrades);
   // Starts and swap deadlines floor; advanced deadlines retain nearest-second rounding.
-  const deadline = (module === Module.SWAP
+  const deadline = (kind === "SWAP"
     ? floorToSeconds(deadlineMillis)
     : roundToSeconds(deadlineMillis)).toString();
   const start = floorToSeconds(currentTimeMillis).toString();
   const limit = BN(minOutputAmountPerTrade || 0).toFixed();
   const triggerLower = BN(
-    module === Module.STOP_LOSS ? triggerOutputAmountPerTrade || 0 : 0,
+    kind === OrderType.STOP_LOSS ? triggerOutputAmountPerTrade || 0 : 0,
   ).toFixed();
   const triggerUpper = BN(
-    module === Module.TAKE_PROFIT ? triggerOutputAmountPerTrade || 0 : 0,
+    kind === OrderType.TAKE_PROFIT ? triggerOutputAmountPerTrade || 0 : 0,
   ).toFixed();
 
   const orderData: RePermitOrder = {

@@ -3,11 +3,11 @@ import type {
   Callbacks,
   AdvancedOrdersProviderProps,
   State,
-  StartedSwapExecution,
-  SwapExecution,
+  StartedOrderExecutionState,
+  OrderExecutionState,
 } from "../types";
 import { ExecutionPhase } from "../types";
-import { Module, type Order, type SpotClient } from "@orbs-network/spot-ui";
+import { OrderType, type Order, type SpotClient } from "@orbs-network/spot-ui";
 import {
   canBeginExecution,
   canTransitionExecution,
@@ -71,15 +71,19 @@ export interface SpotStore {
   setCancelOrder: (historyKey: string, value: State["cancelOrders"][string]) => void;
   clearCancelOrder: (historyKey: string) => void;
   beginExecution: (
-    value: Omit<SwapExecution, "executionId" | "phase">,
-  ) => StartedSwapExecution | undefined;
+    value: Omit<OrderExecutionState, "executionId" | "phase">,
+  ) => StartedOrderExecutionState | undefined;
   replaceExecution: (
     executionId: number,
-    value: SwapExecution,
+    value: OrderExecutionState,
   ) => boolean;
-  acquireExecutionController: () => AbortController | undefined;
+  getExecution: (executionId: number) => OrderExecutionState | undefined;
+  getBackgroundExecutions: () => OrderExecutionState[];
+  finishExecution: (executionId: number) => void;
+  queueWrapTransaction: <T>(scope: string, action: () => Promise<T>) => Promise<T>;
+  acquireExecutionController: (executionId?: number) => AbortController | undefined;
   releaseExecutionController: (controller: AbortController) => void;
-  abortExecutionTask: (preserveSubmitted?: boolean) => void;
+  abortExecutionTask: (preserveSubmitted?: boolean, reason?: unknown) => void;
   syncFormDefaults: (defaults: SpotFormDefaults) => boolean;
   startNewOrder: (defaults: SpotFormDefaults, executionId: number | undefined) => boolean;
   returnToOrderForm: (executionId: number | undefined) => boolean;
@@ -121,6 +125,9 @@ export const createSpotStore = (
 ): StoreApi<SpotStore> => {
   let nextExecutionId = 0;
   let executionController: AbortController | undefined;
+  const executionControllers = new Map<AbortController, { executionId?: number }>();
+  const backgroundExecutions = new Map<number, OrderExecutionState>();
+  const wrapTransactions = new Map<string, Promise<void>>();
 
   return createStore<SpotStore>((set, get) => {
     const clientResource = createClientResource(set);
@@ -150,25 +157,59 @@ export const createSpotStore = (
       },
       updateState: (value: Partial<State>) =>
         set((store) => ({ state: { ...store.state, ...value } })),
-      acquireExecutionController: () => {
-        if (executionController) return undefined;
-        executionController = new AbortController();
-        return executionController;
+      getExecution: (executionId) => {
+        const current = get().state.currentExecution;
+        return current.executionId === executionId
+          ? current
+          : backgroundExecutions.get(executionId);
+      },
+      getBackgroundExecutions: () => [...backgroundExecutions.values()],
+      finishExecution: (executionId) => {
+        if (backgroundExecutions.get(executionId)?.phase !== ExecutionPhase.UNCONFIRMED) {
+          if (backgroundExecutions.delete(executionId)) set(store => ({ ...store }));
+        }
+      },
+      queueWrapTransaction: (scope, action) => {
+        const previous = wrapTransactions.get(scope) ?? Promise.resolve();
+        const result = previous.then(action);
+        const completed = result.then(() => undefined, () => undefined);
+        wrapTransactions.set(scope, completed);
+        void completed.then(() => {
+          if (wrapTransactions.get(scope) === completed) wrapTransactions.delete(scope);
+        });
+        return result;
+      },
+      acquireExecutionController: (executionId) => {
+        const isForeground = executionId === undefined ||
+          get().state.currentExecution.executionId === executionId;
+        if (isForeground && executionController) return undefined;
+        if (executionId !== undefined && !isForeground && (!backgroundExecutions.has(executionId) ||
+          [...executionControllers.values()].some(task => task.executionId === executionId))) {
+          return undefined;
+        }
+        const controller = new AbortController();
+        executionControllers.set(controller, { executionId });
+        if (isForeground) executionController = controller;
+        return controller;
       },
       releaseExecutionController: (controller) => {
+        executionControllers.delete(controller);
         if (executionController === controller) executionController = undefined;
       },
-      abortExecutionTask: (preserveSubmitted = false) => {
-        const phase = get().state.currentExecution.phase;
-        const submissionStarted =
-          phase === ExecutionPhase.SUBMITTING ||
-          phase === ExecutionPhase.SETTLING ||
-          phase === ExecutionPhase.UNCONFIRMED;
-        if (preserveSubmitted && submissionStarted) return;
-        executionController?.abort();
+      abortExecutionTask: (preserveSubmitted = false, reason) => {
+        for (const [controller, task] of executionControllers) {
+          const phase = task.executionId === undefined
+            ? get().state.currentExecution.phase
+            : get().getExecution(task.executionId)?.phase;
+          const submissionStarted =
+            phase === ExecutionPhase.SUBMITTING ||
+            phase === ExecutionPhase.SETTLING ||
+            phase === ExecutionPhase.UNCONFIRMED;
+          if (!preserveSubmitted || !submissionStarted) controller.abort(reason);
+        }
       },
       beginExecution: (value) => {
-        let startedExecution: StartedSwapExecution | undefined;
+        let startedExecution: StartedOrderExecutionState | undefined;
         set((store) => {
           if (!canBeginExecution(store.state.currentExecution.phase)) {
             return store;
@@ -178,6 +219,8 @@ export const createSpotStore = (
             executionId: ++nextExecutionId,
             phase: ExecutionPhase.PREPARING,
           };
+          const task = executionController && executionControllers.get(executionController);
+          if (task) task.executionId = startedExecution.executionId;
           return {
             state: {
               ...store.state,
@@ -188,6 +231,17 @@ export const createSpotStore = (
         return startedExecution;
       },
       replaceExecution: (executionId, value) => {
+        const background = backgroundExecutions.get(executionId);
+        if (background) {
+          if (value.executionId !== executionId || !canTransitionExecution(background.phase, value.phase)) {
+            return false;
+          }
+          backgroundExecutions.set(executionId, value);
+          // Background snapshots are kept outside the editable form state.
+          // Publish a new store snapshot so selectors can observe their status.
+          set(store => ({ ...store }));
+          return true;
+        }
         let replaced = false;
         set((store) => {
           const current = store.state.currentExecution;
@@ -217,7 +271,7 @@ export const createSpotStore = (
         set((store) => ({
           state: {
             ...store.state,
-            currentExecution: createIdleExecution(current.completedWrap),
+            currentExecution: createIdleExecution(),
           },
         }));
         return true;
@@ -237,12 +291,13 @@ export const createSpotStore = (
       },
       startNewOrder: (defaults, executionId) => {
         const { state: previousState } = get();
-        if (
-          previousState.currentExecution.executionId !== executionId ||
-          isExecutionLocked(previousState.currentExecution.phase)
-        ) {
+        if (previousState.currentExecution.executionId !== executionId) {
           return false;
         }
+        if (executionId !== undefined && isExecutionLocked(previousState.currentExecution.phase)) {
+          backgroundExecutions.set(executionId, previousState.currentExecution);
+        }
+        executionController = undefined;
         set((store) => ({
           state: {
             ...store.state,
@@ -258,11 +313,11 @@ export const createSpotStore = (
 };
 
 export const createSpotFormDefaults = (
-  props: Pick<AdvancedOrdersProviderProps, "module" | "overrides">,
+  props: Pick<AdvancedOrdersProviderProps, "orderType" | "overrides">,
 ): SpotFormDefaults => {
   const state = props.overrides?.state;
   return {
-    isMarketOrder: props.module === Module.LIMIT
+    isMarketOrder: props.orderType === OrderType.LIMIT
       ? false
       : state?.isMarketOrder,
     tradeCount: state?.tradeCount,

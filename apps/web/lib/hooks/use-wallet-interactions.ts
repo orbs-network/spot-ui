@@ -6,7 +6,7 @@ import type {
   ApproveTokenProps,
   GetAllowanceProps,
 } from "@orbs-network/spot-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { erc20Abi, type PublicClient, type WalletClient } from "viem";
 import { useConnection, usePublicClient, useWalletClient } from "wagmi";
 import { getWrappedNativeCurrency, isNativeAddress } from "../utils";
@@ -15,19 +15,19 @@ import { useDerivedSwap } from "./use-derived-swap";
 import { useWrappedNativeTransaction } from "./use-wrap";
 import { useRefetchSelectedCurrenciesBalances } from "./use-balances";
 
-type BalanceReadContext = {
+type AllowanceReadContext = {
   walletClient: Pick<WalletClient, "getChainId" | "getAddresses">;
   publicClient: Pick<PublicClient, "chain">;
   chainId?: number;
   account: `0x${string}`;
 };
 
-const assertBalanceReadContext = async ({
+const assertAllowanceReadContext = async ({
   walletClient,
   publicClient,
   chainId,
   account,
-}: BalanceReadContext): Promise<void> => {
+}: AllowanceReadContext): Promise<void> => {
   const [connectedChainId, accounts] = await Promise.all([
     walletClient.getChainId(),
     walletClient.getAddresses(),
@@ -37,8 +37,14 @@ const assertBalanceReadContext = async ({
     publicClient.chain?.id !== chainId ||
     accounts[0]?.toLowerCase() !== account.toLowerCase()
   ) {
-    throw new Error("Wallet account or network changed while reading the token balance");
+    throw new Error("Wallet account or network changed while reading token allowance");
   }
+};
+
+const getApprovalBlock = (value: unknown): bigint => {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return BigInt(value);
+  if (typeof value === "string" && /^(?:\d+|0x[\da-f]+)$/i.test(value)) return BigInt(value);
+  throw new Error("Approval confirmation is missing a valid block number. Check the transaction before trying again.");
 };
 
 export const useWalletInteractions = () => {
@@ -48,6 +54,7 @@ export const useWalletInteractions = () => {
   const publicClient = usePublicClient({ config: wagmiConfig, chainId });
   const { mutateAsync: convertNativeToken, complete } = useWrappedNativeTransaction();
   const { mutateAsync: refetchBalances } = useRefetchSelectedCurrenciesBalances();
+  const confirmedApprovalBlocks = useRef(new Map<string, bigint>());
 
   const waitForTx = useCallback(
     async (hash: `0x${string}`) => {
@@ -67,7 +74,7 @@ export const useWalletInteractions = () => {
       if (receipt?.status !== "success") {
         throw new Error("Transaction confirmation is unavailable");
       }
-      return hash;
+      return receipt;
     },
     [chainId],
   );
@@ -86,9 +93,42 @@ export const useWalletInteractions = () => {
       if (!chain) throw new Error(`Unsupported wallet chain: ${chainId}`);
       return { client, chain };
     };
+    const approvalKey = (props: GetAllowanceProps, account: string) =>
+      JSON.stringify([chainId, account.toLowerCase(), props.tokenAddress.toLowerCase(), props.spenderAddress.toLowerCase()]);
+    const getAllowance = async (props: ApproveTokenProps): Promise<string> => {
+      const readClient = requirePublicClient();
+      const client = requireWalletClient();
+      if (!client.account?.address) throw new Error("Wallet account not found");
+      const context = { walletClient: client, publicClient: readClient, chainId, account: client.account.address };
+      await assertAllowanceReadContext(context);
+      const key = approvalKey(props, client.account.address);
+      const confirmedBlock = confirmedApprovalBlocks.current.get(key);
+      let blockNumber: bigint | undefined;
+      if (confirmedBlock !== undefined) {
+        const currentBlock = await readClient.getBlockNumber({ cacheTime: 0 });
+        const minimumBlock = confirmedApprovalBlocks.current.get(key) ?? confirmedBlock;
+        // A lagging RPC head must not return allowance from before the confirmed approval.
+        blockNumber = currentBlock > minimumBlock ? currentBlock : minimumBlock;
+      }
+      const result = await readClient.readContract({
+        address: props.tokenAddress as `0x${string}`,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [client.account.address, props.spenderAddress as `0x${string}`],
+        ...(blockNumber !== undefined ? { blockNumber } : {}),
+      });
+      await assertAllowanceReadContext(context);
+      console.log("Allowance check", JSON.stringify({
+        tokenAddress: props.tokenAddress, spenderAddress: props.spenderAddress,
+        required: props.amount, actual: String(result), blockNumber: blockNumber?.toString() ?? "latest",
+      }));
+
+      return String(result);
+    };
 
     return {
       shouldWrap: () => isNativeAddress(inputCurrency?.address),
+      shouldApprove: async (props: ApproveTokenProps) => BigInt(await getAllowance(props)) < BigInt(props.amount),
       wrapNativeToken: async (amount: string) => {
         const { operation, contextChanged } = await convertNativeToken({ action: "wrap", amount });
         if (contextChanged) {
@@ -107,15 +147,21 @@ export const useWalletInteractions = () => {
       },
       approveToken: async (props: ApproveTokenProps) => {
         const { client, chain } = getWriteContext();
+        if (!client.account?.address) throw new Error("Wallet account not found");
         const hash = await client.writeContract({
           abi: erc20Abi,
           functionName: "approve",
           address: props.tokenAddress as `0x${string}`,
-          args: [props.spenderAddress as `0x${string}`, BigInt(props.amount)],
+          args: [props.spenderAddress as `0x${string}`, BigInt(props.approvalAmount)],
           chain,
           account: client.account,
         });
-        return waitForTx(hash);
+        const receipt = await waitForTx(hash);
+        const key = approvalKey(props, client.account.address);
+        const block = getApprovalBlock(receipt.blockNumber);
+        const previousBlock = confirmedApprovalBlocks.current.get(key);
+        if (previousBlock === undefined || block > previousBlock) confirmedApprovalBlocks.current.set(key, block);
+        return hash;
       },
       cancelOrder: async (props: CancelOrderProps) => {
         const { client, chain } = getWriteContext();
@@ -130,7 +176,8 @@ export const useWalletInteractions = () => {
           chain,
           account: client.account,
         });
-        return waitForTx(hash);
+        await waitForTx(hash);
+        return hash;
       },
       signOrder: async (request: OrderSigningRequest) => {
         const client = requireWalletClient();
@@ -142,38 +189,6 @@ export const useWalletInteractions = () => {
           message: typedData.message as any,
           account: signerAddress,
         });
-      },
-      getAllowance: async (props: GetAllowanceProps) => {
-        const readClient = requirePublicClient();
-        const client = requireWalletClient();
-        const result = await readClient.readContract({
-          address: props.tokenAddress as `0x${string}`,
-          abi: erc20Abi,
-          functionName: "allowance",
-          args: [
-            client.account?.address as `0x${string}`,
-            props.spenderAddress as `0x${string}`,
-          ],
-        });
-        return String(result);
-      },
-      getTokenBalance: async ({ tokenAddress }) => {
-        const readClient = requirePublicClient();
-        if (!walletClient?.account?.address) {
-          throw new Error("Wallet account not found");
-        }
-        const account = walletClient.account.address;
-        const context = { walletClient, publicClient: readClient, chainId, account };
-        // A completed-wrap retry must not use a balance read across wallet changes.
-        await assertBalanceReadContext(context);
-        const result = await readClient.readContract({
-          address: tokenAddress as `0x${string}`,
-          abi: erc20Abi,
-          functionName: "balanceOf",
-          args: [account],
-        });
-        await assertBalanceReadContext(context);
-        return String(result);
       },
     };
   }, [walletClient, publicClient, chain, chainId, waitForTx, inputCurrency?.address, convertNativeToken, complete, refetchBalances]);

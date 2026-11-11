@@ -1,20 +1,23 @@
 import { create } from "zustand";
-import type { Order, RePermitOrder, SpotClient, SwapQuote } from "@orbs-network/spot-react";
+import type { Order, RePermitOrder, SpotClient, SwapQuote, SwapExecution } from "@orbs-network/spot-react";
 import type { Currency } from "./types";
 
-export type DirectSwapPhase = "idle" | "preparing" | "wrapping" | "approving" | "signing" | "settling" | "success" | "failed" | "unconfirmed";
+export type DirectSwapPhase = "idle" | "price-changed" | "preparing" | "wrapping" | "approving" | "signing" | "settling" | "success" | "failed" | "unconfirmed";
 export type DirectSwapStep = "wrap" | "approve" | "create";
 
-/** The exact quote and wallet context shown in the host's review dialog. */
-export interface SwapReview {
+/** Input and wallet context selected when the review dialog opens. */
+export interface SwapReviewContext {
   client: SpotClient;
-  quote: SwapQuote;
   account: `0x${string}`;
   contextKey: string;
   inputToken: Currency;
   outputToken: Currency;
   inputAmountUi: string;
-  outputAmountUi: string;
+}
+
+/** Confirmed quote retained as the minimum-output floor during execution. */
+export interface SwapReview extends SwapReviewContext {
+  quote: SwapQuote;
 }
 
 export interface DirectSwapState {
@@ -23,8 +26,11 @@ export interface DirectSwapState {
   error?: Error;
   order?: Order;
   signedOrder?: RePermitOrder;
+  sdkExecution?: SwapExecution;
   wrapTxHash?: string;
   approvalTxHash?: string;
+  /** Require a quote received after the rejected signing attempt before accepting a new price. */
+  priceChangedAt?: number;
   steps: DirectSwapStep[];
   stepIndex: number;
 }
@@ -35,5 +41,5 @@ export const idleSwapExecution = (): DirectSwapState => ({ phase: "idle", steps:
 export const useDirectSwapStore = create<{
   execution: DirectSwapState;
   controller?: AbortController;
-  confirmedWrap?: { contextKey: string; account: string; hash: string };
+  confirmedWrap?: { account: string; chainId: number; tokenAddress: string; hash: string; contextKey: string; amountRaw: string };
 }>(() => ({ execution: idleSwapExecution() }));

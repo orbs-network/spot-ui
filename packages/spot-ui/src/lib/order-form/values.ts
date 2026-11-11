@@ -1,8 +1,8 @@
 import BN from "bignumber.js";
-import { Module, OrderType } from "../types";
+import { OrderType, OrderVariant } from "../types";
 import { normalizeAmount } from "./amounts";
 import { calculateOrderSchedule } from "./schedule";
-import { SWAP_ORDER_SLIPPAGE_BPS } from "./constants";
+import { getPriceProtectionBps } from "./price-protection";
 import type {
   CalculateOrderValuesParams,
   CalculatedOrderValues,
@@ -51,12 +51,12 @@ const getMinOutputAmountPerTrade = (
 };
 
 const getTriggerOutputAmountPerTrade = (
-  module: Module,
+  orderType: OrderType,
   inputAmountPerTrade?: string,
   triggerPrice?: string,
   inputTokenDecimals?: number,
 ): string | undefined => {
-  if (module === Module.TWAP || module === Module.LIMIT || module === Module.SWAP) return "0";
+  if (orderType === OrderType.TWAP || orderType === OrderType.LIMIT) return "0";
   if (inputTokenDecimals == null || !inputAmountPerTrade || !triggerPrice) {
     return undefined;
   }
@@ -75,44 +75,42 @@ const getInputAmountPerTrade = (
     .toFixed(0);
 };
 
-const getOrderType = (
-  module: Module,
+const getOrderVariant = (
+  orderType: OrderType,
   isMarketOrder: boolean,
-): OrderType => {
-  if (module === Module.SWAP) return OrderType.SWAP;
-  if (module === Module.LIMIT) return OrderType.LIMIT;
-  if (module === Module.STOP_LOSS) {
+): OrderVariant => {
+  if (orderType === OrderType.LIMIT) return OrderVariant.LIMIT;
+  if (orderType === OrderType.STOP_LOSS) {
     return isMarketOrder
-      ? OrderType.STOP_LOSS_MARKET
-      : OrderType.STOP_LOSS_LIMIT;
+      ? OrderVariant.STOP_LOSS_MARKET
+      : OrderVariant.STOP_LOSS_LIMIT;
   }
-  if (module === Module.TAKE_PROFIT) {
+  if (orderType === OrderType.TAKE_PROFIT) {
     return isMarketOrder
-      ? OrderType.TAKE_PROFIT_MARKET
-      : OrderType.TAKE_PROFIT_LIMIT;
+      ? OrderVariant.TAKE_PROFIT_MARKET
+      : OrderVariant.TAKE_PROFIT_LIMIT;
   }
-  return isMarketOrder ? OrderType.TWAP_MARKET : OrderType.TWAP_LIMIT;
+  return isMarketOrder ? OrderVariant.TWAP_MARKET : OrderVariant.TWAP_LIMIT;
 };
 
 const getTradePrice = ({
-  module,
+  orderType,
   isMarketOrder,
   marketPrice,
   limitPrice,
   triggerPrice,
 }: Pick<
   CalculateOrderValuesParams,
-  | "module"
+  | "orderType"
   | "isMarketOrder"
   | "marketPrice"
   | "limitPrice"
   | "triggerPrice"
 >): string => {
-  if (module === Module.SWAP) return normalizeAmount(marketPrice);
-  if (module === Module.LIMIT || !isMarketOrder) {
+  if (orderType === OrderType.LIMIT || !isMarketOrder) {
     return normalizeAmount(limitPrice);
   }
-  if (module === Module.STOP_LOSS || module === Module.TAKE_PROFIT) {
+  if (orderType === OrderType.STOP_LOSS || orderType === OrderType.TAKE_PROFIT) {
     return normalizeAmount(triggerPrice);
   }
   return normalizeAmount(marketPrice);
@@ -126,14 +124,6 @@ const getTotalAmount = (amountPerTrade: string, totalTrades: number): string => 
     .toFixed();
 };
 
-const getOrderSlippageBps = (params: CalculateOrderValuesParams): number => {
-  // Swap quote slippage is already applied to its minimum; this signed field is oracle protection.
-  if (params.module === Module.SWAP) return SWAP_ORDER_SLIPPAGE_BPS;
-  return Number.isFinite(params.priceProtectionPercent)
-    ? Math.round(params.priceProtectionPercent * 100)
-    : 0;
-};
-
 const getDisplayFeeAmount = (outputAmount: string, percent: number): string => {
   if (!percent || !outputAmount) return "";
   return BN(outputAmount).multipliedBy(percent).dividedBy(100).toFixed(0);
@@ -143,7 +133,7 @@ export const calculateOrderValues = (
   params: CalculateOrderValuesParams,
 ): CalculatedOrderValues => {
   const schedule = calculateOrderSchedule(params);
-  const slippageBps = getOrderSlippageBps(params);
+  const slippageBps = getPriceProtectionBps(params.priceProtectionPercent);
   const displayFeePercent =
     typeof params.displayFeePercent === "number" &&
     Number.isFinite(params.displayFeePercent)
@@ -155,7 +145,7 @@ export const calculateOrderValues = (
   const limitPrice = normalizeAmount(params.limitPrice);
   const triggerPrice = normalizeAmount(params.triggerPrice);
   const tradePrice = getTradePrice({
-    module: params.module,
+    orderType: params.orderType,
     isMarketOrder: params.isMarketOrder,
     marketPrice,
     limitPrice,
@@ -166,13 +156,8 @@ export const calculateOrderValues = (
     inputAmount,
     schedule.totalTrades,
   );
-  // A swap uses exact whole-quote amounts, avoiding per-token price rounding.
-  const outputAmount = params.module === Module.SWAP
-    ? normalizeAmount(params.quotedOutputAmountRaw)
-    : normalizeAmount(getOutputAmount(inputAmount, tradePrice, params.inputTokenDecimals));
-  const minOutputAmountPerTrade = params.module === Module.SWAP
-    ? normalizeAmount(params.minimumOutputAmountRaw) || "0"
-    : getMinOutputAmountPerTrade(
+  const outputAmount = normalizeAmount(getOutputAmount(inputAmount, tradePrice, params.inputTokenDecimals));
+  const minOutputAmountPerTrade = getMinOutputAmountPerTrade(
         inputAmountPerTrade,
         limitPrice,
         params.isMarketOrder,
@@ -184,7 +169,7 @@ export const calculateOrderValues = (
   );
   const triggerOutputAmountPerTrade =
     getTriggerOutputAmountPerTrade(
-      params.module,
+      params.orderType,
       inputAmountPerTrade,
       triggerPrice,
       params.inputTokenDecimals,
@@ -193,11 +178,11 @@ export const calculateOrderValues = (
 
   return {
     ...schedule,
-    orderType: getOrderType(params.module, params.isMarketOrder),
+    orderVariant: getOrderVariant(params.orderType, params.isMarketOrder),
     isMarketOrder: params.isMarketOrder,
     isTriggerPrice:
-      params.module === Module.STOP_LOSS ||
-      params.module === Module.TAKE_PROFIT,
+      params.orderType === OrderType.STOP_LOSS ||
+      params.orderType === OrderType.TAKE_PROFIT,
     slippageBps,
     inputAmount,
     outputAmount,

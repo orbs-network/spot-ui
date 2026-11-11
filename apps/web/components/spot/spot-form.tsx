@@ -5,7 +5,7 @@ import { useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ExecutionPhase,
-  Module,
+  OrderType,
   AdvancedOrdersProvider,
   TimeUnit,
   useExecution,
@@ -27,7 +27,7 @@ import {
   useSpotPartner,
   useWalletInteractions,
 } from "@/lib/hooks/spot-hooks";
-import { Currency, SwapType } from "@/lib/types";
+import { Currency } from "@/lib/types";
 import { getWrappedNativeCurrency } from "@/lib/utils";
 import { FormContainer } from "../form-container";
 import { ToggleCurrencies } from "../toggle-currencies";
@@ -39,22 +39,13 @@ import { OrderSettings } from "./order-settings";
 import { SpotsOrders } from "./orders";
 import { PriceSettings } from "./price-settings";
 import {
-  ClientErrorFallback,
+  ErrorFallback,
   DisclaimerPanel,
   InputsErrorPanel,
 } from "./spot-form-support";
 import { SpotFormContextProvider } from "./spot-form-context";
 import { SubmitOrderDialog } from "./submit-order-dialog";
 import { TokenPanel } from "./token-panel";
-
-type AdvancedSwapType = Exclude<SwapType, SwapType.SWAP>;
-
-const getModule = (swapType: AdvancedSwapType): Exclude<Module, Module.SWAP> => {
-  if (swapType === SwapType.LIMIT) return Module.LIMIT;
-  if (swapType === SwapType.STOP_LOSS) return Module.STOP_LOSS;
-  if (swapType === SwapType.TAKE_PROFIT) return Module.TAKE_PROFIT;
-  return Module.TWAP;
-};
 
 const useSpotToken = (currency?: Currency): Token | undefined =>
   useMemo(() => {
@@ -84,6 +75,22 @@ const PauseQuotesDuringExecution = () => {
   return null;
 };
 
+const BackgroundOrderStatus = () => {
+  const { hasUnconfirmedExecutions, isUnconfirmed, isCheckingOrderStatus, checkOrderStatus } = useExecution();
+  if (!hasUnconfirmedExecutions || isUnconfirmed) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p role="status" className="text-sm text-muted-foreground">
+        {isCheckingOrderStatus ? "Checking the previous order’s status…" : "A previous order’s submission is unconfirmed and may still complete."}
+      </p>
+      <Button type="button" variant="outline" onClick={checkOrderStatus} disabled={isCheckingOrderStatus} isLoading={isCheckingOrderStatus}>
+        {isCheckingOrderStatus ? "Checking order status…" : "Check previous order status"}
+      </Button>
+    </div>
+  );
+};
+
 const UnsupportedNetworkNotice = ({
   supported,
   account,
@@ -93,7 +100,7 @@ const UnsupportedNetworkNotice = ({
   account?: string;
   partner: string;
 }) => {
-  const { isUnconfirmed, phase, resumeTracking } = useExecution();
+  const { isUnconfirmed, phase, checkOrderStatus } = useExecution();
   const isCheckingStatus = phase === ExecutionPhase.SETTLING;
 
   if (supported) return null;
@@ -112,7 +119,7 @@ const UnsupportedNetworkNotice = ({
         <Button
           type="button"
           variant="outline"
-          onClick={resumeTracking}
+          onClick={checkOrderStatus}
           disabled={isCheckingStatus}
           isLoading={isCheckingStatus}
         >
@@ -123,7 +130,7 @@ const UnsupportedNetworkNotice = ({
   );
 };
 
-export function SpotForm({ swapType }: { swapType: AdvancedSwapType }) {
+export function SpotForm({ orderType }: { orderType: OrderType }) {
   const {
     inputCurrency, outputCurrency, inputAmount, inputTokenUsdPrice,
     outputTokenUsdPrice, wrappedNativeAction, quoteError, refetchTrade,
@@ -132,10 +139,9 @@ export function SpotForm({ swapType }: { swapType: AdvancedSwapType }) {
   const chainId = useActiveChainId();
   const { address } = useConnection();
   const { priceProtection: priceProtectionPercent } = useSettings();
-  const swapModule = getModule(swapType);
   const contextValue = useMemo(
-    () => ({ swapModule, setInputAmount }),
-    [setInputAmount, swapModule],
+    () => ({ orderType, setInputAmount }),
+    [setInputAmount, orderType],
   );
   const { wei: inputBalanceRaw } = useBalance(inputCurrency);
   const inputToken = useSpotToken(inputCurrency);
@@ -176,7 +182,7 @@ export function SpotForm({ swapType }: { swapType: AdvancedSwapType }) {
           outputToken={outputToken}
           wrappedNativeToken={wrappedNativeToken}
           priceProtectionPercent={priceProtectionPercent}
-          module={swapModule}
+          orderType={orderType}
           inputTokenUsdPrice={inputTokenUsdPrice}
           outputTokenUsdPrice={outputTokenUsdPrice}
           marketQuote={marketQuote}
@@ -184,10 +190,11 @@ export function SpotForm({ swapType }: { swapType: AdvancedSwapType }) {
           overrides={overrides}
           callbacks={callbacks}
           supportLegacyOrders={true}
-          clientErrorFallback={ClientErrorFallback}
+          errorFallback={ErrorFallback}
           displayFeePercent={0.25}
         >
           <PauseQuotesDuringExecution />
+          <BackgroundOrderStatus />
           <UnsupportedNetworkNotice supported={supported} account={address} partner={partner} />
           {supported && (
             <>

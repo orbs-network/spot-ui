@@ -8,7 +8,6 @@ import { createContext, type ReactNode, useContext, useMemo } from "react";
 import {
   ORBS_TWAP_FAQ_URL,
   Steps,
-  Module,
   ExecutionPhase,
   ExecutionStatus,
   useExecution,
@@ -16,13 +15,14 @@ import {
   type ParsedError,
   type Token,
 } from "@orbs-network/spot-react";
-import { useFormatNumber } from "@/lib/hooks/common";
 import { FormatNumber } from "./format-number";
 import { OrderDetails } from "./order-details";
 import { useTranslations } from "@/lib/use-translations";
 import { Spinner } from "../ui/spinner";
 import { SpotTokenLogo } from "./components";
-import { getExplorerUrl, getWrappedNativeCurrency } from "@/lib/utils";
+import { formatDecimals, getExplorerUrl, getWrappedNativeCurrency } from "@/lib/utils";
+import { ReviewFooter } from "../review-footer";
+import styles from "../review-flow.module.css";
 
 type SubmitOrderPanelProps = {
   orderTitle?: string;
@@ -62,11 +62,7 @@ const useTitle = () => {
   const t = useTranslations();
   const { orderTitle = "" } = useSubmitPanelContext();
   const { status } = useExecution();
-  const isSwap = useOrderForm().module === Module.SWAP;
 
-  if (isSwap) {
-    return status === ExecutionStatus.SUCCESS ? "Swap completed" : "Create swap order";
-  }
   if (status === ExecutionStatus.SUCCESS) {
     return t("createOrderActionSuccess", { name: orderTitle });
   }
@@ -86,7 +82,10 @@ const useStep = () => {
 
   return useMemo((): Step | undefined => {
     if (phase === ExecutionPhase.SETTLING) {
-      return { title: "Executing swap", footerText: "Waiting for your swap to fill…" };
+      return { title: "Checking order status", footerText: "Checking the original order…" };
+    }
+    if (phase === ExecutionPhase.PREPARING) {
+      return { title: "Checking allowance", footerText: "Checking token allowance…" };
     }
     if (currentStep === Steps.WRAP) {
       return {
@@ -141,9 +140,9 @@ function Failed({ error }: { error?: ParsedError }) {
 const Main = () => {
   const { inputToken, outputToken, reviewDetails } =
     useSubmitPanelContext();
-  const { status, isPreparingOrder } = useExecution();
+  const { status, isPreparingOrder, totalSteps } = useExecution();
   const t = useTranslations();
-  const isSubmitted = Boolean(status) && !isPreparingOrder;
+  const isSubmitted = Boolean(status) && !(isPreparingOrder && !totalSteps);
   const order = useOrderForm();
 
   return (
@@ -167,16 +166,13 @@ const Main = () => {
         }
       />
       {!isSubmitted && (
-        <div className="twap-create-order-bottom">
-          <OrderDetails.Container>
-            <div className="twap-create-order-details">
-              {order.module !== Module.SWAP && (
-                <OrderDetails.Duration
-                  durationMillis={order.schedule.durationMillis}
-                  label={t("expirationLabel")}
-                  tooltip={t("expirationTooltip")}
-                />
-              )}
+        <ReviewFooter details={
+            <>
+              <OrderDetails.Duration
+                durationMillis={order.schedule.durationMillis}
+                label={t("expirationLabel")}
+                tooltip={t("expirationTooltip")}
+              />
               <OrderDetails.Price
                 inputToken={inputToken}
                 price={order.triggerPrice.display.ui}
@@ -185,16 +181,14 @@ const Main = () => {
                 tooltip={t("triggerPriceTooltip")}
                 usd={order.triggerPrice.display.usd}
               />
-              {order.module !== Module.SWAP && (
-                <OrderDetails.Price
-                  inputToken={inputToken}
-                  price={order.limitPrice.display.ui}
-                  outputToken={outputToken}
-                  label={t("limitPrice")}
-                  usd={order.limitPrice.display.usd}
-                  tooltip={t("limitPriceTooltip")}
-                />
-              )}
+              <OrderDetails.Price
+                inputToken={inputToken}
+                price={order.limitPrice.display.ui}
+                outputToken={outputToken}
+                label={t("limitPrice")}
+                usd={order.limitPrice.display.usd}
+                tooltip={t("limitPriceTooltip")}
+              />
               <OrderDetails.MinOutputAmount
                 outputToken={outputToken}
                 minOutputAmount={order.trades.minOutputAmountPerTrade.ui}
@@ -229,10 +223,10 @@ const Main = () => {
                   outputTokenSymbol={outputToken?.symbol}
                 />
               )}
-            </div>
-          </OrderDetails.Container>
+            </>
+          }>
           {reviewDetails}
-        </div>
+        </ReviewFooter>
       )}
     </>
   );
@@ -290,14 +284,8 @@ const SubmitOrderFlow = ({
   } = panelData;
   const formData = useOrderForm();
 
-  const inputAmountF = useFormatNumber({
-    value: formData.inputAmount.ui,
-    decimalScale: 2,
-  });
-  const outputAmountF = useFormatNumber({
-    value: formData.outputAmount.ui,
-    decimalScale: 2,
-  });
+  const inputAmountF = formatDecimals(formData.inputAmount.ui, 2, inputToken?.decimals ?? 18);
+  const outputAmountF = formatDecimals(formData.outputAmount.ui, 2, outputToken?.decimals ?? 18);
 
   const inToken = useMemo(
     () => ({ symbol: inputToken?.symbol, logoUrl: inputToken?.logoUrl }),
@@ -310,10 +298,12 @@ const SubmitOrderFlow = ({
 
   // Step and title hooks consume the same context as the rendered flow content.
   const currentStep = useStep();
-  const swapStatus = isPreparingOrder ? undefined : getSwapUiStatus(status);
+  // Once wallet steps are visible, live checks must keep the progress screen mounted.
+  const swapStatus = isPreparingOrder && !totalSteps ? undefined : getSwapUiStatus(status);
 
   return (
     <SwapFlow
+      className={styles.flow}
       inAmount={inputAmountF}
       outAmount={outputAmountF}
       swapStatus={swapStatus}

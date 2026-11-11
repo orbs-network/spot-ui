@@ -3,6 +3,8 @@ import { TimeUnit, type TimeDuration } from "../types";
 export const MIN_FILL_DELAY_MILLIS = 5 * 60 * 1000;
 export const MAX_ORDER_DURATION_MILLIS = 60 * 24 * 60 * 60 * 1000;
 export const MIN_ORDER_DURATION_MILLIS = 5 * 60 * 1000;
+/** Spot Constants.MAX_SLIPPAGE is BPS / 2; advanced oracle protection permits 0–50%. */
+export const MAX_ORDER_SLIPPAGE_BPS = 5_000;
 export const SWAP_ORDER_SLIPPAGE_BPS = 500;
 export const SWAP_ORDER_DURATION_MILLIS = 3 * 60_000;
 

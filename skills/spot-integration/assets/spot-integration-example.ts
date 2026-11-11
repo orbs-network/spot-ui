@@ -1,12 +1,13 @@
+// Calculated advanced-order integration; swaps use the quote-only client flow.
 import {
   calculateOrder,
   createClient,
   getQuote,
-  Module,
   type CalculateOrderFormParams,
   type CalculatedOrderForm,
   type CancelOrderRequest,
   type Order,
+  type OrderExecution,
   type OrderWalletInteractions,
   type Partners,
   type SpotClient,
@@ -15,6 +16,7 @@ import {
   type Token,
 } from "@orbs-network/spot-ui";
 
+/** Compare allowance with request.amount; the approval write may use the suggested approvalAmount or host policy. */
 export interface SpotWalletPort extends OrderWalletInteractions {
   cancelOrder(request: CancelOrderRequest): Promise<`0x${string}`>;
 }
@@ -27,8 +29,6 @@ export interface SpotIntegrationOptions {
 
 export interface SubmitSpotOrderParams {
   form: CalculatedOrderForm;
-  /** Original reviewed SDK quote, required for SWAP forms. */
-  quote?: SwapQuote;
   /** Protocol ERC-20 input; normalize a native selection to the configured wrapped token. */
   inputToken: Token;
   outputToken: Token;
@@ -45,6 +45,7 @@ export interface SubmittedSpotOrder {
 
 export class SpotIntegration {
   private clientPromise?: Promise<SpotClient>;
+  private currentExecution?: OrderExecution;
   private isSubmitting = false;
   private readonly cancellingOrderKeys = new Set<string>();
 
@@ -52,6 +53,9 @@ export class SpotIntegration {
 
   /** Drive the host's loading state and automatic/manual quote pause from this. */
   public get isExecuting(): boolean { return this.isSubmitting; }
+
+  /** Retain accepted/prepared state for host progress and reconciliation after a failed run. */
+  public get execution(): OrderExecution | undefined { return this.currentExecution; }
 
   public getQuote(
     params: Omit<SwapQuoteParams, "chainId" | "partner">,
@@ -88,7 +92,7 @@ export class SpotIntegration {
     return this.getClient();
   }
 
-  /** For SWAP, resolves after a fill; other modules resolve at order acceptance. */
+  /** Calculated advanced orders resolve when the order service accepts them. */
   public async submitOrder(
     params: SubmitSpotOrderParams,
   ): Promise<SubmittedSpotOrder> {
@@ -105,32 +109,21 @@ export class SpotIntegration {
       const client = await this.getClient();
       params.signal?.throwIfAborted();
 
-      const quote = params.quote;
-      if (params.form.module === Module.SWAP) {
-        if (!quote?.request) throw new Error("The original reviewed swap quote is required");
-        if (quote.request.inToken.toLowerCase() !== params.inputToken.address.toLowerCase() ||
-          quote.request.outToken.toLowerCase() !== params.outputToken.address.toLowerCase() ||
-          BigInt(quote.request.inAmount) !== BigInt(params.form.inputAmount.raw) ||
-          BigInt(quote.netAmountOut) !== BigInt(params.form.outputAmount.raw) ||
-          BigInt(quote.minimumAmountOut) !== BigInt(params.form.values.minOutputAmountPerTrade)) {
-          throw new Error("Swap quote does not match the reviewed form or tokens");
-        }
-      }
       const walletParams = {
         account: params.account,
         walletInteractions: this.options.wallet, signal: params.signal,
       };
-      const result = params.form.module === Module.SWAP && quote
-        ? await client.executeSwap({ ...walletParams, quote })
-        : await client.executeOrder({
-            ...walletParams, form: params.form,
-            inputTokenAddress: params.inputToken.address,
-            outputTokenAddress: params.outputToken.address,
-          });
+      const execution = client.createOrderExecution({
+        ...walletParams, form: params.form,
+        inputTokenAddress: params.inputToken.address,
+        outputTokenAddress: params.outputToken.address,
+      });
+      this.currentExecution = execution;
+      const order = await execution.run();
       return {
-        order: result.order,
-        wrapTxHash: result.wrapTxHash as `0x${string}` | undefined,
-        approvalTxHash: result.approvalTxHash as `0x${string}` | undefined,
+        order,
+        wrapTxHash: execution.wrapTxHash as `0x${string}` | undefined,
+        approvalTxHash: execution.approvalTxHash as `0x${string}` | undefined,
       };
     } finally {
       this.isSubmitting = false;
@@ -138,11 +131,11 @@ export class SpotIntegration {
   }
 
   public async getOrders(
-    account: string,
+    account?: string,
     signal?: AbortSignal,
   ): Promise<Order[]> {
     const client = await this.getClient();
-    const { orders } = await client.getAccountOrders({ account, signal });
+    const { orders } = await client.getOrders({ account, signal });
     return orders;
   }
 

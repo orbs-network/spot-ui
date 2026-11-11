@@ -3,11 +3,20 @@ import {
   Steps,
   ExecutionStatus,
   type CompletedWrap,
-  type SwapExecution,
+  type OrderExecutionState,
 } from "./types";
 import { OrderSettlementError, SpotError } from "@orbs-network/spot-ui";
 
 export { getErrorMessage, normalizeError, parseExecutionError } from "./parse-execution-error";
+
+/** Internal cancellation for an obsolete wallet/form scope, rather than a failed order. */
+export class ExecutionScopeChangedError extends Error {
+  readonly name = "ExecutionScopeChangedError";
+
+  constructor(message = "The wallet account, network, or partner changed") {
+    super(message);
+  }
+}
 
 const ACTIVE_PHASES = new Set<ExecutionPhase>([
   ExecutionPhase.PREPARING,
@@ -21,6 +30,7 @@ const ACTIVE_PHASES = new Set<ExecutionPhase>([
 const ALLOWED_TRANSITIONS: Record<ExecutionPhase, ReadonlySet<ExecutionPhase>> = {
   [ExecutionPhase.IDLE]: new Set(),
   [ExecutionPhase.PREPARING]: new Set([
+    ExecutionPhase.IDLE,
     ExecutionPhase.PREPARING,
     ExecutionPhase.WRAPPING,
     ExecutionPhase.APPROVING,
@@ -29,6 +39,8 @@ const ALLOWED_TRANSITIONS: Record<ExecutionPhase, ReadonlySet<ExecutionPhase>> =
     ExecutionPhase.REJECTED,
   ]),
   [ExecutionPhase.WRAPPING]: new Set([
+    ExecutionPhase.IDLE,
+    ExecutionPhase.PREPARING,
     ExecutionPhase.WRAPPING,
     ExecutionPhase.APPROVING,
     ExecutionPhase.SIGNING,
@@ -36,18 +48,22 @@ const ALLOWED_TRANSITIONS: Record<ExecutionPhase, ReadonlySet<ExecutionPhase>> =
     ExecutionPhase.REJECTED,
   ]),
   [ExecutionPhase.APPROVING]: new Set([
+    ExecutionPhase.IDLE,
+    ExecutionPhase.PREPARING,
     ExecutionPhase.APPROVING,
     ExecutionPhase.SIGNING,
     ExecutionPhase.FAILED,
     ExecutionPhase.REJECTED,
   ]),
   [ExecutionPhase.SIGNING]: new Set([
+    ExecutionPhase.IDLE,
     ExecutionPhase.SIGNING,
     ExecutionPhase.SUBMITTING,
     ExecutionPhase.FAILED,
     ExecutionPhase.REJECTED,
   ]),
   [ExecutionPhase.SUBMITTING]: new Set([
+    ExecutionPhase.IDLE,
     ExecutionPhase.SUBMITTING,
     ExecutionPhase.SETTLING,
     ExecutionPhase.SUCCESS,
@@ -73,7 +89,7 @@ const ALLOWED_TRANSITIONS: Record<ExecutionPhase, ReadonlySet<ExecutionPhase>> =
 
 export const createIdleExecution = (
   completedWrap?: CompletedWrap,
-): SwapExecution => ({
+): OrderExecutionState => ({
   phase: ExecutionPhase.IDLE,
   completedWrap,
 });
@@ -96,6 +112,8 @@ export const isUnconfirmedExecutionError = (error: unknown, phase: ExecutionPhas
     return !(error instanceof OrderSettlementError && (error.reason === "cancelled" || error.reason === "expired"));
   }
   if (phase !== ExecutionPhase.SUBMITTING) return false;
+  // The SDK's deadline check fails before it sends the order to the service.
+  if (error instanceof SpotError && error.code === "ORDER_EXPIRED") return false;
   if (error instanceof SpotError && error.code === "SUBMISSION_FAILED" &&
       error.status !== undefined && error.status < 500 && error.status !== 408 && !error.cause) {
     return false;
@@ -141,39 +159,31 @@ export const observe = (callback: (() => unknown) | undefined): void => {
   }
 };
 
-export const getReusableCompletedWrap = ({
+export const getMatchingCompletedWrap = ({
   execution,
   account,
   chainId,
   inputTokenAddress,
+  wrappedTokenAddress,
   inputAmountRaw,
 }: {
-  execution: SwapExecution;
+  execution: OrderExecutionState;
   account: string;
   chainId: number;
   inputTokenAddress: string;
+  wrappedTokenAddress: string;
   inputAmountRaw: string;
 }): CompletedWrap | undefined => {
   const completedWrap = execution.completedWrap;
   if (
     completedWrap?.account.toLowerCase() === account.toLowerCase() &&
     completedWrap.chainId === chainId &&
-    completedWrap.inputTokenAddress.toLowerCase() ===
-      inputTokenAddress.toLowerCase() &&
-    hasEnoughWrappedAmount(completedWrap.inputAmountRaw, inputAmountRaw)
+    completedWrap.inputAmountRaw === inputAmountRaw &&
+    completedWrap.inputTokenAddress.toLowerCase() === inputTokenAddress.toLowerCase() &&
+    completedWrap.wrappedTokenAddress.toLowerCase() ===
+      wrappedTokenAddress.toLowerCase()
   ) {
     return completedWrap;
   }
   return undefined;
-};
-
-const hasEnoughWrappedAmount = (
-  completedAmountWei: string,
-  requestedAmountWei: string,
-): boolean => {
-  try {
-    return BigInt(completedAmountWei) >= BigInt(requestedAmountWei);
-  } catch {
-    return false;
-  }
 };

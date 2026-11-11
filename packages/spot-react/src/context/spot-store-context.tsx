@@ -13,6 +13,7 @@ import {
   type SpotStore,
 } from "./create-spot-store";
 import { useSpotTrading } from "./spot-trading-context";
+import { ExecutionScopeChangedError } from "../execution-state";
 
 const SpotStoreContext = createContext<StoreApi<SpotStore> | null>(null);
 
@@ -30,7 +31,7 @@ export const SpotStoreProvider = ({
   // Stop pending wallet steps when their account or network changes. Submitted
   // orders can keep tracking without the original wallet.
   useEffect(() => {
-    return () => store.getState().abortExecutionTask(true);
+    return () => store.getState().abortExecutionTask(true, new ExecutionScopeChangedError());
   }, [store, walletScope]);
 
   // Execution belongs to this provider, so closing a control does not stop it.

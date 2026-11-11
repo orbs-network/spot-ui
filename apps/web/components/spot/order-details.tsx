@@ -3,7 +3,7 @@ import { useActiveChainId } from "@/lib/hooks/use-active-chain-id";
 import React, { CSSProperties, ReactNode, useMemo } from "react";
 import type { Token } from "@orbs-network/spot-react";
 import { useFormatNumber, useDateFormat, useCopyToClipboard } from "@/lib/hooks/common";
-import { fillDelayText, getExplorerAddressUrl, makeEllipsisAddress } from "@/lib/utils";
+import { fillDelayText, formatDecimals, getExplorerAddressUrl, makeEllipsisAddress } from "@/lib/utils";
 import BN from "bignumber.js";
 import { FormatNumber } from "./format-number";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -57,13 +57,15 @@ const TradeSize = ({ tradeSize, inputToken, trades, label, tooltip }: { tradeSiz
 };
 
 const MinOutputAmount = ({ outputToken, minOutputAmount, label, tooltip, usd }: { outputToken?: Token; minOutputAmount?: string; label: string; tooltip: string; usd?: string }) => {
-  const formattedValue = useFormatNumber({ value: minOutputAmount });
+  const formattedValue = formatDecimals(minOutputAmount, 3, outputToken?.decimals ?? 18);
 
   if (BN(minOutputAmount || 0).isZero()) return null;
 
   return (
     <DetailRow title={label} tooltip={tooltip}>
-      {`${minOutputAmount ? formattedValue : "-"} ${outputToken?.symbol}`}
+      <span title={`${minOutputAmount} ${outputToken?.symbol || ""}`}>
+        {`${minOutputAmount ? formattedValue : "-"} ${outputToken?.symbol}`}
+      </span>
       <USD value={usd} />
     </DetailRow>
   );

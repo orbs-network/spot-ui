@@ -1,4 +1,4 @@
-import { Module, OrderStatus, OrderType, type Address, type Hex, type Order, type Partners, type RePermitData, type RePermitOrder, type Token } from "./types";
+import { OrderType, OrderStatus, OrderVariant, type Address, type Hex, type Order, type Partners, type RePermitData, type RePermitOrder, type Token } from "./types";
 import pkg from "../../package.json";
 import { observe } from "./observe";
 import { getOrderEpochSeconds } from "./order-timing";
@@ -30,7 +30,7 @@ export interface AnalyticsContext {
   fillDelayMillis?: number;
   slippagePercent?: number;
   isMarketOrder?: boolean;
-  module?: Module;
+  orderType?: OrderType | "SWAP";
   orderId?: string;
   quoteUser?: string;
 }
@@ -82,7 +82,10 @@ interface Data {
   approvalTxHash?: string;
   approvalTokenAddress?: string;
   approvalSpenderAddress?: string;
+  /** Suggested cap before the host/wallet chooses the transaction's actual approval. */
   approvalAmountRaw?: string;
+  /** Exact allowance required by the signed order, independent of the suggested cap. */
+  approvalRequiredAmountRaw?: string;
   walletAddress?: string;
   fromTokenAddress?: string;
   fromTokenSymbol?: string;
@@ -95,7 +98,7 @@ interface Data {
   deadline?: number;
   fillDelay?: number;
   srcChunkAmount?: string;
-  module?: Module;
+  module?: OrderType | "SWAP";
   slippage?: number;
   orderType?: "market" | "limit";
   partner?: Partners;
@@ -184,7 +187,7 @@ const EVENT_FIELDS: Readonly<Record<string, readonly (keyof Data)[]>> = {
   "wrap.requested": ["wrapAmountRaw"],
   "wrap.succeeded": ["wrapTxHash"],
   "wrap.failed": ["wrapTxHash"],
-  "approval.requested": ["approvalTokenAddress", "approvalSpenderAddress", "approvalAmountRaw"],
+  "approval.requested": ["approvalTokenAddress", "approvalSpenderAddress", "approvalAmountRaw", "approvalRequiredAmountRaw"],
   "approval.confirmed": ["approvalTxHash"],
   "approval.succeeded": ["approvalTxHash"],
   "approval.failed": ["approvalTxHash"],
@@ -213,7 +216,7 @@ function isPositiveAmount(value: unknown): value is string {
 /** Remove unused single-trade defaults while retaining an actual interval when the count is unknown. */
 function trimTradeFields(values: Partial<Data>, context: Partial<Data>): void {
   const count = context.chunksAmount;
-  const knownSingleTrade = context.module !== undefined && context.module !== Module.TWAP || count !== undefined && count <= 1;
+  const knownSingleTrade = context.module !== undefined && context.module !== OrderType.TWAP || count !== undefined && count <= 1;
   const multipleTrades = !knownSingleTrade && (count !== undefined && count > 1 || count === undefined &&
     isPositiveAmount(values.srcChunkAmount) && isPositiveAmount(values.fromTokenAmount) &&
     BigInt(values.srcChunkAmount) < BigInt(values.fromTokenAmount));
@@ -222,14 +225,14 @@ function trimTradeFields(values: Partial<Data>, context: Partial<Data>): void {
     delete values.srcChunkAmount;
   }
   if (knownSingleTrade || typeof values.fillDelay !== "number" || values.fillDelay <= 0) delete values.fillDelay;
-  if (context.module !== Module.STOP_LOSS && context.module !== Module.TAKE_PROFIT || !isPositiveAmount(values.triggerPricePerTrade)) {
+  if (context.module !== OrderType.STOP_LOSS && context.module !== OrderType.TAKE_PROFIT || !isPositiveAmount(values.triggerPricePerTrade)) {
     delete values.triggerPricePerTrade;
   }
   if (!isPositiveAmount(values.minDstAmountOutPerTrade)) delete values.minDstAmountOutPerTrade;
   if (!isPositiveAmount(values.srcChunkAmount)) delete values.srcChunkAmount;
   if (!isPositiveAmount(values.fromTokenAmount)) delete values.fromTokenAmount;
   if (typeof values.deadline !== "number" || values.deadline <= 0) delete values.deadline;
-  if (context.module === Module.SWAP || context.module === Module.LIMIT) delete values.orderType;
+  if (context.module === "SWAP" || context.module === OrderType.LIMIT) delete values.orderType;
 }
 /** Event names define their payload; old/custom callers cannot attach unrelated history. */
 function selectEventData(eventName: string, values: Partial<Data>, context: Partial<Data>): Partial<Data> {
@@ -268,7 +271,7 @@ function selectData(data: Partial<Data>, fields: readonly (keyof Data)[]): Parti
 }
 function contextData(context: AnalyticsContext): Partial<Data> {
   const totalTrades = context.totalTrades ?? (
-    context.module !== undefined && context.module !== Module.TWAP ? 1 : undefined
+    context.orderType !== undefined && context.orderType !== OrderType.TWAP ? 1 : undefined
   );
   // Log the effective signed interval, rather than an unused single-trade form default.
   const effectiveFillDelayMillis = typeof context.fillDelayMillis === "number" &&
@@ -282,7 +285,7 @@ function contextData(context: AnalyticsContext): Partial<Data> {
     inputAmountRaw: "fromTokenAmount", minimumOutputAmountRaw: "minDstAmountOutPerTrade",
     inputAmountPerTradeRaw: "srcChunkAmount", triggerOutputAmountPerTradeRaw: "triggerPricePerTrade",
     totalTrades: "chunksAmount", deadlineMillis: "deadline", fillDelayMillis: "fillDelay",
-    slippagePercent: "slippage", module: "module", orderId: "orderHash", quoteUser: "quoteUser",
+    slippagePercent: "slippage", orderType: "module", orderId: "orderHash", quoteUser: "quoteUser",
   } as const;
   const numericFields = new Set<keyof typeof fields>([
     "chainId", "totalTrades", "deadlineMillis", "fillDelayMillis", "slippagePercent",
@@ -412,7 +415,7 @@ export class Analytics {
       ...selectData(this.data, COMMON_FIELDS),
       ...selectEventData(eventName, values, this.data),
       // Inferred swap context belongs to this event, not to a reusable reporter.
-      ...(this.data.module === undefined && eventName.startsWith("settlement.") ? { module: Module.SWAP } : {}),
+      ...(this.data.module === undefined && eventName.startsWith("settlement.") ? { module: "SWAP" } : {}),
       _id: generateId(),
       operationId: this.data.operationId ?? this.data._id,
       sessionId: getBrowserSessionId(),
@@ -438,8 +441,8 @@ export class Analytics {
   private isSwapSettlement(order?: Pick<Order, "type">): boolean {
     // The captured module is authoritative; restored orders fall back to their normalized type.
     return this.data.module !== undefined
-      ? this.data.module === Module.SWAP
-      : order?.type === OrderType.SWAP;
+      ? this.data.module === "SWAP"
+      : order?.type === OrderVariant.SWAP;
   }
   private claimError(error: unknown): boolean {
     const object = (typeof error === "object" && error !== null) || typeof error === "function";
@@ -571,7 +574,8 @@ export class Analytics {
   onApproveRequest(request?: ApprovalRequest): void {
     void this.emitEvent("approval.requested", {
       ...CLEAR_ERROR_FIELDS, action: "approve", executionPhase: "approving",
-      approvalTokenAddress: request?.tokenAddress, approvalSpenderAddress: request?.spenderAddress, approvalAmountRaw: request?.amount,
+      approvalTokenAddress: request?.tokenAddress, approvalSpenderAddress: request?.spenderAddress,
+      approvalAmountRaw: request?.approvalAmount, approvalRequiredAmountRaw: request?.amount,
     });
   }
   onApproveConfirmed(approvalTxHash?: string): void {
@@ -584,15 +588,15 @@ export class Analytics {
   onCrash(error: unknown): void { this.reportFailure("crash", error, "render", { action: "crash" }); }
   onTxError(error: unknown): void { this.reportFailure("execution.failed", error, this.data.executionPhase, { action: this.data.action }); }
 
-  onRequestOrder({ account, chainId, module, srcToken, dstToken, fromTokenAmount, srcChunkAmount,
+  onRequestOrder({ account, chainId, orderType, srcToken, dstToken, fromTokenAmount, srcChunkAmount,
     minDstAmountOutPerTrade = "", triggerPricePerTrade = "", deadline, fillDelay, slippage, isMarketOrder, chunksAmount,
   }: {
-    account: string; chainId: number; module: Module; srcToken: Token; dstToken: Token;
+    account: string; chainId: number; orderType: OrderType | "SWAP"; srcToken: Token; dstToken: Token;
     fromTokenAmount: string; srcChunkAmount: string; minDstAmountOutPerTrade: string; triggerPricePerTrade: string;
     deadline: number; fillDelay: number; slippage: number; isMarketOrder: boolean; chunksAmount: number;
   }): void {
     void this.emitEvent("order.requested", { ...CLEAR_ERROR_FIELDS, action: "execution", ...contextData({
-      account, chainId, module, inputTokenAddress: srcToken.address, inputTokenSymbol: srcToken.symbol,
+      account, chainId, orderType, inputTokenAddress: srcToken.address, inputTokenSymbol: srcToken.symbol,
       outputTokenAddress: dstToken.address, outputTokenSymbol: dstToken.symbol, inputAmountRaw: fromTokenAmount,
       inputAmountPerTradeRaw: srcChunkAmount, minimumOutputAmountRaw: minDstAmountOutPerTrade,
       triggerOutputAmountPerTradeRaw: triggerPricePerTrade, deadlineMillis: deadline, fillDelayMillis: fillDelay,
@@ -677,7 +681,7 @@ export class Analytics {
     this.cancellationTargets = [];
     void this.emitEvent("recovery.requested", {
       ...CLEAR_ERROR_FIELDS, action: "recovery", orderHash: this.data.orderHash,
-      executionPhase: this.data.module === Module.SWAP ? "settling" : "recovering",
+      executionPhase: this.data.module === "SWAP" ? "settling" : "recovering",
     });
   }
 }

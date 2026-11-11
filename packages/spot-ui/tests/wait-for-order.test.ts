@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAnalytics } from "../src/lib/analytics";
 import { getOrder } from "../src/lib/orders/v2-orders";
-import { OrderStatus, OrderType, type Order } from "../src/lib/types";
+import { OrderStatus, OrderVariant, type Order } from "../src/lib/types";
 import { OrderSettlementError } from "../src/lib/order-settlement-error";
 import { waitForOrder } from "../src/lib/internal/wait-for-order";
 
@@ -13,7 +13,7 @@ const snapshot = (status = OrderStatus.Open, progress = 0): Order => ({
   chainId: 137,
   deadline: Date.now() + 180_000,
   maker: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  type: OrderType.SWAP,
+  type: OrderVariant.SWAP,
   status,
   progress,
 } as Order);
@@ -34,14 +34,14 @@ describe("waitForOrder progress", () => {
     const pending = { ...order, progress: 25 };
     const completed = { ...order, status: OrderStatus.Completed, progress: 100 };
     vi.mocked(getOrder).mockResolvedValueOnce(pending).mockResolvedValueOnce(completed);
-    const onUpdate = vi.fn();
-    const result = expect(waitForOrder({ order, onUpdate, analytics: analytics() }))
+    const onProgress = vi.fn();
+    const result = expect(waitForOrder({ order, onProgress, analytics: analytics() }))
       .resolves.toBe(completed);
 
     await vi.advanceTimersByTimeAsync(2_000);
     await result;
 
-    expect(onUpdate.mock.calls.map(([update]) => update)).toEqual([pending, completed]);
+    expect(onProgress.mock.calls.map(([update]) => update)).toEqual([pending, completed]);
     expect(getOrder).toHaveBeenCalledTimes(2);
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -54,7 +54,7 @@ describe("waitForOrder progress", () => {
     const failure = await waitForOrder({
       order,
       analytics: analytics(),
-      onUpdate: (update) => { events.push(update.status); },
+      onProgress: (update) => { events.push(update.status); },
     }).catch((error: unknown) => {
       events.push("rejected");
       return error;
@@ -70,14 +70,14 @@ describe("waitForOrder progress", () => {
     const order = snapshot();
     const completed = { ...order, status: OrderStatus.Completed, progress: 100 };
     vi.mocked(getOrder).mockResolvedValue(completed);
-    const onUpdate = vi.fn(() => {
+    const onProgress = vi.fn(() => {
       const error = new Error("Progress UI failed");
       if (failure === "throw") throw error;
       return Promise.reject(error);
     });
 
-    await expect(waitForOrder({ order, onUpdate, analytics: analytics() })).resolves.toBe(completed);
-    expect(onUpdate).toHaveBeenCalledOnce();
+    await expect(waitForOrder({ order, onProgress, analytics: analytics() })).resolves.toBe(completed);
+    expect(onProgress).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -85,12 +85,12 @@ describe("waitForOrder progress", () => {
     const order = snapshot();
     vi.mocked(getOrder).mockResolvedValue({ ...order, progress: 25 });
     const controller = new AbortController();
-    const onUpdate = vi.fn(() => { controller.abort(); });
+    const onProgress = vi.fn(() => { controller.abort(); });
 
     await expect(waitForOrder({
-      order, signal: controller.signal, onUpdate, analytics: analytics(),
+      order, signal: controller.signal, onProgress, analytics: analytics(),
     })).rejects.toMatchObject({ reason: "aborted", orderId: order.id, order: { progress: 25 } });
-    expect(onUpdate).toHaveBeenCalledOnce();
+    expect(onProgress).toHaveBeenCalledOnce();
     expect(getOrder).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
   });

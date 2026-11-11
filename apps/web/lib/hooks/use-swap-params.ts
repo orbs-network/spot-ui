@@ -1,5 +1,5 @@
 import { StringParam, useQueryParam, useQueryParams } from "use-query-params";
-import { SwapType } from "../types";
+import { TABS } from "../types";
 import { useActiveChainId } from "./use-active-chain-id";
 import { useCallback, useMemo } from "react";
 import { getDefaultTokensForChain } from "../utils";
@@ -61,7 +61,7 @@ export const useSwapParams = () => {
     setInputCurrency,
     outputCurrency: effectiveOutput,
     setOutputCurrency,
-    swapType: (swapType || SwapType.SWAP) as SwapType,
+    swapType: Object.values(TABS).find(tab => tab === swapType) ?? TABS.SWAP,
     setSwapType,
     toggleCurrencies,
     partner: selectedPartner,

@@ -11,18 +11,18 @@ For a new Spot integration, use the [TypeScript swap workflow](https://github.co
 
 Read the [Spot migration guide](https://github.com/orbs-network/spot-ui/blob/master/packages/spot-ui/README.md#migrating-from-liquidity-hub) and [typed swap example](https://github.com/orbs-network/spot-ui/blob/master/packages/spot-ui/examples/swap.ts). Use the [framework-neutral integration guide](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-integration), or the [React integration guide](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-react-integration) for an existing React frontend.
 
-Use `client.executeSwap({ quote, account, walletInteractions, signal })` for the
-default SDK-coordinated wallet flow; it returns a `CompletedSwap` after the fill.
-Separate preparation and signed submission remain available for an existing DEX
-that controls those steps independently.
+Create one `client.createSwapExecution({ quote, account, walletInteractions,
+signal })` and await `execution.run({ onProgress })` for the completed `Order`.
+An existing DEX can control `wrap()`/`approve()`/`sign()`/`submit()`/
+`waitForCompletion()` on the same session using its host wallet callbacks.
 
 Migration changes the execution flow, not just the import:
 
-1. Fetch `getQuote` from Spot, mapping the chain, partner, tokens, raw amount, connected account, UI slippage percentage, DEX minimum, and abort signal.
-2. Use Spot `quote.netAmountOut` and its authoritative `quote.minimumAmountOut` unchanged; do not apply slippage again. Pass the original quote to the provider-free swap client; no React form/provider props are required.
-3. For SDK-managed execution, implement `shouldWrap()` and confirmed `wrapNativeToken`; quote the actual wrapped ERC-20 input address. For manual wallet execution, complete wrapping in the host before preparation/signing. Use the configured Spot client's approval spender. Do not reuse the Liquidity Hub Permit2 spender.
-4. After confirmed wallet steps, use `await client.prepareSwap({ quote, account, signal })` immediately before signing. Verify the installed declaration accepts an object and returns a promise; older sync positional APIs require the version-specific flow in the Spot integration guide. Sign the prepared order, not the legacy quote payload, then call installed `client.submitSignedSwap(prepared, signature, { signal })` with the wallet's unchanged signature.
-5. Await execution or signed swap submission until its internal settlement flow confirms a fill. Do not start another poller. Preserve `OrderSettlementError.orderId` and its optional `order` if tracking becomes uncertain, and resume accepted snapshots through `client.executeOrder({ order, signal })` without submitting again. Advanced orders resolve at acceptance. React hosts use the same provider-free client flow and keep their own loading/recovery state around the awaited call. `AdvancedOrdersProvider` supports advanced orders only; optional `swap-ui` renders presentation.
+1. Fetch a Spot quote with actual chain/partner, protocol ERC-20 tokens, raw input, preview account, slippage percentage, optional DEX minimum, and abort signal.
+2. Preserve `quote.minimumAmountOut` unchanged and display quote/token data in the host UI. No calculated swap form or React provider is required.
+3. Supply captured `shouldWrap`/`shouldApprove` decisions that return booleans or promises; the approval decision compares host allowance with exact required `ApprovalRequest.amount`. `approvalAmount` is a suggested write cap (maximum uint256 by default); the host may choose that cap, the exact amount, or its own policy without mutating the SDK request. False skips writes, while invoked wrap/approval callbacks return confirmed hashes and throw on failure. Preserve signing bytes. Use the configured client's spender, not Liquidity Hub's Permit2 spender.
+4. Create a session without wallet work, then choose `run()` or individual steps. `sign()` checks prerequisites and stores freshly prepared data and its original signature; `submit()` sends that stored pair once and returns acceptance.
+5. Await swap completion, retain accepted/latest `execution.order` or settlement error metadata when uncertain, and reconcile before replacing an intent. Check saved IDs with ordinary `client.getOrder` reads or reconcile exact original signed identity through configured history. The host owns any further polling; constructors accept only new reviewed input. Advanced sessions use `createOrderExecution` and their `run()` ends at acceptance.
 
 ## Archived Liquidity Hub maintenance references
 

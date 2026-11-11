@@ -10,7 +10,7 @@ import type { Address } from "@orbs-network/spot-ui";
 import { useMemo, useCallback } from "react";
 import { useSubmitOrder } from "./use-submit-order";
 import { useSwapExecution } from "./use-swap-execution";
-import { useResumeExecution } from "./use-resume-execution";
+import { useCheckOrderStatus } from "./use-check-order-status";
 import { createSpotFormDefaults } from "../context/create-spot-store";
 import { useSpotTrading } from "../context/spot-trading-context";
 import { useSpotStore } from "../context/spot-store-context";
@@ -42,9 +42,9 @@ export interface SpotExecutionData {
   orderId?: string;
   order?: Order;
   submitOrder: () => void;
-  /** Checks the saved attempt without signing or submitting a replacement. */
-  resumeTracking: () => void;
-  /** Resets this execution's form and retry state; stale callbacks return false. */
+  /** Checks unresolved foreground and background attempts without submitting again. */
+  checkOrderStatus: () => void;
+  /** Opens a fresh form while retaining active or unconfirmed attempts for independent recovery; stale callbacks return false. */
   startNewOrder: () => boolean;
   /** Dismisses this execution's failure; stale callbacks return false. */
   returnToOrderForm: () => boolean;
@@ -55,28 +55,41 @@ export interface SpotExecutionData {
   isFailed: boolean;
   isRejected: boolean;
   isUnconfirmed: boolean;
+  /** An unresolved submission exists in this form or a detached earlier attempt. */
+  hasUnconfirmedExecutions: boolean;
+  /** A foreground or background status reconciliation is in progress. */
+  isCheckingOrderStatus: boolean;
   isPreparingOrder: boolean;
   canDismiss: boolean;
 }
 
 export const useExecution = (): SpotExecutionData => {
   const swapExecution = useSwapExecution();
+  const hasUnconfirmedExecutions = useSpotStore(store =>
+    store.state.currentExecution.phase === ExecutionPhase.UNCONFIRMED ||
+    store.getBackgroundExecutions().some(execution =>
+      execution.phase === ExecutionPhase.UNCONFIRMED || execution.phase === ExecutionPhase.SETTLING),
+  );
+  const isCheckingOrderStatus = useSpotStore(store =>
+    store.state.currentExecution.phase === ExecutionPhase.SETTLING ||
+    store.getBackgroundExecutions().some(execution => execution.phase === ExecutionPhase.SETTLING),
+  );
   const {
     inputToken: currentInputToken,
     outputToken: currentOutputToken,
     chainId: currentChainId,
     hasChainId,
-    module,
+    orderType,
     overrides,
   } = useSpotTrading();
   const { data: client, isLoading: isClientLoading } = useClient();
   const submitOrder = useSubmitOrder();
-  const resumeTracking = useResumeExecution();
+  const checkOrderStatus = useCheckOrderStatus();
   const resetOrderState = useSpotStore((state) => state.startNewOrder);
   const submit = useCallback((): void => submitOrder(), [submitOrder]);
   const startNewOrder = useCallback(
-    () => resetOrderState(createSpotFormDefaults({ module, overrides }), swapExecution.executionId),
-    [module, overrides, resetOrderState, swapExecution.executionId],
+    () => resetOrderState(createSpotFormDefaults({ orderType, overrides }), swapExecution.executionId),
+    [orderType, overrides, resetOrderState, swapExecution.executionId],
   );
   const status = getExecutionStatus(swapExecution.phase);
   const currentStep = getExecutionStep(swapExecution.phase);
@@ -100,7 +113,7 @@ export const useExecution = (): SpotExecutionData => {
       orderId: swapExecution.orderId,
       order: swapExecution.order,
       submitOrder: submit,
-      resumeTracking,
+      checkOrderStatus,
       startNewOrder,
       returnToOrderForm: swapExecution.returnToOrderForm,
       isExecuting,
@@ -108,10 +121,12 @@ export const useExecution = (): SpotExecutionData => {
       isFailed: swapExecution.phase === ExecutionPhase.FAILED,
       isRejected: swapExecution.phase === ExecutionPhase.REJECTED,
       isUnconfirmed: swapExecution.phase === ExecutionPhase.UNCONFIRMED,
+      hasUnconfirmedExecutions,
+      isCheckingOrderStatus,
       isPreparingOrder:
         swapExecution.phase === ExecutionPhase.PREPARING ||
         (swapExecution.phase === ExecutionPhase.IDLE && hasChainId && isClientLoading && !client),
-      canDismiss: !isExecuting,
+      canDismiss: true,
     };
   }, [
     client,
@@ -124,9 +139,11 @@ export const useExecution = (): SpotExecutionData => {
     hasChainId,
     startNewOrder,
     submit,
-    resumeTracking,
+    checkOrderStatus,
     status,
     swapExecution,
+    hasUnconfirmedExecutions,
+    isCheckingOrderStatus,
   ]);
 };
 

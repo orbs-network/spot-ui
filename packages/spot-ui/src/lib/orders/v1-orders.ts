@@ -2,7 +2,7 @@
 /* eslint-disable no-constant-condition */
 import {
   OrderStatus,
-  OrderType,
+  OrderVariant,
   OrderV1,
   FillV1,
   Order,
@@ -135,21 +135,21 @@ const parseFills = (fills: FillV1[]): OrderFill[] => {
   }));
 };
 
-const getOrderType = (ask_dstMinAmount: string, chunks: number) => {
+const getOrderVariant = (ask_dstMinAmount: string, chunks: number) => {
   const isLimit = BN(ask_dstMinAmount || 0).gt(1);
 
   if (!isLimit && chunks === 1) {
-    return OrderType.TWAP_MARKET;
+    return OrderVariant.TWAP_MARKET;
   }
   if (chunks > 1 && isLimit) {
-    return OrderType.TWAP_LIMIT;
+    return OrderVariant.TWAP_LIMIT;
   }
 
   if (isLimit) {
-    return OrderType.LIMIT;
+    return OrderVariant.LIMIT;
   }
 
-  return OrderType.TWAP_MARKET;
+  return OrderVariant.TWAP_MARKET;
 };
 
 
@@ -174,7 +174,7 @@ const buildV1Order = (
   const filledOrderTimestamp = getFilledOrderTimestamp(parsedFills, chunks);
   const { input: filledSrcAmount, output: filledDstAmount } = getFilledAmounts(parsedFills);
   const progress = getV1OrderProgress(order.ask_srcAmount, filledSrcAmount);
-  const type = getOrderType(order.ask_dstMinAmount, chunks);
+  const type = getOrderVariant(order.ask_dstMinAmount, chunks);
   return {
     repermitDigest: "",
     version: 1,
@@ -207,7 +207,7 @@ const buildV1Order = (
     srcAmountPerTrade: order.ask_srcBidAmount,
     txHash: order.transactionHash,
     totalTradesAmount: chunks,
-    isMarketPrice: [OrderType.TWAP_MARKET].includes(type),
+    isMarketPrice: [OrderVariant.TWAP_MARKET].includes(type),
     chainId,
     filledOrderTimestamp: filledOrderTimestamp || 0,
     status: parseOrderStatus(progress, order.ask_deadline * 1000, status),

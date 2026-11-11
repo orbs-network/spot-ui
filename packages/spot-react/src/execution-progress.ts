@@ -1,10 +1,12 @@
 import {
   type Address,
   type PreparedOrder,
+  type OrderExecutionStep,
+  type OrderExecutionUpdate,
 } from "@orbs-network/spot-ui";
-import { toAmountUI, type OrderExecutionStep, type OrderExecutionUpdate } from "@orbs-network/spot-ui/internal";
+import { toAmountUI } from "@orbs-network/spot-ui/internal";
 import { observe, normalizeError } from "./execution-state";
-import { Steps, type Callbacks, type SwapExecution, type Token } from "./types";
+import { Steps, type Callbacks, type OrderExecutionState, type Token } from "./types";
 
 type ProgressUpdate = OrderExecutionUpdate<PreparedOrder>;
 
@@ -27,7 +29,7 @@ const EXECUTION_STEPS: Record<OrderExecutionStep, Steps> = {
 export const getExecutionProgress = (
   update: ProgressUpdate,
   context: ExecutionProgressContext,
-): Partial<SwapExecution> => {
+): Partial<OrderExecutionState> => {
   const pendingSteps = update.steps.map((step) => EXECUTION_STEPS[step]);
   const completedWrap =
     update.phase === "wrapping" && update.event === "success" && update.wrapTxHash
@@ -35,15 +37,16 @@ export const getExecutionProgress = (
           account: context.account,
           chainId: context.chainId,
           inputTokenAddress: context.inputToken.address,
+          wrappedTokenAddress: context.orderInputToken.address,
           inputAmountRaw: context.inputAmountRaw,
           txHash: update.wrapTxHash,
         }
       : undefined;
 
   return {
-    pendingSteps,
-    totalSteps: pendingSteps.length,
-    stepIndex: update.stepIndex,
+    pendingSteps: pendingSteps.length ? pendingSteps : undefined,
+    totalSteps: pendingSteps.length || undefined,
+    stepIndex: pendingSteps.length ? update.stepIndex : undefined,
     hasApproval: update.hasApproval,
     wrapTxHash: update.wrapTxHash,
     approveTxHash: update.approvalTxHash,
@@ -87,7 +90,7 @@ const notifySigning = (update: ProgressUpdate, context: ExecutionProgressContext
   if (update.event === "success" && signature) {
     observe(() => callbacks?.onSignOrderSuccess?.(signature));
   }
-  if (update.event === "error") {
+  if (update.event === "error" && update.preparedOrder && !update.signature) {
     observe(() => callbacks?.onSignOrderError?.(normalizeError(update.error)));
   }
 };
