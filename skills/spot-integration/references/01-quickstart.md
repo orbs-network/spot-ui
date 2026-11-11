@@ -1,6 +1,6 @@
 # Quickstart
 
-Protocol quotes and orders use ERC-20 input addresses. Required wallet callbacks `shouldWrap()` and `shouldApprove(request)` return a boolean or a promise of one from captured input and live allowance state. False skips the corresponding write. When invoked, `wrapNativeToken` and `approveToken` return a transaction hash only after a successful receipt; they throw on failure and never return undefined to skip. Advanced React forms normalize native execution to `wrappedNativeToken`; provider-free swap hosts supply the wrapped protocol address themselves. Users review before execution. `ApprovalRequest.amount` remains the exact required input; compare live allowance only with that value. `approvalAmount` is a suggested cap, defaulting to the maximum uint256. The approval write may follow that suggestion, approve the exact amount, or apply host policy without mutating the immutable request.
+Protocol quotes and orders use ERC-20 input addresses. The DEX owns allowance reads, native wrapping, approval transactions, successful receipts, signing, progress, and retries. Read allowance for `client.spenderAddress` before a wrap prompt, then verify sufficient exact-input allowance after every confirmed approval. Native selections use the host-configured wrapped token as protocol input. Prepare after confirmed prerequisites, sign the returned data unchanged, and submit the exact order/original signature. `ApprovalRequest.amount` is the required input; `approvalAmount` is a suggested maximum cap, while the host may approve exactly or apply its own sufficient cap policy.
 
 If the repository is empty or lacks a trading form/services, begin with [Starting without a DEX](08-starting-without-dex.md). Reuse any existing app, wallet, or data layer and build the missing pieces before following the execution path below.
 
@@ -10,7 +10,7 @@ Inspect these sources before asking the user for technical information:
 
 - Manifest and lockfile: framework, package manager, installed/resolved Spot version, existing wallet/state/query/numeric libraries, and available build/typecheck commands.
 - Installed documentation: prefer `node_modules/@orbs-network/spot-ui/dist/integration-skill/SKILL.md` and its relative references/assets; confirm `manifest.json.sdkVersion` equals the installed package version. Reading documentation under `dist` is allowed. For an older package without it, use the repository skill from a matching release/checkout, checked against `packages/spot-ui/package.json`.
-- Installed package root exports and declarations: the API the host can actually import, including the two execution constructors, their reviewed creation inputs, session methods, and `calculateOrder`. Inspect installed declarations rather than inferring behavior from a similar method name. SDK code imports remain package-root-only; a repository's latest README/source may describe a newer release.
+- Installed package root exports and declarations: the API the host can actually import, including public preparation/submission, their reviewed input types, signing data, and `calculateOrder`. Inspect installed declarations rather than inferring behavior from a similar method name. SDK code imports remain package-root-only; a repository's latest README/source may describe a newer release.
 - Existing swap/order form and components: token selectors, amount inputs, review/progress UI, notifications, translations, and history if requested.
 - Host wallet and source state: connected account/chain, typed amount, raw balances, allowance/receipt/signing methods, quote inputs and request cancellation.
 - Chain and token registry: addresses, decimals, wrapped-native token, explorer metadata, and available USD totals/unit prices.
@@ -30,47 +30,40 @@ Reuse existing dependencies. If Spot is absent, select a concrete compatible rel
 
 Do not add every module or history merely because the SDK supports them. Ask only when a product choice remains unresolved, such as which requested order types should be visible. Discover token/chain/wallet/API details yourself.
 
-## Execution sessions
+## Host-owned execution
 
-Create one session for a reviewed quote or calculated advanced-order form:
+The DEX owns allowance reads, wrapping, approval, confirmed receipts, progress,
+retries, and duplicate guards. After those prerequisites, prepare and sign:
 
 ```ts
-const execution = client.createSwapExecution({
-  quote, account, walletInteractions, signal,
-});
-const order = await execution.run({ onProgress });
+const prepared = await client.prepareSwap({ quote, account, signal });
+const { signerAddress, typedData } = prepared.signingRequest;
+const signature = await walletClient.signTypedData({ ...typedData, account: signerAddress });
+const acceptedOrder = await client.submitSwap(prepared.order, signature, { signal });
 ```
 
-`createOrderExecution({ form, account, inputTokenAddress, outputTokenAddress,
-walletInteractions, signal })` captures an advanced form instead.
-Construction performs no wallet work. `run()` returns a completed `Order` for
-swaps and an accepted `Order` for advanced orders.
+For advanced forms use
+`client.prepareOrder({ form, account, inputTokenAddress, outputTokenAddress })`.
+Both preparation methods return the protocol order and signing/approval data
+without wallet callbacks. Submission resolves at acceptance for all order kinds.
 
-For a host-controlled sequence, await `wrap()` → `approve()` → `sign()` →
-`submit()` → `waitForCompletion()` on the same session. Wrapping and approval
-skip unnecessary transactions; signing verifies prerequisites and prepares late.
-Submission uses the session's stored exact payload and original signature once.
-`execution.order` holds acceptance before the related run progress callback.
-Only `run({ onProgress })` accepts an observer; individual steps and constructors
-accept none.
-
-1. Quote inside the host's existing route lifecycle, with full identity keys and obsolete request cancellation.
-2. Reuse the configured client for the actual partner and chain; supply host wallet callbacks and wrapped-native metadata.
+1. Quote in the host's route lifecycle, with full identity keys and obsolete-request cancellation.
+2. Reuse the client for the actual partner/chain and use its `spenderAddress` for allowance and approval. Supply host wrapped-native metadata.
 3. Review `quote.minimumAmountOut` unchanged. Preserve host gas, balance, and minimum-trade policy; gate unsupported route modes.
-4. Capture quote/form and account/chain together, acquire the execution lock, and create the session. Constructor callbacks use that captured wallet context.
-5. Choose `run()` or individual methods. After wrap/approval, swap signing reuses the reviewed quote when its local receipt age is zero to 20 seconds, inclusive; older quotes or invalid/future receipt times trigger a refresh for the unchanged request. A refreshed minimum must meet the original reviewed floor. Signing then prepares fresh nonce/timestamps. Live estimates may continue through prerequisites; freeze the displayed quote from `preparedOrder.quote` before signing.
-6. Keep the session outside transient modals, retain accepted snapshots, and reconcile uncertain responses before any replacement. Check a known ID with ordinary `client.getOrder({ orderId, signal })`, or match the exact original signed payload through configured history. The host owns further polling; constructors never accept saved orders.
+4. Capture quote/form and account/chain under the host execution lock. Read allowance before opening a wrap prompt, then confirm required wrapping and approval. Verify sufficient allowance after each approval receipt.
+5. Prepare after confirmations. Swap preparation reuses quotes aged zero to 20 seconds inclusive or refreshes the unchanged request, requiring the refreshed minimum to meet the reviewed floor. Freeze `prepared.quote` before signing; preparation stamps fresh nonce/timestamps.
+6. Sign the exact typed data and submit its unchanged order/original signature once. Keep accepted/latest order, prepared payload, signature, and hashes in host state outside transient modals.
+7. Check accepted IDs with `client.getOrder({ orderId, signal })` and own one cancellable status poller. Reconcile uncertain responses against exact original signed identity in account history before a replacement or fallback. Show swap completion only after a fill.
 
-Read [Client and execution](03-client-and-execution.md) for exact step ordering,
-progress, wallet adaptation, and recovery. When installed declarations differ,
-use that release's version-matched guide or make an authorized upgrade; never
-fake an unavailable constructor or import private source.
+Read [Client and execution](03-client-and-execution.md) for ordering, progress,
+and recovery. When installed declarations differ, use that release's matching
+guide or make an authorized upgrade; never fake unavailable APIs or import private source.
 
 ## Advanced-order additions
 
 Read [Form calculation](02-form-calculation.md) and [Client and execution](03-client-and-execution.md) only for this path. Keep editable values in the host state and derive the authoritative form; withhold stale output quotes, display `form.errors`, and require `form.canSubmit`. Source USD valuation from available quote totals or token prices according to the installed API. Preserve explicit trade counts when the amount changes.
 
-Capture form/tokens/account/chain/client together for each attempt. SDK-managed execution awaits the host's wrap/approval checks and any required confirmations, then prepares inside `sign()`. A host controlling step timing uses the same session methods. Never construct protocol order payloads manually. Add [History and cancellation](04-history-and-cancellation.md) only when requested; use `order.historyKey` for identity.
+Capture form/tokens/account/chain/client together for each attempt. Confirm host wrapping and approval, then call `client.prepareOrder`, sign inline, and submit as described in [Client and execution](03-client-and-execution.md). Never construct protocol order payloads manually. Add [History and cancellation](04-history-and-cancellation.md) only when requested; use `order.historyKey` for identity.
 
 ## Missing partner or chain
 

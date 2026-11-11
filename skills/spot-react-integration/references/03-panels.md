@@ -619,7 +619,7 @@ Keep the provider mounted so its tasks and callbacks continue.
 - Prices: `marketPrice`, `limitPrice`, `triggerPrice`, and `tradePrice`
 - Trade config: `trades.totalTrades` and structured per-trade amounts
 - Timing: `schedule`; exact start and deadline timestamps are assigned by
-  the execution session inside `sign()` after confirmed prerequisites, and
+  the provider's host orchestration through `client.prepareOrder()` after confirmed prerequisites, and
   are available on `PreparedOrder.values`.
 - Fees: `fees.raw`, `fees.ui`, `fees.usd`, and `fees.percentage`
 - Type: `values.orderVariant`, `values.isMarketOrder`, and `values.isTriggerPrice`

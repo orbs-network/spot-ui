@@ -1,5 +1,5 @@
-import type { ApprovalRequest, OrderSigningRequest, PreparedOrder } from "./client";
-import type { Order } from "./types";
+import type { ApprovalRequest, OrderSigningRequest, PreparedOrder } from "@orbs-network/spot-ui";
+import type { Order } from "@orbs-network/spot-ui";
 import { observe } from "./observe";
 
 /** Current wallet or settlement stage of an order execution. */

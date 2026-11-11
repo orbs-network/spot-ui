@@ -1,7 +1,7 @@
 # Spot SDK
 
 `@orbs-network/spot-ui` is a framework-neutral TypeScript SDK for swap quotes,
-advanced-order calculation, wallet execution, and order history. It has no React
+advanced-order calculation, signing payloads, submission, and order history. It has no React
 or wallet-library dependency. React applications can import the same public SDK
 from `@orbs-network/spot-react` without installing a separate core package.
 
@@ -12,8 +12,15 @@ npm install @orbs-network/spot-ui
 Use a modern browser or Node.js 18+ with `fetch`, `AbortController`, and `BigInt`.
 Import from the public package root. The version-matched integration guide ships
 at `dist/integration-skill/SKILL.md`, with `manifest.json.sdkVersion` identifying
-its package version. The host owns token metadata, wallet adapters, balances,
-USD prices, editable state, and UI; the SDK owns protocol configuration and execution.
+its package version. The host owns token metadata, wallet operations, balances, USD prices, editable
+state, progress, and UI. The SDK owns protocol configuration, order preparation,
+submission, and status/history reads.
+
+`Eip712TypedData`, `OrderSigningRequest`, and `ApprovalRequest` are protocol
+preparation data and remain core exports for direct DEX integrations.
+`WalletInteractions`, `AllowanceRequest`, and `WalletInteractionError` belong to
+the optional `@orbs-network/spot-react` host layer. Core integrations use their
+existing wallet/read services and handle those services' errors directly.
 
 ## API at a glance
 
@@ -22,8 +29,10 @@ USD prices, editable state, and UI; the SDK owns protocol configuration and exec
 | `createClient(partner, chainId, options?)` | Load a reusable client with validated protocol configuration |
 | `client.getQuote(params)` / `getQuote(params)` | Fetch an exact-input swap quote |
 | `calculateOrder(params)` | Derive a calculated advanced-order form |
-| `client.createSwapExecution(params)` | Capture a reviewed quote in a swap execution session |
-| `client.createOrderExecution(params)` | Capture a calculated advanced-order form in an order execution session |
+| `client.spenderAddress` | Read the ERC-20 approval spender for this client |
+| `client.prepareSwap(params)` / `client.prepareOrder(params)` | Prepare the exact EIP-712 payload for inline wallet signing |
+| `client.submitSwap(order, signature, options?)` | Submit a swap signed by the host and return its acceptance |
+| `client.submitOrder(order, signature, options?)` | Submit an advanced order signed by the host and return its acceptance |
 | `client.getOrder({ orderId, signal? })` | Read one v2 order once |
 | `client.getOrders(options?)` | Read configured history across accounts, or filter by `account` |
 | `client.getCancelOrderRequest(order)` | Build the version-specific on-chain cancellation call |
@@ -34,192 +43,87 @@ USD prices, editable state, and UI; the SDK owns protocol configuration and exec
 `TWAP_MARKET`, and `TWAP_LIMIT`. Swaps use quotes and token metadata directly;
 `calculateOrder` is for the four advanced order types.
 
-## Client wallet orchestration
+## Inline signing with the host wallet
 
-Create a session after reviewing the quote. The constructor snapshots that
-review and performs no wallet work. Validation is synchronous and can throw
-before a session is returned:
+Use the client directly when the host controls wrapping, approval, and signing.
+`client.spenderAddress` is the ERC-20 approval spender. Confirm any native wrap
+and ensure that allowance covers the exact input amount before preparing the
+signing payload; preparation and submission do not run wallet prerequisites.
 
-```ts
-const execution = client.createSwapExecution({
-  quote,
-  account,
-  walletInteractions,
-  signal,
-});
-const order = await execution.run({
-  onProgress(update) {
-    setProgress(update);
-  },
-});
-// order is completed; execution.order contains the accepted/latest snapshot.
-```
-
-For a calculated advanced order:
+For a reviewed swap:
 
 ```ts
-const execution = client.createOrderExecution({
-  form,
-  account,
-  inputTokenAddress,
-  outputTokenAddress,
-  walletInteractions,
-  signal,
+const prepared = await client.prepareSwap({ quote, account, signal });
+const { signerAddress, typedData } = prepared.signingRequest;
+const signature = await walletClient.signTypedData({
+  ...typedData,
+  account: signerAddress,
 });
-const order = await execution.run({
-  onProgress(update) {
-    setProgress(update);
-  },
-});
-// order is accepted; later fills are available through history.
+const accepted = await client.submitSwap(prepared.order, signature, { signal });
 ```
 
-`CreateSwapExecutionParams` takes the quote and connected account.
-`CreateOrderExecutionParams` takes the reviewed form, account, and protocol token
-addresses. Both use the host's `OrderWalletInteractions` and optional `signal`.
-Pass progress observers only to `run({ onProgress })`, through
-`ExecutionRunOptions<T>`. Swap sessions have type `SwapExecution`; advanced sessions
-have type `OrderExecution<PreparedOrder>`.
-
-`run()` uses the same session engine as the individual methods below. For swaps
-it resolves with the completed `Order`; for advanced orders it resolves at
-acceptance. There is no additional completed-swap wrapper.
-
-### Preview wallet requirements
+For a calculated advanced order, prepare with:
 
 ```ts
-const wrapRequired = await execution.shouldWrap();
-const approvalRequired = await execution.shouldApprove();
-renderStepPreview({ wrapRequired, approvalRequired });
+const prepared = client.prepareOrder({
+  form, account, inputTokenAddress, outputTokenAddress,
+});
+// Sign prepared.signingRequest as above, then submit through client.submitOrder().
 ```
 
-Both execution methods take zero arguments and return `Promise<boolean>`.
-They call the host's decision callbacks; the SDK supplies the captured
-`ApprovalRequest` to wallet `shouldApprove(request)`. These checks perform no
-transactions, preparation, progress notifications, execution start, or account
-locking. Pending checks read fresh host decisions; a step already completed or
-skipped by this execution returns false, as do checks after signing or acceptance.
-Actual steps recheck decisions; UI preview results do not commit the step.
+`PrepareSwapParams` and `PrepareOrderParams` require no `walletInteractions`.
+The returned `signingRequest.typedData` contains `domain`, `types`, `primaryType`,
+and `message`; `approvalRequest` also exposes the token, spender, exact required
+amount, and suggested approval cap. Prepare immediately before signing to obtain
+fresh timestamps and a nonce. Swap preparation refreshes stale quotes and rejects
+a protected minimum below the reviewed floor.
 
-### Run individual steps
+Sign the supplied data unchanged and submit the same `prepared.order` with the
+wallet's original hex signature. Keep the reviewed account and chain current
+through signing and submission. Use `submitSwap` for swaps and `submitOrder` for
+advanced orders. Both use the same validated submission transport and resolve
+at acceptance; read `client.getOrder({ orderId: accepted.id })` to
+check fills. The host owns duplicate-submission guards and further status polling.
+A failed or timed-out POST can leave acceptance uncertain; reconcile the original
+signed order in history before attempting a replacement.
+See [the typed inline-signing example](./examples/inline-signing.ts).
 
-```ts
-if (await execution.shouldWrap()) await execution.wrap();
-if (await execution.shouldApprove()) await execution.approve();
-await execution.sign();
-const accepted = await execution.submit();
-const completed = await execution.waitForCompletion();
-```
+## Host-owned wallet flow
 
-| Method | Behavior |
-| --- | --- |
-| `shouldWrap()` | Read-only preview of the pending wrapping requirement; no arguments |
-| `shouldApprove()` | Read-only preview of the pending approval requirement; no arguments |
-| `wrap()` | Uses wallet `shouldWrap()`; false skips the write, true confirms the native wrapping transaction |
-| `approve()` | Uses wallet `shouldApprove(request)`; false skips the write, true confirms approval and rechecks allowance, retrying once if needed |
-| `sign()` | Verifies prerequisites, prepares fresh timestamps/nonce, and stores the exact payload and original wallet signature |
-| `submit()` | Submits the stored payload/signature once and returns the accepted `Order` |
-| `waitForCompletion()` | Tracks the accepted order until completion |
-| `run()` | Runs the full sequence; swaps include completion tracking, advanced orders finish at acceptance |
-| `cancel(reason?)` | Stops later steps or tracking; it cannot undo transactions or cancel an accepted order |
+The DEX controls the complete wallet sequence:
 
-Cancellation before submission prevents its POST. Once sent, the request keeps
-its existing 30-second timeout so a late acceptance can be retained. Advanced
-orders resolve at acceptance; cancelled swaps retain the order without continuing
-settlement tracking. A lost response still requires status reconciliation.
-When proving absence from current history, use `client.getOrders` with
-`legacyOrders: false`, `getv1orders: false`, and `rejectInvalidOrders: true`.
-This prevents malformed rows or a legacy-only partial result from looking like
-an empty current-service history. Ordinary history reads remain tolerant.
+1. Capture the reviewed quote/form, account, chain, pair, input, and slippage under the host's execution lock.
+2. Read ERC-20 allowance for `client.spenderAddress` before opening a wrap prompt. Keep the review action disabled with a loader while the read is pending.
+3. Wrap native input when needed and wait for a successful receipt. Protocol orders always use the configured wrapped ERC-20 token address.
+4. Request approval only when allowance is below the exact input amount. Confirm its receipt and read allowance again. If a wallet reduced the approval cap, stop or retry according to host policy before signing.
+5. Call `prepareSwap()` or `prepareOrder()` after wallet prerequisites finish. Freeze the returned order and final quote for the signature prompt.
+6. Sign `prepared.signingRequest.typedData` with `prepared.signingRequest.signerAddress`, then submit the unchanged `prepared.order` and original signature through `client.submitSwap()` for swaps or `client.submitOrder()` for advanced orders.
+7. Retain the accepted order and check its status with `getOrder()` until the host's completion policy is satisfied.
 
-You can also call `wrap()` and `approve()` unconditionally; false wallet decisions
-skip their writes. If a prerequisite method was omitted, `approve()`/`sign()`
-checks it again and records a skip only when the fresh decision is false. A true
-decision rejects with a sequence error so the host can run the required step;
-it never opens an earlier wallet prompt automatically. `sign()` prepares fresh
-data after prerequisites are satisfied.
-Each transaction step returns a cached `TransactionStepResult`: `{ status: "skipped" }` or
-`{ status: "success", txHash }`; simultaneous calls share the same promise.
-The host implements decision callbacks on `walletInteractions`; the execution's
-zero-argument preview methods use those callbacks with the captured request.
-When a decision is true, its transaction callback must return `Promise<Hex>`
-after a successful receipt; returning undefined is not a skip mechanism.
+`ApprovalRequest.amount` is the exact required input in base units.
+`approvalAmount` is a suggested approval cap, defaulting to the maximum uint256;
+the host may approve the exact amount or apply its own cap policy. Allowance
+only needs to cover `amount`. A confirmed approval hash alone does not prove
+that enough allowance was granted. Keep receipt and allowance reads current.
 
-`ApprovalRequest` carries `tokenAddress`, `spenderAddress`, and two raw integer strings:
+The core SDK accepts no wallet adapter and does not coordinate transaction
+prompts, receipt waiting, progress UI, retry policy, or polling. Keep those in
+the DEX's existing services. The React advanced-order provider owns its UI
+orchestration and uses the same public preparation and submission methods.
 
-| Field | Meaning |
-| --- | --- |
-| `amount` | Exact input required for the reviewed swap or order; compare allowance against this value |
-| `approvalAmount` | Suggested cap for the approval write; defaults to the maximum uint256 (`2^256 - 1`) |
-
-For example, `shouldApprove({ amount, ... })` compares live allowance to `amount`,
-while `approveToken({ approvalAmount, ... })` can pass `approvalAmount` to the
-host's ERC-20 approval helper. A host may instead approve `amount` exactly or
-apply its own cap policy. Build the host transaction from those values without
-mutating the SDK's immutable request. A cap below the required `amount` cannot
-satisfy the approval check; allowance does not need to reach `approvalAmount`.
-
-After each confirmed approval, the SDK calls `shouldApprove(request)` again with
-the same captured token, spender, and exact required `amount`. If allowance remains insufficient,
-it requests one more approval and verifies again. Continued insufficiency rejects
-with `INSUFFICIENT_ALLOWANCE` before signing. Read failures or wallet rejections
-stop execution. Keep allowance reads current; a confirmed hash alone does not
-complete the approval step. Retries remain one progress step, and
-`approvalTxHash` retains the latest confirmed transaction.
-
-The session exposes readonly `order`, `preparedOrder`, `signature`,
-`wrapTxHash`, and `approvalTxHash` as they become available. `submit()` takes no
-payload or signature arguments; the session retains their exact pairing. Return
-the wallet's original `0x`-prefixed signature from `signOrder`, without splitting
-`{ v, r, s }`, rewriting its recovery byte, or normalizing its representation.
-
-The host owns wallet/review scope checks. Pass an `AbortSignal` and abort it when
-the captured account, chain, or review becomes obsolete; wallet callbacks also
-check that scope before opening prompts. Retry decisions and wrapped-balance
-checks belong to the host's wallet adapter. The execution retains its own
-confirmed `wrapTxHash`; a new attempt does not inherit wrapping through a
-constructor option. Keep the session
-at an app/store scope that survives transient modal unmounts, and prevent
-accidental duplicate submissions of the same reviewed intent. Swap display
-quotes may remain live until the final `preparedOrder.quote` is published;
-freeze that quote and stop obsolete display requests before wallet signing.
-Independent sessions may run concurrently for the same account and client. Each
-session deduplicates repeated `run()` and step calls within that session; the host
-decides when a user is starting a separate order.
-
-### Progress and accepted state
-
-`run({ onProgress })` receives the existing `OrderExecutionUpdate<T>` contract: `phase`,
-`event`, `steps`, `stepIndex`, `hasApproval`, and available `wrapAmountRaw`,
-`wrapTxHash`, `approvalTxHash`, `preparedOrder`, `signature`, `order`, and `error`.
-`T` is `PreparedSwap` for swaps and `PreparedOrder` for advanced orders.
-Before the first wallet phase, `preparing` updates keep `steps: []` through the
-initial prerequisite reads and fresh rechecks. Show preparation without a
-numbered count. When wrapping is required, `run()` checks allowance before opening
-the wrap wallet prompt and reuses that decision for the first approval action.
-It checks allowance again after every confirmed approval receipt. The required
-plan is revealed on the first actual `wrapping`, `approving`, or `signing` request.
-Later requirement checks can still update a revealed plan. A `preparing`/`skipped`
-event removes an unnecessary step; only confirmed
-transactions emit success with a hash. Intermediate `success` events
-complete individual phases; final success is `settling`/`success` for a filled
-swap and `submitting`/`success` for an accepted advanced order. During `run()`,
-failures emit an `error` event and reject its promise. Individual methods reject
-their own promises when driven directly.
-
-The session updates its accepted/latest `order` before publishing the
-corresponding progress event during `run()`. Individual step methods and
-`waitForCompletion()` accept no observer; inspect the session getters when
-driving those methods directly. Observer exceptions and rejected promises are
-ignored; observers cannot interrupt the engine. Keep result/error handling around
-the awaited session method.
+Pass request abort signals when the captured wallet/review scope becomes obsolete.
+Check that scope before every wallet prompt and before submission. Aborting cannot
+undo a confirmed transaction or cancel an order already accepted by the service.
+Keep the prepared order, original signature, confirmed hashes, and accepted/latest
+order in host state that survives transient modal closure. Guard duplicate attempts
+and reconcile uncertain acceptance before signing a replacement or running a fallback.
 
 ## Existing DEX routers: use the SDK directly
 
 Keep the DEX route competition, gas policy, wallet, and UI. Quote Spot as one
-candidate, compare matching protected minima, then capture the chosen quote in
-`createSwapExecution`. Supply the DEX's wallet callbacks and choose `run()` or
-control each step on that same session. No React provider or calculated swap form
+candidate and compare matching protected minima. Confirm host wrapping and
+approval, then prepare the chosen quote with `client.prepareSwap`, sign inline,
+and submit with `client.submitSwap`. No React provider or calculated swap form
 is needed. See [the typed router adapter](./examples/router-swap.ts).
 
 ```ts
@@ -242,26 +146,22 @@ display metadata. Use the host formatter with the token decimals; never convert
 raw spending amounts to JavaScript `Number`.
 
 Quote requests require `user`; disconnected previews can use
-`0x0000000000000000000000000000000000000001`. The constructor's `account` supplies
+`0x0000000000000000000000000000000000000001`. Preparation's `account` supplies
 the actual signer and recipient. Exact-output and alternate-recipient routes
 remain unsupported; gate them with `isSwapSupported` before wallet work.
 Native selections use the configured wrapped ERC-20 protocol address. The
-host's required `shouldWrap()` callback decides whether wrapping is needed.
-Required `shouldApprove(request)` compares live allowance with the exact required
-`request.amount`, independently of the suggested `request.approvalAmount` cap.
-Both support asynchronous boolean decisions. False skips
-the write; true invokes the corresponding hash-returning transaction callback.
-The SDK has no `getAllowance` wallet callback. The host validates
-spendable balances, gas funds, and its minimum-trade policy.
+host decides whether wrapping is needed, reads allowance for `client.spenderAddress`,
+and confirms any required approval. The host also validates spendable balances,
+gas funds, and its minimum-trade policy.
 
-At `sign()`, after wrapping and approval finish, a swap reuses its reviewed quote
+At `prepareSwap()`, after wrapping and approval finish, the SDK reuses the reviewed quote
 when its local receipt age is between zero and 20 seconds, inclusive. Older quotes,
 invalid receipt times, and future receipt times trigger a refresh for the exact
 original request. A refreshed protected minimum below the reviewed floor rejects
 with `QUOTE_MINIMUM_DECREASED` and requires fresh review. Otherwise, the selected
 quote and its minimum become the prepared order. Hosts may keep
 display quotes live through wrapping and approval; freeze the displayed output
-and minimum from `preparedOrder.quote` when the SDK publishes it, before the
+and minimum from `prepared.quote` returned by preparation, before the
 wallet signature request. Keep the captured account, chain, pair, input amount,
 and slippage unchanged. Every swap signs one limit trade, no
 trigger, a fixed three-minute lifetime from preparation, and 500 bps signed
@@ -272,16 +172,13 @@ separate fields. Local quote age does not guarantee a fill.
 Handle an empty offer separately from network or venue errors. `SpotError.code`
 classifies SDK-owned failures while wallet, quote, abort, and settlement failures
 retain their specific contracts. The [typed swap preview](./examples/swap.ts)
-shows quote/token review and the same session API.
+shows quote/token review and the same prepare → sign → submit path.
 
 ## Tracking one order
 
-The execution retains its own accepted/latest `order`. After its own `submit()`,
-call `waitForCompletion()` to track that submission, or use swap `run()` to include
-completion tracking. Constructors accept only a new reviewed quote or calculated
-form; they do not accept saved orders.
-
-For an ordinary one-time status check:
+`client.submitSwap()` and `client.submitOrder()` both return an accepted order.
+Acceptance does not establish that a swap has filled. Keep the accepted order in
+host state and use ordinary status reads:
 
 ```ts
 const current = await client.getOrder({
@@ -290,22 +187,17 @@ const current = await client.getOrder({
 });
 ```
 
-The result may be missing while indexing catches up. If the host needs continued
-status updates after a session stops, own the polling lifecycle around `getOrder`
-with cancellation, bounded retries, and visibility rules. Do not add a second
-poller while a session is already tracking.
+The result may be missing while indexing catches up. The host owns one polling
+lifecycle with cancellation, bounded retries, and visibility rules. Show swap
+completion only after the order reaches `OrderStatus.Completed`.
 
-`submit()` returns acceptance, not a swap fill. A lost submission response can
-leave acceptance uncertain. Preserve the session's accepted/latest order,
-prepared payload, and original signature, plus `OrderSettlementError.orderId` and
-optional `order` when available. If an ID is known, check it with `getOrder`.
-Otherwise query configured account history and match the exact original signed
-identity before creating any replacement. Stopped tracking does not establish
-order failure. Never automatically repeat a POST, open another signing prompt,
-or run a DEX fallback while acceptance is unresolved.
-
-`cancel()` stops later steps or tracking rather than invoking on-chain cancellation.
-Status/history reads do not recreate an execution or submit anything.
+A lost submission response can leave acceptance uncertain. Preserve the exact
+prepared order, original signature, and any accepted/latest order. If an ID is
+known, check it with `getOrder`. Otherwise query configured account history and
+match the exact original signed identity before creating any replacement. Stopped
+tracking does not establish order failure. Do not automatically repeat a POST,
+open another signing prompt, or run a DEX fallback while acceptance is unresolved.
+Status/history reads never sign or submit an order.
 
 ## Form calculation and units
 
@@ -334,7 +226,7 @@ previews use the quote directly and the host enforces its balance/minimum-trade 
 | `amount.raw` | Token base units as a string, used for protocol/wallet operations |
 | `amount.ui` | Decimal token amount for display or editable input |
 | `amount.usd` | USD display value; empty when unavailable |
-| `form.values` | Authoritative raw execution values consumed by `execution.sign()` |
+| `form.values` | Authoritative raw values consumed by `client.prepareOrder()` |
 | `form.errors.primary` / `form.errors.all` | Primary and ordered validation errors |
 | `form.isReady` / `form.canSubmit` | Whether enough inputs exist / validation allows submission |
 | `form.notReadyReason` | Missing prerequisite; absent when the form is ready, even if validation prevents submission |
@@ -372,11 +264,12 @@ subtract a fee. Protocol fee configuration belongs to the partner/backend.
 
 ## Preparing, signing, and cancellation
 
-Preparation belongs to `execution.sign()`, after wrapping and approval are
-confirmed. Inspect `execution.preparedOrder` for its reviewed form or quote,
-raw values, signing request, and approval request. `execution.submit()` uses
-that exact prepared order and the stored original signature; callers do not
-prepare or submit a different payload through the client.
+Call `client.prepareOrder()` or `client.prepareSwap()` after wrapping and approval
+are confirmed. Their results contain the reviewed form or quote, raw values,
+signing request, and approval request. Sign the returned typed data unchanged,
+then pass the same protocol order and original signature to `client.submitSwap()`
+for swaps or `client.submitOrder()` for advanced orders.
+Preparation creates fresh timestamps and a nonce immediately before signing.
 
 For on-chain cancellation, call `client.getCancelOrderRequest(order)`. Send the
 returned `contractAddress`, `abi`, and `args` through the host wallet on
@@ -388,8 +281,8 @@ v1/v2 contract differences; the host supplies explorer metadata.
 Use `client.getOrders({ account })` for one wallet's history. Omit the account
 filter with `client.getOrders()` or `client.getOrders({})` to fetch orders across
 accounts for the client's configured chain and partner. Its optional
-options use `ClientGetOrdersParams`. Swap settlement is handled by
-`execution.run()` or `execution.waitForCompletion()`. Configured history returns
+options use `ClientGetOrdersParams`. The host tracks swap settlement through
+`client.getOrder()` reads. Configured history returns
 an `AccountOrdersResult`; destructure its orders for the list:
 
 ```ts
@@ -443,10 +336,11 @@ and allow rejected initialization attempts to be retried.
 
 Analytics is enabled by default. Validated configuration supplies contract
 metadata; configuration failures still report the requested partner/chain.
-The SDK owns telemetry for configuration, quotes, execution, submission, and
-tracked swap settlement. Advanced order creation finishes at submission; later
-fills remain available in order history. `spot-react` also reports cancellation
-and status reconciliation. Host callbacks do not need to repeat these SDK events.
+The core SDK reports configuration, quotes, order preparation, and submission.
+The React host integration additionally reports its wallet lifecycle, settlement,
+cancellation, and status reconciliation. Direct DEX integrations own wallet and
+tracking telemetry. Host callbacks do not need to repeat events already reported
+by the integration layer they use.
 
 Each lifecycle step creates a separate event record with a unique `_id`.
 `operationId` links the events for one execution, cancellation, or quote request.
@@ -489,10 +383,9 @@ not debounced, so rapid request/success transitions remain separate records.
 Count `submission.succeeded` for accepted submissions and `settlement.filled`
 for completed swaps. These are separate events; no additional success/status
 booleans are needed.
-Settlement reporting is internal. If tracking stops or fails, use ordinary
-`client.getOrder({ orderId, signal })` or configured history to check status. Retain
-`OrderSettlementError.order` and `orderId` so the same intent can be checked
-without signing or submitting again.
+The React host integration reports settlement while it tracks swaps. Direct
+hosts use `client.getOrder({ orderId, signal })` or configured history to check
+status and retain their own accepted/latest order without signing or submitting again.
 
 To disable analytics for a client:
 
@@ -501,8 +394,8 @@ const client = await createClient(Partners.Thena, 56, { disableAnalytics: true }
 ```
 
 Use `disableAnalytics` when creating a client to apply the host's telemetry
-preference to its quotes and execution sessions. The policy belongs to
-`createClient` only; execution constructors and standalone
+preference to its quotes, preparation, and submission. The policy belongs to
+`createClient` only; preparation inputs and standalone
 `getQuote` take no reporting override. Use `client.getQuote` when quote reporting
 must follow that policy. Passing `disableAnalytics` on a quote request rejects
 with `QuoteError` (`invalid-request`) before any analytics or quote HTTP request.
@@ -516,26 +409,42 @@ change trading results. Initialization also works without `window`.
 
 ## Execution API migration
 
-Replace the overlapping client execution, preparation, and signed-submission
-methods with `createSwapExecution` or `createOrderExecution`. Replace an awaited
-swap call with `await client.createSwapExecution(params).run()`. Replace a
-calculated advanced-order call with `await client.createOrderExecution(params).run()`.
-Both now return an `Order` from `run()`. Read prepared payloads, signatures,
-accepted state, and transaction hashes from the execution object.
+The core SDK has one execution path: the host confirms wrapping/approval, calls
+`prepareSwap()` or `prepareOrder()`, signs the returned EIP-712 data, and calls
+`submitSwap()` or `submitOrder()` respectively with that unchanged order and
+original signature.
 
 | Former client API | Replacement |
 | --- | --- |
-| `executeSwap(params)` | `createSwapExecution(params).run()` |
-| Calculated-form `executeOrder(params)` | `createOrderExecution(params).run()` |
-| `prepareSwap` / `prepareOrder` | `execution.sign()` prepares late; inspect `execution.preparedOrder` |
-| `submitSignedSwap` / `submitSignedOrder` | `execution.submit()` uses the session's stored signed pair |
-| Accepted-order `executeOrder({ order })` | Ordinary `client.getOrder` or configured history reads; host-owned polling if needed |
+| `createOrderExecution()` / `createSwapExecution()` and wallet-adapter/session contracts | Host-owned wallet sequence, then public preparation/signing/submission |
+| `executeSwap(params)` | `prepareSwap()` → host signature → `submitSwap()` |
+| Calculated-form `executeOrder(params)` | `prepareOrder()` → host signature → `submitOrder()` |
+| `submitSignedSwap` | `submitSwap(prepared.order, signature, options?)` |
+| `submitSignedOrder` | `submitOrder(prepared.order, signature, options?)` |
+| Accepted-order tracking methods | Ordinary `client.getOrder` or configured history reads with host-owned polling |
 
-For a host-controlled sequence, create one session and call `wrap()` →
-`approve()` → `sign()` → `submit()` → `waitForCompletion()` as needed. Pass wallet
-callbacks at construction instead of signing a detached payload. Saved accepted
-orders are checked through normal client status/history reads; constructors start
-new reviewed executions only.
+`submitSwap()` and `submitOrder()` both resolve at acceptance. Move receipt waiting,
+allowance verification, progress, duplicate guards, retries, and fill polling into
+the host. Public preparation and submission take no wallet callbacks. The React
+advanced-order provider can still coordinate its own form UI using those methods.
+
+### Wallet type and error migration
+
+Import `AllowanceRequest` from `@orbs-network/spot-react` when implementing a
+React provider adapter; it contains only `tokenAddress` and `spenderAddress`.
+`GetAllowanceProps` remains a React alias for the same shape. The core package
+continues to export `Eip712TypedData`, `OrderSigningRequest`, and `ApprovalRequest`
+because public preparation returns those protocol payloads. Its `Signature` type
+also remains part of protocol order-history data; inline submission still takes
+the wallet's original hex signature.
+
+React-generated `WRAP_FAILED`, `APPROVAL_FAILED`, and `INSUFFICIENT_ALLOWANCE`
+failures now use `WalletInteractionError` and `WalletInteractionErrorCode` from
+`@orbs-network/spot-react`, preserving their existing code strings. They are no
+longer members of the core `SpotErrorCode` union. Core `SpotError` continues to
+classify preparation, protocol, submission, and lookup failures. Remove the unused
+`EXECUTION_IN_PROGRESS` classification from host error maps and keep duplicate
+execution guards in host state.
 
 ### Order naming migration
 
@@ -552,16 +461,16 @@ fields belong to the quote preview instead.
 
 `@orbs-network/liquidity-hub-sdk` is deprecated. Its Permit2 spender, payload,
 signature, and transaction-hash result cannot be reused for Spot. Install this
-SDK, fetch a Spot quote, adapt the host wallet callbacks, and create a swap
-execution. Read its accepted order ID after `submit()` and await `run()` or
-`waitForCompletion()` before showing a swap as complete. Preserve the host's
-route comparison, balance/gas policy, and UI. React hosts can import the same
-session API from `@orbs-network/spot-react`.
+SDK, fetch a Spot quote, confirm host wrapping/approval, prepare the swap, sign
+inline, and submit the exact signed order. Read its accepted ID from
+`client.submitSwap()` and track `getOrder()` until completed before showing a
+swap as filled. Preserve route comparison, balance/gas policy, and UI. React
+hosts can import the same public client API from `@orbs-network/spot-react`.
 
 ## Migrating from 1.x
 
 Use the current headless form hooks in `spot-react`, or calculate advanced forms
 in the host state layer. Keep editable inputs and token/market services in the
-host, and use the two execution constructors for wallet and order lifecycles.
+host, and use public preparation, inline signing, and submission after host wallet prerequisites.
 Inspect installed public declarations and matching versioned integration docs
 before adapting an older integration.

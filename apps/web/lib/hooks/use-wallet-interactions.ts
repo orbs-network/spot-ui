@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   WalletInteractions,
   OrderSigningRequest,
@@ -183,10 +182,7 @@ export const useWalletInteractions = () => {
         const client = requireWalletClient();
         const { signerAddress, typedData } = request;
         return client.signTypedData({
-          domain: typedData.domain as any,
-          types: typedData.types as any,
-          primaryType: typedData.primaryType,
-          message: typedData.message as any,
+          ...typedData,
           account: signerAddress,
         });
       },

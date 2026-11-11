@@ -180,7 +180,7 @@ const parseQuoteAmounts = (
 
 /**
  * Fetches an exact-input swap quote for a token pair and quote user.
- * Use the result with `client.createSwapExecution`.
+ * After the host confirms wrapping and allowance, pass the result to `client.prepareSwap`.
  * This request does not open the wallet or create an order.
  * Configure analytics on `createClient` and use `client.getQuote`; per-quote
  * `disableAnalytics` options are rejected before analytics or quote requests.

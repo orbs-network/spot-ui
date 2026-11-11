@@ -1,27 +1,30 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
-import { createClient, type AllowanceRequest, type PreparedOrder, type SpotClient } from "../src/lib/client";
-import { MAX_UINT_256 } from "../src/lib/evm-constants";
-import type { OrderExecutionUpdate } from "../src/index";
-import type { PreparedSwap } from "../src/lib/swap";
-import { createAnalytics, getClientAnalytics } from "../src/internal";
-import { getOrderAnalytics, getSubmittedOrderAnalytics } from "../src/lib/analytics";
-import type { OrderWalletInteractions } from "../src/lib/execute-order";
-import { fetchRePermitData } from "../src/lib/fetch-repermit-data";
-import { calculateOrder } from "../src/lib/order-form/calculate-order-form";
-import { getOrders } from "../src/lib/orders";
-import { buildV2Order, getOrder } from "../src/lib/orders/v2-orders";
-import { fetchQuote, type SwapQuote } from "../src/lib/quote";
-import { submitOrder } from "../src/lib/submit-order";
-import { OrderType, OrderStatus, OrderVariant, Partners, TimeUnit, type Order, type RePermitData, type RePermitOrder } from "../src/lib/types";
+import { createClient, type PreparedOrder, type SpotClient } from "../../spot-ui/src/lib/client";
+import type { AllowanceRequest } from "../src/types";
+import { WalletInteractionError } from "../src/wallet-interaction-error";
+import { MAX_UINT_256 } from "../../spot-ui/src/lib/evm-constants";
+import type { OrderExecutionUpdate, OrderWalletInteractions } from "../src/host-execution/progress";
+import { createHostOrderExecution, createHostSwapExecution, type CreateOrderExecutionParams, type CreateSwapExecutionParams } from "../src/host-execution/create-execution";
+import type { PreparedSwap } from "../../spot-ui/src/lib/swap";
+import { createAnalytics, getClientAnalytics } from "../../spot-ui/src/internal";
+import { registerClientInternals } from "../../spot-ui/src/lib/internal/client";
+import { getOrderAnalytics, getSubmittedOrderAnalytics } from "../../spot-ui/src/lib/analytics";
+import { fetchRePermitData } from "../../spot-ui/src/lib/fetch-repermit-data";
+import { calculateOrder } from "../../spot-ui/src/lib/order-form/calculate-order-form";
+import { getOrders } from "../../spot-ui/src/lib/orders";
+import { buildV2Order, getOrder } from "../../spot-ui/src/lib/orders/v2-orders";
+import { fetchQuote, type SwapQuote } from "../../spot-ui/src/lib/quote";
+import { submitOrder } from "../../spot-ui/src/lib/submit-order";
+import { OrderType, OrderStatus, OrderVariant, Partners, TimeUnit, type Order, type RePermitData, type RePermitOrder } from "../../spot-ui/src/lib/types";
 
-vi.mock("../src/lib/fetch-repermit-data", () => ({ fetchRePermitData: vi.fn() }));
-vi.mock("../src/lib/submit-order", () => ({ submitOrder: vi.fn() }));
-vi.mock("../src/lib/orders/v2-orders", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../src/lib/orders/v2-orders")>(),
+vi.mock("../../spot-ui/src/lib/fetch-repermit-data", () => ({ fetchRePermitData: vi.fn() }));
+vi.mock("../../spot-ui/src/lib/submit-order", () => ({ submitOrder: vi.fn() }));
+vi.mock("../../spot-ui/src/lib/orders/v2-orders", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../spot-ui/src/lib/orders/v2-orders")>(),
   getOrder: vi.fn(),
 }));
-vi.mock("../src/lib/quote", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../src/lib/quote")>(),
+vi.mock("../../spot-ui/src/lib/quote", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../spot-ui/src/lib/quote")>(),
   fetchQuote: vi.fn(),
 }));
 
@@ -114,7 +117,7 @@ const deferred = <T,>() => {
 };
 
 const interceptSubmission = async () => {
-  const actual = await vi.importActual<typeof import("../src/lib/submit-order")>("../src/lib/submit-order");
+  const actual = await vi.importActual<typeof import("../../spot-ui/src/lib/submit-order")>("../../spot-ui/src/lib/submit-order");
   vi.mocked(submitOrder).mockImplementation(actual.submitOrder);
   const started = deferred<{ order: RePermitOrder; signal: AbortSignal }>();
   const response = deferred<Response>();
@@ -141,10 +144,10 @@ const client = (apiUrl?: string) => createClient(Partners.Quick, 137, { disableA
 type PublicUpdate = OrderExecutionUpdate<PreparedOrder | PreparedSwap>;
 type Method = "swap" | "order";
 const execution = (kind: Method, spot: SpotClient, interactions = wallet()) => kind === "swap"
-  ? spot.createSwapExecution({ quote: quote(), account, walletInteractions: interactions })
-  : spot.createOrderExecution({ form: form(), inputTokenAddress, outputTokenAddress, account, walletInteractions: interactions });
+  ? createHostSwapExecution(spot, { quote: quote(), account, walletInteractions: interactions })
+  : createHostOrderExecution(spot, { form: form(), inputTokenAddress, outputTokenAddress, account, walletInteractions: interactions });
 
-describe("client execution sessions", () => {
+describe("React/DEX host execution sessions", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(initialTime);
@@ -196,13 +199,19 @@ describe("client execution sessions", () => {
     }
   });
 
-  it("creates and snapshots both intents without reading or opening the wallet", async () => {
-    const spot = await client();
+  it("snapshots both intents before wallet work and uses their matching submission methods", async () => {
+    const owner = await client();
+    const spot = {
+      ...owner,
+      submitOrder: vi.fn(owner.submitOrder),
+      submitSwap: vi.fn(owner.submitSwap),
+    };
+    registerClientInternals(spot, { analytics: getClientAnalytics(owner) });
     const interactions = wallet();
     const reviewedForm = form();
     const reviewedQuote = quote();
-    const advanced = spot.createOrderExecution({ form: reviewedForm, inputTokenAddress, outputTokenAddress, account, walletInteractions: interactions });
-    const swap = spot.createSwapExecution({ quote: reviewedQuote, account, walletInteractions: interactions });
+    const advanced = createHostOrderExecution(spot, { form: reviewedForm, inputTokenAddress, outputTokenAddress, account, walletInteractions: interactions });
+    const swap = createHostSwapExecution(spot, { quote: reviewedQuote, account, walletInteractions: interactions });
     reviewedForm.values.minOutputAmountPerTrade = "1";
     reviewedForm.values.inputAmount = "999";
     reviewedQuote.minimumAmountOut = "1";
@@ -211,8 +220,12 @@ describe("client execution sessions", () => {
     await advanced.run();
     expect(advanced.preparedOrder?.order.witness.output.limit).toBe("20");
     expect(advanced.preparedOrder?.order.permitted.amount).toBe("10");
+    expect(spot.submitOrder).toHaveBeenCalledExactlyOnceWith(advanced.preparedOrder!.order, signature, undefined);
+    expect(spot.submitSwap).not.toHaveBeenCalled();
     await swap.run();
     expect(swap.preparedOrder?.order.witness.output.limit).toBe("18");
+    expect(spot.submitSwap).toHaveBeenCalledExactlyOnceWith(swap.preparedOrder!.order, signature, undefined);
+    expect(spot.submitOrder).toHaveBeenCalledOnce();
   });
 
   it.each(["swap", "order"] as const)("exposes readonly prerequisite queries on the public %s execution", async kind => {
@@ -233,7 +246,7 @@ describe("client execution sessions", () => {
 
   it("allows an advanced order while the same account's swap is still settling", async () => {
     const spot = await client();
-    const first = spot.createSwapExecution({ quote: quote(), account, walletInteractions: wallet() });
+    const first = createHostSwapExecution(spot, { quote: quote(), account, walletInteractions: wallet() });
     const polling = deferred<void>();
     const settlement = deferred<Order>();
     vi.mocked(getOrder).mockImplementationOnce(() => { polling.resolve(); return settlement.promise; });
@@ -259,8 +272,8 @@ describe("client execution sessions", () => {
     const interactions = wallet();
     const native = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
     const create = () => kind === "swap"
-      ? spot.createSwapExecution({ quote: { ...quote(), request: { ...quote().request, inToken: native } }, account, walletInteractions: interactions })
-      : spot.createOrderExecution({ form: form(), inputTokenAddress: native, outputTokenAddress, account, walletInteractions: interactions });
+      ? createHostSwapExecution(spot, { quote: { ...quote(), request: { ...quote().request, inToken: native } }, account, walletInteractions: interactions })
+      : createHostOrderExecution(spot, { form: form(), inputTokenAddress: native, outputTokenAddress, account, walletInteractions: interactions });
     expect(create).toThrow(/wrapped|ERC.?20|native|input/i);
     expect(interactions.wrapNativeToken).not.toHaveBeenCalled();
     expect(interactions.signOrder).not.toHaveBeenCalled();
@@ -412,6 +425,7 @@ describe("client execution sessions", () => {
     const updates: PublicUpdate[] = [];
     const running = session.run({ onProgress: update => { updates.push(update); } });
     await expect(running).rejects.toMatchObject({ code: "INSUFFICIENT_ALLOWANCE" });
+    await expect(running).rejects.toBeInstanceOf(WalletInteractionError);
     expect(session.run()).toBe(running);
     await expect(session.approve()).rejects.toMatchObject({ code: "INSUFFICIENT_ALLOWANCE" });
     await expect(session.sign()).rejects.toMatchObject({ code: "INSUFFICIENT_ALLOWANCE" });
@@ -670,7 +684,9 @@ describe("client execution sessions", () => {
     const interactions = wallet();
     interactions.shouldWrap.mockReturnValue(true);
     interactions.wrapNativeToken.mockResolvedValue(result as never);
-    await expect(execution("swap", spot, interactions).run()).rejects.toMatchObject({ code: "WRAP_FAILED" });
+    const running = execution("swap", spot, interactions).run();
+    await expect(running).rejects.toMatchObject({ code: "WRAP_FAILED" });
+    await expect(running).rejects.toBeInstanceOf(WalletInteractionError);
     expect(interactions.approveToken).not.toHaveBeenCalled();
     expect(interactions.signOrder).not.toHaveBeenCalled();
   });
@@ -680,7 +696,9 @@ describe("client execution sessions", () => {
     const interactions = wallet();
     interactions.shouldApprove.mockReturnValue(true);
     interactions.approveToken.mockResolvedValue(result as never);
-    await expect(execution("swap", spot, interactions).run()).rejects.toMatchObject({ code: "APPROVAL_FAILED" });
+    const running = execution("swap", spot, interactions).run();
+    await expect(running).rejects.toMatchObject({ code: "APPROVAL_FAILED" });
+    await expect(running).rejects.toBeInstanceOf(WalletInteractionError);
     expect(interactions.signOrder).not.toHaveBeenCalled();
     expect(submitOrder).not.toHaveBeenCalled();
   });
@@ -695,8 +713,8 @@ describe("client execution sessions", () => {
     interactions.wrapNativeToken.mockResolvedValue("0x11");
     const extra = { account, walletInteractions: interactions, validateContext, completedWrapTxHash: "0xprevious" };
     const session = kind === "swap"
-      ? spot.createSwapExecution({ ...extra, quote: quote() })
-      : spot.createOrderExecution({ ...extra, form: form(), inputTokenAddress, outputTokenAddress });
+      ? createHostSwapExecution(spot, { ...extra, quote: quote() })
+      : createHostOrderExecution(spot, { ...extra, form: form(), inputTokenAddress, outputTokenAddress });
     expect(session.wrapTxHash).toBeUndefined();
     await session.run();
     expect(validateContext).not.toHaveBeenCalled();
@@ -753,7 +771,7 @@ describe("client execution sessions", () => {
     const spot = await client();
     const interactions = wallet();
     const seed = { ...quote(), receivedAt: initialTime - age };
-    const session = spot.createSwapExecution({ quote: seed, account, walletInteractions: interactions });
+    const session = createHostSwapExecution(spot, { quote: seed, account, walletInteractions: interactions });
     vi.mocked(fetchQuote).mockResolvedValue({ ...quote(), minimumAmountOut: "17" });
 
     await session.run();
@@ -770,7 +788,7 @@ describe("client execution sessions", () => {
   it.each([20_001, 21_000])("rejects a lower refreshed minimum for a seed quote aged %s milliseconds", async age => {
     const spot = await client();
     const interactions = wallet();
-    const session = spot.createSwapExecution({ quote: { ...quote(), receivedAt: initialTime - age }, account, walletInteractions: interactions });
+    const session = createHostSwapExecution(spot, { quote: { ...quote(), receivedAt: initialTime - age }, account, walletInteractions: interactions });
     vi.mocked(fetchQuote).mockResolvedValue({ ...quote(), minimumAmountOut: "17" });
     await expect(session.run()).rejects.toMatchObject({ code: "QUOTE_MINIMUM_DECREASED" });
     expect(fetchQuote).toHaveBeenCalledOnce();
@@ -782,7 +800,7 @@ describe("client execution sessions", () => {
     const spot = await client();
     const interactions = wallet();
     const seed = { ...quote(), receivedAt: initialTime - 20_001 };
-    const session = spot.createSwapExecution({ quote: seed, account, walletInteractions: interactions });
+    const session = createHostSwapExecution(spot, { quote: seed, account, walletInteractions: interactions });
     vi.mocked(fetchQuote).mockResolvedValue({ ...quote(), amountOut: "24", netAmountOut: "23", minimumAmountOut: "22" });
     await session.run();
     expect(fetchQuote).toHaveBeenCalledOnce();
@@ -798,7 +816,7 @@ describe("client execution sessions", () => {
     "refreshes a quote whose receipt timestamp cannot establish freshness (%s)",
     async receivedAt => {
       const spot = await client();
-      const session = spot.createSwapExecution({ quote: { ...quote(), receivedAt }, account, walletInteractions: wallet() });
+      const session = createHostSwapExecution(spot, { quote: { ...quote(), receivedAt }, account, walletInteractions: wallet() });
       await session.run();
 
       expect(fetchQuote).toHaveBeenCalledOnce();
@@ -812,7 +830,7 @@ describe("client execution sessions", () => {
     const interactions = wallet();
     const seed = quote();
     const reviewed = structuredClone(seed);
-    const session = spot.createSwapExecution({ quote: seed, account, walletInteractions: interactions });
+    const session = createHostSwapExecution(spot, { quote: seed, account, walletInteractions: interactions });
     seed.minimumAmountOut = "1";
     seed.netAmountOut = "2";
     Object.assign(seed, { receivedAt: initialTime - 60_000 });
@@ -858,7 +876,7 @@ describe("client execution sessions", () => {
     const interactions = wallet();
     const controller = new AbortController();
     const reason = new Error("Wallet context changed before quote preparation");
-    const session = spot.createSwapExecution({
+    const session = createHostSwapExecution(spot, {
       quote: { ...quote(), receivedAt: initialTime - age }, account,
       walletInteractions: interactions, signal: controller.signal,
     });
@@ -884,7 +902,7 @@ describe("client execution sessions", () => {
       fetching.resolve();
       return refreshed.promise;
     });
-    const session = spot.createSwapExecution({
+    const session = createHostSwapExecution(spot, {
       quote: { ...quote(), receivedAt: initialTime - 20_001 }, account,
       walletInteractions: interactions, signal: controller.signal,
     });
@@ -944,7 +962,7 @@ describe("client execution sessions", () => {
     const previewUser = "0x0000000000000000000000000000000000000001";
     const preview = { ...quote(), request: { ...quote().request, user: previewUser } };
     vi.mocked(fetchQuote).mockResolvedValue(preview);
-    const session = spot.createSwapExecution({ quote: preview, account, walletInteractions: interactions });
+    const session = createHostSwapExecution(spot, { quote: preview, account, walletInteractions: interactions });
     vi.setSystemTime(initialTime + 20_001);
 
     await session.run();
@@ -971,7 +989,7 @@ describe("client execution sessions", () => {
     interactions.approveToken.mockImplementation(() => { approving.resolve(); return approval.promise; });
     vi.mocked(fetchQuote).mockImplementation(() => { finalizing.resolve(); return finalQuote.promise; });
     interactions.signOrder.mockImplementation(() => { signing.resolve(); return signingResult.promise; });
-    const session = spot.createSwapExecution({ quote: quote(), account, walletInteractions: interactions });
+    const session = createHostSwapExecution(spot, { quote: quote(), account, walletInteractions: interactions });
     let prepared: PreparedSwap | undefined;
     const running = session.run({ onProgress: update => {
       if (update.event !== "prepared" || !update.preparedOrder || !("quote" in update.preparedOrder)) return;
@@ -1109,7 +1127,7 @@ describe("client execution sessions", () => {
 
   it("runs advanced orders to acceptance and tracks them only when explicitly requested", async () => {
     const spot = await client();
-    const session = spot.createOrderExecution({ form: form(OrderType.TWAP), account, inputTokenAddress, outputTokenAddress, walletInteractions: wallet() });
+    const session = createHostOrderExecution(spot, { form: form(OrderType.TWAP), account, inputTokenAddress, outputTokenAddress, walletInteractions: wallet() });
     await expect(session.run()).resolves.toMatchObject({ type: OrderVariant.TWAP_MARKET, status: OrderStatus.Open });
     expect(session.preparedOrder?.values.totalTrades).toBe(2);
     expect(getOrder).not.toHaveBeenCalled();
@@ -1121,7 +1139,7 @@ describe("client execution sessions", () => {
     const spot = await client();
     const reviewed = form();
     reviewed.values.duration = { unit: TimeUnit.Minutes, value: 2 };
-    const session = spot.createOrderExecution({ form: reviewed, account, inputTokenAddress, outputTokenAddress, walletInteractions: wallet() });
+    const session = createHostOrderExecution(spot, { form: reviewed, account, inputTokenAddress, outputTokenAddress, walletInteractions: wallet() });
     await session.run();
     expect(session.order?.type).toBe(OrderVariant.SWAP);
     await expect(session.run()).resolves.toMatchObject({ status: OrderStatus.Open });
@@ -1136,8 +1154,8 @@ describe("client execution sessions", () => {
     const interactions = wallet();
     const controller = new AbortController();
     const session = kind === "swap"
-      ? spot.createSwapExecution({ quote: quote(), account, walletInteractions: interactions, signal: controller.signal })
-      : spot.createOrderExecution({ form: form(), inputTokenAddress, outputTokenAddress, account, walletInteractions: interactions, signal: controller.signal });
+      ? createHostSwapExecution(spot, { quote: quote(), account, walletInteractions: interactions, signal: controller.signal })
+      : createHostOrderExecution(spot, { form: form(), inputTokenAddress, outputTokenAddress, account, walletInteractions: interactions, signal: controller.signal });
     const updates: PublicUpdate[] = [];
     const running = session.run({ onProgress: update => { updates.push(update); } });
     let finished = false;
@@ -1249,7 +1267,7 @@ describe("client execution sessions", () => {
 
   it("tracks the accepted order on the same session through the configured endpoint", async () => {
     const spot = await client("https://custom-orders.example/v2");
-    const session = spot.createSwapExecution({ quote: quote(), account, walletInteractions: wallet() });
+    const session = createHostSwapExecution(spot, { quote: quote(), account, walletInteractions: wallet() });
     await session.wrap();
     await session.approve();
     await session.sign();
@@ -1290,8 +1308,8 @@ describe("client execution sessions", () => {
     // JavaScript callers cannot use a saved order in place of the required quote/form.
     const invalid = { order: accepted };
     const create = kind === "swap"
-      ? () => spot.createSwapExecution(invalid as unknown as Parameters<SpotClient["createSwapExecution"]>[0])
-      : () => spot.createOrderExecution(invalid as unknown as Parameters<SpotClient["createOrderExecution"]>[0]);
+      ? () => createHostSwapExecution(spot, invalid as unknown as CreateSwapExecutionParams)
+      : () => createHostOrderExecution(spot, invalid as unknown as CreateOrderExecutionParams);
     expect(create).toThrow();
     expect(getOrder).not.toHaveBeenCalled();
     expect(submitOrder).not.toHaveBeenCalled();
@@ -1300,7 +1318,7 @@ describe("client execution sessions", () => {
   it("rejects a forged calculated swap form at constructor validation", async () => {
     const spot = await client();
     const interactions = wallet();
-    expect(() => spot.createOrderExecution({ form: { ...form(), orderType: "SWAP" as OrderType }, account, inputTokenAddress, outputTokenAddress, walletInteractions: interactions })).toThrow(/createSwapExecution/);
+    expect(() => createHostOrderExecution(spot, { form: { ...form(), orderType: "SWAP" as OrderType }, account, inputTokenAddress, outputTokenAddress, walletInteractions: interactions })).toThrow(/prepareSwap/);
     expect(interactions.wrapNativeToken).not.toHaveBeenCalled();
     expect(submitOrder).not.toHaveBeenCalled();
   });
@@ -1323,7 +1341,7 @@ describe("client execution sessions", () => {
     const spot = await createClient(Partners.Quick, 137, options);
     unrelated.setDisabled(false);
     const params = { form: form(), account, inputTokenAddress, outputTokenAddress, walletInteractions: wallet(), disableAnalytics: false };
-    const session = spot.createOrderExecution(params);
+    const session = createHostOrderExecution(spot, params);
     await session.run();
     expect(getClientAnalytics(spot).isDisabled).toBe(true);
     expect(getOrderAnalytics(session.preparedOrder!.order as RePermitOrder)?.isDisabled).toBe(true);
@@ -1337,8 +1355,8 @@ describe("client execution sessions", () => {
     const spot = await createClient(Partners.Quick, 137, { disableAnalytics: disabled });
     const extra = { account, walletInteractions: wallet(), disableAnalytics: !disabled };
     const session = kind === "swap"
-      ? spot.createSwapExecution({ ...extra, quote: quote() })
-      : spot.createOrderExecution({ ...extra, form: form(), inputTokenAddress, outputTokenAddress });
+      ? createHostSwapExecution(spot, { ...extra, quote: quote() })
+      : createHostOrderExecution(spot, { ...extra, form: form(), inputTokenAddress, outputTokenAddress });
     await session.run();
     expect(getOrderAnalytics(session.preparedOrder!.order as RePermitOrder)?.isDisabled).toBe(disabled);
     expect(getSubmittedOrderAnalytics(session.order as Order)?.isDisabled).toBe(disabled);
@@ -1365,7 +1383,7 @@ describe("client execution sessions", () => {
     vi.stubGlobal("fetch", requests);
     const spot = await createClient(Partners.Quick, 137);
     requests.mockClear();
-    const actual = await vi.importActual<typeof import("../src/lib/quote")>("../src/lib/quote");
+    const actual = await vi.importActual<typeof import("../../spot-ui/src/lib/quote")>("../../spot-ui/src/lib/quote");
     vi.mocked(fetchQuote).mockImplementation(actual.fetchQuote);
     const params = {
       inToken: inputTokenAddress, outToken: outputTokenAddress, inAmount: "10", user: account,

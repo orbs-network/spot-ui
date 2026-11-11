@@ -1,6 +1,6 @@
 # Quickstart
 
-Protocol quotes and orders use ERC-20 input addresses. Required wallet callbacks `shouldWrap()` and `shouldApprove(request)` return a boolean or a promise of one from captured input and live allowance state. False skips the corresponding write. When invoked, `wrapNativeToken` and `approveToken` return a transaction hash only after a successful receipt; they throw on failure and never return undefined to skip. Advanced React forms normalize native execution to `wrappedNativeToken`; provider-free swap hosts supply the wrapped protocol address themselves. Users review before execution. `ApprovalRequest.amount` remains the exact required input; compare live allowance only with that value. `approvalAmount` is a suggested cap, defaulting to the maximum uint256. The approval write may follow that suggestion, approve the exact amount, or apply host policy without mutating the immutable request.
+Protocol quotes and orders use ERC-20 input addresses. The advanced React provider uses the host `WalletInteractions` contract: `shouldWrap`/`shouldApprove` decide required writes, transaction methods return successful receipt hashes, and signing returns original bytes. It normalizes native input to `wrappedNativeToken` and verifies allowance after approval receipts. Provider-free swaps use DEX wallet services directly and the public prepare → sign → submit client path. Compare allowance with exact `ApprovalRequest.amount`; `approvalAmount` is only a suggested cap.
 
 If there is no DEX, start with [Starting without a DEX](08-starting-without-dex.md). An existing React app keeps its stack and components; build its missing trading services. Scaffold a minimal application only when no app exists, then return to the provider path below.
 
@@ -42,21 +42,22 @@ Install only missing dependencies with the host package manager. Select a concre
 
 ## Client execution without a provider
 
-Create one session with `client.createSwapExecution({ quote, account,
-walletInteractions, signal })`, then await `execution.run({ onProgress })` for a
-completed `Order`. Advanced forms use `createOrderExecution` with form and
-protocol token addresses; their `run()` returns acceptance. Constructors validate
-and snapshot synchronously without wallet work. They can throw during capture.
+The DEX owns wallet prerequisites and progress. Read allowance for
+`client.spenderAddress` before opening the wrap prompt, confirm any required
+wrapping/approval, and verify sufficient allowance after approval receipts.
+Then call `client.prepareSwap({ quote, account, signal })`, sign its typed data
+inline, and submit the exact order/original signature through `client.submitSwap`.
+Advanced forms outside the provider use `client.prepareOrder` instead.
 
-The host can instead await `wrap()`, `approve()`, `sign()`, `submit()`, and
-`waitForCompletion()` on the same session. Signing prepares late and retains the
-exact payload/signature; submission takes no arguments. Read accepted/latest
-`execution.order`, prepared payload, signature, and transaction hashes from the
-session. Only `run({ onProgress })` accepts a progress observer
-(`ExecutionRunOptions<T>`); constructors, explicit steps, and `waitForCompletion()`
-accept none. Run observers report shared execution updates and cannot stop the
-engine through exceptions/rejected promises. Keep the host loading/duplicate
-guard until completion or reconciliation; do not start a second settlement poller.
+Both preparation methods take no wallet callbacks. Preparation stamps fresh
+nonce/timestamps; swap preparation also applies the reviewed quote's freshness
+and protected-minimum checks. Keep review scope fixed and publish/freeze the final
+`prepared.quote` before signing. Submission returns acceptance for every order kind.
+
+Retain prepared data, signature, hashes, and accepted/latest order in host state.
+Use `client.getOrder({ orderId, signal })` in one host-owned cancellable poller to
+check fills; show a swap as complete only at `OrderStatus.Completed`. Reconcile
+uncertain POST responses before a replacement intent or DEX fallback.
 
 ## Provider path
 
@@ -71,26 +72,21 @@ Read [Provider](02-provider.md) and only the relevant [Panels](03-panels.md) sec
 7. Refetch balances through lifecycle callbacks. Preserve the host input on failure/rejection; clear it after success or after an explicit new-order action successfully detaches active or unconfirmed execution. Keep provider ownership stable across transient controls.
 8. Add requested history/cancellation under the same provider or a context-preserving portal. Use `order.historyKey` for identity and the SDK's configured history/cancellation APIs.
 
-## Provider-free router sessions
+## Provider-free router flow
 
-Keep route competition and UI in the host. Create one swap session with the
-reviewed quote/account and existing wallet callbacks. Choose `run()` or control
-the individual methods. `sign()` verifies wrapping/approval prerequisites and
-reuses the reviewed quote when its local receipt age is zero to 20 seconds,
-inclusive. Older quotes or invalid/future receipt times trigger a refresh for the
-exact original request; a refreshed minimum below the reviewed floor requires
-fresh review. Signing prepares fresh nonce/timestamps from the selected quote.
-Estimates may remain live through wrap/approval; freeze
-displayed output/minimum from `preparedOrder.quote` before signing. Preserve the
-original signature bytes; `submit()` sends the session's stored pair once.
+Keep route competition, wallet services, and UI in the DEX. After confirmed host
+wrap/approval, `client.prepareSwap()` reuses the reviewed quote when its local
+receipt age is zero to 20 seconds inclusive; older quotes or invalid/future
+receipt times refresh the original request and must preserve the reviewed floor.
+Preparation stamps fresh nonce/timestamps. Freeze the returned quote before the
+inline signature prompt, then submit its exact order and original signature.
 
-Validate captured account/chain, spendable balance, gas, and product policy before
-wallet work and submission. Keep the session outside transient modals. Preserve
-`execution.order` or settlement error `order`/`orderId` on uncertainty. Check known
-IDs through ordinary `client.getOrder` reads, or reconcile exact original signed
-identity through configured history. The host owns any further polling;
-constructors accept new reviewed input only.
-See [Swap and migration](07-swap-and-migration.md) for the full step contract.
+The DEX owns account/chain and review checks, gas/balance policy, receipt and
+allowance verification, progress, retries, duplicate guards, and status polling.
+Keep attempt state outside transient controls and preserve its original signed
+identity and accepted/latest order for recovery. Normal `client.getOrder` and
+configured history reads never recreate or submit an intent.
+See [Swap and migration](07-swap-and-migration.md) for the full contract.
 
 ## Missing partner or chain activation
 

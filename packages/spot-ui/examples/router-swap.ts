@@ -1,25 +1,21 @@
 import {
   isSwapSupported,
-  type PreparedSwap,
-  type SpotClient, type Order, type SwapQuote, type SwapTradeType,
-  type OrderWalletInteractions, type OrderExecutionUpdate, type SwapExecution,
+  type Address, type Eip712TypedData, type Hex,
+  type PreparedSwap, type SpotClient, type Order, type SwapQuote, type SwapTradeType,
 } from "@orbs-network/spot-ui";
 
-export interface SpotRoute {
-  quote: SwapQuote;
-}
+export interface SpotRoute { quote: SwapQuote }
 
-/** One candidate in the DEX's existing quote competition. No AdvancedOrdersProvider needed. */
+/** One candidate in the DEX's route competition; no provider or wallet calls. */
 export async function quoteSpotRoute(params: {
   client: SpotClient;
   account: string;
-  inToken: string; // Protocol ERC-20 input; use the wrapped address for a native selection.
+  inToken: string; // Wrapped ERC-20 address for a native selection.
   outToken: string;
   inAmount: string;
-  slippage: number; // Percent: 0.5 = 0.5%; convert host bps to percent once here.
+  slippage: number; // Percent: 0.5 = 0.5%.
   recipient?: string;
   tradeType?: SwapTradeType;
-  /** For this exact input/chain/pair; host retains any gas/fee ranking policy. */
   dexMinimumOutputRaw?: string;
   signal?: AbortSignal;
 }): Promise<SpotRoute | undefined> {
@@ -29,65 +25,77 @@ export async function quoteSpotRoute(params: {
     user: params.account, slippage: params.slippage,
     dexMinAmountOut: params.dexMinimumOutputRaw, signal: params.signal,
   });
-  const minimumOutputAmountRaw = quote.minimumAmountOut;
-  if (params.dexMinimumOutputRaw !== undefined && BigInt(minimumOutputAmountRaw) <= BigInt(params.dexMinimumOutputRaw)) return undefined;
+  if (params.dexMinimumOutputRaw !== undefined &&
+    BigInt(quote.minimumAmountOut) <= BigInt(params.dexMinimumOutputRaw)) return undefined;
   return { quote };
 }
 
+/** Example DEX-owned services, not an SDK wallet-adapter contract. */
+export interface DexRouteWallet {
+  isNativeInput: boolean;
+  getAllowance(tokenAddress: string, spenderAddress: Address): Promise<bigint>;
+  /** Resolve only after a successful receipt. */
+  wrapNativeToken(amountRaw: string): Promise<Hex>;
+  /** Resolve only after a successful receipt; this example approves the exact amount. */
+  approveToken(tokenAddress: string, spenderAddress: Address, amountRaw: string): Promise<Hex>;
+  signTypedData(params: Eip712TypedData & { account: Address }): Promise<Hex>;
+}
+
+/** Host-owned attempt state survives modal closure and uncertain POST responses. */
+export interface SpotRouteAttempt {
+  wrapTxHash?: Hex;
+  approvalTxHash?: Hex;
+  prepared?: PreparedSwap;
+  signature?: Hex;
+  order?: Order;
+}
+
 /**
- * Capture one reviewed route and its host wallet adapter; construction does no wallet work.
- * Wallet shouldApprove checks request.amount; approveToken can follow the suggested
- * request.approvalAmount or choose an exact/host cap without mutating the SDK request.
+ * Call once for the captured review under the DEX's execution lock. The DEX owns
+ * live account/chain, gas/balance checks, receipt confirmations, progress, and retries.
+ * Returns acceptance; the DEX tracks fills through client.getOrder afterwards.
  */
-export function createSpotRouteExecution(params: {
+export async function submitSpotRoute(params: {
   client: SpotClient;
   route: SpotRoute;
-  account: string;
-  walletInteractions: OrderWalletInteractions;
+  account: Address;
+  wallet: DexRouteWallet;
+  attempt: SpotRouteAttempt;
   signal?: AbortSignal;
-}): SwapExecution {
-  return params.client.createSwapExecution({
-    quote: params.route.quote,
-    account: params.account,
-    walletInteractions: params.walletInteractions,
-    signal: params.signal,
-  });
+}): Promise<Order> {
+  const { client, route, account, wallet, attempt, signal } = params;
+  const quote = structuredClone(route.quote);
+  const amount = BigInt(quote.request.inAmount);
+  const token = quote.request.inToken;
+  const spender = client.spenderAddress;
+  const check = () => signal?.throwIfAborted();
+  check();
+  let allowance = await wallet.getAllowance(token, spender);
+  check();
+  if (wallet.isNativeInput) {
+    attempt.wrapTxHash = await wallet.wrapNativeToken(quote.request.inAmount);
+    check();
+  }
+  for (let attemptIndex = 0; allowance < amount && attemptIndex < 2; attemptIndex += 1) {
+    check();
+    attempt.approvalTxHash = await wallet.approveToken(token, spender, quote.request.inAmount);
+    check();
+    allowance = await wallet.getAllowance(token, spender);
+    check();
+  }
+  if (allowance < amount) throw new Error("Confirmed approval is still insufficient");
+
+  attempt.prepared = await client.prepareSwap({ quote, account, signal });
+  check();
+  // Publish attempt.prepared.quote to the review before the signature prompt.
+  const { signerAddress, typedData } = attempt.prepared.signingRequest;
+  attempt.signature = await wallet.signTypedData({ ...typedData, account: signerAddress });
+  check();
+  attempt.order = await client.submitSwap(attempt.prepared.order, attempt.signature, { signal });
+  return attempt.order;
 }
 
-/** Read-only UI preview. Actual wrap/approve steps check the decisions again. */
-export async function previewSpotRouteSteps(execution: SwapExecution): Promise<{
-  wrapRequired: boolean;
-  approvalRequired: boolean;
-}> {
-  const wrapRequired = await execution.shouldWrap();
-  const approvalRequired = await execution.shouldApprove();
-  return { wrapRequired, approvalRequired };
-}
-
-/** Default orchestration: returns the completed Order after the swap fills. */
-export function runSpotRoute(
-  execution: SwapExecution,
-  onProgress?: (update: OrderExecutionUpdate<PreparedSwap>) => void,
-): Promise<Order> {
-  return execution.run({ onProgress });
-}
-
-/** The same session, with the host controlling when each step begins. */
-export async function runSpotRouteSteps(execution: SwapExecution): Promise<Order> {
-  if (await execution.shouldWrap()) await execution.wrap();
-  if (await execution.shouldApprove()) await execution.approve();
-  await execution.sign(); // Prepares late after prerequisite steps, then stores the original signature.
-  await execution.submit(); // Uses the stored payload/signature once; execution.order is now accepted.
-  return execution.waitForCompletion();
-}
-
-// The DEX keeps its selector, host wallet callbacks, progress UI, and execution lock.
-// Quote the wrapped ERC-20 address for native input. Validate the live account,
-// chain, balance, and minimum-trade policy before each wallet step and submission.
-// The session stores the reviewed request and exact prepared payload/signature.
-// Wallet signing callbacks return their original bytes unchanged.
-// Keep the session outside transient modals; cancel() stops later steps/tracking
-// but cannot undo a transaction or cancel an accepted order.
-// Preserve execution.order or OrderSettlementError.order/orderId if tracking stops.
-// Pause obsolete quote requests during execution and reconcile uncertain acceptance
-// before starting another Spot intent or a DEX fallback.
+// Preserve attempt.prepared/signature if acceptance is uncertain. Reconcile the
+// original signed identity before another Spot intent or DEX fallback. Use the
+// known accepted ID with client.getOrder({ orderId: attempt.order.id, signal });
+// the host owns a single cancellable status poller and completion UI.

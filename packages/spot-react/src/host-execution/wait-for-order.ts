@@ -1,16 +1,13 @@
-import { OrderSettlementError } from "../order-settlement-error";
-import { getOrder } from "../orders/v2-orders";
-import { OrderStatus, type Order } from "../types";
-import { SpotError } from "../errors";
-import { getApiEndpoint } from "../api-config";
+import { OrderSettlementError } from "./order-settlement-error";
+import { OrderStatus, SpotError, type Order, type SpotClient } from "@orbs-network/spot-ui";
 import {
   bindSubmittedOrderAnalytics,
   createAnalytics,
   getSubmittedOrderAnalytics,
   resolveAnalyticsReporter,
   type SpotAnalytics,
-} from "../analytics";
-import { observe } from "../observe";
+} from "@orbs-network/spot-ui/internal";
+import { observe } from "./observe";
 
 const INITIAL_POLL_DELAY_MILLIS = 2_000;
 const MAX_POLL_DELAY_MILLIS = 30_000;
@@ -23,8 +20,8 @@ export interface WaitForOrderParams {
   signal?: AbortSignal;
   /** Matching order snapshots, including the terminal result; observer failures do not interrupt tracking. */
   onProgress?: (order: Order) => void;
-  /** Use the submitting client's apiUrl when it uses a custom order service. */
-  apiUrl?: string;
+  /** Captured submitting client; its getOrder method preserves the chain and service endpoint. */
+  client: Pick<SpotClient, "getOrder">;
   /** Swap settlement reporter; submitted and client-fetched orders retain theirs automatically. */
   analytics?: SpotAnalytics;
 }
@@ -54,7 +51,7 @@ function isSettled(order: Order): boolean {
 
 /**
  * Streams order snapshots until completion for progress displays or history caches.
- * Uses the order's ID and chain directly; no client or wallet is needed.
+ * Uses the captured client for status lookups; no wallet is needed.
  * Lookups run serially, retrying missing/indexing results and request failures.
  * Missing or failed lookups back off from two to thirty seconds; a matching
  * snapshot resets the interval to two seconds.
@@ -72,7 +69,7 @@ function isSettled(order: Order): boolean {
  *   updateOrderHistory(current);
  * }
  */
-async function* watchOrder({ order, signal, apiUrl, analytics }: WaitForOrderParams): AsyncGenerator<Order, void, unknown> {
+async function* watchOrder({ order, signal, client, analytics }: WaitForOrderParams): AsyncGenerator<Order, void, unknown> {
   const context = {
     account: order?.maker,
     chainId: order?.chainId,
@@ -86,17 +83,15 @@ async function* watchOrder({ order, signal, apiUrl, analytics }: WaitForOrderPar
     ? resolveAnalyticsReporter(inherited, analytics ?? inherited, context)
     : analytics ?? createAnalytics(context);
   const orderId = order?.id;
-  let endpoint: string;
   try {
     if (!orderId) throw new SpotError("INVALID_ARGUMENT", "An order with a full ID is required");
     if (!Number.isSafeInteger(order.chainId) || order.chainId <= 0) throw new SpotError("INVALID_ARGUMENT", "The order must have a valid chain ID");
     if (!Number.isFinite(order.deadline)) throw new SpotError("INVALID_ARGUMENT", "The order must have a finite deadline");
-    endpoint = getApiEndpoint(apiUrl);
   } catch (error) {
     observe(() => reporter.onSettlementError(error, order));
     throw error;
   }
-  const { chainId, deadline, historyKey } = order;
+  const { deadline, historyKey } = order;
   const trackingCutoff = deadline + 60_000;
   const reportSnapshot = (current: Order) => {
     bindSubmittedOrderAnalytics(current, reporter);
@@ -137,7 +132,7 @@ async function* watchOrder({ order, signal, apiUrl, analytics }: WaitForOrderPar
       controller.signal.throwIfAborted();
       let current: Order | undefined;
       try {
-        current = await abortable(getOrder({ orderId, chainId, signal: controller.signal, apiUrl: endpoint }), controller.signal);
+        current = await abortable(client.getOrder({ orderId, signal: controller.signal }), controller.signal);
       } catch {
         // Missing/indexing results and transient request errors remain retryable.
         controller.signal.throwIfAborted();
@@ -171,7 +166,7 @@ async function* watchOrder({ order, signal, apiUrl, analytics }: WaitForOrderPar
 
 /**
  * Waits for a submitted order to complete and returns its latest snapshot.
- * Uses the order's ID, chain, and millisecond deadline; no client or wallet is needed.
+ * Uses the captured client and the order's millisecond deadline; no wallet is needed.
  * Missing/indexing results and request failures are retried until one minute after
  * the deadline. Use `onProgress` to receive intermediate and terminal snapshots.
  *

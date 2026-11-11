@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
   webpack: (config) => {
     // Only alias to source in development for hot reload
     if (isDevelopmentBuild) {
+      config.resolve.alias['@orbs-network/spot-react/internal'] = path.resolve(__dirname, '../../packages/spot-react/src/internal.ts');
       config.resolve.alias['@orbs-network/spot-react'] = path.resolve(__dirname, '../../packages/spot-react/src');
       config.resolve.alias['@orbs-network/spot-ui'] = path.resolve(__dirname, '../../packages/spot-ui/src');
     }
@@ -20,6 +21,7 @@ const nextConfig: NextConfig = {
   },
   turbopack: {
     resolveAlias: {
+      '@orbs-network/spot-react/internal': '../../packages/spot-react/src/internal.ts',
       '@orbs-network/spot-react': '../../packages/spot-react/src',
       '@orbs-network/spot-ui': '../../packages/spot-ui/src',
     },

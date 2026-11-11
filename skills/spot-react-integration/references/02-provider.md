@@ -300,7 +300,7 @@ If the DEX quote stores the quoted input amount in raw units instead of the user
 | `displayFeePercent` | `number` | No | Display-only fee estimate percentage; does not collect or subtract fees |
 | `overrides` | `Overrides` | No | Initial Spot form state such as default trades, duration, fill delay, trigger price, limit price, and market/limit mode |
 | `errorFallback` | `ComponentType<SpotErrorFallbackProps>` | No | DEX-native initialization and calculation/rendering error UI receiving `error`, `retry`, and `isRetrying` |
-| `disableAnalytics` | `boolean` | No | Wrapper passes this flag to client creation; that client's quotes and execution sessions inherit its policy |
+| `disableAnalytics` | `boolean` | No | Wrapper passes this flag to client creation; that client's quotes, preparation, submission, and React host operations inherit its policy |
 
 `SpotErrorFallbackProps` is `{ error: Error; retry: () => Promise<void>; isRetrying: boolean }`.
 Initialization failures keep children mounted alongside the fallback; `retry()`
@@ -312,7 +312,16 @@ button while `isRetrying` is true.
 
 `spot-react` is wallet-library agnostic. The DEX must pass a `walletInteractions`
 object that adapts its existing wallet stack to six required methods. Balance
-and funds decisions stay private to the host's decision/write callbacks:
+and funds decisions stay private to the host's decision/write callbacks.
+
+Import `WalletInteractions`, `AllowanceRequest`, `GetAllowanceProps`,
+`WalletInteractionError`, and `WalletInteractionErrorCode` from the public
+`@orbs-network/spot-react` root. `AllowanceRequest` contains only `tokenAddress`
+and `spenderAddress`; `GetAllowanceProps` aliases that shape. Protocol
+`ApprovalRequest`, `OrderSigningRequest`, and `Eip712TypedData` remain core
+preparation data and are re-exported by React.
+
+The provider calls these methods:
 
 | Method | What to do |
 | --- | --- |
@@ -330,6 +339,12 @@ request. Both initial and post-receipt allowance checks compare only with `amoun
 they never require allowance to reach the suggested cap.
 
 The write methods should not return immediately after wallet submission. Wait for the transaction receipt so Spot can show correct progress and surface reverted transactions as failures.
+
+React-generated wrapping and approval failures use `WalletInteractionError`
+with `WRAP_FAILED`, `APPROVAL_FAILED`, or `INSUFFICIENT_ALLOWANCE`. Preserve those
+code strings in host error UI. They belong to `WalletInteractionErrorCode`,
+rather than core `SpotErrorCode`. Wallet-library errors remain unchanged, and
+protocol/preparation/submission failures retain the core `SpotError` contract.
 Pass the selected input and its current raw balance to `AdvancedOrdersProvider`, including
 native selections. Supply the chain's `wrappedNativeToken` for protocol execution.
 The required `shouldWrap()` and `shouldApprove(request)` callbacks return booleans

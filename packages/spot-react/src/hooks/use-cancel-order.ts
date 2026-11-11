@@ -4,7 +4,7 @@ import {
   type Order,
   type SpotClient,
 } from "@orbs-network/spot-ui";
-import { isTxRejected } from "@orbs-network/spot-ui/internal";
+import { isTxRejected } from "../wallet-interaction-error";
 import { useClient } from "../context/use-client";
 import { useSpotTrading } from "../context/spot-trading-context";
 import {

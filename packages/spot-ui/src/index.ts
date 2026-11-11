@@ -50,13 +50,15 @@ export {
   createClient,
   type CreateClientOptions,
   type SpotClient,
-  type CreateOrderExecutionParams,
   type Eip712TypedData,
   type OrderSigningRequest,
   type ApprovalRequest,
-  type AllowanceRequest,
   type PreparedOrderValues,
   type PreparedOrder,
+  type PrepareOrderParams,
+  type PrepareSwapParams,
+  type SubmitOrderOptions,
+  type SubmitSwapOptions,
   type CancelOrderRequest,
   type ClientGetOrdersParams,
   type ClientGetOrderParams,
@@ -84,9 +86,4 @@ export {
 
 export { getQuote, isQuoteFresh, QuoteError, type QuoteErrorKind, type SwapQuote, type SwapQuoteParams } from "./lib/quote";
 
-export { isSwapSupported, type PreparedSwap, type CreateSwapExecutionParams, type SwapTradeType } from "./lib/swap";
-export type { OrderExecution, SwapExecution, ExecutionRunOptions, TransactionStepResult } from "./lib/execution-session";
-export type {
-  OrderWalletInteractions, OrderExecutionUpdate, OrderExecutionPhase, OrderExecutionStep, SignableOrder,
-} from "./lib/execute-order";
-export { OrderSettlementError } from "./lib/order-settlement-error";
+export { isSwapSupported, type PreparedSwap, type SwapTradeType } from "./lib/swap";

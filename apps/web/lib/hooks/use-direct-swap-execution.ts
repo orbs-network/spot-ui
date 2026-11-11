@@ -2,15 +2,13 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import {
-  OrderSettlementError,
   OrderStatus,
   SpotError,
-  type OrderWalletInteractions,
   type Order,
   type PreparedSwap,
-  type OrderExecutionUpdate,
   type RePermitOrder,
 } from "@orbs-network/spot-react";
+import { createHostSwapExecution, OrderSettlementError, type OrderWalletInteractions, type OrderExecutionUpdate } from "@orbs-network/spot-react/internal";
 import { getConnection } from "wagmi/actions";
 import { wagmiConfig } from "../wagmi-config";
 import { useSwapStore } from "./store";
@@ -41,7 +39,7 @@ export const matchesSignedSwap = (expected: unknown, actual: unknown): boolean =
   return expected === actual;
 };
 
-/** Host-owned swap orchestration; the SDK alone submits and polls the order. */
+/** The DEX owns wallet steps and status tracking; the SDK prepares and submits signed orders. */
 export const useDirectSwapExecution = ({ contextKey, walletInteractions, refreshBalances }: {
   contextKey: string;
   walletInteractions: OrderWalletInteractions;
@@ -89,7 +87,7 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
       abort.signal.throwIfAborted();
       if (useDirectSwapStore.getState().controller !== abort) throw new Error("This swap attempt is no longer active.");
       // Accepted orders track independently of later wallet/form changes.
-      if (execution.sdkExecution?.order) return;
+      if (execution.hostExecution?.order) return;
       const connection = getConnection(wagmiConfig);
       if (scope.current !== review.contextKey ||
         useSwapStore.getState().inputAmount !== review.inputAmountUi ||
@@ -138,21 +136,21 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
           ...(progress.order ? { order: structuredClone(progress.order) as Order } : {}),
         });
       };
-      const sdkExecution = review.client.createSwapExecution({
+      const hostExecution = createHostSwapExecution(review.client, {
         quote: review.quote, account: review.account, walletInteractions: wallet,
         signal: abort.signal,
       });
-      update({ sdkExecution });
-      const order = await sdkExecution.run({ onProgress });
+      update({ hostExecution });
+      const order = await hostExecution.run({ onProgress });
       update({ phase: "success", order });
       useDirectSwapStore.setState({ confirmedWrap: undefined });
       void refreshBalances([review.quote.request.inToken]).catch(() => undefined);
     } catch (cause) {
       if (cause instanceof SpotError && cause.code === "QUOTE_MINIMUM_DECREASED" &&
-        !submissionStarted && !execution.sdkExecution?.preparedOrder && !execution.sdkExecution?.order && !abort.signal.aborted) {
+        !submissionStarted && !execution.hostExecution?.preparedOrder && !execution.hostExecution?.order && !abort.signal.aborted) {
         update({
           phase: "price-changed", priceChangedAt: Date.now(), error: undefined,
-          sdkExecution: undefined, signedOrder: undefined, order: undefined, steps: [], stepIndex: 0,
+          hostExecution: undefined, signedOrder: undefined, order: undefined, steps: [], stepIndex: 0,
         });
         return;
       }
@@ -186,8 +184,8 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
     publish({ ...saved, phase: "settling", error: undefined });
     try {
       const { client, account } = saved.review;
-      const signedOrder = saved.signedOrder ?? saved.sdkExecution?.preparedOrder?.order;
-      const acceptedOrder = saved.order ?? saved.sdkExecution?.order;
+      const signedOrder = saved.signedOrder ?? saved.hostExecution?.preparedOrder?.order;
+      const acceptedOrder = saved.order ?? saved.hostExecution?.order;
       const order = acceptedOrder
         ? await client.getOrder({ orderId: acceptedOrder.id, signal: abort.signal })
         : signedOrder

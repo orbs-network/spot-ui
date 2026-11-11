@@ -1,23 +1,13 @@
-// SDK-orchestrated swap flow with a quote-based UI preview.
+// Host-owned swap flow with a quote-based UI preview.
 // Existing DEX wallet flows should start with router-swap.ts instead.
 import {
-  type OrderWalletInteractions,
-  type OrderExecutionUpdate,
-  type PreparedSwap,
   type Order,
   type Address,
   type SpotClient,
   type SwapQuote,
   type Token,
 } from "@orbs-network/spot-ui";
-
-/**
- * Supply decisions and confirmed writes bound to the reviewed account/chain.
- * shouldApprove compares live allowance with request.amount (the exact input).
- * approveToken may use request.approvalAmount (suggested maximum uint256),
- * request.amount for an exact cap, or host policy, without mutating the request.
- */
-export type SwapWallet = OrderWalletInteractions;
+import type { InlineWalletClient } from "./inline-signing";
 
 export interface SwapPreview {
   client: SpotClient;
@@ -61,19 +51,20 @@ export async function createSwapPreview(params: {
   return { client, account, inputToken, outputToken, quote };
 }
 
-/** Call after review and host balance/minimum-trade checks. Resolves after a confirmed fill. */
+/** Call after confirmed host wrapping/approval and review checks. Resolves at acceptance. */
 export async function submitReviewedSwap(
   preview: SwapPreview,
-  wallet: SwapWallet,
-  onProgress?: (update: OrderExecutionUpdate<PreparedSwap>) => void,
+  walletClient: InlineWalletClient,
+  signal?: AbortSignal,
 ): Promise<Order> {
   const { client, account, quote, inputToken, outputToken } = preview;
   if (quote.request.inToken.toLowerCase() !== inputToken.address.toLowerCase() ||
     quote.request.outToken.toLowerCase() !== outputToken.address.toLowerCase()) {
     throw new Error("Swap quote does not match the reviewed token pair");
   }
-  const execution = client.createSwapExecution({
-    quote, account, walletInteractions: wallet,
-  });
-  return execution.run({ onProgress });
+  const prepared = await client.prepareSwap({ quote, account, signal });
+  signal?.throwIfAborted();
+  const { signerAddress, typedData } = prepared.signingRequest;
+  const signature = await walletClient.signTypedData({ ...typedData, account: signerAddress });
+  return client.submitSwap(prepared.order, signature, { signal });
 }

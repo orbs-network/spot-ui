@@ -1,19 +1,17 @@
+import type { CreateOrderExecutionParams } from "../src/host-execution/create-execution";
+import type { ExecutionRunOptions, OrderExecution } from "../src/host-execution/types";
+import type { OrderExecutionUpdate, OrderWalletInteractions } from "../src/host-execution/progress";
 import type {
-  CreateOrderExecutionParams,
   ApprovalRequest,
-  ExecutionRunOptions,
   Order,
-  OrderExecution,
-  OrderExecutionUpdate,
   PreparedOrder,
-  OrderWalletInteractions,
 } from "@orbs-network/spot-ui";
 import { vi } from "vitest";
 
 export type OrderRunParams = CreateOrderExecutionParams & ExecutionRunOptions<PreparedOrder>;
 export const suggestedApprovalAmount = (2n ** 256n - 1n).toString();
 
-/** Test double for the SDK boundary: commit getter snapshots before notifying the host. */
+/** Test double for the host runner boundary: commit getter snapshots before notifying the host. */
 export const orderExecution = (
   params: CreateOrderExecutionParams,
   run: (params: OrderRunParams) => Promise<Order>,

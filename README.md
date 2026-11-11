@@ -66,34 +66,28 @@ pnpm build:spot-react  # Build the React provider and hooks
 ## DEX route adapters
 
 Use `@orbs-network/spot-ui` directly, or its public re-exports from `spot-react`,
-to add Spot as a quote candidate. No React provider is required. Preserve the
-reviewed quote and create one execution session:
+to add Spot as a quote candidate. No React provider is required. The DEX owns
+allowance checks, wrapping, approval, confirmed receipts, progress, and retries.
+After wallet prerequisites complete, prepare and sign the reviewed quote:
 
 ```ts
-const execution = client.createSwapExecution({
-  quote, account, walletInteractions, signal,
-});
-const order = await execution.run({ onProgress });
+const prepared = await client.prepareSwap({ quote, account, signal });
+const { signerAddress, typedData } = prepared.signingRequest;
+const signature = await walletClient.signTypedData({ ...typedData, account: signerAddress });
+const accepted = await client.submitSwap(prepared.order, signature, { signal });
 ```
 
-`run()` returns a completed swap `Order`. To control individual steps, await
-`wrap()`, `approve()`, `sign()`, `submit()`, and `waitForCompletion()` on that
-same session. Preparation happens late inside `sign()`; `submit()` uses its
-stored exact payload/signature and returns acceptance. Read accepted/latest
-state from `execution.order`, and keep the session outside transient modals.
+Use `client.spenderAddress` for ERC-20 allowance reads and approvals. Allowance
+must cover the exact input; verify it after each confirmed approval. The SDK
+suggests a maximum approval cap in `approvalRequest.approvalAmount`, while the
+host may approve the exact input or apply its own policy.
+
+For calculated advanced-order forms, use
+`client.prepareOrder({ form, account, inputTokenAddress, outputTokenAddress })`
+and submit the inline signature through `client.submitOrder()`. Preparation creates fresh
+nonce/timestamps immediately before signing. Submission returns acceptance for
+all order kinds; track fills through ordinary `client.getOrder()` reads.
 See the [typed router adapter](packages/spot-ui/examples/router-swap.ts).
-
-Wallet approval requests separate the exact required input `amount` from the
-suggested spending cap `approvalAmount`, which defaults to the maximum uint256.
-Compare live allowance only with `amount`. The host's approval callback may use
-the suggestion, the exact amount, or its own cap policy without mutating the request.
-
-For calculated advanced-order forms, create an order session with
-`client.createOrderExecution({ form, account, inputTokenAddress,
-outputTokenAddress, walletInteractions, signal })`. Its `run()`
-returns the accepted `Order`; later fills are available through history.
-Constructors snapshot new reviewed input and perform no wallet work. The session
-retains its own acceptance; saved orders use normal status/history reads.
 
 ## Quote-based swaps
 
@@ -105,17 +99,17 @@ sends `"-1"`. The abort signal is forwarded to the quote request.
 
 Swap previews use the quote and token metadata directly. Preserve the returned
 minimum unchanged. Protocol native input uses the configured wrapped ERC-20
-address; host wallet callbacks decide wrapping and confirm transaction receipts.
-At `sign()`, the session reuses a quote up to twenty seconds old or refreshes the
+address; the host decides wrapping and confirms transaction receipts.
+At `prepareSwap()`, the SDK reuses a quote up to twenty seconds old or refreshes the
 original request and verifies its minimum before preparing fresh signing data.
 Swaps sign a three-minute lifetime and fixed 500 bps oracle protection.
 
-Keep host loading and duplicate guards active until `run()` or
-`waitForCompletion()` completes, and pause obsolete quote requests. Preserve
-`execution.order` or `OrderSettlementError.order`/`orderId` if tracking stops.
+Keep host loading and duplicate guards active through completion or
+reconciliation, and pause obsolete quote requests. Preserve the prepared order,
+original signature, confirmed hashes, and accepted/latest order if tracking stops.
 Check saved accepted state with `client.getOrder({ orderId, signal })` or
-configured history. The host owns any further polling. Reconcile uncertain
-acceptance before creating a replacement. Do not start another settlement poller.
+configured history. The host owns a single status-polling lifecycle and reconciles
+uncertain acceptance before creating a replacement or running a DEX fallback.
 
 `AdvancedOrdersProvider` supports only the four `OrderType` values: TWAP, Limit,
 Stop-Loss, and Take-Profit. Its `marketQuote` has only optional
@@ -147,12 +141,24 @@ compatibility during migration.
 Publish each package with its repository script. After confirming the release
 version, the scripts check npm authentication and open `npm login --auth-type=web`
 when credentials are missing or expired. Existing authenticated sessions are reused.
-After login is verified, they build the relevant packages and request an OTP:
+After login is verified, they run the shared release checks and request an OTP:
 
 ```bash
 pnpm publish:spot-ui
 pnpm publish:spot-react
 ```
+
+Run the same checks locally before selecting release versions:
+
+```bash
+pnpm check:spot
+```
+
+This builds the SDK dependencies once, runs the SDK, React, demo, and publisher
+tests, and typechecks packaged declarations and integration examples. Both Spot
+publishers and their `prepublishOnly` hooks use this gate. The removed execution
+factories and relocated wallet contracts are breaking API changes; select a
+major release when replacing the previous public API.
 
 To release both in order, run:
 
@@ -179,7 +185,7 @@ online. This also applies to standalone `publish:spot-react` runs. A timeout or
 registry authentication failure stops the React release and keeps the already
 published SDK version. After resolving the issue, retry `pnpm publish:spot-react`.
 
-Build failures and cancellation at the OTP prompt restore the
+Validation failures and cancellation at the OTP prompt restore the
 original package manifest. Once the publish command starts, failures retain
 the selected version because the registry may already have accepted the upload;
 check npm before retrying.
@@ -223,6 +229,13 @@ web
       └── spot-ui (client initialization, order preparation, submission, history)
 ```
 
+Wallet callback contracts, allowance-read adapter types, wallet execution, and
+`WalletInteractionError` are owned by `spot-react`. Protocol preparation types
+such as `Eip712TypedData`, `OrderSigningRequest`, and `ApprovalRequest` remain in
+`spot-ui` and are also re-exported by `spot-react`. See the
+[wallet type and error migration](packages/spot-ui/README.md#wallet-type-and-error-migration)
+when updating imports or error handling.
+
 ## Order Signatures
 
 `walletInteractions.signOrder` must return the wallet's original `0x`-prefixed EIP-712 signature. `spot-react` forwards that value unchanged to `spot-ui` and the order submission request. Do not split the signature into `{ v, r, s }`, rewrite `v`, or normalize its byte representation.
@@ -238,7 +251,7 @@ cache. Each client receives a deep copy, failed requests are evicted, and nonce
 allocation is shared within the loaded SDK instance. Hosts still own client
 resource lifetime and invalidation.
 
-The client owns the configuration-derived spender, exchange, signing payload, approval/cancellation requests, submission, and configured order history. Pure calculations remain package-level functions. The `calculateOrder` helper accepts raw DEX form state and produces defaults, prices, trades, schedules, validation, raw/token-formatted/USD values, and the execution values shared by order construction and React displays. Form calculation is time-independent; `execution.sign()` assigns the exact start and deadline after confirmed prerequisites. A missing client represents initialization loading; after automatic retries, `AdvancedOrdersProvider` keeps the host form mounted and renders a retryable, host-customizable `errorFallback` alongside it. The same fallback handles calculation/rendering failures and receives `error`, `retry`, and `isRetrying`; retry refetches configuration for initialization errors or resets the boundary for rendering errors.
+The client owns the configuration-derived spender, exchange, signing payload, approval/cancellation requests, submission, and configured order history. Pure calculations remain package-level functions. The `calculateOrder` helper accepts raw DEX form state and produces defaults, prices, trades, schedules, validation, raw/token-formatted/USD values, and the execution values shared by order construction and React displays. Form calculation is time-independent; `client.prepareOrder()` assigns the exact start and deadline after confirmed host prerequisites. A missing client represents initialization loading; after automatic retries, `AdvancedOrdersProvider` keeps the host form mounted and renders a retryable, host-customizable `errorFallback` alongside it. The same fallback handles calculation/rendering failures and receives `error`, `retry`, and `isRetrying`; retry refetches configuration for initialization errors or resets the boundary for rendering errors.
 
 The client rejects configurations whose domain or order chain differs from the requested chain, and rejects malformed or zero RePermit and exchange-adapter addresses. `domain.verifyingContract` is used as the ERC-20 approval spender and v2 cancellation contract; the returned adapter, reactor, and executor are used for v2 orders. The endpoint remains security-critical because the SDK does not independently verify deployed bytecode or contract identity, so it must be served by the trusted Orbs service over TLS.
 

@@ -1,4 +1,4 @@
-import type { Order } from "./types";
+import type { Order } from "@orbs-network/spot-ui";
 
 /**
  * Tracking ended without a confirmed completed order.

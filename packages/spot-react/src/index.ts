@@ -14,6 +14,7 @@ export {
   type CancelOrderProps,
   type ApproveTokenProps,
   type WalletInteractions,
+  type AllowanceRequest,
   type GetAllowanceProps,
   type InitialState,
   type Overrides,
@@ -65,24 +66,16 @@ export {
   type SwapQuote,
   type SwapQuoteParams,
   type PreparedSwap,
-  type CreateSwapExecutionParams,
-  type CreateOrderExecutionParams,
-  type SwapExecution,
-  type OrderExecution,
-  type TransactionStepResult,
-  type ExecutionRunOptions,
   type SwapTradeType,
-  type OrderWalletInteractions,
-  type OrderExecutionUpdate,
-  type OrderExecutionPhase,
-  type OrderExecutionStep,
-  type SignableOrder,
   type PreparedOrder,
+  type PrepareOrderParams,
+  type PrepareSwapParams,
+  type SubmitOrderOptions,
+  type SubmitSwapOptions,
   type PreparedOrderValues,
   type Eip712TypedData,
   type OrderSigningRequest,
   type ApprovalRequest,
-  type AllowanceRequest,
   type CancelOrderRequest,
   type ClientGetOrdersParams,
   type ClientGetOrderParams,
@@ -137,7 +130,6 @@ export {
   // Errors
   QuoteError,
   SpotError,
-  OrderSettlementError,
 
   // Constants
   DISCLAIMER_URL,
@@ -148,3 +140,7 @@ export {
 } from "@orbs-network/spot-ui";
 
 export { AdvancedOrdersProvider };
+
+// Settlement status belongs to the React/DEX host rather than the protocol client.
+export { OrderSettlementError } from "./host-execution/order-settlement-error";
+export { WalletInteractionError, type WalletInteractionErrorCode } from "./wallet-interaction-error";

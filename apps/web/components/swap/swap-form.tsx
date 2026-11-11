@@ -51,7 +51,7 @@ export const SwapForm = () => {
   const [isOpen, setIsOpen] = useState(false);
   const queryClient = useQueryClient();
   const setPauseQuote = useSwapStore(state => state.setPauseQuote);
-  const hasPreparedQuote = Boolean(execution.sdkExecution?.preparedOrder);
+  const hasPreparedQuote = Boolean(execution.hostExecution?.preparedOrder);
   useEffect(() => {
     const pause = (execution.isActive && hasPreparedQuote) ||
       execution.phase === "settling" || execution.phase === "unconfirmed" || execution.phase === "success";

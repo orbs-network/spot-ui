@@ -1,4 +1,5 @@
-import { createClient, OrderStatus, OrderVariant, OrderSettlementError, type Order } from "@orbs-network/spot-ui";
+import { OrderSettlementError } from "./host-execution/order-settlement-error";
+import { createClient, OrderStatus, OrderVariant, type Order } from "@orbs-network/spot-ui";
 import type { StoreApi } from "zustand/vanilla";
 import type { SpotStore } from "./context/create-spot-store";
 import { ExecutionPhase, type Callbacks, type OrderExecutionState } from "./types";
@@ -104,10 +105,10 @@ async function reconcileOrderStatus({ store, saved, callbacks, signal }: {
     analytics = createOperationAnalytics(getExecutionAnalyticsContext(saved), client);
     if (!transition(ExecutionPhase.SETTLING, { client, analytics })) return;
     observe(() => analytics.onRecoveryRequest());
-    const prepared = saved.preparedOrder?.order ?? saved.sdkExecution?.preparedOrder?.order;
+    const prepared = saved.preparedOrder?.order ?? saved.hostExecution?.preparedOrder?.order;
     const cached = prepared ? findAcceptedOrder(store.getState().orders.data ?? [], prepared) : undefined;
     const cachedOrder = cached && cached.chainId === chainId && cached.maker.toLowerCase() === account.toLowerCase() ? cached : undefined;
-    const knownOrder = saved.order ?? saved.sdkExecution?.order ?? cachedOrder;
+    const knownOrder = saved.order ?? saved.hostExecution?.order ?? cachedOrder;
     const orderId = knownOrder?.id ?? saved.orderId;
     let order: Order | undefined;
     if (orderId) {

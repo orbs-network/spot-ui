@@ -52,52 +52,6 @@ export const safeBNString = (value?: string | number) => {
   return BN(value).decimalPlaces(0).toFixed();
 };
 
-/**
- * Recognizes common wallet user-rejection codes and messages, including a nested
- * `error` or `cause`. Use it to distinguish a declined wallet prompt from other failures.
- */
-export const isTxRejected = (error: unknown): boolean => {
-  const candidates: unknown[] = [error];
-  if (typeof error === "object" && error !== null) {
-    candidates.push(Reflect.get(error, "error"), Reflect.get(error, "cause"));
-  }
-
-  return candidates.some((candidate) => {
-    if (typeof candidate !== "object" || candidate === null) {
-      return typeof candidate === "string" &&
-        isUserRejectionMessage(candidate);
-    }
-
-    const code = Reflect.get(candidate, "code");
-    if (
-      code === 4001 ||
-      code === "4001" ||
-      code === "ACTION_REJECTED" ||
-      code === "USER_REJECTED" ||
-      code === "USER_DENIED"
-    ) {
-      return true;
-    }
-
-    const message = Reflect.get(candidate, "message");
-    return (
-      typeof message === "string" &&
-      isUserRejectionMessage(message)
-    );
-  });
-};
-
-const isUserRejectionMessage = (message: string): boolean =>
-  /\buser\b.{0,80}\b(?:rejected|denied|cancelled|canceled)\b/i.test(
-    message,
-  ) ||
-  /\brequest\b\s+(?:was\s+)?\b(?:rejected|denied|cancelled|canceled)\b/i.test(
-    message,
-  ) ||
-  /\b(?:rejected|denied|cancelled|canceled)\b.{0,80}\bby\s+(?:the\s+)?user\b/i.test(
-    message,
-  );
-
 export const getExchanges = (config?: Config[]) => {
   if (!config) return undefined;
   const legacyAddresses = config.flatMap(getLegacyExchanges);

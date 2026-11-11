@@ -158,7 +158,7 @@ const calculateOrderFormSchedule = (
 /**
  * Calculates display amounts, prices, trade schedules, and validation for an order form.
  * This is a local calculation: the host supplies the quote, token data, and user inputs.
- * Recalculate when those inputs change and check `canSubmit` before `client.createOrderExecution`.
+ * Recalculate when those inputs change and check `canSubmit` before `client.prepareOrder`.
  *
  * @param params Form inputs in UI units, with quotes and balances in token base units.
  * @returns A form snapshot with `errors` for input validation. `isReady` means the
@@ -173,7 +173,7 @@ export const calculateOrder = (
   params: CalculateOrderFormParams,
 ): CalculatedOrderForm => {
   if (!Object.values(OrderType).includes(params?.orderType)) {
-    throw new SpotError("INVALID_ARGUMENT", "orderType must be TWAP, LIMIT, STOP_LOSS, or TAKE_PROFIT; use createSwapExecution for swaps");
+    throw new SpotError("INVALID_ARGUMENT", "orderType must be TWAP, LIMIT, STOP_LOSS, or TAKE_PROFIT; use prepareSwap for swaps");
   }
   const inputAmountValues = calculateOrderInputAmount(params);
   const inputAmount = inputAmountValues.raw;

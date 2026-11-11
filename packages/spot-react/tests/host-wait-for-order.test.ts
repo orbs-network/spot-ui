@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createAnalytics } from "../src/lib/analytics";
-import { getOrder } from "../src/lib/orders/v2-orders";
-import { OrderStatus, OrderVariant, type Order } from "../src/lib/types";
-import { OrderSettlementError } from "../src/lib/order-settlement-error";
-import { waitForOrder } from "../src/lib/internal/wait-for-order";
+import { createAnalytics } from "../../spot-ui/src/lib/analytics";
 
-vi.mock("../src/lib/orders/v2-orders", () => ({ getOrder: vi.fn() }));
+import { OrderStatus, OrderVariant, type Order } from "@orbs-network/spot-ui";
+import { OrderSettlementError } from "../src/host-execution/order-settlement-error";
+import { waitForOrder } from "../src/host-execution/wait-for-order";
+
+const getOrder = vi.fn();
+const client = { getOrder };
 
 const snapshot = (status = OrderStatus.Open, progress = 0): Order => ({
   id: "0xsigned-order",
@@ -35,7 +36,7 @@ describe("waitForOrder progress", () => {
     const completed = { ...order, status: OrderStatus.Completed, progress: 100 };
     vi.mocked(getOrder).mockResolvedValueOnce(pending).mockResolvedValueOnce(completed);
     const onProgress = vi.fn();
-    const result = expect(waitForOrder({ order, onProgress, analytics: analytics() }))
+    const result = expect(waitForOrder({ client, order, onProgress, analytics: analytics() }))
       .resolves.toBe(completed);
 
     await vi.advanceTimersByTimeAsync(2_000);
@@ -51,7 +52,7 @@ describe("waitForOrder progress", () => {
     const cancelled = { ...order, status: OrderStatus.Cancelled, progress: 25 };
     vi.mocked(getOrder).mockResolvedValue(cancelled);
     const events: string[] = [];
-    const failure = await waitForOrder({
+    const failure = await waitForOrder({ client,
       order,
       analytics: analytics(),
       onProgress: (update) => { events.push(update.status); },
@@ -76,7 +77,7 @@ describe("waitForOrder progress", () => {
       return Promise.reject(error);
     });
 
-    await expect(waitForOrder({ order, onProgress, analytics: analytics() })).resolves.toBe(completed);
+    await expect(waitForOrder({ client, order, onProgress, analytics: analytics() })).resolves.toBe(completed);
     expect(onProgress).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -87,7 +88,7 @@ describe("waitForOrder progress", () => {
     const controller = new AbortController();
     const onProgress = vi.fn(() => { controller.abort(); });
 
-    await expect(waitForOrder({
+    await expect(waitForOrder({ client,
       order, signal: controller.signal, onProgress, analytics: analytics(),
     })).rejects.toMatchObject({ reason: "aborted", orderId: order.id, order: { progress: 25 } });
     expect(onProgress).toHaveBeenCalledOnce();

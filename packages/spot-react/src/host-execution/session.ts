@@ -1,14 +1,13 @@
-import { createExecutionObserver, type OrderWalletInteractions, type OrderExecutionUpdate, type SignableOrder } from "../execute-order";
-import type { ApprovalRequest, SpotClient } from "../client";
-import { OrderStatus, type DeepReadonly, type Hex, type Order } from "../types";
-import type { OrderExecution, ExecutionRunOptions, TransactionStepResult } from "../execution-session";
-import { OrderSettlementError } from "../order-settlement-error";
-import { SpotError } from "../errors";
-import { MAX_UINT_256 } from "../evm-constants";
-import { observe } from "../observe";
-import { bindOrderAnalytics, bindSubmittedOrderAnalytics, type SpotAnalytics } from "../analytics";
+import { createExecutionObserver, type OrderWalletInteractions, type OrderExecutionUpdate, type SignableOrder } from "./progress";
+import { OrderStatus, SpotError, type ApprovalRequest, type SpotClient, type DeepReadonly, type Hex, type Order } from "@orbs-network/spot-ui";
+import type { OrderExecution, ExecutionRunOptions, TransactionStepResult } from "./types";
+import { OrderSettlementError } from "./order-settlement-error";
+import { observe } from "./observe";
+import { bindOrderAnalytics, bindSubmittedOrderAnalytics, type SpotAnalytics } from "@orbs-network/spot-ui/internal";
+import { WalletInteractionError } from "../wallet-interaction-error";
 
-export type { OrderExecutionPhase, OrderExecutionStep, OrderExecutionUpdate, SignableOrder } from "../execute-order";
+export type { OrderExecutionPhase, OrderExecutionStep, OrderExecutionUpdate, SignableOrder } from "./progress";
+const MAX_UINT_256 = (BigInt(2) ** BigInt(256) - BigInt(1)).toString();
 const MAX_APPROVAL_TRANSACTIONS = 2;
 
 /** Internal wallet runner inputs; public client methods own preparation. */
@@ -27,7 +26,7 @@ export interface RunOrderExecutionParams<T extends SignableOrder> {
   signal?: AbortSignal;
 }
 
-/** SDK-owned services and React lifecycle wiring; never supplied by an integrator. */
+/** Host-owned services and React lifecycle wiring; never supplied by an integrator. */
 export interface OrderExecutionRuntime<T extends SignableOrder> {
   client: Pick<SpotClient, "spenderAddress"> & Partial<Pick<SpotClient, "chainId" | "partner">>;
   submitOrder: (order: SignableOrder["order"], signature: `0x${string}`, options?: { signal?: AbortSignal }) => Promise<Order>;
@@ -378,7 +377,7 @@ function createSession<T extends SignableOrder>(
     observe(() => analytics.onWrapRequest(raw));
     const hash = await wallet!.wrapNativeToken(raw);
     if (typeof hash !== "string" || !hash.startsWith("0x") || hash.length <= 2) {
-      throw new SpotError("WRAP_FAILED", "wrapNativeToken must return a confirmed transaction hash");
+      throw new WalletInteractionError("WRAP_FAILED", "wrapNativeToken must return a confirmed transaction hash");
     }
     wrapTxHash = hash;
     wrappingDone = true;
@@ -415,7 +414,7 @@ function createSession<T extends SignableOrder>(
       check();
       const hash = await wallet!.approveToken(approvalRequest);
       if (typeof hash !== "string" || !hash.startsWith("0x") || hash.length <= 2) {
-        throw new SpotError("APPROVAL_FAILED", "approveToken must return a confirmed transaction hash");
+        throw new WalletInteractionError("APPROVAL_FAILED", "approveToken must return a confirmed transaction hash");
       }
       approvalTxHash = hash;
       emit({ event: "transaction", approvalTxHash: hash });
@@ -431,7 +430,7 @@ function createSession<T extends SignableOrder>(
         return Object.freeze({ status: "success", txHash: hash });
       }
     }
-    throw new SpotError("INSUFFICIENT_ALLOWANCE", "Token allowance is still insufficient after retrying approval. Review the allowance before trying again.");
+    throw new WalletInteractionError("INSUFFICIENT_ALLOWANCE", "Token allowance is still insufficient after retrying approval. Review the allowance before trying again.");
   });
 
   const sign = (): Promise<Hex> => perform("sign", async () => {

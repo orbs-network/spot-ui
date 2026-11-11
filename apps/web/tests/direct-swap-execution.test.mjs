@@ -15,6 +15,11 @@ const mocks = vi.hoisted(() => ({
   refreshBalances: vi.fn(),
 }));
 
+vi.mock("@orbs-network/spot-react/internal", async importOriginal => ({
+  ...await importOriginal(),
+  createHostSwapExecution: (sdk, params) => sdk.hostFactory(params),
+}));
+
 vi.mock("wagmi/actions", () => ({ getConnection: () => mocks.connection }));
 vi.mock("../lib/wagmi-config", () => ({ wagmiConfig: {} }));
 vi.mock("../lib/hooks/store", () => ({ useSwapStore: { getState: () => mocks.form } }));
@@ -41,8 +46,8 @@ const order = () => ({
 });
 const completed = () => ({ ...order(), status: OrderStatus.Completed, progress: 100 });
 const client = () => {
-  const sdk = { chainId: 1, partner: Partners.Quick, runSwap: vi.fn(), getOrder: vi.fn(), getOrders: vi.fn() };
-  sdk.createSwapExecution = vi.fn(params => {
+  const sdk = { chainId: 1, partner: Partners.Quick, runHostSwap: vi.fn(), getOrder: vi.fn(), getOrders: vi.fn() };
+  sdk.hostFactory = vi.fn(params => {
     const shouldWrap = params.walletInteractions.shouldWrap.bind(params.walletInteractions);
     const shouldApprove = params.walletInteractions.shouldApprove.bind(params.walletInteractions);
     const approvalRequest = { tokenAddress: params.quote.request.inToken, spenderAddress: spender, amount: params.quote.request.inAmount, approvalAmount: maxUint256.toString() };
@@ -74,7 +79,7 @@ const client = () => {
       shouldApprove: vi.fn(async () => approved ? false : shouldApprove({ ...approvalRequest })),
       run: vi.fn((options = {}) => {
         const onProgress = update => captureProgress(update, options.onProgress);
-        return Promise.resolve(sdk.runSwap({ ...params, onProgress })).then(order => {
+        return Promise.resolve(sdk.runHostSwap({ ...params, onProgress })).then(order => {
           latestOrder = order;
           wrapped = true;
           approved = true;
@@ -115,7 +120,7 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
-// Exercise the host's context checks through the execution object's wallet boundary.
+// Exercise the host's context checks through the host execution object's wallet boundary.
 const executeWalletPrerequisites = async ({ walletInteractions, onProgress }) => {
   onProgress(progress("preparing", "request"));
   if (await walletInteractions.shouldWrap()) {
@@ -177,7 +182,7 @@ describe("provider-free host swap execution", () => {
   it("captures the approved quote and token metadata before later caller mutations", async () => {
     const sdk = client();
     const result = deferred();
-    sdk.runSwap.mockReturnValue(result.promise);
+    sdk.runHostSwap.mockReturnValue(result.promise);
     const snapshot = review(sdk);
     await mount();
     let pending;
@@ -195,7 +200,7 @@ describe("provider-free host swap execution", () => {
     });
     expect(hook.review.inputToken.symbol).toBe("IN");
     expect(hook.review.outputToken.decimals).toBe(0);
-    expect(sdk.createSwapExecution.mock.calls[0][0].quote.netAmountOut).toBe("20");
+    expect(sdk.hostFactory.mock.calls[0][0].quote.netAmountOut).toBe("20");
 
     await act(async () => { result.resolve(completed()); await pending; });
     expect(hook.phase).toBe("success");
@@ -203,7 +208,7 @@ describe("provider-free host swap execution", () => {
 
   it("releases the submission lock when the SDK expires the order before sending its POST", async () => {
     const sdk = client();
-    sdk.runSwap.mockImplementationOnce(async ({ onProgress }) => {
+    sdk.runHostSwap.mockImplementationOnce(async ({ onProgress }) => {
       onProgress(progress("submitting", "request"));
       throw new SpotError("ORDER_EXPIRED", "Order expired before submission");
     }).mockResolvedValueOnce(completed());
@@ -215,14 +220,14 @@ describe("provider-free host swap execution", () => {
     expect(sdk.getOrders).not.toHaveBeenCalled();
     await execute(snapshot);
     expect(hook.phase).toBe("success");
-    expect(sdk.runSwap).toHaveBeenCalledTimes(2);
+    expect(sdk.runHostSwap).toHaveBeenCalledTimes(2);
   });
 
   it("returns a decreased quote to review without an error or an automatic retry", async () => {
     const sdk = client();
     const snapshot = review(sdk);
     const decreased = new SpotError("QUOTE_MINIMUM_DECREASED", "Swap minimum output decreased");
-    sdk.runSwap.mockImplementationOnce(async ({ onProgress }) => {
+    sdk.runHostSwap.mockImplementationOnce(async ({ onProgress }) => {
       onProgress(progress("signing", "request"));
       onProgress(progress("signing", "error", { error: decreased }));
       throw decreased;
@@ -234,13 +239,13 @@ describe("provider-free host swap execution", () => {
     expect(hook).toMatchObject({ phase: "price-changed", isActive: false, review: snapshot });
     expect(hook.priceChangedAt).toBeGreaterThanOrEqual(startedAt);
     expect(hook.error).toBeUndefined();
-    expect(hook.sdkExecution).toBeUndefined();
+    expect(hook.hostExecution).toBeUndefined();
     expect(hook.signedOrder).toBeUndefined();
     expect(hook.order).toBeUndefined();
     expect(useDirectSwapStore.getState().controller).toBeUndefined();
     expect(mocks.wallet.signOrder).not.toHaveBeenCalled();
-    expect(sdk.createSwapExecution).toHaveBeenCalledOnce();
-    expect(sdk.runSwap).toHaveBeenCalledOnce();
+    expect(sdk.hostFactory).toHaveBeenCalledOnce();
+    expect(sdk.runHostSwap).toHaveBeenCalledOnce();
     expect(sdk.getOrder).not.toHaveBeenCalled();
     expect(sdk.getOrders).not.toHaveBeenCalled();
   });
@@ -254,7 +259,7 @@ describe("provider-free host swap execution", () => {
       params.onProgress(progress("signing", "request"));
       throw decreased;
     };
-    sdk.runSwap.mockImplementationOnce(rejectQuote).mockImplementationOnce(rejectQuote).mockImplementationOnce(executeWalletFlow);
+    sdk.runHostSwap.mockImplementationOnce(rejectQuote).mockImplementationOnce(rejectQuote).mockImplementationOnce(executeWalletFlow);
     mocks.wallet.shouldWrap.mockReturnValue(true);
     mocks.wallet.shouldApprove.mockResolvedValueOnce(true).mockResolvedValue(false);
     await mount();
@@ -276,9 +281,9 @@ describe("provider-free host swap execution", () => {
     await execute(acceptedAgain);
 
     expect(hook.phase).toBe("success");
-    expect(sdk.createSwapExecution).toHaveBeenCalledTimes(3);
-    expect(sdk.createSwapExecution.mock.calls[1][0].quote.minimumAmountOut).toBe("17");
-    expect(sdk.createSwapExecution.mock.calls[2][0].quote.minimumAmountOut).toBe("16");
+    expect(sdk.hostFactory).toHaveBeenCalledTimes(3);
+    expect(sdk.hostFactory.mock.calls[1][0].quote.minimumAmountOut).toBe("17");
+    expect(sdk.hostFactory.mock.calls[2][0].quote.minimumAmountOut).toBe("16");
     expect(mocks.wallet.wrapNativeToken).toHaveBeenCalledExactlyOnceWith("10");
     expect(mocks.wallet.shouldApprove).toHaveBeenCalledTimes(3);
     expect(mocks.wallet.approveToken).toHaveBeenCalledExactlyOnceWith({ tokenAddress: inputAddress, spenderAddress: spender, amount: "10", approvalAmount: maxUint256.toString() });
@@ -289,7 +294,7 @@ describe("provider-free host swap execution", () => {
   it.each(["amount", "slippage", "output"])("does not reuse a price-change wrap after the review changes %s", async changed => {
     const sdk = client();
     const snapshot = review(sdk);
-    sdk.runSwap.mockImplementationOnce(async params => {
+    sdk.runHostSwap.mockImplementationOnce(async params => {
       await executeWalletPrerequisites(params);
       throw new SpotError("QUOTE_MINIMUM_DECREASED", "Swap minimum output decreased");
     }).mockImplementationOnce(executeWalletFlow);
@@ -316,7 +321,7 @@ describe("provider-free host swap execution", () => {
 
   it("keeps a quote error after submission locked for status reconciliation", async () => {
     const sdk = client();
-    sdk.runSwap.mockImplementationOnce(async ({ onProgress }) => {
+    sdk.runHostSwap.mockImplementationOnce(async ({ onProgress }) => {
       onProgress(progress("signing", "prepared", { preparedOrder: prepared() }));
       onProgress(progress("submitting", "request"));
       throw new SpotError("QUOTE_MINIMUM_DECREASED", "A late quote error");
@@ -328,14 +333,14 @@ describe("provider-free host swap execution", () => {
     expect(hook).toMatchObject({ phase: "unconfirmed", signedOrder, error: expect.objectContaining({ code: "QUOTE_MINIMUM_DECREASED" }) });
     expect(hook.priceChangedAt).toBeUndefined();
     await execute(snapshot);
-    expect(sdk.createSwapExecution).toHaveBeenCalledOnce();
+    expect(sdk.hostFactory).toHaveBeenCalledOnce();
   });
 
   it("retains an unknown submission and its duplicate-submit lock through remounts", async () => {
     const sdk = client();
     const snapshot = review(sdk);
     const response = deferred();
-    sdk.runSwap.mockImplementation(async ({ walletInteractions, onProgress }) => {
+    sdk.runHostSwap.mockImplementation(async ({ walletInteractions, onProgress }) => {
       onProgress(progress("signing", "prepared", { preparedOrder: prepared() }));
       await walletInteractions.signOrder(signingRequest());
       onProgress(progress("submitting", "request"));
@@ -348,9 +353,9 @@ describe("provider-free host swap execution", () => {
     await unmount();
     await mount();
     await execute(snapshot);
-    expect(sdk.runSwap).toHaveBeenCalledOnce();
-    expect(sdk.createSwapExecution.mock.calls[0][0]).not.toHaveProperty("onProgress");
-    expect(hook.sdkExecution.run).toHaveBeenCalledWith({ onProgress: expect.any(Function) });
+    expect(sdk.runHostSwap).toHaveBeenCalledOnce();
+    expect(sdk.hostFactory.mock.calls[0][0]).not.toHaveProperty("onProgress");
+    expect(hook.hostExecution.run).toHaveBeenCalledWith({ onProgress: expect.any(Function) });
     await act(async () => {
       response.reject(new Error("POST response was lost"));
       await pending;
@@ -361,19 +366,19 @@ describe("provider-free host swap execution", () => {
     await mount();
     await execute(snapshot);
     expect(hook.phase).toBe("unconfirmed");
-    expect(sdk.runSwap).toHaveBeenCalledOnce();
+    expect(sdk.runHostSwap).toHaveBeenCalledOnce();
     sdk.getOrders.mockResolvedValue({ orders: [], legacyLoaded: false });
     await act(async () => hook.checkOrderStatus());
     expect(hook.phase).toBe("unconfirmed");
     expect(sdk.getOrder).not.toHaveBeenCalled();
     await execute(snapshot);
-    expect(sdk.runSwap).toHaveBeenCalledOnce();
+    expect(sdk.runHostSwap).toHaveBeenCalledOnce();
   });
 
   it("recovers an exact signed intent using only its original client and saved account", async () => {
     const sdk = client();
     const snapshot = review(sdk);
-    sdk.runSwap.mockImplementation(async ({ walletInteractions, onProgress }) => {
+    sdk.runHostSwap.mockImplementation(async ({ walletInteractions, onProgress }) => {
       onProgress(progress("signing", "prepared", { preparedOrder: prepared() }));
       await walletInteractions.signOrder(signingRequest());
       onProgress(progress("submitting", "request"));
@@ -402,8 +407,8 @@ describe("provider-free host swap execution", () => {
     await act(async () => hook.checkOrderStatus());
     expect(sdk.getOrder).toHaveBeenCalledExactlyOnceWith({ orderId: accepted.id, signal: expect.any(AbortSignal) });
     expect(sdk.getOrders).toHaveBeenCalledOnce();
-    expect(sdk.createSwapExecution).toHaveBeenCalledOnce();
-    expect(sdk.runSwap).toHaveBeenCalledOnce();
+    expect(sdk.hostFactory).toHaveBeenCalledOnce();
+    expect(sdk.runHostSwap).toHaveBeenCalledOnce();
     expect(mocks.wallet.wrapNativeToken).not.toHaveBeenCalled();
     expect(mocks.wallet.approveToken).not.toHaveBeenCalled();
     expect(mocks.wallet.signOrder).not.toHaveBeenCalled();
@@ -421,7 +426,7 @@ describe("provider-free host swap execution", () => {
     await act(async () => hook.checkOrderStatus());
     expect(hook).toMatchObject({ phase: "failed", order: expect.objectContaining({ status }) });
     expect(sdk.getOrder).toHaveBeenCalledOnce();
-    expect(sdk.createSwapExecution).not.toHaveBeenCalled();
+    expect(sdk.hostFactory).not.toHaveBeenCalled();
     expect(mocks.wallet.signOrder).not.toHaveBeenCalled();
   });
 
@@ -435,13 +440,13 @@ describe("provider-free host swap execution", () => {
     await act(async () => hook.checkOrderStatus());
     expect(hook).toMatchObject({ phase: "unconfirmed", order: accepted });
     await execute(snapshot);
-    expect(sdk.createSwapExecution).not.toHaveBeenCalled();
+    expect(sdk.hostFactory).not.toHaveBeenCalled();
     await act(async () => hook.checkOrderStatus());
     expect(hook).toMatchObject({ phase: "unconfirmed", order: accepted });
     await act(async () => hook.checkOrderStatus());
     expect(hook.phase).toBe("success");
     expect(sdk.getOrder).toHaveBeenCalledTimes(3);
-    expect(sdk.createSwapExecution).not.toHaveBeenCalled();
+    expect(sdk.hostFactory).not.toHaveBeenCalled();
     expect(mocks.wallet.signOrder).not.toHaveBeenCalled();
   });
 
@@ -455,7 +460,7 @@ describe("provider-free host swap execution", () => {
     await act(async () => hook.checkOrderStatus());
     expect(hook).toMatchObject({ phase: "failed", error: expect.objectContaining({ code: "ORDER_EXPIRED" }) });
     expect(sdk.getOrders).toHaveBeenCalledExactlyOnceWith({ account, legacyOrders: false, getv1orders: false, rejectInvalidOrders: true, signal: expect.any(AbortSignal) });
-    expect(sdk.createSwapExecution).not.toHaveBeenCalled();
+    expect(sdk.hostFactory).not.toHaveBeenCalled();
     expect(mocks.wallet.signOrder).not.toHaveBeenCalled();
     await act(async () => hook.reset());
     expect(hook.phase).toBe("idle");
@@ -472,7 +477,7 @@ describe("provider-free host swap execution", () => {
     expect(hook.phase).toBe("unconfirmed");
     await act(async () => hook.reset());
     expect(hook.phase).toBe("unconfirmed");
-    expect(sdk.createSwapExecution).not.toHaveBeenCalled();
+    expect(sdk.hostFactory).not.toHaveBeenCalled();
   });
 
   it.each(["saved", "execution"])("keeps a known accepted expired swap unresolved when lookup is missing (%s)", async source => {
@@ -483,14 +488,14 @@ describe("provider-free host swap execution", () => {
     sdk.getOrder.mockResolvedValue(undefined);
     useDirectSwapStore.setState({ execution: {
       ...idleSwapExecution(), phase: "unconfirmed", review: review(sdk), signedOrder: expired,
-      ...(source === "saved" ? { order: accepted } : { sdkExecution: { order: accepted } }),
+      ...(source === "saved" ? { order: accepted } : { hostExecution: { order: accepted } }),
     } });
     await mount();
     await act(async () => hook.checkOrderStatus());
     expect(hook.phase).toBe("unconfirmed");
     expect(sdk.getOrder).toHaveBeenCalledExactlyOnceWith({ orderId: accepted.id, signal: expect.any(AbortSignal) });
     expect(sdk.getOrders).not.toHaveBeenCalled();
-    expect(sdk.createSwapExecution).not.toHaveBeenCalled();
+    expect(sdk.hostFactory).not.toHaveBeenCalled();
   });
 
   it.each([{ id: "wrong" }, { historyKey: "wrong" }, { chainId: 137 }])("rejects a mismatched completed snapshot: %j", async mismatch => {
@@ -502,13 +507,13 @@ describe("provider-free host swap execution", () => {
     await mount();
     await act(async () => hook.checkOrderStatus());
     expect(hook).toMatchObject({ phase: "unconfirmed", order: accepted, error: expect.any(Error) });
-    expect(sdk.createSwapExecution).not.toHaveBeenCalled();
+    expect(sdk.hostFactory).not.toHaveBeenCalled();
   });
 
   it("keeps tracking an accepted execution after the connected wallet changes", async () => {
     const sdk = client();
     const settlement = deferred();
-    sdk.runSwap.mockImplementation(async ({ onProgress }) => {
+    sdk.runHostSwap.mockImplementation(async ({ onProgress }) => {
       onProgress(progress("settling", "accepted", { order: order() }));
       const filled = await settlement.promise;
       onProgress(progress("settling", "success", { order: filled }));
@@ -521,13 +526,13 @@ describe("provider-free host swap execution", () => {
     mocks.connection = { chainId: 137, address: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" };
     await act(async () => { settlement.resolve(completed()); await pending; });
     expect(hook.phase).toBe("success");
-    expect(sdk.runSwap).toHaveBeenCalledOnce();
+    expect(sdk.runHostSwap).toHaveBeenCalledOnce();
   });
 
   it("requires a fresh wrapping decision after a confirmed wrap and rejected signature", async () => {
     const sdk = client();
     const snapshot = review(sdk);
-    sdk.runSwap.mockImplementation(executeWalletFlow);
+    sdk.runHostSwap.mockImplementation(executeWalletFlow);
     mocks.wallet.shouldWrap.mockReturnValue(true);
     mocks.wallet.signOrder.mockRejectedValueOnce(new Error("Wallet rejected signing"));
     await mount();
@@ -545,13 +550,13 @@ describe("provider-free host swap execution", () => {
     await execute(snapshot);
     expect(hook.phase).toBe("success");
     expect(mocks.wallet.wrapNativeToken).toHaveBeenCalledOnce();
-    expect(sdk.runSwap).toHaveBeenCalledTimes(3);
+    expect(sdk.runHostSwap).toHaveBeenCalledTimes(3);
   });
 
   it.each(["amount", "slippage", "output"])("retains the confirmed wrap guard when a failed review changes %s", async changed => {
     const sdk = client();
     const snapshot = review(sdk);
-    sdk.runSwap.mockImplementation(executeWalletFlow);
+    sdk.runHostSwap.mockImplementation(executeWalletFlow);
     mocks.wallet.shouldWrap.mockReturnValue(true);
     mocks.wallet.signOrder.mockRejectedValueOnce(new Error("Wallet rejected signing"));
     await mount();
@@ -578,7 +583,7 @@ describe("provider-free host swap execution", () => {
   it.each(["account", "chain", "token"])("allows a fresh native wrap in an independent %s scope", async changed => {
     const sdk = client();
     const snapshot = review(sdk);
-    sdk.runSwap.mockImplementation(executeWalletFlow);
+    sdk.runHostSwap.mockImplementation(executeWalletFlow);
     mocks.wallet.shouldWrap.mockReturnValue(true);
     useDirectSwapStore.setState({ confirmedWrap: { account, chainId: 1, tokenAddress: inputAddress, hash: "0xprevious" } });
     if (changed === "account") {
@@ -601,7 +606,7 @@ describe("provider-free host swap execution", () => {
     const lateSignature = deferred();
     mocks.wallet.signOrder.mockReturnValueOnce(lateSignature.promise);
     let originalSigner;
-    sdk.runSwap.mockImplementationOnce(async ({ walletInteractions, onProgress }) => {
+    sdk.runHostSwap.mockImplementationOnce(async ({ walletInteractions, onProgress }) => {
       onProgress(progress("signing", "prepared", { preparedOrder: prepared() }));
       originalSigner = walletInteractions.signOrder(signingRequest());
       void originalSigner.catch(() => undefined);
@@ -612,7 +617,7 @@ describe("provider-free host swap execution", () => {
     expect(hook.phase).toBe("failed");
 
     const nextSwap = deferred();
-    sdk.runSwap.mockReturnValueOnce(nextSwap.promise);
+    sdk.runHostSwap.mockReturnValueOnce(nextSwap.promise);
     let nextAttempt;
     await act(async () => { nextAttempt = hook.execute(snapshot); });
     expect(hook.phase).toBe("preparing");
@@ -632,7 +637,7 @@ describe("provider-free host swap execution", () => {
     const receipt = deferred();
     mocks.wallet.shouldWrap.mockReturnValue(true);
     mocks.wallet.wrapNativeToken.mockReturnValueOnce(receipt.promise);
-    sdk.runSwap.mockImplementation(async params => {
+    sdk.runHostSwap.mockImplementation(async params => {
       try { return await executeWalletFlow(params); }
       catch (error) {
         params.onProgress(progress("wrapping", "error", { error }));
@@ -658,7 +663,7 @@ describe("provider-free host swap execution", () => {
 
   it("stops before wallet writes when the connected chain changes during the wrap decision", async () => {
     const sdk = client();
-    sdk.runSwap.mockImplementation(executeWalletFlow);
+    sdk.runHostSwap.mockImplementation(executeWalletFlow);
     const decision = deferred();
     mocks.wallet.shouldWrap.mockReturnValueOnce(decision.promise);
     await mount();

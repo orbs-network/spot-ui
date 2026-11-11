@@ -5,7 +5,8 @@ import {
   type CompletedWrap,
   type OrderExecutionState,
 } from "./types";
-import { OrderSettlementError, SpotError } from "@orbs-network/spot-ui";
+import { SpotError } from "@orbs-network/spot-ui";
+import { OrderSettlementError } from "./host-execution/order-settlement-error";
 
 export { getErrorMessage, normalizeError, parseExecutionError } from "./parse-execution-error";
 

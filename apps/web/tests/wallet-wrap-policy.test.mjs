@@ -3,8 +3,8 @@ import { act, createElement, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { maxUint256 } from "viem";
-import { createClient } from "../../../packages/spot-ui/src/lib/client";
-import { OrderStatus, Partners } from "../../../packages/spot-ui/src/lib/types";
+import { createClient, OrderStatus, Partners } from "@orbs-network/spot-ui";
+import { createHostSwapExecution } from "@orbs-network/spot-react/internal";
 import { useWalletInteractions } from "../lib/hooks/use-wallet-interactions";
 
 const mocks = vi.hoisted(() => ({
@@ -152,7 +152,7 @@ const deferred = () => {
   return { promise, resolve };
 };
 
-/** Real SDK execution plus the real web wallet adapter; only wallet/RPC/HTTP boundaries are stubbed. */
+/** Real host execution and public SDK methods plus the real web wallet adapter; only wallet/RPC/HTTP boundaries are stubbed. */
 const approvalIntegration = async ({ decimals, caps, extraRaw = 0n, staleLatest = false, headBlock, laterCap, approveExact = false, receiptBlockValue = block => block.toString() }) => {
   const unit = 10n ** BigInt(decimals);
   const requested = 198n * unit + extraRaw;
@@ -221,7 +221,7 @@ const approvalIntegration = async ({ decimals, caps, extraRaw = 0n, staleLatest 
   const client = await createClient(Partners.Quick, 1, {
     disableAnalytics: true, apiUrl: `https://wallet-integration-${++integrationId}.example/v2`,
   });
-  const execution = client.createSwapExecution({
+  const execution = createHostSwapExecution(client, {
     account, walletInteractions: {
       ...wallet,
       approveToken: request => {

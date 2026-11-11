@@ -1,6 +1,7 @@
-import { SpotError, type OrderWalletInteractions } from "@orbs-network/spot-react";
+import { SpotError, WalletInteractionError } from "@orbs-network/spot-react";
+import type { OrderWalletInteractions } from "@orbs-network/spot-react/internal";
 
-/** Host scope checks and native retry policy stay outside the SDK execution contract. */
+/** The DEX binds wallet operations to its reviewed scope and native retry policy. */
 export const createSwapWalletAdapter = ({
   wallet, guard, hasConfirmedWrap,
   onWrapConfirmed, onApproveConfirmed,
@@ -27,7 +28,7 @@ export const createSwapWalletAdapter = ({
       const required = await checked(shouldWrap);
       if (typeof required !== "boolean") throw new SpotError("INVALID_ARGUMENT", "walletInteractions.shouldWrap must return a boolean");
       if (required && hasConfirmedWrap) {
-        throw new SpotError("WRAP_FAILED", "A previous wrap is confirmed. Select the wrapped token and review its balance before trying again.");
+        throw new WalletInteractionError("WRAP_FAILED", "A previous wrap is confirmed. Select the wrapped token and review its balance before trying again.");
       }
       return required;
     },
@@ -39,9 +40,9 @@ export const createSwapWalletAdapter = ({
     wrapNativeToken: async amountRaw => {
       guard();
       const amount = amountRaw;
-      if (BigInt(amount) <= BigInt(0)) throw new SpotError("WRAP_FAILED", "Wrapping is unnecessary; check shouldWrap before requesting a transaction.");
+      if (BigInt(amount) <= BigInt(0)) throw new WalletInteractionError("WRAP_FAILED", "Wrapping is unnecessary; check shouldWrap before requesting a transaction.");
       const hash = await wrapNativeToken(amount);
-      if (!hash) throw new SpotError("WRAP_FAILED", "The required wrap returned no confirmed transaction hash.");
+      if (!hash) throw new WalletInteractionError("WRAP_FAILED", "The required wrap returned no confirmed transaction hash.");
       onWrapConfirmed(hash, amount);
       guard();
       return hash;
@@ -49,7 +50,7 @@ export const createSwapWalletAdapter = ({
     approveToken: async request => {
       guard();
       const hash = await approveToken(request);
-      if (!hash) throw new SpotError("APPROVAL_FAILED", "The required approval returned no confirmed transaction hash.");
+      if (!hash) throw new WalletInteractionError("APPROVAL_FAILED", "The required approval returned no confirmed transaction hash.");
       onApproveConfirmed(hash);
       guard();
       return hash;

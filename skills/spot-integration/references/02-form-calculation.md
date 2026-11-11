@@ -6,7 +6,7 @@ Inspect the installed form types before using diagnostics. Releases exposing
 UI; do not ask a non-developer to identify raw amounts or SDK prerequisites that
 can be discovered from the project.
 
-`calculateOrder` is synchronous and time-independent for the four advanced order types: `OrderType.TWAP`, `LIMIT`, `STOP_LOSS`, and `TAKE_PROFIT`. Swaps use quote amounts and token metadata directly with `client.createSwapExecution(...).run()`; they do not use this form API. An invalid `orderType`, including raw `"SWAP"`, throws `INVALID_ARGUMENT`. Keep the user's editable state under `userInput`; pass token, quote, balance, and product configuration at the top level.
+`calculateOrder` is synchronous and time-independent for the four advanced order types: `OrderType.TWAP`, `LIMIT`, `STOP_LOSS`, and `TAKE_PROFIT`. Swaps use quote amounts and token metadata directly with `client.prepareSwap(...)` and inline host signing/submission; they do not use this form API. An invalid `orderType`, including raw `"SWAP"`, throws `INVALID_ARGUMENT`. Keep the user's editable state under `userInput`; pass token, quote, balance, and product configuration at the top level.
 
 Create one memoized/computed form derivation in the application's existing state layer. Its dependency key should contain only the primitive values represented by `CalculateOrderFormParams`; do not recalculate because an unrelated app/store field changed. Existing components should select only the calculated fields they render rather than subscribing to the entire store.
 

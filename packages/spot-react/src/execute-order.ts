@@ -1,12 +1,14 @@
+import { OrderSettlementError } from "./host-execution/order-settlement-error";
+import { createHostOrderExecution } from "./host-execution/create-execution";
 import {
-  OrderSettlementError,
   type Address,
   type CalculatedOrderForm,
   type Order,
   type SpotClient,
   type Partners,
 } from "@orbs-network/spot-ui";
-import { isNativeAddress, isTxRejected, toAmountUI } from "@orbs-network/spot-ui/internal";
+import { isNativeAddress, toAmountUI } from "@orbs-network/spot-ui/internal";
+import { isTxRejected } from "./wallet-interaction-error";
 import {
   ExecutionPhase,
   type Callbacks,
@@ -268,7 +270,7 @@ export const executeOrder = async (
       },
       onApproveConfirmed: hash => { tryTransition(execution.phase, { approveTxHash: hash }); },
     });
-    const sdkExecution = client.createOrderExecution({
+    const hostExecution = createHostOrderExecution(client, {
       form,
       account,
       inputTokenAddress: orderInputToken.address,
@@ -276,8 +278,8 @@ export const executeOrder = async (
       walletInteractions: wallet,
       signal: controller.signal,
     });
-    transition(execution.phase, { sdkExecution });
-    const order = await sdkExecution.run({
+    transition(execution.phase, { hostExecution });
+    const order = await hostExecution.run({
       onProgress: (update) => {
         const progress = getExecutionProgress(update, progressContext);
         progress.wrapTxHash ??= execution.wrapTxHash;
@@ -305,7 +307,7 @@ export const executeOrder = async (
   } catch (error) {
     // Advanced execution finishes at acceptance; a later cancellation or
     // adapter error cannot undo the order already accepted by the service.
-    const acceptedOrder = execution.order ?? execution.sdkExecution?.order;
+    const acceptedOrder = execution.order ?? execution.hostExecution?.order;
     if (acceptedOrder) {
       const order = structuredClone(acceptedOrder) as Order;
       recordAcceptance(order);

@@ -17,7 +17,7 @@ const assertOrderType = (orderType: unknown): void => {
     case OrderType.TAKE_PROFIT:
       return;
     default:
-      throw new Error("AdvancedOrdersProvider supports TWAP, Limit, Stop-Loss, and Take-Profit orders. Use createClient and client.createSwapExecution for swaps without a provider.");
+      throw new Error("AdvancedOrdersProvider supports TWAP, Limit, Stop-Loss, and Take-Profit orders. Use createClient and client.prepareSwap and client.submitOrder for swaps without a provider.");
   }
 };
 

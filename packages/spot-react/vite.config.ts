@@ -30,9 +30,14 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
-      name: 'SpotReact',
-      fileName: 'spot-react',
+      entry: {
+        'spot-react': resolve(__dirname, 'src/index.ts'),
+        internal: resolve(__dirname, 'src/internal.ts'),
+      },
+      formats: ['es', 'cjs'],
+      fileName: (format, entryName) => entryName === 'spot-react'
+        ? format === 'es' ? 'spot-react.js' : 'spot-react.umd.cjs'
+        : `internal.${format === 'es' ? 'js' : 'cjs'}`,
     },
     rollupOptions: {
       // React stays external so hooks consume the host app's instance.

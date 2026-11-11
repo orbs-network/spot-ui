@@ -13,11 +13,11 @@ Create focused host hooks/services for the missing capabilities; do not put wall
 | Capability | What the agent implements |
 | --- | --- |
 | Chains and RPC | One registry for chain IDs, RPC/read clients, native symbol/decimals, verified wrapped-native tokens, and explorer links. Share it with wallet/network controls; verify actual RPC chain IDs and browser access. Private service credentials stay server-side when required. |
-| Wallet | Connect/disconnect, active account/chain, network switching, receipt-confirmed writes, and the installed `walletInteractions` methods. Inspect the installed contract rather than inventing wallet methods. The advanced provider requires a cancellation adapter even when history UI is out of scope. Direct swap execution uses `OrderWalletInteractions` without cancellation; neither path requires adding a history screen. A preview address is only for quoting. |
+| Wallet | Connect/disconnect, active account/chain, network switching, receipt-confirmed writes, and the installed `walletInteractions` methods. Inspect the installed contract rather than inventing wallet methods. The advanced provider requires a cancellation adapter even when history UI is out of scope. Provider-free swaps use the host wallet services directly, with no core SDK adapter; neither path requires adding a history screen. A preview address is only for quoting. |
 | Token list | A maintained chain-specific list or verified curated set, searchable selectors, and loading/error/retry states. Validate addresses/decimals and key by chain plus normalized address. Keep non-18 decimals intact; never use symbols as identity or guess 18 decimals. Add the native sentinel separately from its wrapped ERC-20 token. Custom-token import is optional. |
 | Balances | Native balance and ERC-20 `balanceOf(account)` for selected tokens, keyed by account/chain/token and held as raw integer strings. Disconnected/loading/error is unavailable; a confirmed zero is `"0"`. Track a visible read error separately, and refresh after relevant confirmed writes and order events. Account/chain/token changes invalidate old balances. |
 | Host state | Selected tokens, typed amount, slippage, and requested navigation in one small state layer. Local state can be enough; do not add a global store just for Spot. Let focused Spot hooks own their price/schedule/execution state rather than mirroring it in the host. |
-| Quote resource | Use the installed SDK `getQuote`/`client.getQuote` when no router exists; another venue is unnecessary. Quote the complete raw ERC-20 input with the actual partner/chain. For SDK-managed execution, provide required boolean/async `shouldWrap`/`shouldApprove` decisions plus transaction callbacks that return confirmed hashes when invoked; Advanced forms normalize native input to `wrappedNativeToken`; direct swap hosts quote the wrapped address themselves. Omit `dexMinAmountOut` without a competing quote. Debounce/refresh as appropriate, key by the full request, and cancel/ignore obsolete responses. Expose loading, no-liquidity, error, and retry state. |
+| Quote resource | Use the installed SDK `getQuote`/`client.getQuote` when no router exists; another venue is unnecessary. Quote the complete raw ERC-20 input with the actual partner/chain. For advanced-provider execution, supply its required `WalletInteractions` decision and confirmed-transaction callbacks; provider-free swaps own those steps in host code; Advanced forms normalize native input to `wrappedNativeToken`; direct swap hosts quote the wrapped address themselves. Omit `dexMinAmountOut` without a competing quote. Debounce/refresh as appropriate, key by the full request, and cancel/ignore obsolete responses. Expose loading, no-liquidity, error, and retry state. |
 | USD data | Fetch positive, finite one-token USD prices for the separate provider price props. Verify chain/token coverage independently of the token list. Direct swap previews may display SDK quote USD totals. Do not invent prices or substitute a USD ratio for the executable quote. Missing input valuation keeps calculated forms unready. |
 | UI | Amount/token controls, connect/switch-network actions, requested Spot controls, review/disclaimer, execution progress, validation, and recoverable service errors. Use the app's primitives; when none exist, create a small consistent set. Optional `swap-ui` components can supply the documented progress flow after verifying compatibility. |
 
@@ -51,10 +51,11 @@ optional and belongs inside advanced-provider scope or a context-preserving port
 ## Add swaps without a provider
 
 Keep the host's swap form and its execution state outside `AdvancedOrdersProvider`.
-Retain the original SDK quote and create one `client.createSwapExecution({ quote,
-account, walletInteractions, signal })` after review. Await its `run({ onProgress })`
-for a completed `Order`, or control `wrap()`/`approve()`/`sign()`/`submit()`/
-`waitForCompletion()` on the same session. No advanced pricing/scheduling props,
-calculated swap form, or second settlement poller is needed. Keep the session in
-host state outside transient controls and preserve accepted/latest `order` for
-ordinary client status/history checks, with host-owned polling if needed. Use existing progress UI or compatible `swap-ui` presentation.
+Retain the reviewed SDK quote and confirm host wrapping/approval. Call
+`client.prepareSwap({ quote, account, signal })`, publish its final quote,
+sign its typed data inline, and submit the same order/original signature through
+`client.submitSwap`. No advanced pricing/scheduling props or calculated swap
+form is needed. Keep attempt state outside transient controls, own progress and
+one status poller through `client.getOrder`, and preserve original signed identity
+and accepted/latest order for reconciliation. Show completion only after a fill.
+Use existing progress UI or compatible `swap-ui` presentation.

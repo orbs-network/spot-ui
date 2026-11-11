@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { Order, RePermitOrder, SpotClient, SwapQuote, SwapExecution } from "@orbs-network/spot-react";
+import type { Order, RePermitOrder, SpotClient, SwapQuote } from "@orbs-network/spot-react";
+import type { SwapExecution } from "@orbs-network/spot-react/internal";
 import type { Currency } from "./types";
 
 export type DirectSwapPhase = "idle" | "price-changed" | "preparing" | "wrapping" | "approving" | "signing" | "settling" | "success" | "failed" | "unconfirmed";
@@ -26,7 +27,7 @@ export interface DirectSwapState {
   error?: Error;
   order?: Order;
   signedOrder?: RePermitOrder;
-  sdkExecution?: SwapExecution;
+  hostExecution?: SwapExecution;
   wrapTxHash?: string;
   approvalTxHash?: string;
   /** Require a quote received after the rejected signing attempt before accepting a new price. */

@@ -7,8 +7,10 @@ import {
   type CalculatedOrderForm,
   type CancelOrderRequest,
   type Order,
-  type OrderExecution,
-  type OrderWalletInteractions,
+  type Address,
+  type Eip712TypedData,
+  type Hex,
+  type PreparedOrder,
   type Partners,
   type SpotClient,
   type SwapQuote,
@@ -16,9 +18,13 @@ import {
   type Token,
 } from "@orbs-network/spot-ui";
 
-/** Compare allowance with request.amount; the approval write may use the suggested approvalAmount or host policy. */
-export interface SpotWalletPort extends OrderWalletInteractions {
-  cancelOrder(request: CancelOrderRequest): Promise<`0x${string}`>;
+/** DEX-owned wallet services; transaction methods resolve after successful receipts. */
+export interface SpotWalletPort {
+  getAllowance(tokenAddress: string, spenderAddress: Address): Promise<bigint>;
+  wrapNativeToken(amountRaw: string): Promise<Hex>;
+  approveToken(tokenAddress: string, spenderAddress: Address, amountRaw: string): Promise<Hex>;
+  signTypedData(params: Eip712TypedData & { account: Address }): Promise<Hex>;
+  cancelOrder(request: CancelOrderRequest): Promise<Hex>;
 }
 
 export interface SpotIntegrationOptions {
@@ -32,7 +38,9 @@ export interface SubmitSpotOrderParams {
   /** Protocol ERC-20 input; normalize a native selection to the configured wrapped token. */
   inputToken: Token;
   outputToken: Token;
-  account: string;
+  account: Address;
+  /** The host selected native input; inputToken remains its wrapped ERC-20 token. */
+  isNativeInput?: boolean;
   /** Create before starting wallet work; abort on account/chain changes or disposal. */
   signal?: AbortSignal;
 }
@@ -43,9 +51,17 @@ export interface SubmittedSpotOrder {
   approvalTxHash?: `0x${string}`;
 }
 
+export interface SpotOrderAttempt {
+  prepared?: PreparedOrder;
+  signature?: Hex;
+  order?: Order;
+  wrapTxHash?: Hex;
+  approvalTxHash?: Hex;
+}
+
 export class SpotIntegration {
   private clientPromise?: Promise<SpotClient>;
-  private currentExecution?: OrderExecution;
+  private currentAttempt?: SpotOrderAttempt;
   private isSubmitting = false;
   private readonly cancellingOrderKeys = new Set<string>();
 
@@ -54,8 +70,8 @@ export class SpotIntegration {
   /** Drive the host's loading state and automatic/manual quote pause from this. */
   public get isExecuting(): boolean { return this.isSubmitting; }
 
-  /** Retain accepted/prepared state for host progress and reconciliation after a failed run. */
-  public get execution(): OrderExecution | undefined { return this.currentExecution; }
+  /** Preserve this state for reconciliation before retrying an uncertain submission. */
+  public get attempt(): SpotOrderAttempt | undefined { return this.currentAttempt; }
 
   public getQuote(
     params: Omit<SwapQuoteParams, "chainId" | "partner">,
@@ -103,28 +119,49 @@ export class SpotIntegration {
       throw new Error("The Spot order form is not submittable");
     }
 
+    const reviewed = {
+      ...params,
+      form: structuredClone(params.form),
+      inputToken: { ...params.inputToken },
+      outputToken: { ...params.outputToken },
+    };
     this.isSubmitting = true;
     try {
-      params.signal?.throwIfAborted();
+      reviewed.signal?.throwIfAborted();
       const client = await this.getClient();
-      params.signal?.throwIfAborted();
+      reviewed.signal?.throwIfAborted();
 
-      const walletParams = {
-        account: params.account,
-        walletInteractions: this.options.wallet, signal: params.signal,
-      };
-      const execution = client.createOrderExecution({
-        ...walletParams, form: params.form,
-        inputTokenAddress: params.inputToken.address,
-        outputTokenAddress: params.outputToken.address,
+      const wallet = this.options.wallet;
+      const amountRaw = reviewed.form.inputAmount.raw;
+      const amount = BigInt(amountRaw);
+      const token = reviewed.inputToken.address;
+      const spender = client.spenderAddress;
+      const attempt: SpotOrderAttempt = {};
+      this.currentAttempt = attempt;
+      const check = () => reviewed.signal?.throwIfAborted();
+      let allowance = await wallet.getAllowance(token, spender);
+      check();
+      if (reviewed.isNativeInput) {
+        attempt.wrapTxHash = await wallet.wrapNativeToken(amountRaw);
+        check();
+      }
+      for (let index = 0; allowance < amount && index < 2; index += 1) {
+        attempt.approvalTxHash = await wallet.approveToken(token, spender, amountRaw);
+        check();
+        allowance = await wallet.getAllowance(token, spender);
+        check();
+      }
+      if (allowance < amount) throw new Error("Confirmed approval is still insufficient");
+
+      attempt.prepared = client.prepareOrder({
+        form: reviewed.form, account: reviewed.account,
+        inputTokenAddress: token, outputTokenAddress: reviewed.outputToken.address,
       });
-      this.currentExecution = execution;
-      const order = await execution.run();
-      return {
-        order,
-        wrapTxHash: execution.wrapTxHash as `0x${string}` | undefined,
-        approvalTxHash: execution.approvalTxHash as `0x${string}` | undefined,
-      };
+      const { signerAddress, typedData } = attempt.prepared.signingRequest;
+      attempt.signature = await wallet.signTypedData({ ...typedData, account: signerAddress });
+      check();
+      attempt.order = await client.submitOrder(attempt.prepared.order, attempt.signature, { signal: reviewed.signal });
+      return { order: attempt.order, wrapTxHash: attempt.wrapTxHash, approvalTxHash: attempt.approvalTxHash };
     } finally {
       this.isSubmitting = false;
     }

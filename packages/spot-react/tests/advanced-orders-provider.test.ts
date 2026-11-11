@@ -71,7 +71,7 @@ describe("AdvancedOrdersProvider boundary", () => {
     "rejects unsupported JavaScript order type %s before provider state or resources initialize",
     (orderType) => {
       const invalidProps = { ...props, orderType } as unknown as AdvancedOrdersProviderProps;
-      expect(() => AdvancedOrdersProvider(invalidProps)).toThrow(/client\.createSwapExecution.*without a provider/);
+      expect(() => AdvancedOrdersProvider(invalidProps)).toThrow(/client\.prepareSwap.*without a provider/);
       expect(state.read).not.toHaveBeenCalled();
     },
   );

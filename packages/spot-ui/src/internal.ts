@@ -1,12 +1,17 @@
 /** @internal Shared implementation hooks for spot-react; applications should use the public client API. */
-export { createAnalytics, setUIVersion, type AnalyticsContext, type SpotAnalytics } from "./lib/analytics";
-export { isNativeAddress, eqIgnoreCase, isTxRejected } from "./lib/utils";
+export {
+  createAnalytics, setUIVersion, bindOrderAnalytics, bindSubmittedOrderAnalytics,
+  getOrderAnalytics, getSubmittedOrderAnalytics, resolveAnalyticsReporter,
+  type AnalyticsContext, type SpotAnalytics,
+} from "./lib/analytics";
+export { isNativeAddress, eqIgnoreCase } from "./lib/utils";
 export { getTwapConfig } from "./lib/orders/legacy-twap-config";
 export { toAmountRaw, toAmountUI } from "./lib/order-form/amounts";
+export { captureValidatedOrderForm } from "./lib/order-form/capture-order-form";
+export { captureValidatedSwap, type ReviewedSwapInput } from "./lib/swap-validation";
 export {
   getClientAnalytics,
 } from "./lib/internal/client";
-export type { OrderExecutionUpdate, OrderExecutionPhase, OrderExecutionStep, SignableOrder } from "./lib/internal/execute-order";
 
 import { createClient, type CreateClientOptions, type SpotClient } from "./lib/client";
 import { bindClientCreationAnalytics } from "./lib/internal/client";

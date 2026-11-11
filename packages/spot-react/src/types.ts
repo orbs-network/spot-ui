@@ -4,16 +4,15 @@ import {
   Order,
   TimeDuration,
   type Address,
-  type AllowanceRequest,
   type ApprovalRequest,
   type CalculatedOrderForm,
   type CancelOrderRequest,
-  type OrderWalletInteractions,
-  type OrderExecution as SdkOrderExecution,
   type PreparedOrder,
   type SpotClient,
   type Token,
 } from "@orbs-network/spot-ui";
+import type { OrderWalletInteractions } from "./host-execution/progress";
+import type { OrderExecution as HostOrderExecution } from "./host-execution/types";
 import type { SpotAnalytics } from "@orbs-network/spot-ui/internal";
 import type { ComponentType, ReactNode } from "react";
 export enum ExecutionStatus {
@@ -44,11 +43,15 @@ export type CancelOrderProps = CancelOrderRequest;
 
 export type ApproveTokenProps = ApprovalRequest;
 
-/** Shared SDK wallet operations plus confirmed order cancellation for React history. */
+/** Host-owned wallet operations plus confirmed order cancellation for React history. */
 export type WalletInteractions = OrderWalletInteractions & {
   cancelOrder: (props: CancelOrderProps) => Promise<`0x${string}`>;
 };
 
+/** Token and spender used by the React host to read the connected account's allowance. */
+export type AllowanceRequest = Pick<ApprovalRequest, "tokenAddress" | "spenderAddress">;
+
+/** Allowance-reader input for React host wallet helpers. */
 export type GetAllowanceProps = AllowanceRequest;
 
 export type InitialState = {
@@ -219,8 +222,8 @@ export type OrderExecutionState = {
   hasApproval?: boolean;
   form?: CalculatedOrderForm;
   preparedOrder?: PreparedOrder;
-  /** SDK object owns confirmed wallet steps and the current prepared/accepted payload. */
-  sdkExecution?: SdkOrderExecution;
+  /** React host runner owns confirmed wallet steps and the current prepared/accepted payload. */
+  hostExecution?: HostOrderExecution;
   completedWrap?: CompletedWrap;
 };
 

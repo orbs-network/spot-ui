@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRpcUrl } from "@/lib/get-rpc-url";
 
 export async function POST(request: NextRequest) {
   const chainId = request.nextUrl.searchParams.get("chainId");
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
   const body = await request.text();
 
   const response = await fetch(
-    `${process.env.RPC_URL}?chainId=${chainId}&appId=twap-ui`,
+    getRpcUrl(chainId),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

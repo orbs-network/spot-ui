@@ -4,7 +4,6 @@ import {
   createAnalyticsOperation,
   createClientAnalytics,
   getOrderAnalytics,
-  getSubmittedOrderAnalytics,
   resolveAnalyticsReporter,
   type SpotAnalytics,
 } from "./analytics";
@@ -16,7 +15,7 @@ import type {
   CalculatedOrderForm,
   CalculatedOrderValues,
 } from "./order-form/types";
-import { assertOrderExecutionValues } from "./order-form/validation";
+import { captureValidatedOrderForm } from "./order-form/capture-order-form";
 import { isNativeAddress } from "./utils";
 import {
   getClientOrders as fetchClientOrders,
@@ -25,18 +24,13 @@ import {
 } from "./orders";
 import { submitOrder as submitOrderRequest } from "./submit-order";
 import { getOrder } from "./orders/v2-orders";
-import { OrderType } from "./types";
 import { SpotError } from "./errors";
 import { getApiEndpoint } from "./api-config";
 import { fetchQuote, getQuoteAnalyticsContext, isQuoteFresh, type SwapQuote, type SwapQuoteParams } from "./quote";
 import { observe } from "./observe";
 import { MIN_FILL_DELAY_MILLIS, SWAP_ORDER_DURATION_MILLIS, SWAP_ORDER_SLIPPAGE_BPS } from "./order-form/constants";
-import type { CreateSwapExecutionParams, PreparedSwap } from "./swap";
-import type { OrderExecution, SwapExecution } from "./execution-session";
-import type { OrderWalletInteractions, OrderExecutionUpdate, SignableOrder } from "./execute-order";
-import { createOrderExecutionSession } from "./internal/execute-order";
+import type { PreparedSwap } from "./swap";
 import { getClientCreationAnalytics, registerClientInternals } from "./internal/client";
-import { waitForOrder } from "./internal/wait-for-order";
 import { captureValidatedSwap, type ReviewedSwapInput } from "./swap-validation";
 import type {
   Address,
@@ -50,26 +44,13 @@ import type {
 
 const SWAP_QUOTE_MAX_AGE_MILLIS = 20_000;
 
-const retainProgressSnapshot = <T extends SignableOrder>(
-  original: OrderExecutionUpdate<T>, snapshot: OrderExecutionUpdate<T>,
-): void => {
-  if (!original.order || !snapshot.order) return;
-  const reporter = getSubmittedOrderAnalytics(original.order);
-  if (reporter) bindSubmittedOrderAnalytics(snapshot.order, reporter);
-};
-
 const getDeadline = (
   currentTimeMillis: number,
   duration: TimeDuration,
 ): number => currentTimeMillis + duration.unit * duration.value + 60_000;
 
-const assertAdvancedOrderType = (orderType: unknown): void => {
-  if (!Object.values(OrderType).includes(orderType as OrderType)) {
-    throw new SpotError("INVALID_ARGUMENT", "Advanced orders require an OrderType; use createSwapExecution for quote-based swaps");
-  }
-};
-
-interface PrepareOrderParams {
+/** Reviewed advanced-order inputs for preparation without a wallet adapter. */
+export interface PrepareOrderParams {
   /** Reviewed result of `calculateOrder`; `form.canSubmit` must be true. */
   form: CalculatedOrderForm;
   /** ERC-20 token spent by the order; pass the wrapped token for native input. */
@@ -77,15 +58,19 @@ interface PrepareOrderParams {
   /** Output-token address for the reviewed pair. */
   outputTokenAddress: string;
   /** Account that owns the input tokens and will sign the order. */
-  swapperAddress: string;
+  account: string;
 }
 
 /** EIP-712 payload to pass to the host wallet's typed-data signing method. */
 export interface Eip712TypedData {
+  /** Signing domain for the client's chain and RePermit verifying contract. */
   domain: RePermitData["domain"];
+  /** Named EIP-712 struct definitions to forward unchanged to the wallet signer. */
   types: RePermitData["types"];
+  /** Root EIP-712 struct name to forward unchanged to the wallet signer. */
   primaryType: string;
-  message: RePermitOrder;
+  /** Exact protocol order to sign; submit this same order with the wallet's original signature. */
+  message: Pick<RePermitOrder, keyof RePermitOrder>;
 }
 
 export interface OrderSigningRequest {
@@ -107,9 +92,6 @@ export interface ApprovalRequest {
   spenderAddress: Address;
 }
 
-/** Token and spender to use when reading the connected account's allowance. */
-export type AllowanceRequest = Omit<ApprovalRequest, "amount" | "approvalAmount">;
-
 export interface PreparedOrderValues extends CalculatedOrderValues {
   /** Local preparation time as Unix milliseconds. */
   currentTimeMillis: number;
@@ -128,22 +110,6 @@ export interface PreparedOrder {
   form: CalculatedOrderForm;
   /** `form.values` plus the preparation-time timestamps used by the signed order. */
   values: PreparedOrderValues;
-}
-
-/** Reviewed form and wallet operations for one advanced-order execution. */
-export interface CreateOrderExecutionParams {
-  /** Submittable calculated form captured before wallet work begins. */
-  form: CalculatedOrderForm;
-  /** Connected signer and output recipient. */
-  account: string;
-  /** ERC-20 input address; use the wrapped token address when shouldWrap() requests native wrapping. */
-  inputTokenAddress: string;
-  /** Output token for the reviewed form. */
-  outputTokenAddress: string;
-  /** Host prerequisite checks and wallet operations that resolve after successful transaction receipts. */
-  walletInteractions: OrderWalletInteractions;
-  /** Stop later steps; completed transactions and accepted orders remain valid. */
-  signal?: AbortSignal;
 }
 
 /** Arguments for the host wallet to call `cancel` on `contractAddress`. */
@@ -178,15 +144,20 @@ export interface CreateClientOptions {
   apiUrl?: string;
 }
 
-/** Submission and swap-settlement options; cancellation cannot cancel an accepted order. */
+/** Options for submitting an order that the host has already signed. */
 export interface SubmitOrderOptions {
+  /** Abort before posting or stop waiting for its response; an accepted order remains valid. */
   signal?: AbortSignal;
 }
+
+/** Swap submission uses the same request and cancellation options as order submission. */
+export type SubmitSwapOptions = SubmitOrderOptions;
 
 /** Quote inputs; the selected chain and partner are supplied by the client. */
 export type ClientGetQuoteParams = Omit<SwapQuoteParams, "chainId" | "partner" | "apiUrl">;
 
-interface PrepareSwapParams {
+/** Reviewed swap inputs for preparation without a wallet adapter. */
+export interface PrepareSwapParams {
   /** Reviewed quote, reused while fresh; stale quotes refresh the unchanged request. */
   quote: SwapQuote;
   /** Connected signer and recipient, independent of the quote's preview user. */
@@ -205,7 +176,7 @@ export interface SpotClient {
   readonly apiUrl: string;
   /** Validated protocol template and EIP-712 domain loaded during initialization. */
   readonly rePermitData: RePermitData;
-  /** RePermit contract to use as the ERC-20 approval spender. */
+  /** RePermit contract address to use for ERC-20 allowance reads and approval transactions on this chain. */
   readonly spenderAddress: Address;
   /** Current partner adapter loaded from the protocol configuration. */
   readonly exchangeAddress: Address;
@@ -227,10 +198,83 @@ export interface SpotClient {
    */
   getQuote(params: ClientGetQuoteParams): Promise<SwapQuote>;
 
-  /** Create a quote-based swap; creation performs no wallet operations. run() waits for completion. */
-  createSwapExecution(params: CreateSwapExecutionParams): SwapExecution;
-  /** Create an advanced order. run() resolves at acceptance; waitForCompletion() tracks its fills. */
-  createOrderExecution(params: CreateOrderExecutionParams): OrderExecution;
+  /**
+   * Prepares a reviewed TWAP, limit, stop-loss, or take-profit order for inline signing.
+   * The host owns wrapping, approval, and signing through its existing wallet code.
+   * Confirm wrapping and sufficient allowance first, then call this immediately
+   * before signing to obtain a fresh nonce, start time, and deadline.
+   * Preparation is synchronous and performs no wallet calls or submission.
+   *
+   * @param params - Submittable calculated form, connected signing account, and ERC-20 input/output addresses. Use the wrapped token address for native input.
+   * @returns Detached form snapshot, protocol order, EIP-712 `signingRequest`, approval requirement, and preparation timestamps.
+   * @throws `SpotError` if the form, amounts, signer, token addresses, or order settings are invalid.
+   *
+   * @example
+   * const prepared = client.prepareOrder({
+   *   form, account, inputTokenAddress, outputTokenAddress,
+   * });
+   * const { signerAddress, typedData } = prepared.signingRequest;
+   * const signature = await walletClient.signTypedData({ ...typedData, account: signerAddress });
+   * const accepted = await client.submitOrder(prepared.order, signature);
+   */
+  prepareOrder(params: PrepareOrderParams): PreparedOrder;
+  /**
+   * Prepares a reviewed exact-input swap for inline signing without a wallet adapter.
+   * Confirm wrapping and sufficient allowance before calling, then sign the
+   * returned payload immediately. Fresh quotes are reused; stale quotes refresh
+   * the same request and must preserve or improve the reviewed minimum output.
+   * This method performs no wallet calls or submission.
+   *
+   * @param params - Reviewed quote, connected signer/recipient, and optional abort signal for a quote refresh.
+   * @returns Protocol order, EIP-712 `signingRequest`, approval requirement, final quote, and preparation timestamps.
+   * @throws `SpotError` if the quote is invalid, has a different client context, or refresh lowers its protected minimum. Quote refresh and abort errors propagate.
+   *
+   * @example
+   * const prepared = await client.prepareSwap({ quote, account, signal });
+   * const { signerAddress, typedData } = prepared.signingRequest;
+   * const signature = await walletClient.signTypedData({ ...typedData, account: signerAddress });
+   * const accepted = await client.submitSwap(prepared.order, signature, { signal });
+   */
+  prepareSwap(params: PrepareSwapParams): Promise<PreparedSwap>;
+  /**
+   * Submits an order signed inline by the host wallet to this client's order service.
+   * Pass the exact order from `prepareOrder()` or `prepareSwap()` and its original
+   * wallet signature. Use `submitSwap()` for a clearly named swap path.
+   * The host owns wrapping, allowance checks, signing, and
+   * duplicate-submission guards. A lost or timed-out response can leave acceptance
+   * uncertain; reconcile the original signed order before creating a replacement.
+   *
+   * @param order - Unchanged prepared protocol order for this client's chain and configuration.
+   * @param signature - Original hex-encoded wallet signature, including its `0x` prefix; do not split or normalize it.
+   * @param options - Optional abort signal. An abort cannot undo an order already accepted by the service.
+   * @returns Accepted `Order` for both swaps and advanced orders. Use `getOrder()` to check later fills; this call does not wait for settlement.
+   * @throws `SpotError` for an expired, invalid, or mismatched order, malformed signature, or failed submission. A pre-aborted signal rejects before posting.
+   *
+   * @example
+   * const accepted = await client.submitOrder(prepared.order, signature, { signal });
+   * const latest = await client.getOrder({ orderId: accepted.id });
+   */
+  submitOrder(order: RePermitOrder, signature: `0x${string}`, options?: SubmitOrderOptions): Promise<Order>;
+
+  /**
+   * Submits a swap prepared by `prepareSwap()` and signed inline by the host wallet.
+   * Provides the swap path's named submission step with the same validation and
+   * transport as `submitOrder()`. The host owns wrapping, approval, signing,
+   * duplicate-submission guards, and subsequent status polling.
+   *
+   * @param order - Unchanged `prepared.order` returned by `prepareSwap()` for this client's chain and configuration.
+   * @param signature - Original hex-encoded wallet signature, including its `0x` prefix; do not split or normalize it.
+   * @param options - Optional abort signal. An abort cannot undo a swap already accepted by the service.
+   * @returns Accepted swap `Order`. Use `getOrder()` to check fills; this call does not wait for settlement.
+   * @throws `SpotError` for an expired, invalid, or mismatched order, malformed signature, or failed submission. A pre-aborted signal rejects before posting.
+   *
+   * @example
+   * const prepared = await client.prepareSwap({ quote, account, signal });
+   * const { signerAddress, typedData } = prepared.signingRequest;
+   * const signature = await walletClient.signTypedData({ ...typedData, account: signerAddress });
+   * const accepted = await client.submitSwap(prepared.order, signature, { signal });
+   */
+  submitSwap(order: RePermitOrder, signature: `0x${string}`, options?: SubmitSwapOptions): Promise<Order>;
 
   /**
    * Creates the contract call needed to cancel an order through the host wallet.
@@ -308,7 +352,7 @@ const createOrderRequests = (
 });
 
 /**
- * Creates a client for swap quotes, wallet execution, and order management.
+ * Creates a client for swap quotes, signing payloads, submission, and order management.
  * Loads and validates protocol configuration for one partner and EVM chain.
  * Reuse the client for that pair; create or retrieve another when either changes.
  * The host owns client caching and wallet connections. Analytics initializes after
@@ -361,17 +405,8 @@ export const createClient = async (
    * then creates the exact protocol order, wallet signing payload, and ERC-20
    * approval request. It performs no wallet interaction or network submission.
    */
-  const prepareOrder = (params: PrepareOrderParams): PreparedOrder => {
+  const buildPreparedOrder = (params: PrepareOrderParams): PreparedOrder => {
     const { form } = params;
-    assertAdvancedOrderType(form?.orderType);
-    if (!form.canSubmit) {
-      throw new SpotError("FORM_NOT_SUBMITTABLE", "Order form is not submittable");
-    }
-    if (isNativeAddress(params.inputTokenAddress)) {
-      throw new SpotError("INVALID_ARGUMENT",
-        "prepareOrder inputTokenAddress must be an ERC-20 address; pass the host-provided wrapped native token for native input",
-      );
-    }
     const values = form.values;
     const currentTimeMillis = Date.now();
     const preparedValues: PreparedOrderValues = {
@@ -389,17 +424,17 @@ export const createClient = async (
       fillDelayMillis: values.fillDelayMillis,
       totalTrades: values.totalTrades,
       slippageBps: values.slippageBps,
-      swapperAddress: params.swapperAddress,
+      swapperAddress: params.account,
       inputAmountPerTrade: values.inputAmountPerTrade,
       minOutputAmountPerTrade: values.minOutputAmountPerTrade,
       triggerOutputAmountPerTrade: values.triggerOutputAmountPerTrade,
-      permitData: rePermitData,
+      permitData: structuredClone(rePermitData),
       kind: form.orderType,
     });
     const order = permitData.order;
     // Pure preparation only binds context; telemetry starts when execution/submission starts.
     bindOrderAnalytics(order, createAnalyticsOperation(analytics, {
-      account: params.swapperAddress,
+      account: params.account,
       chainId,
       partner,
       orderType: form.orderType,
@@ -418,11 +453,14 @@ export const createClient = async (
 
     return {
       order,
-      ...createOrderRequests(permitData, params.swapperAddress, values.inputAmount, spenderAddress),
+      ...createOrderRequests(permitData, params.account, values.inputAmount, spenderAddress),
       form,
       values: preparedValues,
     };
   };
+
+  const prepareOrder = (params: PrepareOrderParams): PreparedOrder =>
+    buildPreparedOrder({ ...params, form: captureValidatedOrderForm(params) });
 
   // Public entry points validate first; this builder only consumes captured inputs.
   const buildPreparedSwap = (
@@ -445,7 +483,7 @@ export const createClient = async (
       totalTrades: 1,
       slippageBps: SWAP_ORDER_SLIPPAGE_BPS,
       swapperAddress: userAddress,
-      permitData: rePermitData,
+      permitData: structuredClone(rePermitData),
       kind: "SWAP",
     });
     bindOrderAnalytics(permit.order, reporter);
@@ -467,8 +505,8 @@ export const createClient = async (
     quote,
     account,
     signal,
-  }: PrepareSwapParams, operationAnalytics?: SpotAnalytics): Promise<PreparedSwap> => {
-    const reporter = resolveAnalyticsReporter(analytics, operationAnalytics, {
+  }: PrepareSwapParams): Promise<PreparedSwap> => {
+    const reporter = createAnalyticsOperation(analytics, {
       account,
       chainId,
       partner,
@@ -534,90 +572,39 @@ export const createClient = async (
     signature: `0x${string}`,
     options?: SubmitOrderOptions,
   ): Promise<Order> => {
+    options?.signal?.throwIfAborted();
+    if (!order?.witness || !order.permitted) {
+      throw new SpotError("INVALID_ARGUMENT", "A prepared protocol order is required");
+    }
     for (const token of [order.permitted?.token, order.witness?.input?.token]) {
       if (typeof token !== "string" || !/^0x[0-9a-f]{40}$/i.test(token) || isNativeAddress(token)) {
         throw new SpotError("INVALID_ARGUMENT", "Signed order input must be an ERC-20 token; the host must wrap native input before signing");
       }
+    }
+    const matchesAddress = (actual: unknown, expected: string): boolean =>
+      typeof actual === "string" && actual.toLowerCase() === expected.toLowerCase();
+    if (String(order.witness.chainid) !== String(chainId) ||
+      !matchesAddress(order.spender, rePermitData.order.spender) ||
+      !matchesAddress(order.witness.exchange?.adapter, exchangeAddress) ||
+      !matchesAddress(order.witness.reactor, rePermitData.order.witness.reactor) ||
+      !matchesAddress(order.witness.executor, rePermitData.order.witness.executor) ||
+      !matchesAddress(order.permitted.token, order.witness.input.token)) {
+      throw new SpotError("PREPARED_ORDER_MISMATCH", "Signed order does not match this client's chain and protocol configuration");
+    }
+    if (typeof order.deadline !== "string" || !/^\d+$/.test(order.deadline)) {
+      throw new SpotError("INVALID_ARGUMENT", "Signed order must have an integer deadline");
+    }
+    if (BigInt(Date.now()) > BigInt(order.deadline) * BigInt(1000)) {
+      throw new SpotError("ORDER_EXPIRED", "Order expired before submission; prepare and sign a new order");
+    }
+    if (typeof signature !== "string" || !/^0x(?:[0-9a-f]{2})+$/i.test(signature)) {
+      throw new SpotError("INVALID_ARGUMENT", "Signature must be the original hex-encoded wallet signature");
     }
     const reporter = resolveAnalyticsReporter(analytics, getOrderAnalytics(order));
     observe(() => reporter.onOrderPrepared(order));
     bindOrderAnalytics(order, reporter);
     const accepted = await submitOrderRequest(order, signature, reporter, options, apiUrl);
     return accepted;
-  };
-
-  const reportInvalidExecution = (
-    reporter: SpotAnalytics, error: unknown,
-  ): never => {
-    observe(() => reporter.onExecutionRequest());
-    observe(() => reporter.onExecutionError(error, "preparing"));
-    throw error;
-  };
-
-  const assertExecutionAddresses = (account: string, inputTokenAddress: string, outputTokenAddress: string): void => {
-    for (const address of [account, inputTokenAddress, outputTokenAddress]) {
-      if (typeof address !== "string" || !/^0x[0-9a-f]{40}$/i.test(address)) {
-        throw new SpotError("INVALID_ARGUMENT", "Invalid execution token or signer address");
-      }
-    }
-    if (isNativeAddress(account) || isNativeAddress(inputTokenAddress)) {
-      throw new SpotError("INVALID_ARGUMENT", "Use a wrapped ERC-20 input token and a nonzero signing account");
-    }
-  };
-
-  const createOrderExecution = (
-    params: CreateOrderExecutionParams,
-  ): OrderExecution => {
-    const reporter = createAnalyticsOperation(analytics, {
-      account: params.account, chainId, partner, orderType: params.form?.orderType,
-      inputTokenAddress: params.inputTokenAddress, outputTokenAddress: params.outputTokenAddress,
-      inputAmountRaw: params.form?.inputAmount?.raw,
-    });
-    let form: CalculatedOrderForm;
-    try {
-      assertAdvancedOrderType(params.form?.orderType);
-      if (!params.form.canSubmit) throw new SpotError("FORM_NOT_SUBMITTABLE", "Order form is not submittable");
-      form = structuredClone(params.form);
-      assertExecutionAddresses(params.account, params.inputTokenAddress, params.outputTokenAddress);
-      if (form.values.inputAmount !== form.inputAmount.raw) {
-        throw new SpotError("PREPARED_ORDER_MISMATCH", "Form values do not match the reviewed input amount");
-      }
-      assertOrderExecutionValues(form.orderType, form.values);
-    } catch (error) { return reportInvalidExecution(reporter, error); }
-    const { account, inputTokenAddress, outputTokenAddress, walletInteractions, signal } = params;
-    return createOrderExecutionSession({
-      account, inputTokenAddress, inputAmountRaw: form.inputAmount.raw, walletInteractions, signal,
-      prepareOrder: () => prepareOrder({ form, inputTokenAddress, outputTokenAddress, swapperAddress: account }),
-    }, {
-      client, analytics: reporter, onProgressSnapshot: retainProgressSnapshot,
-      waitForCompletionOnRun: false,
-      submitOrder: postSignedOrder,
-      settleOrder: (order, progress, signal) => waitForOrder({ order, signal, onProgress: progress, apiUrl, analytics: reporter }),
-    });
-  };
-
-  const createSwapExecution = (
-    params: CreateSwapExecutionParams,
-  ): SwapExecution => {
-    const reporter = createAnalyticsOperation(analytics, {
-      account: params.account, chainId, partner, orderType: "SWAP",
-      inputTokenAddress: params.quote?.request?.inToken, outputTokenAddress: params.quote?.request?.outToken,
-      inputAmountRaw: params.quote?.request?.inAmount,
-    });
-    let reviewed: ReviewedSwapInput;
-    try { reviewed = captureValidatedSwap(params.quote, params.account, chainId, partner); }
-    catch (error) { return reportInvalidExecution(reporter, error); }
-    const { account, walletInteractions, signal } = params;
-    return createOrderExecutionSession({
-      account, inputTokenAddress: reviewed.quote.request.inToken,
-      inputAmountRaw: reviewed.quote.request.inAmount, walletInteractions, signal,
-      prepareOrder: sessionSignal => prepareSwap({ quote: reviewed.quote, account, signal: sessionSignal }, reporter),
-    }, {
-      client, analytics: reporter, onProgressSnapshot: retainProgressSnapshot,
-      waitForCompletionOnRun: true,
-      submitOrder: postSignedOrder,
-      settleOrder: (order, progress, signal) => waitForOrder({ order, signal, onProgress: progress, apiUrl, analytics: reporter }),
-    });
   };
 
   /**
@@ -684,10 +671,12 @@ export const createClient = async (
     spenderAddress,
     exchangeAddress,
     getQuote,
-    createOrderExecution,
-    createSwapExecution,
+    prepareOrder,
+    prepareSwap,
+    submitOrder: postSignedOrder,
+    submitSwap: postSignedOrder,
     getCancelOrderRequest,
-    /** Read one V2 order once; executions own completion tracking. */
+    /** Read one V2 order once; the host owns completion tracking. */
     getOrder: async (params: ClientGetOrderParams): Promise<Order | undefined> => {
       const order = await getOrder({ ...params, chainId, apiUrl });
       if (order) bindTrackingAnalytics(order);

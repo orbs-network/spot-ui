@@ -80,11 +80,11 @@ Classify state before wiring it:
 - [ ] Field errors and `form.errors.primary` are localized, and submission uses `form.canSubmit`.
 - [ ] Explicit `tradeCount` is not silently clamped after amount changes.
 - [ ] The client is reused per partner/chain, and rejected initialization can be retried.
-- [ ] SDK-managed adapters provide required boolean/async `shouldWrap` and `shouldApprove` decisions; invoked wrap/approval transaction callbacks return confirmed hashes, never undefined; native protocol input uses the configured wrapped address. Manual wallet flows confirm host wrapping before preparation/signing.
+- [ ] The DEX owns wrapping, approval, receipt confirmation, and allowance verification before preparation/signing; native protocol input uses the configured wrapped address.
 - [ ] Allowance uses the normalized input token, exact raw input amount, and `client.spenderAddress`.
 - [ ] Wallet writes wait for confirmed successful receipts; `shouldApprove` reads host allowance for the exact token, raw amount, and spender.
 - [ ] `ApprovalRequest.amount` stays the exact required input. `approvalAmount` is a suggested write cap (maximum uint256 by default); host cap policy builds its own transaction without mutating the SDK request.
-- [ ] Session `sign()` prepares fresh values after confirmed prerequisites and stores the exact payload/signature.
+- [ ] Call `client.prepareOrder` or `client.prepareSwap` after confirmed prerequisites, sign inline, and retain the exact prepared payload/original signature for submission and recovery.
 - [ ] The signing adapter returns the original `0x` signature unchanged.
 - [ ] Concurrent submission and cancellation prompts are prevented.
 - [ ] Ambiguous submission failures are reconciled before another order is prepared.

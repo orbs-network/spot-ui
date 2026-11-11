@@ -30,25 +30,17 @@ The standalone root export `getOrders(filters)` is separate: it returns
 `Order[]` and accepts the order-sink `swapper` filter directly. It does not return
 the client's `{ orders, legacyLoaded }` wrapper.
 
-Swap session `run()` and `waitForCompletion()` track settlement internally. They
-query only the accepted order and resolve after `OrderStatus.Completed`.
-Session `submit()` returns acceptance; advanced-order `run()` also ends at acceptance.
-The internal poller uses serial requests with a normal two-second delay; missing
-snapshots and request failures back off up to thirty seconds. Tracking ends by
-`order.deadline` plus sixty seconds for indexing. React consumes the same
-execution updates to refresh its cache, without starting another poller.
+`client.submitSwap()` and `client.submitOrder()` both return acceptance. Check a known
+accepted order with `client.getOrder({ orderId: order.id, signal })`; each call is
+one lookup, with no wallet work or new submission. The DEX owns one continued
+polling lifecycle, including cancellation, bounded retries, and visibility rules.
+Show a swap as filled only when status is `OrderStatus.Completed`.
 
-For a saved accepted order or a session whose tracking has stopped, use ordinary
-`client.getOrder({ orderId: order.id, signal })` status reads. It makes one lookup,
-with no wallet work or new submission. The host owns any continued polling.
-Before cancellation or terminal failure, the original execution can call
-`waitForCompletion()` for its own accepted submission. Constructors do not accept
-saved orders; stopped sessions use ordinary status reads.
-
-Preserve `OrderSettlementError.orderId` and its optional `order` after
-aborted/unconfirmed tracking; these outcomes do not establish failure. If
-acceptance is unknown and no ID is available, query configured history and match
-the exact originally signed payload before creating a replacement.
+Retain the accepted/latest order, exact prepared payload, and original signature
+when tracking stops or acceptance is uncertain. Those outcomes do not establish
+failure. If no accepted ID is available, query configured history and match the
+exact originally signed payload before creating a replacement. Normal status and
+history reads never sign or submit an intent.
 Unknown service statuses remain open. Reported expired/failed/partial
 statuses map to `Expired` after the deadline, with completion/cancellation taking
 precedence.

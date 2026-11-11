@@ -1,3 +1,6 @@
+import { createHostOrderExecution, type CreateOrderExecutionParams } from "../src/host-execution/create-execution";
+import type { OrderExecutionUpdate } from "../src/host-execution/progress";
+import type { OrderExecution } from "../src/host-execution/types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   calculateOrder,
@@ -7,14 +10,12 @@ import {
   OrderStatus,
   OrderVariant,
   Partners,
-  type CreateOrderExecutionParams,
   type Order,
   type PreparedOrder,
-  type OrderExecutionUpdate,
   type SpotClient,
   type RePermitOrder,
 } from "@orbs-network/spot-ui";
-import { createOrderExecutionSession } from "../../spot-ui/src/lib/internal/execute-order";
+import { createOrderExecutionSession } from "../src/host-execution/session";
 import { createAnalytics as createEngineAnalytics } from "../../spot-ui/src/lib/analytics";
 import {
   createAnalytics,
@@ -30,6 +31,8 @@ import { getSubmitButtonState } from "../src/submit-button-state";
 import { createOperationAnalytics } from "../src/analytics";
 
 const executionRunners = vi.hoisted(() => new WeakMap<SpotClient, (params: OrderRunParams) => Promise<Order>>());
+vi.mock("../src/host-execution/create-execution", () => ({ createHostOrderExecution: vi.fn() }));
+
 const clientReporters = vi.hoisted(() => new WeakMap<SpotClient, SpotAnalytics>());
 
 vi.mock("@orbs-network/spot-ui/internal", async (importOriginal) => ({
@@ -90,10 +93,10 @@ const setup = (run: (params: OrderRunParams) => Promise<Order>, callbacks: Callb
   const store = createSpotStore({});
   const client = {
     partner: Partners.Quick, chainId: 137, apiUrl, spenderAddress: adapter,
-    createOrderExecution: vi.fn((params: CreateOrderExecutionParams) => orderExecution(params, input => executionRunners.get(client)!(input), client.spenderAddress)),
-    createSwapExecution: vi.fn(), getOrder: vi.fn(), getOrders: vi.fn(),
+    prepareOrder: vi.fn(), prepareSwap: vi.fn(), submitOrder: vi.fn(), submitSwap: vi.fn(), getOrder: vi.fn(), getOrders: vi.fn(),
   } as unknown as SpotClient;
   executionRunners.set(client, run);
+  vi.mocked(createHostOrderExecution).mockReset().mockImplementation((owner, params) => orderExecution(params, input => executionRunners.get(owner)!(input), owner.spenderAddress));
   clientReporters.set(client, analytics);
   store.getState().configureOrders(JSON.stringify([account, adapter, Partners.Quick, 137, true]), undefined, callbacks);
   const execute = (
@@ -159,14 +162,14 @@ describe("React internal settlement lifecycle", () => {
     expect(createOperationAnalytics({ account }).isDisabled).toBe(true);
   });
 
-  it("keeps real SDK allowance preparation on review before wrapping and approving", async () => {
+  it("keeps real host allowance preparation on review before wrapping and approving", async () => {
     const callbacks = {
       onWrapRequest: vi.fn(), onWrapSuccess: vi.fn(), onApproveRequest: vi.fn(), onApproveSuccess: vi.fn(),
       onOrderCreated: vi.fn(), onSubmitOrderFailed: vi.fn(),
     };
     const { store, client, execute } = setup(vi.fn(), callbacks);
     const accepted = order();
-    vi.mocked(client.createOrderExecution).mockImplementation(params => realSession(client, params, async () => accepted));
+    vi.mocked(createHostOrderExecution).mockImplementation((_owner, params) => realSession(client, params, async () => accepted));
     const allowance = deferred<boolean>();
     const wrapReceipt = deferred<`0x${string}`>();
     const approvalReceipt = deferred<`0x${string}`>();
@@ -221,7 +224,7 @@ describe("React internal settlement lifecycle", () => {
     const failure = new SpotError("SUBMISSION_FAILED", "Response lost", { cause: new Error("Network disconnected") });
     const callbacks = { onSubmitOrderFailed: vi.fn(), onOrderCreated: vi.fn() };
     const { store, client, execute } = setup(vi.fn(), callbacks);
-    vi.mocked(client.createOrderExecution).mockImplementation(params => realSession(client, params, async () => { throw failure; }));
+    vi.mocked(createHostOrderExecution).mockImplementation((_owner, params) => realSession(client, params, async () => { throw failure; }));
     await expect(execute()).rejects.toBe(failure);
     expect(store.getState().state.currentExecution).toMatchObject({ phase: ExecutionPhase.UNCONFIRMED, preparedOrder: { order: expect.any(Object) } });
     expect(callbacks.onSubmitOrderFailed).not.toHaveBeenCalled();
@@ -257,16 +260,16 @@ describe("React internal settlement lifecycle", () => {
     await expect(execute(OrderType.TWAP, { inputToken: nativeToken, wrappedNativeToken: inputToken, walletInteractions }))
       .resolves.toBe(accepted);
 
-    expect(client.createOrderExecution).toHaveBeenCalledWith(expect.objectContaining({
+    expect(createHostOrderExecution).toHaveBeenCalledWith(client, expect.objectContaining({
       inputTokenAddress: inputAddress, walletInteractions: expect.objectContaining({ wrapNativeToken: expect.any(Function) }),
     }));
     expect(run).toHaveBeenCalledOnce();
-    expect(store.getState().state.currentExecution.sdkExecution).toBe(vi.mocked(client.createOrderExecution).mock.results[0]?.value);
-    expect(store.getState().state.currentExecution.sdkExecution?.order).toEqual(accepted);
-    expect(vi.mocked(client.createOrderExecution).mock.calls[0]?.[0]).not.toHaveProperty("onProgress");
-    expect(vi.mocked(client.createOrderExecution).mock.calls[0]?.[0]).not.toHaveProperty("disableAnalytics");
-    expect(store.getState().state.currentExecution.sdkExecution?.run).toHaveBeenCalledWith({ onProgress: expect.any(Function) });
-    expect(client.createSwapExecution).not.toHaveBeenCalled();
+    expect(store.getState().state.currentExecution.hostExecution).toBe(vi.mocked(createHostOrderExecution).mock.results[0]?.value);
+    expect(store.getState().state.currentExecution.hostExecution?.order).toEqual(accepted);
+    expect(vi.mocked(createHostOrderExecution).mock.calls[0]?.[1]).not.toHaveProperty("onProgress");
+    expect(vi.mocked(createHostOrderExecution).mock.calls[0]?.[1]).not.toHaveProperty("disableAnalytics");
+    expect(store.getState().state.currentExecution.hostExecution?.run).toHaveBeenCalledWith({ onProgress: expect.any(Function) });
+    expect(client.prepareSwap).not.toHaveBeenCalled();
     expect(store.getState().state.currentExecution).toMatchObject({
       phase: ExecutionPhase.SUCCESS, wrapTxHash: "0xwrap",
       inputToken: nativeToken,
@@ -289,7 +292,7 @@ describe("React internal settlement lifecycle", () => {
       .toEqual({ disabled: true, loading: false, disabledReason: "missing-wrapped-native-token" });
   });
 
-  it("retains a confirmed wrap receipt when its wallet scope is aborted before the SDK receives it", async () => {
+  it("retains a confirmed wrap receipt when its wallet scope is aborted before the host runner receives it", async () => {
     const abort = new AbortController();
     const reason = new Error("Wallet changed");
     const wallet = testWallet();
@@ -318,7 +321,7 @@ describe("React internal settlement lifecycle", () => {
     expect(callbacks.onWrapSuccess).toHaveBeenCalledExactlyOnceWith({ txHash: "0xconfirmed", amount: "10" });
   });
 
-  it("clears a dismissed wrap marker without passing a receipt override to the SDK", async () => {
+  it("clears a dismissed wrap marker without passing a receipt override to the host runner", async () => {
     const nativeToken = { ...inputToken, address: "0x0000000000000000000000000000000000000000" };
     const accepted = order();
     const run = vi.fn(async (params: OrderRunParams) => {
@@ -335,7 +338,7 @@ describe("React internal settlement lifecycle", () => {
     expect(store.getState().returnToOrderForm(1)).toBe(true);
     expect(store.getState().state.currentExecution.completedWrap).toBeUndefined();
     await execute(OrderType.TWAP, { inputToken: nativeToken, wrappedNativeToken: inputToken });
-    const factory = vi.mocked(store.getState().state.currentExecution.client!.createOrderExecution).mock.calls[0]?.[0];
+    const factory = vi.mocked(createHostOrderExecution).mock.calls[0]?.[1];
     expect(factory).not.toHaveProperty("completedWrapTxHash");
     expect(factory).not.toHaveProperty("validateContext");
     expect(run).toHaveBeenCalledOnce();
@@ -442,7 +445,7 @@ describe("React internal settlement lifecycle", () => {
     expect(callbacks.onOrderCreated).toHaveBeenCalledOnce();
     expect(callbacks.onOrderFilled).not.toHaveBeenCalled();
     expect(run).toHaveBeenCalledOnce();
-    expect(client.createSwapExecution).not.toHaveBeenCalled();
+    expect(client.prepareSwap).not.toHaveBeenCalled();
   });
 
   it.each(["wrapping", "approving", "signing", "submitting"] as const)(
@@ -588,7 +591,7 @@ describe("React internal settlement lifecycle", () => {
     expect(laterCallbacks.onOrderCreated).not.toHaveBeenCalled();
     expect(store.getState().state.currentExecution).toBe(current);
     expect(store.getState().getExecution(firstId)).toBeUndefined();
-    expect(client.createOrderExecution).toHaveBeenCalledTimes(2);
+    expect(createHostOrderExecution).toHaveBeenCalledTimes(2);
 
     secondResult.resolve(secondOrder);
     await expect(second).resolves.toBe(secondOrder);
@@ -676,8 +679,8 @@ describe("React internal settlement lifecycle", () => {
     expect(store.getState().state.currentExecution.phase).toBe(ExecutionPhase.SUCCESS);
     expect(callbacks.onOrderCreated).not.toHaveBeenCalled();
     expect(callbacks.onOrderFilled).toHaveBeenCalledExactlyOnceWith(completed);
-    expect(client.createOrderExecution).not.toHaveBeenCalled();
-    expect(client.createSwapExecution).not.toHaveBeenCalled();
+    expect(createHostOrderExecution).not.toHaveBeenCalled();
+    expect(client.prepareSwap).not.toHaveBeenCalled();
   });
 
   it("recreates only a missing read client with its saved analytics configuration", async () => {
@@ -693,7 +696,7 @@ describe("React internal settlement lifecycle", () => {
     await expect(checkOrderStatus({ store, signal: new AbortController().signal })).resolves.toBe(completed);
     expect(createClient).toHaveBeenCalledWith(Partners.Quick, 137, { apiUrl, disableAnalytics: true });
     expect(client.getOrder).toHaveBeenCalledOnce();
-    expect(client.createSwapExecution).not.toHaveBeenCalled();
+    expect(client.prepareSwap).not.toHaveBeenCalled();
     expect(store.getState().state.currentExecution.phase).toBe(ExecutionPhase.SUCCESS);
   });
 
@@ -730,8 +733,8 @@ describe("React internal settlement lifecycle", () => {
       phase: status === OrderStatus.Open ? ExecutionPhase.UNCONFIRMED : ExecutionPhase.FAILED, order: latest,
     });
     expect(client.getOrder).toHaveBeenCalledOnce();
-    expect(client.createSwapExecution).not.toHaveBeenCalled();
-    expect(client.createOrderExecution).not.toHaveBeenCalled();
+    expect(client.prepareSwap).not.toHaveBeenCalled();
+    expect(createHostOrderExecution).not.toHaveBeenCalled();
   });
 
   it("retains missing/network results for recovery while a new form is available", async () => {
@@ -786,7 +789,7 @@ describe("React internal settlement lifecycle", () => {
     expect(store.getState().state.currentExecution).toMatchObject({ phase: ExecutionPhase.UNCONFIRMED, order: accepted });
     expect(callbacks.onOrderCreated).toHaveBeenCalledExactlyOnceWith(accepted);
     expect(client.getOrder).not.toHaveBeenCalled();
-    expect(client.createSwapExecution).not.toHaveBeenCalled();
+    expect(client.prepareSwap).not.toHaveBeenCalled();
   });
 
   it("treats a short LIMIT intent as accepted even when the returned variant resembles a swap", async () => {
@@ -799,7 +802,7 @@ describe("React internal settlement lifecycle", () => {
     } });
     await checkOrderStatus({ store, signal: new AbortController().signal });
     expect(store.getState().state.currentExecution.phase).toBe(ExecutionPhase.SUCCESS);
-    expect(client.createOrderExecution).not.toHaveBeenCalled();
+    expect(createHostOrderExecution).not.toHaveBeenCalled();
   });
 
   it.each([true, false])("retains missing submissions independently of signed expiry while allowing explicit detachment: expired=%s", async expired => {
@@ -849,7 +852,7 @@ describe("React internal settlement lifecycle", () => {
     expect(store.getState().getExecution(first.executionId)).toBeUndefined();
     expect(callbacks.onOrderCreated).toHaveBeenCalledExactlyOnceWith(accepted);
     expect(callbacks.onSubmitOrderFailed).not.toHaveBeenCalled();
-    expect(client.createOrderExecution).not.toHaveBeenCalled();
+    expect(createHostOrderExecution).not.toHaveBeenCalled();
   });
 
   it("retains an expired unknown submission for recovery when its current-service lookup fails", async () => {
@@ -884,7 +887,7 @@ describe("React internal settlement lifecycle", () => {
     expect(store.getState().getExecution(1)?.phase).toBe(ExecutionPhase.UNCONFIRMED);
   });
 
-  it.each(["saved", "sdk", "cache", "id"] as const)("does not expire a known accepted order missing from a later read: %s", async source => {
+  it.each(["saved", "host", "cache", "id"] as const)("does not expire a known accepted order missing from a later read: %s", async source => {
     const { store, client } = setup(vi.fn());
     const payload = { deadline: "1", witness: { exchange: { adapter } } };
     const accepted = { ...order(OrderVariant.SWAP), rawOrder: { order: payload } } as Order;
@@ -894,7 +897,7 @@ describe("React internal settlement lifecycle", () => {
       executionId: 1, phase: ExecutionPhase.UNCONFIRMED, account, chainId: 137,
       partner: Partners.Quick, apiUrl, client, preparedOrder: { order: payload } as PreparedOrder,
       ...(source === "saved" ? { order: accepted } : {}),
-      ...(source === "sdk" ? { sdkExecution: { order: accepted } as unknown as ReturnType<SpotClient["createOrderExecution"]> } : {}),
+      ...(source === "host" ? { hostExecution: { order: accepted } as unknown as OrderExecution } : {}),
       ...(source === "id" ? { orderId: accepted.id } : {}),
     } });
     await checkOrderStatus({ store });

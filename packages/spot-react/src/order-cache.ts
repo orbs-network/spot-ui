@@ -15,7 +15,7 @@ const matchesOrderScope = (key: string | undefined, order: Order, partner: strin
     scope[1].toLowerCase() === adapter.toLowerCase() && scope[2] === partner && scope[3] === order.chainId;
 };
 
-/** Apply SDK settlement snapshots only to the original account/adapter/partner/chain cache. */
+/** Apply host settlement snapshots only to the original account/adapter/partner/chain cache. */
 export const updateTrackedOrderInCache = (
   store: StoreApi<SpotStore>, order: Order, callbacks?: Callbacks, partner?: string,
 ): void => {

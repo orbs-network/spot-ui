@@ -1,6 +1,6 @@
 {
   "name": "@orbs-network/spot-react",
-  "version": "2.1.26",
+  "version": "2.2.0",
   "description": "Spot React Components - React components for Spot SDK",
   "type": "module",
   "main": "./dist/spot-react.umd.cjs",
@@ -16,6 +16,16 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/spot-react.umd.cjs"
       }
+    },
+    "./internal": {
+      "import": {
+        "types": "./dist/internal.d.ts",
+        "default": "./dist/internal.js"
+      },
+      "require": {
+        "types": "./dist/internal.d.cts",
+        "default": "./dist/internal.cjs"
+      }
     }
   },
   "files": [
@@ -24,7 +34,7 @@
   "scripts": {
     "dev": "vite build --watch",
     "build": "tsc && vite build && node ../../scripts/package-integration-skill.mjs spot-react",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm --workspace-root check:spot"
   },
   "keywords": [
     "spot",

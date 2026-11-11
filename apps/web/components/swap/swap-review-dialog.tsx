@@ -22,7 +22,7 @@ type ReviewPreview = SwapReviewContext & { quote?: SwapQuote };
 const getStep = (execution: Execution, review: ReviewPreview): Step => {
   if (execution.phase === "wrapping") return { title: `Wrap ${review.inputToken.symbol}`, footerText: "Proceed in wallet" };
   if (execution.phase === "approving") return { title: `Approve ${review.quote?.request.inToken.toLowerCase() === review.inputToken.address.toLowerCase() ? review.inputToken.symbol : `wrapped ${review.inputToken.symbol}`}`, footerText: "Proceed in wallet" };
-  if (execution.phase === "signing") return execution.sdkExecution?.preparedOrder
+  if (execution.phase === "signing") return execution.hostExecution?.preparedOrder
     ? { title: "Sign swap order", footerText: "Proceed in wallet" }
     : { title: "Updating swap quote", footerText: "Fetching the final quote…" };
   if (execution.phase === "settling") return { title: "Checking order status", footerText: "Checking the latest order status…" };
@@ -43,7 +43,7 @@ export const SwapReviewDialog = ({ open, onOpenChange, review, execution, canCon
   const t = useTranslations();
   const shown = execution.review ?? review;
   if (!shown) return null;
-  const quote = execution.sdkExecution?.preparedOrder?.quote ?? review?.quote;
+  const quote = execution.hostExecution?.preparedOrder?.quote ?? review?.quote;
   const minimum = quote
     ? formatUnits(BigInt(quote.minimumAmountOut), shown.outputToken.decimals)
     : undefined;

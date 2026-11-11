@@ -9,10 +9,6 @@ export type SpotErrorCode =
   | "QUOTE_MINIMUM_DECREASED"
   | "INVALID_QUOTE"
   | "INVALID_AMOUNT"
-  | "EXECUTION_IN_PROGRESS"
-  | "WRAP_FAILED"
-  | "APPROVAL_FAILED"
-  | "INSUFFICIENT_ALLOWANCE"
   | "PREPARED_ORDER_MISMATCH"
   | "ORDER_EXPIRED"
   | "SUBMISSION_FAILED"
@@ -33,8 +29,7 @@ export interface SpotErrorOptions {
 
 /**
  * SDK-owned failure that can be handled by `code` without matching message text.
- * Wallet rejections, host validation errors, abort errors, QuoteError, and
- * OrderSettlementError are propagated through their existing error contracts.
+ * Abort errors and QuoteError retain their existing error contracts.
  * A submission transport failure or malformed acceptance response may occur after
  * acceptance; check order status before retrying a signed order.
  */

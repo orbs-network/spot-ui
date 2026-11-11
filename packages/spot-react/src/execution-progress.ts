@@ -1,8 +1,7 @@
+import type { OrderExecutionStep, OrderExecutionUpdate } from "./host-execution/progress";
 import {
   type Address,
   type PreparedOrder,
-  type OrderExecutionStep,
-  type OrderExecutionUpdate,
 } from "@orbs-network/spot-ui";
 import { toAmountUI } from "@orbs-network/spot-ui/internal";
 import { observe, normalizeError } from "./execution-state";
