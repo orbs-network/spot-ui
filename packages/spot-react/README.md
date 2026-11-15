@@ -16,10 +16,10 @@ and modal; `@orbs-network/swap-ui` is an optional presentation layer for either 
 
 Every path can import its SDK functions and types from `spot-react` alone.
 The underlying `spot-ui` package is framework-neutral and renders no components.
-This includes `getTokenUsd({ tokenAddress, chainId, signal? })` and
-`client.getTokenUsd({ tokenAddress, signal? })`, which return a full-precision
-decimal string of USD per whole token. Price reads share the SDK's in-memory
-30-second cache; the host owns fallback policy.
+This includes standalone `getTokenUsd({ tokenAddress, chainId, cacheSeconds?, signal? })`,
+which returns a full-precision decimal string of USD per whole token without a
+client or configuration load. Price reads share the SDK's in-memory cache with a
+default 30-second freshness policy; the host supplies the chain and owns fallback policy.
 There is no swap provider. `AdvancedOrdersProviderProps` uses the exported
 `OrderType` enum: `TWAP`, `LIMIT`, `STOP_LOSS`, and `TAKE_PROFIT`.
 Swaps use the quote-only client flow and have no high-level order type.
@@ -996,12 +996,12 @@ the total USD amount with decimal arithmetic. For a positive automatic input:
 
 ```ts
 import BN from "bignumber.js";
-import { getSwapSlippage } from "@orbs-network/spot-react";
+import { getTokenUsd, getSwapSlippage } from "@orbs-network/spot-react";
 
 // Apply the host's timeout, cancellation, and fallback policy to the price read.
 const unitPriceUsd = isUserCustomSlippage
   ? undefined
-  : await client.getTokenUsd({ tokenAddress: inToken, signal }).catch(() => undefined);
+  : await getTokenUsd({ tokenAddress: inToken, chainId, cacheSeconds: 30, signal }).catch(() => undefined);
 signal?.throwIfAborted();
 const amountUsd = unitPriceUsd === undefined
   ? undefined
@@ -1037,11 +1037,22 @@ The frozen result contains `slippagePercent`, integer `slippageBps`, and optiona
 `inputAmountUsd` and provider `inputTokenUsdPrice` fields keep their existing
 meanings. Display the effective percentage and pass it unchanged to the quote.
 
-Standalone and client `getTokenUsd` calls share pending lookups and a 128-entry
-in-memory LRU cache keyed by normalized endpoint, chain, and lowercase token.
-Successful prices stay fresh for 30 seconds from the response; failures and
-invalid responses are not cached. A caller's abort signal stops only its wait;
-shared pricing can continue for other callers and cache warming.
+Standalone `getTokenUsd` is independent of the client and protocol configuration.
+Pass the active `chainId`; it always uses the default production price service.
+It accepts no `apiUrl` and does not infer settings from a client, `devApi`, the
+browser, or environment configuration. Calls share pending lookups and a 128-entry
+in-memory LRU cache keyed by chain and lowercase token.
+`cacheSeconds` is an optional nonnegative safe integer in seconds, defaulting
+to `30`. Policies share the same chain/token cache and pending work. Each
+call checks freshness against the successful response time; a shorter policy
+cannot reuse an older price retained for a longer policy.
+A longer policy may extend retention from that original response time, without
+restarting the clock on reads. `cacheSeconds: 0` refreshes completed prices but
+still shares an in-flight lookup for the same chain/token. Invalid values throw
+`INVALID_ARGUMENT`; failures are not cached.
+
+A caller's abort signal stops only its wait; shared pricing can continue for
+other callers and cache warming.
 The web demo bounds an automatic quote's price wait to 1,500 ms and passes
 `undefined` after a failure or timeout, while caller cancellation propagates.
 It may prefetch the selected token's price with an empty draft in automatic mode;

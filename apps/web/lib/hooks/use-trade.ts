@@ -1,6 +1,6 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { getSwapSlippage, type SpotClient } from "@orbs-network/spot-react";
+import { getSwapSlippage, getTokenUsd, type GetTokenUsdParams } from "@orbs-network/spot-react";
 import { useSpotClient } from "./use-spot-client";
 import { useSettings } from "./use-settings";
 import type { BestTradeQuote, Currency } from "../types";
@@ -13,24 +13,25 @@ import {
 } from "../utils";
 import { useConnection } from "wagmi";
 import { useSwapStore } from "./store";
+import { useSwapParams } from "./use-swap-params";
 
 export const SWAP_QUOTE_QUERY_KEY = ["spot-swap-quote"] as const;
 const QUOTE_REFRESH_MILLIS = 10_000;
 const OUTPUT_AMOUNT_DEBOUNCE_MILLIS = 250;
 const PRICE_WAIT_MILLIS = 1_500;
+const TOKEN_USD_CACHE_SECONDS = 30;
 
-const getQuoteTokenUsd = async (
-  client: SpotClient,
-  tokenAddress: string,
-  signal: AbortSignal,
-): Promise<string | undefined> => {
+const getQuoteTokenUsd = async ({
+  signal,
+  ...params
+}: GetTokenUsdParams & { signal: AbortSignal }): Promise<string | undefined> => {
   signal.throwIfAborted();
   const controller = new AbortController();
   const onAbort = () => controller.abort(signal.reason);
   signal.addEventListener("abort", onAbort, { once: true });
   const timeout = setTimeout(() => controller.abort(), PRICE_WAIT_MILLIS);
   try {
-    return await client.getTokenUsd({ tokenAddress, signal: controller.signal });
+    return await getTokenUsd({ ...params, signal: controller.signal });
   } catch {
     signal.throwIfAborted();
     return undefined;
@@ -52,6 +53,7 @@ export const useTrade = (
     error: clientError, refetch: refetchClient,
   } = useSpotClient();
   const { slippage, isCustomSlippage } = useSettings();
+  const { apiUrl } = useSwapParams();
   const { pauseQuote } = useSwapStore();
   const { address: account } = useConnection();
   const inToken = inputCurrency?.address ?? "";
@@ -66,13 +68,15 @@ export const useTrade = (
     ? getWrappedNativeCurrency(chainId)?.address ?? "" : slippageToken;
   const typedDecimals = isOutputAmount ? outputCurrency?.decimals : inputCurrency?.decimals;
   useEffect(() => {
-    if (!client || !slippageTokenAddress || isCustomSlippage || disabled) return;
+    if (!slippageTokenAddress || isCustomSlippage || disabled || !Number.isSafeInteger(chainId) || chainId <= 0) return;
     const controller = new AbortController();
-    void client.getTokenUsd({ tokenAddress: slippageTokenAddress, signal: controller.signal }).catch(() => {});
+    void getTokenUsd({
+      tokenAddress: slippageTokenAddress, chainId, cacheSeconds: TOKEN_USD_CACHE_SECONDS, signal: controller.signal,
+    }).catch(() => {});
     return () => controller.abort();
-  }, [client, slippageTokenAddress, isCustomSlippage, disabled]);
+  }, [chainId, slippageTokenAddress, isCustomSlippage, disabled]);
   const quoteScopeKey = [...SWAP_QUOTE_QUERY_KEY, {
-    chainId, partner, apiUrl: client?.apiUrl,
+    chainId, partner, apiUrl,
     inToken: quoteInToken.toLowerCase(), outToken: outToken.toLowerCase(),
     inDecimals: inputCurrency?.decimals, outDecimals: outputCurrency?.decimals,
     user: user.toLowerCase(), slippage, isCustomSlippage,
@@ -92,7 +96,7 @@ export const useTrade = (
     queryFn: client
       ? async ({ signal }) => {
           const tokenUsd = isCustomSlippage ? undefined
-            : await getQuoteTokenUsd(client, slippageTokenAddress, signal);
+            : await getQuoteTokenUsd({ tokenAddress: slippageTokenAddress, chainId, cacheSeconds: TOKEN_USD_CACHE_SECONDS, signal });
           signal.throwIfAborted();
           // Value the typed side once; output quotes have not resolved their input yet.
           const amountUsd = tokenUsd === undefined ? undefined

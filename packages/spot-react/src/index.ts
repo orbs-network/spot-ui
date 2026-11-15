@@ -81,7 +81,6 @@ export {
   type ClientGetOrdersParams,
   type ClientGetOrderParams,
   type ClientGetQuoteParams,
-  type ClientGetTokenUsdParams,
   type GetTokenUsdParams,
   type GetSwapSlippageParams,
   type SwapSlippage,

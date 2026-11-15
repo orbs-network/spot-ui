@@ -63,7 +63,6 @@ export {
   type ClientGetOrdersParams,
   type ClientGetOrderParams,
   type ClientGetQuoteParams,
-  type ClientGetTokenUsdParams,
 } from "./lib/client";
 
 export { getTokenUsd, type GetTokenUsdParams } from "./lib/token-usd";

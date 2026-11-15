@@ -9,16 +9,30 @@ wrapped-native metadata, wallet state, and UI belong to the host. Failed client
 initialization remains retryable. Do not mirror protocol configuration into a
 second host store or create another client for each history poll.
 
-Read a token's USD unit price with `client.getTokenUsd({ tokenAddress, signal })`,
-or `getTokenUsd({ tokenAddress, chainId, signal, apiUrl? })` without a client.
+Read a token's USD unit price with standalone
+`getTokenUsd({ tokenAddress, chainId, cacheSeconds: 30, signal })`. It needs no client or
+configuration load. Supply the active chain explicitly; `cacheSeconds` and
+`signal` are optional.
+Prices always use the default production service, independently of client
+`apiUrl` or the web demo's `devApi` flag. The function accepts no endpoint option
+and does not infer configuration from browser or environment settings.
 The decimal string is USD per whole token, normalized from the service's
 18-decimal raw price, independently of token decimals. Use decimal arithmetic
 when multiplying by input units; do not use the rounded display price.
-Within the same loaded SDK instance, standalone and client `getTokenUsd` calls
-share pending requests and a 128-entry in-memory LRU cache keyed by normalized
-endpoint, chain, and lowercase token. Successful prices stay fresh for 30 seconds
-from the response. Failed or invalid responses are not cached; there is no
-persistence or timer polling. A caller's abort signal stops only its wait while
+Within the same loaded SDK instance, `getTokenUsd` calls share pending requests
+and a 128-entry in-memory LRU cache keyed by chain and lowercase token.
+There is no persistence or timer polling.
+
+`cacheSeconds` is an optional nonnegative safe integer in seconds, defaulting
+to `30`. Policies share the same chain/token cache and pending work. Each
+call checks freshness against the successful response time; a shorter policy
+cannot reuse an older price retained for a longer policy.
+A longer policy may extend retention from that original response time, without
+restarting the clock on reads. `cacheSeconds: 0` refreshes completed prices but
+still shares an in-flight lookup for the same chain/token. Invalid values throw
+`INVALID_ARGUMENT`; failures are not cached.
+
+A caller's abort signal stops only its wait while
 shared pricing can finish and warm the cache. Direct `getTokenUsd` throws for
 failed or malformed responses; the host owns fallback policy for those calls.
 

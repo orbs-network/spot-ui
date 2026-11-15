@@ -32,7 +32,7 @@ existing wallet/read services and handle those services' errors directly.
 | --- | --- |
 | `createClient(partner, chainId, options?)` | Load a reusable client with validated protocol configuration |
 | `client.getQuote(params)` / `getQuote(params)` | Fetch one server quote for a fixed input or requested output amount |
-| `client.getTokenUsd(params)` / `getTokenUsd(params)` | Read the full-precision USD price per whole token |
+| `getTokenUsd(params)` | Read the full-precision USD price per whole token without a client |
 | `getSwapSlippage(params)` | Synchronously derive the UI/quote slippage from a total USD amount |
 | `calculateOrder(params)` | Derive a calculated advanced-order form |
 | `client.spenderAddress` | Read the ERC-20 approval spender for this client |
@@ -126,29 +126,37 @@ and reconcile uncertain acceptance before signing a replacement or running a fal
 
 ## Token USD prices
 
-Use the client's chain and service endpoint, or fetch a price without creating a client:
+Fetch a USD unit price directly, without creating a client or loading protocol
+configuration. Supply the chain explicitly:
 
 ```ts
 import { getTokenUsd } from "@orbs-network/spot-ui";
 
-const usdPerToken = await client.getTokenUsd({ tokenAddress, signal });
-const standalonePrice = await getTokenUsd({ tokenAddress, chainId: 56, signal });
+const usdPerToken = await getTokenUsd({ tokenAddress, chainId: 56, cacheSeconds: 30, signal });
 ```
 
-Both return a decimal string such as `"670.51070305"`, representing USD per whole
-token. The service's raw `priceUsd` has 18 decimal places regardless of token
+The function returns a decimal string such as `"670.51070305"`, representing USD
+per whole token. The service's raw `priceUsd` has 18 decimal places regardless of token
 decimals; the SDK normalizes that value and ignores the rounded
 `priceUsdFormatted` field. To calculate input USD value, multiply the raw input
 divided by `10 ** inputTokenDecimals` by this price using decimal arithmetic.
 Use the wrapped token address for native input.
 
-The standalone call accepts an optional `apiUrl`; the client method always uses
-its captured chain and endpoint. Within the same loaded SDK instance, standalone
-calls and client calls share pending lookups and a 128-entry in-memory LRU cache.
-Keys include the normalized endpoint, chain, and lowercase token address.
-Successful prices stay fresh for 30 seconds
-from the response; failures and invalid responses are not cached. Nothing is
-persisted, and the cache starts no timer-based polling.
+Prices always use the default production service. `getTokenUsd` accepts no
+`apiUrl`; client endpoint options and the web demo's `devApi` flag do not affect
+price lookup. It reads no browser or environment configuration and requires no
+global setter. Within the same loaded SDK instance, calls share pending lookups
+and a 128-entry in-memory LRU cache keyed by chain and lowercase token address.
+Nothing is persisted, and the cache starts no timer-based polling.
+
+`cacheSeconds` is an optional nonnegative safe integer in seconds, defaulting
+to `30`. Policies share the same chain/token cache and pending work. Each
+call checks freshness against the successful response time; a shorter policy
+cannot reuse an older price retained for a longer policy.
+A longer policy may extend retention from that original response time, without
+restarting the clock on reads. `cacheSeconds: 0` refreshes completed prices but
+still shares an in-flight lookup for the same chain/token. Invalid values throw
+`INVALID_ARGUMENT`; failures are not cached.
 
 Pass `signal` to stop this caller's wait. The shared lookup continues for other
 callers and can warm the cache; aborting one caller does not cancel their work.
@@ -158,18 +166,18 @@ Network and HTTP failures throw
 Price lookups do not modify quote slippage.
 
 `getSwapSlippage` is a synchronous standalone function. The DEX resolves any
-needed unit price with `client.getTokenUsd`, computes the total USD value with
+needed unit price with standalone `getTokenUsd`, computes the total USD value with
 decimal arithmetic, and passes that total to the policy. For a positive automatic
 input amount:
 
 ```ts
 import BN from "bignumber.js";
-import { getSwapSlippage } from "@orbs-network/spot-ui";
+import { getTokenUsd, getSwapSlippage } from "@orbs-network/spot-ui";
 
 // Apply the host's timeout, cancellation, and fallback policy to the price read.
 const unitPriceUsd = isUserCustomSlippage
   ? undefined
-  : await client.getTokenUsd({ tokenAddress: inToken, signal }).catch(() => undefined);
+  : await getTokenUsd({ tokenAddress: inToken, chainId, cacheSeconds: 30, signal }).catch(() => undefined);
 signal?.throwIfAborted();
 const amountUsd = unitPriceUsd === undefined
   ? undefined
@@ -469,8 +477,10 @@ TWAP subgraphs.
 
 The SDK does not read page URL parameters. Pass
 `{ apiUrl: "https://order-sink-dev.orbs.network" }` to `createClient` to select a
-trusted alternative explicitly. Configuration, quotes, submission, and lookups
-use that client's captured endpoint; custom services exclude production history.
+trusted alternative explicitly. Configuration, quotes, submission, and order
+lookups use that client's captured endpoint; custom services exclude production
+history. Standalone `getTokenUsd` receives an explicit chain and always uses the
+default production price service, independently of this client endpoint.
 The web demo maps `?devApi=true` to this fixed development URL.
 
 `createClient` loads validated `/config` data using the shared bounded cache. It rejects chain

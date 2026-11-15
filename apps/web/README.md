@@ -10,10 +10,11 @@ Those validated SDK templates use a separate 60-second, 32-entry LRU cache with
 shared in-flight requests and deep copies for each client; failed loads are evicted.
 
 Add `?devApi=true` to use `https://order-sink-dev.orbs.network` for swap and
-advanced-order configuration, quotes, pricing, submissions, and history.
+advanced-order configuration, quotes, submissions, and history.
 `?devApi`, `?devApi=`, and `?devApi=1` also enable it. Omit the flag, or use
 `devApi=false` or `devApi=0`, for production. The flag selects this fixed URL;
-it does not accept an arbitrary API URL.
+it does not accept an arbitrary API URL. Standalone `getTokenUsd` always uses the
+default production price service and is unaffected by `devApi`.
 
 The navbar opens RainbowKit's built-in network modal, including chain logos.
 Its trigger stays visible even when the partner supports only one network.

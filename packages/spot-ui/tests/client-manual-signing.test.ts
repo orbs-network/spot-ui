@@ -9,7 +9,7 @@ import { buildV2Order, getOrder } from "../src/lib/orders/v2-orders";
 import { fetchQuote, type SwapQuote, type SwapQuoteParams } from "../src/lib/quote";
 import { submitOrder } from "../src/lib/submit-order";
 import { getSwapSlippage, type SwapSlippage } from "../src/lib/swap-slippage";
-import { getTokenUsd } from "../src/lib/token-usd";
+import { getTokenUsd, type GetTokenUsdParams } from "../src/lib/token-usd";
 import { OrderStatus, OrderType, Partners, type Address, type Hex, type RePermitData, type RePermitOrder } from "../src/lib/types";
 
 vi.mock("../src/lib/fetch-repermit-data", () => ({ fetchRePermitData: vi.fn() }));
@@ -101,8 +101,9 @@ describe("client manual signing", () => {
     expect(spot).not.toHaveProperty("createOrderExecution");
     expect(spot).not.toHaveProperty("createSwapExecution");
     expect(spot).not.toHaveProperty("getSwapSlippage");
+    expect(spot).not.toHaveProperty("getTokenUsd");
     expectTypeOf<Extract<keyof SpotClient, "createOrderExecution" | "createSwapExecution">>().toEqualTypeOf<never>();
-    expectTypeOf<Extract<keyof SpotClient, "getSwapSlippage">>().toEqualTypeOf<never>();
+    expectTypeOf<Extract<keyof SpotClient, "getSwapSlippage" | "getTokenUsd">>().toEqualTypeOf<never>();
     expect(spot.prepareOrder).toBeTypeOf("function");
     expect(spot.prepareSwap).toBeTypeOf("function");
     expect(spot.submitOrder).toBeTypeOf("function");
@@ -562,7 +563,7 @@ describe("shared token USD cache", () => {
       .mockReturnValueOnce(response.promise)
       .mockResolvedValueOnce(priceResponse("3000000000000000000"));
     vi.stubGlobal("fetch", network);
-    const request = { ...params, apiUrl: `${apiUrl}/thirty-second-price-cache` };
+    const request = { ...params, chainId: 137 };
     const first = getTokenUsd(request);
 
     await vi.advanceTimersByTimeAsync(20_000);
@@ -571,17 +572,139 @@ describe("shared token USD cache", () => {
     await vi.advanceTimersByTimeAsync(29_999);
     await expect(getTokenUsd(request)).resolves.toBe("2");
     expect(network).toHaveBeenCalledOnce();
+    expect(network.mock.calls[0]?.[0]).toBe(`https://order-sink-v2.orbs.network/price/${inputTokenAddress}?chainId=137`);
+    expectTypeOf<Extract<keyof GetTokenUsdParams, "apiUrl" | "cacheMillis">>().toEqualTypeOf<never>();
 
     await vi.advanceTimersByTimeAsync(1);
     await expect(getTokenUsd(request)).resolves.toBe("3");
     expect(network).toHaveBeenCalledTimes(2);
   });
 
+  it("uses a caller's custom cache lifetime at its exact boundary", async () => {
+    const network = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(priceResponse())
+      .mockResolvedValueOnce(priceResponse("3000000000000000000"));
+    vi.stubGlobal("fetch", network);
+    const request = { ...params, chainId: 42161, cacheSeconds: 1 };
+
+    await expect(getTokenUsd(request)).resolves.toBe("2");
+    await vi.advanceTimersByTimeAsync(999);
+    await expect(getTokenUsd(request)).resolves.toBe("2");
+    expect(network).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(getTokenUsd(request)).resolves.toBe("3");
+    expect(network).toHaveBeenCalledTimes(2);
+  });
+
+  it("shares pending work with zero caching but fetches again after completion", async () => {
+    const response = deferred<Response>();
+    const network = vi.fn<typeof globalThis.fetch>()
+      .mockReturnValueOnce(response.promise)
+      .mockResolvedValueOnce(priceResponse("3000000000000000000"));
+    vi.stubGlobal("fetch", network);
+    const request = { ...params, chainId: 10, cacheSeconds: 0 };
+    const first = getTokenUsd(request);
+    const shared = getTokenUsd(request);
+
+    expect(network).toHaveBeenCalledOnce();
+    response.resolve(priceResponse());
+    await expect(Promise.all([first, shared])).resolves.toEqual(["2", "2"]);
+    await expect(getTokenUsd(request)).resolves.toBe("3");
+    expect(network).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not give a short-lived caller an older value retained by a longer caller", async () => {
+    const network = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(priceResponse())
+      .mockResolvedValueOnce(priceResponse("3000000000000000000"));
+    vi.stubGlobal("fetch", network);
+    const request = { ...params, chainId: 8453 };
+
+    await expect(getTokenUsd({ ...request, cacheSeconds: 10 })).resolves.toBe("2");
+    await vi.advanceTimersByTimeAsync(999);
+    await expect(getTokenUsd({ ...request, cacheSeconds: 1 })).resolves.toBe("2");
+    expect(network).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(2);
+    await expect(getTokenUsd({ ...request, cacheSeconds: 1 })).resolves.toBe("3");
+    await expect(getTokenUsd({ ...request, cacheSeconds: 10 })).resolves.toBe("3");
+    expect(network).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets a longer-lived caller extend retention without resetting the response age", async () => {
+    const network = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(priceResponse())
+      .mockResolvedValueOnce(priceResponse("3000000000000000000"));
+    vi.stubGlobal("fetch", network);
+    const request = { ...params, chainId: 43114 };
+
+    await expect(getTokenUsd({ ...request, cacheSeconds: 1 })).resolves.toBe("2");
+    await vi.advanceTimersByTimeAsync(500);
+    await expect(getTokenUsd({ ...request, cacheSeconds: 5 })).resolves.toBe("2");
+    await vi.advanceTimersByTimeAsync(4_499);
+    await expect(getTokenUsd({ ...request, cacheSeconds: 5 })).resolves.toBe("2");
+    expect(network).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(getTokenUsd({ ...request, cacheSeconds: 5 })).resolves.toBe("3");
+    expect(network).toHaveBeenCalledTimes(2);
+  });
+
+  it("shares mixed-duration pending callers and starts retention when their response arrives", async () => {
+    const response = deferred<Response>();
+    const network = vi.fn<typeof globalThis.fetch>()
+      .mockReturnValueOnce(response.promise)
+      .mockResolvedValueOnce(priceResponse("3000000000000000000"));
+    vi.stubGlobal("fetch", network);
+    const request = { ...params, chainId: 100 };
+    const short = getTokenUsd({ ...request, cacheSeconds: 1 });
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    const long = getTokenUsd({ ...request, cacheSeconds: 5 });
+    expect(network).toHaveBeenCalledOnce();
+    response.resolve(priceResponse());
+    await expect(Promise.all([short, long])).resolves.toEqual(["2", "2"]);
+    await vi.advanceTimersByTimeAsync(4_999);
+    await expect(getTokenUsd({ ...request, cacheSeconds: 5 })).resolves.toBe("2");
+    expect(network).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(getTokenUsd({ ...request, cacheSeconds: 5 })).resolves.toBe("3");
+    expect(network).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([-1, NaN, Infinity, 0.5, Number.MAX_SAFE_INTEGER + 1])("rejects an invalid cache lifetime before fetching (%s)", async cacheSeconds => {
+    const network = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", network);
+
+    await expect(getTokenUsd({ ...params, cacheSeconds })).rejects.toMatchObject({ code: "INVALID_ARGUMENT" });
+
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it("retains a refreshed pending entry when another key fills the LRU cache", async () => {
+    const network = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => priceResponse());
+    vi.stubGlobal("fetch", network);
+    const firstChain = 30_000;
+    for (let offset = 0; offset < 128; offset++) {
+      await getTokenUsd({ ...params, chainId: firstChain + offset, cacheSeconds: 60 });
+    }
+    expect(network).toHaveBeenCalledTimes(128);
+
+    const response = deferred<Response>();
+    network.mockReturnValueOnce(response.promise);
+    const request = { ...params, chainId: firstChain, cacheSeconds: 0 };
+    const refreshed = getTokenUsd(request);
+    await getTokenUsd({ ...params, chainId: firstChain + 128, cacheSeconds: 60 });
+    const shared = getTokenUsd(request);
+
+    expect(network).toHaveBeenCalledTimes(130);
+    response.resolve(priceResponse("3000000000000000000"));
+    await expect(Promise.all([refreshed, shared])).resolves.toEqual(["3", "3"]);
+  });
+
   it("propagates cancellation without cancelling shared pricing for another caller", async () => {
     const response = deferred<Response>();
     const network = vi.fn<typeof globalThis.fetch>().mockReturnValue(response.promise);
     vi.stubGlobal("fetch", network);
-    const request = { ...params, apiUrl: `${apiUrl}/shared-price-cancellation` };
+    const request = { ...params, chainId: 56 };
     const controller = new AbortController();
     const reason = new Error("Stop this price wait");
     const cancelled = getTokenUsd({ ...request, signal: controller.signal });
@@ -602,7 +725,7 @@ describe("shared token USD cache", () => {
       .mockRejectedValueOnce(new Error("Price backend unavailable"))
       .mockResolvedValueOnce(priceResponse());
     vi.stubGlobal("fetch", network);
-    const request = { ...params, apiUrl: `${apiUrl}/failed-price-retry` };
+    const request = { ...params, chainId: 1 };
 
     await expect(getTokenUsd(request)).rejects.toMatchObject({ code: "PRICE_LOOKUP_FAILED" });
     await expect(getTokenUsd(request)).resolves.toBe("2");
