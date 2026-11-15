@@ -9,6 +9,83 @@ wrapped-native metadata, wallet state, and UI belong to the host. Failed client
 initialization remains retryable. Do not mirror protocol configuration into a
 second host store or create another client for each history poll.
 
+Read a token's USD unit price with `client.getTokenUsd({ tokenAddress, signal })`,
+or `getTokenUsd({ tokenAddress, chainId, signal, apiUrl? })` without a client.
+The decimal string is USD per whole token, normalized from the service's
+18-decimal raw price, independently of token decimals. Use decimal arithmetic
+when multiplying by input units; do not use the rounded display price.
+Within the same loaded SDK instance, standalone/client price reads and implicit
+`getSwapSlippage` reads share pending requests and a 128-entry in-memory LRU cache
+keyed by normalized endpoint, chain, and lowercase token address. Successful
+prices stay fresh for 10 minutes from the response. Failed or invalid responses
+are not cached; there is no persistence or timer polling. A caller's abort signal
+stops only its wait; the shared lookup continues for other callers and cache
+warming. Direct `getTokenUsd` calls throw on failed lookups rather than returning
+zero; the host owns fallback policy for those calls. Price reads do not change
+quote slippage.
+
+Await the resolved policy before displaying slippage or requesting a quote:
+
+```ts
+const policy = await client.getSwapSlippage({
+  tokenAddress: inToken, typedInputAmount,
+  slippage: dexSlippage,
+  isCustom: isUserCustomSlippage,
+  signal,
+});
+const quote = await client.getQuote({
+  inToken, outToken, inAmount: inputAmountRaw, user: account,
+  slippage: policy.slippagePercent, signal,
+});
+```
+
+Pass the user's whole-token decimal string directly as `typedInputAmount`
+(for example, `"50.25"`), without converting through JavaScript `Number`. The helper
+needs no token decimals. Quote `inAmount` remains the integer base-unit amount.
+
+Show `policy.slippagePercent` before quoting. Both `slippage` and `isCustom` are
+required. Slippage must round to at least one basis point and must not exceed
+50%; zero is rejected. With `isCustom: false`,
+`slippage` is the DEX baseline: known positive input value up to $100 applies a
+1% floor without lowering a higher baseline, and larger trades retain the
+baseline. With `isCustom: true`, the supplied percentage wins without fetching
+or waiting for pricing. Hosts that treat empty
+or zero settings as automatic should pass their positive DEX default as the
+baseline, as the web demo does. Positive automatic input waits at most 1,500 ms
+for the supplied `inputTokenUsd` string/promise or a shared `getTokenUsd` lookup
+when omitted.
+Supplied overrides are not imported into that cache; their freshness belongs to
+the caller. Missing, failed, invalid, zero, or timed-out pricing returns the
+supplied DEX baseline with undefined `inputAmountUsd`, allowing quoting to proceed.
+Shared lookups can finish in the background and warm the cache. This
+fallback belongs to `getSwapSlippage`; direct `getTokenUsd` calls still throw.
+Missing, empty, `"."`, or zero input returns the baseline immediately without
+fetching or waiting for a supplied price promise; rejected supplied promises are
+still observed. Invalid token, chain, amount, and slippage inputs still reject;
+caller cancellation propagates. Partial decimals such as `".5"` and `"1."` are
+accepted. The helper returns `slippagePercent`, integer `slippageBps`, and optional `inputAmountUsd`.
+The USD value is the exact decimal-string input total when automatic pricing
+knows the amount; it is undefined for custom slippage or unavailable input/pricing.
+Standalone
+`getSwapSlippage` also requires `chainId` and accepts `apiUrl`; the client supplies
+its captured chain and endpoint. Slippage inputs are percentages rounded to
+basis points, and malformed inputs throw `INVALID_ARGUMENT`.
+After quoting, the displayed percentage comes from
+`quote.request.slippage`, then `prepared.quote.request.slippage` at signing.
+Never recompute a different display value from settings beside the accepted quote.
+For output entry, the web demo classifies automatic slippage once using the target
+output token and its approximate USD value. The price helper's contract is unchanged.
+Quote the actual token pair with exactly one positive base-unit `inAmount` or
+`outAmount`. Each call makes one server request, without reversing the pair or
+searching client-side. The SDK maps server `amountIn` to `quote.request.inAmount`;
+output targets remain in `quote.requestedOutAmount` and must be covered by the
+server minimum. Legacy `dexMinAmountOut` is an input-only local threshold, never
+sent to the server; positive thresholds are rejected for output-target quotes.
+Opening review reuses the current quote without an additional quote request.
+That quote supplies the reviewed amounts, percentage, and unchanged protected
+minimum. Freeze the resolved `quote.request.inAmount` before wallet work. The host owns quote
+state, cancellation, and refreshes; the SDK starts no searches or polling.
+
 Core preparation exposes `Eip712TypedData`, `OrderSigningRequest`, and
 `ApprovalRequest` so direct DEX integrations can use their existing wallet code.
 The React adapter's `WalletInteractions`, `AllowanceRequest`, and
@@ -88,16 +165,20 @@ on-chain cancellation; aborting local work cannot cancel an accepted order.
 
 After confirmed host prerequisites, `client.prepareSwap()` reuses the reviewed
 quote when its local receipt age is between zero and 20 seconds, inclusive. Older
-quotes, invalid receipt times, and future receipt times refresh the exact original
-request. A refreshed protected minimum below the reviewed floor rejects with
+quotes, invalid receipt times, and future receipt times refresh the resolved fixed
+input. A refreshed protected minimum below the reviewed floor rejects with
 `QUOTE_MINIMUM_DECREASED`; otherwise the selected quote becomes the prepared order.
 Estimates may remain live through wrap/approval, then freeze displayed output and
 minimum from `prepared.quote` before opening the wallet signature prompt. Keep
 input amount, tokens, account, chain, and slippage fixed from the confirmed review.
 
+Stale output-target quotes refresh the resolved fixed input, never repeat the
+target calculation or increase spending. A decreased minimum requires fresh review.
 Preparation creates fresh nonce/timestamps immediately before signing. Swaps
-expire three minutes from preparation and sign fixed 500 bps oracle protection;
-advanced orders use the reviewed calculator values. Never construct protocol
+expire three minutes from preparation and sign independent 500 bps oracle price
+protection. DEX quote tolerance is enforced by the unchanged quote minimum in
+signed `witness.output.limit`; it does not set `witness.slippage`. Advanced orders
+use the reviewed calculator values. Never construct protocol
 payloads by hand or replace the prepared order after signing.
 
 Submission sends one POST with a thirty-second timeout and returns acceptance

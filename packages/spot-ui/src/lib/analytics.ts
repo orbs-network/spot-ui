@@ -22,6 +22,8 @@ export interface AnalyticsContext {
   outputTokenAddress?: string;
   outputTokenSymbol?: string;
   inputAmountRaw?: string;
+  requestedOutputAmountRaw?: string;
+  quoteMode?: "exactIn" | "exactOut";
   minimumOutputAmountRaw?: string;
   inputAmountPerTradeRaw?: string;
   triggerOutputAmountPerTradeRaw?: string;
@@ -59,6 +61,8 @@ interface Data {
   quoteUser?: string;
   quoteSuccess?: boolean;
   quoteReused?: boolean;
+  requestedOutputAmountRaw?: string;
+  quoteMode?: "exactIn" | "exactOut";
   reviewedMinimumOutputAmountRaw?: string;
   freshMinimumOutputAmountRaw?: string;
   cancelOrderSuccess?: boolean;
@@ -170,7 +174,7 @@ const TRADE_FIELDS = [
 ] as const satisfies readonly (keyof Data)[];
 const COMMON_FIELDS = ["sdkVersion", "uiVersion", "origin", "partner", "chainId", "walletAddress", "module"] as const;
 const ERROR_FIELDS = ["actionError", "errorCode", "errorStatus", "errorServiceCode"] as const;
-const QUOTE_FIELDS = ["quoteUser", "fromTokenAddress", "toTokenAddress", "fromTokenAmount", "slippage"] as const;
+const QUOTE_FIELDS = ["quoteUser", "fromTokenAddress", "toTokenAddress", "fromTokenAmount", "slippage", "requestedOutputAmountRaw", "quoteMode"] as const;
 const SETTLEMENT_FIELDS = ["orderHash", "filledInputAmountRaw", "filledOutputAmountRaw"] as const;
 const CANCELLATION_FIELDS = ["orderHash", "cancelOrderId", "cancelOrderVersion"] as const;
 const EVENT_FIELDS: Readonly<Record<string, readonly (keyof Data)[]>> = {
@@ -183,6 +187,7 @@ const EVENT_FIELDS: Readonly<Record<string, readonly (keyof Data)[]>> = {
   "order.prepared": TRADE_FIELDS,
   "quote.requested": QUOTE_FIELDS,
   "quote.reused": QUOTE_FIELDS,
+  "quote.succeeded": ["fromTokenAmount", "requestedOutputAmountRaw", "quoteMode"],
   "quote.rejected": ["reviewedMinimumOutputAmountRaw", "freshMinimumOutputAmountRaw"],
   "wrap.requested": ["wrapAmountRaw"],
   "wrap.succeeded": ["wrapTxHash"],
@@ -283,6 +288,7 @@ function contextData(context: AnalyticsContext): Partial<Data> {
     inputTokenAddress: "fromTokenAddress", inputTokenSymbol: "fromTokenSymbol",
     outputTokenAddress: "toTokenAddress", outputTokenSymbol: "toTokenSymbol",
     inputAmountRaw: "fromTokenAmount", minimumOutputAmountRaw: "minDstAmountOutPerTrade",
+    requestedOutputAmountRaw: "requestedOutputAmountRaw", quoteMode: "quoteMode",
     inputAmountPerTradeRaw: "srcChunkAmount", triggerOutputAmountPerTradeRaw: "triggerPricePerTrade",
     totalTrades: "chunksAmount", deadlineMillis: "deadline", fillDelayMillis: "fillDelay",
     slippagePercent: "slippage", orderType: "module", orderId: "orderHash", quoteUser: "quoteUser",
@@ -508,18 +514,19 @@ export class Analytics {
   onConfigurationError(error: unknown): void { this.reportFailure("configuration.failed", error, "configuration", { action: "configuration" }); }
   onQuoteRequest(context: AnalyticsContext = {}): void {
     void this.emitEvent("quote.requested", {
-      ...CLEAR_ERROR_FIELDS, ...selectData(contextData(context), [...COMMON_FIELDS, ...QUOTE_FIELDS]), action: "quote",
+      ...CLEAR_ERROR_FIELDS,
+      ...selectData(contextData(context), [...COMMON_FIELDS, ...QUOTE_FIELDS]), action: "quote",
     });
   }
   onQuoteSuccess({ reused = false, context }: { reused?: boolean; context?: AnalyticsContext } = {}): void {
-    const quote = reused ? selectData(context ? contextData(context) : this.data, [
-      "quoteUser", "fromTokenAddress", "toTokenAddress", "fromTokenAmount", "slippage",
-    ]) : {};
+    const quote = selectData(context ? contextData(context) : this.data, QUOTE_FIELDS);
     void this.emitEvent(reused ? "quote.reused" : "quote.succeeded", {
       ...CLEAR_ERROR_FIELDS, ...quote, action: "quote", quoteSuccess: true, quoteReused: reused,
     });
   }
-  onQuoteError(error: unknown): void { this.reportFailure("quote.failed", error, "quote", { action: "quote", quoteSuccess: false }); }
+  onQuoteError(error: unknown): void {
+    this.reportFailure("quote.failed", error, "quote", { action: "quote", quoteSuccess: false });
+  }
   onQuoteValidationError(error: unknown, comparison?: {
     reviewedMinimumOutputAmountRaw: string;
     freshMinimumOutputAmountRaw: string;

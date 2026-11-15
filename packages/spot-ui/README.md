@@ -12,7 +12,7 @@ npm install @orbs-network/spot-ui
 Use a modern browser or Node.js 18+ with `fetch`, `AbortController`, and `BigInt`.
 Import from the public package root. The version-matched integration guide ships
 at `dist/integration-skill/SKILL.md`, with `manifest.json.sdkVersion` identifying
-its package version. The host owns token metadata, wallet operations, balances, USD prices, editable
+its package version. The host owns token metadata, wallet operations, balances, USD price display, editable
 state, progress, and UI. The SDK owns protocol configuration, order preparation,
 submission, and status/history reads.
 
@@ -27,7 +27,9 @@ existing wallet/read services and handle those services' errors directly.
 | API | Purpose |
 | --- | --- |
 | `createClient(partner, chainId, options?)` | Load a reusable client with validated protocol configuration |
-| `client.getQuote(params)` / `getQuote(params)` | Fetch an exact-input swap quote |
+| `client.getQuote(params)` / `getQuote(params)` | Fetch one server quote for a fixed input or requested output amount |
+| `client.getTokenUsd(params)` / `getTokenUsd(params)` | Read the full-precision USD price per whole token |
+| `client.getSwapSlippage(params)` / `getSwapSlippage(params)` | Resolve one effective slippage percentage for the UI and quote |
 | `calculateOrder(params)` | Derive a calculated advanced-order form |
 | `client.spenderAddress` | Read the ERC-20 approval spender for this client |
 | `client.prepareSwap(params)` / `client.prepareOrder(params)` | Prepare the exact EIP-712 payload for inline wallet signing |
@@ -118,6 +120,108 @@ Keep the prepared order, original signature, confirmed hashes, and accepted/late
 order in host state that survives transient modal closure. Guard duplicate attempts
 and reconcile uncertain acceptance before signing a replacement or running a fallback.
 
+## Token USD prices
+
+Use the client's chain and service endpoint, or fetch a price without creating a client:
+
+```ts
+import { getTokenUsd } from "@orbs-network/spot-ui";
+
+const usdPerToken = await client.getTokenUsd({ tokenAddress, signal });
+const standalonePrice = await getTokenUsd({ tokenAddress, chainId: 56, signal });
+```
+
+Both return a decimal string such as `"670.51070305"`, representing USD per whole
+token. The service's raw `priceUsd` has 18 decimal places regardless of token
+decimals; the SDK normalizes that value and ignores the rounded
+`priceUsdFormatted` field. To calculate input USD value, multiply the raw input
+divided by `10 ** inputTokenDecimals` by this price using decimal arithmetic.
+Use the wrapped token address for native input.
+
+The standalone call accepts an optional `apiUrl`; the client method always uses
+its captured chain and endpoint. Within the same loaded SDK instance, standalone
+calls, client calls, and implicit `getSwapSlippage` price reads share pending
+lookups and a 128-entry in-memory LRU cache. Keys include the normalized endpoint,
+chain, and lowercase token address. Successful prices stay fresh for 10 minutes
+from the response; failures and invalid responses are not cached. Nothing is
+persisted, and the cache starts no timer-based polling.
+
+Pass `signal` to stop this caller's wait. The shared lookup continues for other
+callers and can warm the cache; aborting one caller does not cancel their work.
+Network and HTTP failures throw
+`SpotError` with `PRICE_LOOKUP_FAILED`; invalid successful responses throw
+`INVALID_RESPONSE`. Missing or failed pricing never becomes a zero-dollar price.
+Price lookups do not modify quote slippage.
+
+Await `client.getSwapSlippage` to resolve the shared small-trade policy before
+displaying the effective percentage or requesting a quote:
+
+```ts
+const policy = await client.getSwapSlippage({
+  tokenAddress: inToken,
+  typedInputAmount, // Whole-token decimal string, for example "50.25".
+  slippage: dexSlippage,
+  isCustom: isUserCustomSlippage,
+  signal,
+});
+// Display policy.slippagePercent (%) and policy.inputAmountUsd when available.
+const quote = await client.getQuote({
+  inToken, outToken, inAmount: inputAmountRaw, user: account,
+  slippage: policy.slippagePercent, signal,
+});
+```
+
+Pass the user's decimal string directly as `typedInputAmount`; do not convert it
+through JavaScript `Number`. Quote `inAmount` remains an integer base-unit string,
+as shown by `inputAmountRaw` above. The slippage helper needs no token decimals.
+
+Both `slippage` and `isCustom` are required. Slippage must not exceed 50% and
+must round to at least one basis point; zero is rejected. With `isCustom: false`,
+`slippage` is the DEX baseline: known positive trades up to and including $100
+use at least 1%, while larger trades retain that baseline. A higher baseline
+stays higher. With `isCustom: true`, the helper returns that percentage without
+fetching or waiting for pricing. Hosts that treat
+an empty or zero setting as automatic should pass their positive DEX default as
+the baseline; the web demo follows this convention.
+For positive automatic input, the helper fetches `getTokenUsd` if no price is
+supplied and waits at most 1,500 ms for pricing, including a supplied price promise.
+Missing, failed, invalid, zero, or timed-out pricing returns the supplied DEX
+baseline with `inputAmountUsd: undefined`, so quoting can continue. Shared price
+work can finish in the background and warm the cache for later calls.
+Direct `getTokenUsd` calls retain the throwing contract described above.
+Missing, empty, `"."`, or zero input returns the baseline
+immediately without starting a lookup or waiting for a supplied price promise;
+rejected supplied promises are still observed. Ordinary partial inputs such as
+`".5"` and `"1."` are accepted. Invalid token, chain, amount, and slippage inputs
+still reject, and caller cancellation propagates.
+The frozen result contains `slippagePercent`, integer `slippageBps`, and optional
+`inputAmountUsd`. The USD value is the exact decimal-string input total when
+automatic pricing knows the amount; it is undefined for custom slippage or
+unavailable input or pricing. Percentage inputs round to basis points;
+malformed inputs throw `INVALID_ARGUMENT`.
+The standalone `getSwapSlippage` additionally requires `chainId` and accepts an
+optional `apiUrl`; the client method supplies its captured chain and endpoint.
+Both accept an abort `signal`. When `inputTokenUsd` is omitted, automatic slippage
+benefits from the shared price cache described above.
+
+You can still pass a price or pending lookup through `inputTokenUsd`, which
+accepts a decimal string or promise. SDK lookups already coalesce; supplied
+overrides are not imported into the SDK cache, and the caller owns their freshness:
+
+```ts
+const pendingPrice = client.getTokenUsd({ tokenAddress: inToken, signal });
+const policy = await client.getSwapSlippage({
+  tokenAddress: inToken, typedInputAmount,
+  slippage: dexDefaultSlippage, isCustom: false,
+  inputTokenUsd: pendingPrice, signal,
+});
+```
+
+Use `policy.slippagePercent` for both the initial display and quote request. Once
+quoted, display `quote.request.slippage`; after preparation, freeze
+`prepared.quote.request.slippage` alongside its output and minimum. Do not show
+the raw DEX default beside a quote calculated with a different percentage.
+
 ## Existing DEX routers: use the SDK directly
 
 Keep the DEX route competition, gas policy, wallet, and UI. Quote Spot as one
@@ -133,22 +237,59 @@ const quote = await client.getQuote({
   inAmount,
   user: accountOrPreviewAddress,
   slippage: 0.5,
-  dexMinAmountOut, // Optional; undefined becomes "-1" in the API request.
+  dexMinAmountOut, // Optional local comparison threshold for input quotes; not sent.
   signal: quoteController.signal,
 });
 ```
 
-Token amounts are integer base-unit strings. Slippage is a percentage: `0.5`
-means 0.5%, sent as 50 basis points. `quote.minimumAmountOut` is authoritative;
+For an output target, keep the actual token pair and supply `outAmount` instead
+of `inAmount`:
+
+```ts
+const outputQuote = await client.getQuote({
+  inToken, outToken, outAmount: outputAmountRaw,
+  user: accountOrPreviewAddress, slippage: 0.5,
+  signal: quoteController.signal,
+});
+```
+
+Supply exactly one positive uint256 base-unit amount: `inAmount` or `outAmount`.
+Each call makes one request; output quotes use the server's calculation, without
+reversing the token pair or searching client-side. The SDK normalizes the server's
+`amountIn` into `quote.request.inAmount`. For output quotes,
+`quote.requestedOutAmount` retains the typed target, and the SDK requires the
+server minimum to cover that target. Review and spend the resolved input.
+
+Token amounts are integer base-unit strings. Direct quote slippage is a percentage
+from 0 through 50, inclusive: `0.5` means 0.5%, sent as 50 basis points.
+`quote.minimumAmountOut` is authoritative;
 use it unchanged for comparison, review, and signing. `netAmountOut` is the net
 estimated output, and optional input/net/minimum USD totals and price impact are
 display metadata. Use the host formatter with the token decimals; never convert
 raw spending amounts to JavaScript `Number`.
 
+The legacy `dexMinAmountOut` option is a local threshold for input quotes only;
+a positive value requires the returned minimum to be at least that value.
+It is not sent to the server. Omitted, `"-1"`, or `"0"` adds no threshold.
+Output targets accept only an omitted `dexMinAmountOut` or `"-1"`. The SDK never
+sends the old `outAmount: "-1"` sentinel.
+
+Opening review reuses the current quote without an additional quote request.
+Show its actual input, net output, slippage, and unchanged `minimumAmountOut`,
+then prepare that reviewed quote. The host owns cancellation, refreshes, errors,
+and cache identity for the current amount, direction, and pair. Preserve integer
+precision and freeze `quote.request.inAmount` before wallet work. For output
+entry, the web demo chooses automatic slippage once using the target token's
+approximate USD value; it does not quote again to refine that classification.
+
 Quote requests require `user`; disconnected previews can use
 `0x0000000000000000000000000000000000000001`. Preparation's `account` supplies
-the actual signer and recipient. Exact-output and alternate-recipient routes
-remain unsupported; gate them with `isSwapSupported` before wallet work.
+the actual signer and recipient. Output-target quotes still prepare a fixed-input
+order. Alternate recipients remain unsupported; validate the recipient before
+wallet work.
+`isSwapSupported` describes the fixed-input router integration and still returns
+false for a router's `tradeType: "exact-output"`. Server output-target quotes
+resolve the input through `getQuote({ outAmount, ... })` before that stage.
 Native selections use the configured wrapped ERC-20 protocol address. The
 host decides whether wrapping is needed, reads allowance for `client.spenderAddress`,
 and confirms any required approval. The host also validates spendable balances,
@@ -156,17 +297,20 @@ gas funds, and its minimum-trade policy.
 
 At `prepareSwap()`, after wrapping and approval finish, the SDK reuses the reviewed quote
 when its local receipt age is between zero and 20 seconds, inclusive. Older quotes,
-invalid receipt times, and future receipt times trigger a refresh for the exact
-original request. A refreshed protected minimum below the reviewed floor rejects
+invalid receipt times, and future receipt times trigger one refresh with the
+resolved, reviewed input fixed, including for an output-target quote. Preparation
+never increases spending or repeats the output-target calculation. A refreshed
+protected minimum below the reviewed floor rejects
 with `QUOTE_MINIMUM_DECREASED` and requires fresh review. Otherwise, the selected
 quote and its minimum become the prepared order. Hosts may keep
 display quotes live through wrapping and approval; freeze the displayed output
 and minimum from `prepared.quote` returned by preparation, before the
 wallet signature request. Keep the captured account, chain, pair, input amount,
-and slippage unchanged. Every swap signs one limit trade, no
-trigger, a fixed three-minute lifetime from preparation, and 500 bps signed
-oracle protection. Quote-request slippage and signed oracle protection are
-separate fields. Local quote age does not guarantee a fill.
+and slippage unchanged. Every swap signs one limit trade, no trigger, and a
+three-minute lifetime from preparation and independent 500 bps signed oracle
+price protection. The DEX quote tolerance is enforced by the unchanged
+`minimumAmountOut` in signed `witness.output.limit`; it does not set
+`witness.slippage`. Local quote age does not guarantee a fill.
 
 `QuoteError` preserves `kind`, HTTP `status`, server `code`, and `retryable`.
 Handle an empty offer separately from network or venue errors. `SpotError.code`
@@ -361,12 +505,18 @@ same `operationId`.
 | --- | --- |
 | Configuration loaded | Contract addresses and signing configuration actually used |
 | Quote requested or reused | Original quote user, pair, input amount, and slippage |
+| Quote succeeded | Quoted input amount |
 | Execution requested or order prepared | Applicable trade amounts and order settings |
 | Approval requested | Token, spender, `approvalRequiredAmountRaw` (exact input), and `approvalAmountRaw` (suggested cap, not the host/wallet's actual choice) |
 | Wallet transaction confirmed | That step's transaction hash |
 | Submission or cancellation outcome | Relevant order IDs and transaction hash or error |
 | Swap settlement | Order ID and applicable fill/progress information |
 | Failure | Redacted message and available SDK/HTTP/service error codes |
+
+Each SDK quote operation describes one server request. Successful quotes report
+the resolved raw input as `fromTokenAmount`.
+Cancelled quotes do not emit `quote.failed`; already-aborted requests emit no
+quote events.
 
 `sessionId` connects operations within the current page load. It is kept only in
 memory and changes on refresh. Clients and operations on the same page share it,

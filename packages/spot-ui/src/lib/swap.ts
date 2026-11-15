@@ -3,7 +3,7 @@ import type { SwapQuote } from "./quote";
 import type { RePermitOrder } from "./types";
 import { eqIgnoreCase } from "./utils";
 
-/** Trade direction requested by a router. Spot currently supports only exact input. */
+/** Router trade direction. Output-target quotes resolve to a fixed input before preparation. */
 export type SwapTradeType = "exact-input" | "exact-output";
 
 /** Locally prepared signing payload and approval requirements; no order has been submitted. */

@@ -26,7 +26,7 @@ export async function createSwapPreview(params: {
   outputToken: Token;
   /** Integer base units, converted with the host's wallet/token library. */
   inputAmountRaw: string;
-  /** Percentage: 0.5 means 0.5%. The signed swap-order field stays at 500 bps. */
+  /** DEX percentage: 0.5 means 0.5%; signed swap oracle protection stays at 500 bps. */
   slippage?: number;
   signal?: AbortSignal;
 }): Promise<SwapPreview> {
@@ -48,10 +48,12 @@ export async function createSwapPreview(params: {
   });
   // Display quote.request.inAmount, quote.netAmountOut, and quote.minimumAmountOut
   // using the host's formatter and these tokens' decimals. Keep the minimum unchanged.
+  // Output-target callers supply outAmount instead of inAmount; the server-resolved
+  // quote.request.inAmount is the spend, and quote.requestedOutAmount retains the target.
   return { client, account, inputToken, outputToken, quote };
 }
 
-/** Call after confirmed host wrapping/approval and review checks. Resolves at acceptance. */
+/** After confirmed host wrapping/approval, prepare the reviewed fixed input. Resolves at acceptance. */
 export async function submitReviewedSwap(
   preview: SwapPreview,
   walletClient: InlineWalletClient,

@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "./ui/dialog";
 import { InfoIcon, SettingsIcon } from "lucide-react";
 import { Button } from "./ui/button";
@@ -12,7 +13,7 @@ import { useSettings } from "@/lib/hooks/use-settings";
 import { NumericInput } from "./ui/numeric-input";
 import { useSelectedFormTab } from "@/lib/hooks/use-tabs";
 import { TABS } from "@/lib/types";
-import { DEFAULT_PRICE_PROTECTION, DEFAULT_SLIPPAGE } from "@/lib/consts";
+import { DEFAULT_PRICE_PROTECTION } from "@/lib/consts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 const FormItem = ({
@@ -31,8 +32,8 @@ const FormItem = ({
 
         {tooltip && (
           <Tooltip>
-            <TooltipTrigger>
-              <InfoIcon className="size-4" />
+            <TooltipTrigger aria-label={`${label} help`}>
+              <InfoIcon aria-hidden="true" className="size-4" />
             </TooltipTrigger>
             <TooltipContent>{tooltip}</TooltipContent>
           </Tooltip>
@@ -80,22 +81,40 @@ const SpotSettings = () => {
 };
 
 const SwapSettings = () => {
-  const { slippage, setSlippage } = useSettings();
+  const { slippage, isCustomSlippage, setSlippage, resetSlippage } = useSettings();
+  const [slippageInput, setSlippageInput] = useState(() => isCustomSlippage ? slippage.toString() : "");
   return (
     <div className="flex flex-col gap-2 w-full">
-      <FormItem label="Slippage">
+      <FormItem
+        label="Slippage"
+        tooltip="Enter up to 50%. Clear the field or enter 0 to restore automatic slippage."
+      >
         <div className="flex flex-row gap-2 items-center justify-end flex-1">
           <NumericInput
             ariaLabel="Slippage percent"
-            value={slippage ? slippage.toString() : ""}
-            onChange={(value) => setSlippage(Number(value))}
-            className="text-center text-[16px] bg-accent/80 p-2 rounded-md max-w-[100px] w-full"
+            value={slippageInput}
+            onChange={(value) => {
+              setSlippageInput(value);
+              setSlippage(Number(value));
+            }}
+            onBlur={() => setSlippageInput(isCustomSlippage ? slippage.toString() : "")}
+            maxValue={50}
+            decimalScale={2}
+            className="text-center text-[16px] bg-accent/80 p-2 rounded-md max-w-[100px] w-full focus-visible:ring-2 focus-visible:ring-ring"
             suffix="%"
-            placeholder="0.0%"
+            placeholder="Auto"
           />
-          <DefaultButton onClick={() => setSlippage(DEFAULT_SLIPPAGE)} />
+          <DefaultButton onClick={() => {
+            resetSlippage();
+            setSlippageInput("");
+          }} />
         </div>
       </FormItem>
+      <p role="status" className="text-xs text-muted-foreground">
+        {isCustomSlippage && slippage > 0
+          ? "Using your custom slippage."
+          : "Automatic slippage uses at least 1% for trades worth $100 or less when pricing is available."}
+      </p>
     </div>
   );
 };
@@ -103,14 +122,17 @@ const SwapSettings = () => {
 export const SettingsModal = () => {
   const isSwap = useSelectedFormTab()?.value === TABS.SWAP;
   const [open, setOpen] = useState(false);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button variant="outline" aria-label="Settings" onClick={() => setOpen(true)}>
-        <SettingsIcon className="size-4" />
-      </Button>
-      <DialogContent>
+      <DialogTrigger asChild>
+        <Button variant="outline" aria-label="Settings">
+          <SettingsIcon aria-hidden="true" className="size-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent onOpenAutoFocus={event => { event.preventDefault(); titleRef.current?.focus(); }}>
         <DialogHeader>
-          <DialogTitle>Settings</DialogTitle>
+          <DialogTitle ref={titleRef} tabIndex={-1}>Settings</DialogTitle>
           <DialogDescription className="sr-only">Adjust execution protection for your order.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">

@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
-import { createClient, type Eip712TypedData, type SpotClient } from "../src/lib/client";
+import { createClient, type ClientGetQuoteParams, type Eip712TypedData, type SpotClient } from "../src/lib/client";
+import { createAnalytics } from "../src/lib/analytics";
 import { MAX_UINT_256 } from "../src/lib/evm-constants";
 import { SpotError } from "../src/lib/errors";
 import { fetchRePermitData } from "../src/lib/fetch-repermit-data";
 import { calculateOrder } from "../src/lib/order-form/calculate-order-form";
 import { buildV2Order, getOrder } from "../src/lib/orders/v2-orders";
-import { fetchQuote, type SwapQuote } from "../src/lib/quote";
+import { fetchQuote, type SwapQuote, type SwapQuoteParams } from "../src/lib/quote";
 import { submitOrder } from "../src/lib/submit-order";
+import { getSwapSlippage } from "../src/lib/swap-slippage";
 import { OrderStatus, OrderType, Partners, type Address, type Hex, type RePermitData, type RePermitOrder } from "../src/lib/types";
 
 vi.mock("../src/lib/fetch-repermit-data", () => ({ fetchRePermitData: vi.fn() }));
@@ -53,11 +55,19 @@ const quote = (): SwapQuote => ({
   receivedAt: Date.now(), amountOut: "20", netAmountOut: "20", minimumAmountOut: "18", feeAmount: "0",
 });
 
+const quoteFields = {
+  inToken: inputTokenAddress, outToken: outputTokenAddress, user: account, slippage: 0.5,
+};
+const outputQuotePayload = () => ({
+  amountIn: "13", amountOut: "22", netAmountOut: "22", minimumAmountOut: "20", feeAmount: "0",
+  quoteMode: "exactOut", requestedAmountOut: "20",
+});
+
 const form = () => calculateOrder({
   orderType: OrderType.LIMIT, inputTokenDecimals: 0, outputTokenDecimals: 0,
   quotedOutputAmountRaw: "20", inputBalanceRaw: "100",
   inputTokenUsdPrice: "1", outputTokenUsdPrice: "1", minTradeSizeUsd: 1, priceProtectionPercent: 5,
-  userInput: { inputAmountUi: "10", limitPriceUi: "2" },
+  userInput: { inputAmountUi: "10", limitPriceUi: "2", isMarketOrder: false },
 });
 
 const orderParams = () => ({ form: form(), account, inputTokenAddress, outputTokenAddress });
@@ -83,7 +93,7 @@ describe("client manual signing", () => {
     vi.mocked(fetchQuote).mockImplementation(async () => quote());
     vi.mocked(submitOrder).mockImplementation(async order => acceptedOrder(order));
   });
-  afterEach(() => { vi.useRealTimers(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
   it("exposes one client flow for preparing and submitting signed orders", async () => {
     const spot = await client();
@@ -94,6 +104,168 @@ describe("client manual signing", () => {
     expect(spot.prepareSwap).toBeTypeOf("function");
     expect(spot.submitOrder).toBeTypeOf("function");
     expect(spot.submitSwap).toBeTypeOf("function");
+  });
+
+  it.each([
+    { slippage: 0.5, expectedBps: 50 }, { slippage: 0, expectedBps: 0 },
+  ])("makes one exact-input quote request with $slippage percent DEX slippage", async ({ slippage, expectedBps }) => {
+    const actual = await vi.importActual<typeof import("../src/lib/quote")>("../src/lib/quote");
+    vi.mocked(fetchQuote).mockImplementation(actual.fetchQuote);
+    const network = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({
+      amountOut: "20", netAmountOut: "20", minimumAmountOut: "18", feeAmount: "0",
+    }));
+    vi.stubGlobal("fetch", network);
+    const spot = await client();
+
+    const quoted = await spot.getQuote({
+      inToken: inputTokenAddress, outToken: outputTokenAddress, inAmount: "10", user: account, slippage,
+    });
+
+    expect(network).toHaveBeenCalledOnce();
+    const body = JSON.parse(String(network.mock.calls[0]?.[1]?.body));
+    expect(body).toMatchObject({ inAmount: "10", slippage: expectedBps });
+    expect(body).not.toHaveProperty("outAmount");
+    expect(body).not.toHaveProperty("dexMinAmountOut");
+    expect(quoted.request.inAmount).toBe("10");
+    expect(quoted.request.slippage).toBe(slippage);
+    expect(quoted.minimumAmountOut).toBe("18");
+  });
+
+  it("requests an output target once and signs only the server-resolved input and minimum", async () => {
+    const actual = await vi.importActual<typeof import("../src/lib/quote")>("../src/lib/quote");
+    vi.mocked(fetchQuote).mockImplementation(actual.fetchQuote);
+    const network = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json(outputQuotePayload()));
+    vi.stubGlobal("fetch", network);
+    const spot = await client();
+
+    const quoted = await spot.getQuote({ ...quoteFields, outAmount: "20" });
+    const prepared = await spot.prepareSwap({ quote: quoted, account });
+
+    expect(network).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(network.mock.calls[0]?.[1]?.body))).toEqual({
+      inToken: inputTokenAddress, outToken: outputTokenAddress, outAmount: "20", user: account, slippage: 50,
+    });
+    expect(quoted.request).toMatchObject({ inAmount: "13", dexMinAmountOut: "-1" });
+    expect(quoted.request).not.toHaveProperty("outAmount");
+    expect(quoted.requestedOutAmount).toBe("20");
+    expect(Object.isFrozen(quoted.request)).toBe(true);
+    expect(prepared.approvalRequest.amount).toBe("13");
+    expect(prepared.order.witness.input.amount).toBe("13");
+    expect(prepared.order.witness.output.limit).toBe("20");
+    expect(prepared.order.witness.slippage).toBe(500);
+    expect(prepared.signingRequest.typedData.message).toEqual(prepared.order);
+    expect(prepared.quote.requestedOutAmount).toBe("20");
+  });
+
+  it.each([
+    {}, { inAmount: "10", outAmount: "20" },
+  ])("rejects requests without exactly one selected amount before HTTP (%j)", async amounts => {
+    const actual = await vi.importActual<typeof import("../src/lib/quote")>("../src/lib/quote");
+    vi.mocked(fetchQuote).mockImplementation(actual.fetchQuote);
+    const network = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", network);
+    const spot = await client();
+
+    await expect(actual.getQuote({ ...quoteFields, ...amounts, chainId: 137, partner: Partners.Quick, apiUrl } as unknown as SwapQuoteParams))
+      .rejects.toMatchObject({ kind: "invalid-request" });
+    await expect(spot.getQuote({ ...quoteFields, ...amounts } as unknown as ClientGetQuoteParams))
+      .rejects.toMatchObject({ kind: "invalid-request" });
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { outAmount: "0" }, { outAmount: "-1" }, { outAmount: "1.5" },
+    { outAmount: (BigInt(MAX_UINT_256) + BigInt(1)).toString() },
+    { inAmount: "0" }, { inAmount: (BigInt(MAX_UINT_256) + BigInt(1)).toString() },
+    { outAmount: "20", dexMinAmountOut: "0" }, { outAmount: "20", dexMinAmountOut: "10" },
+  ])("rejects invalid quote amounts or ambiguous output minima before HTTP (%j)", async amounts => {
+    const actual = await vi.importActual<typeof import("../src/lib/quote")>("../src/lib/quote");
+    vi.mocked(fetchQuote).mockImplementation(actual.fetchQuote);
+    const network = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", network);
+    const spot = await client();
+
+    await expect(spot.getQuote({ ...quoteFields, ...amounts } as unknown as ClientGetQuoteParams))
+      .rejects.toMatchObject({ kind: "invalid-request" });
+
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { amountIn: undefined }, { amountIn: "0" }, { amountIn: "-1" }, { amountIn: "1.5" },
+    { amountIn: (BigInt(MAX_UINT_256) + BigInt(1)).toString() },
+    { requestedAmountOut: "21" }, { quoteMode: "exactIn" },
+    { minimumAmountOut: "19" }, { netAmountOut: "19", minimumAmountOut: "20" },
+    { amountOut: "0" }, { feeAmount: (BigInt(MAX_UINT_256) + BigInt(1)).toString() },
+    { netAmountOut: (BigInt(MAX_UINT_256) + BigInt(1)).toString() },
+  ])("rejects malformed or unsafe output quote responses (%j)", async invalid => {
+    const actual = await vi.importActual<typeof import("../src/lib/quote")>("../src/lib/quote");
+    vi.mocked(fetchQuote).mockImplementation(actual.fetchQuote);
+    const network = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({ ...outputQuotePayload(), ...invalid }));
+    vi.stubGlobal("fetch", network);
+    const spot = await client();
+
+    await expect(spot.getQuote({ ...quoteFields, outAmount: "20" })).rejects.toMatchObject({ kind: "invalid-response" });
+
+    expect(network).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an input response whose echoed spending differs from the request", async () => {
+    const actual = await vi.importActual<typeof import("../src/lib/quote")>("../src/lib/quote");
+    vi.mocked(fetchQuote).mockImplementation(actual.fetchQuote);
+    const network = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({
+      ...outputQuotePayload(), amountIn: "11", quoteMode: "exactIn", requestedAmountOut: undefined,
+    }));
+    vi.stubGlobal("fetch", network);
+    const spot = await client();
+
+    await expect(spot.getQuote({ ...quoteFields, inAmount: "10" })).rejects.toMatchObject({ kind: "invalid-response" });
+
+    expect(network).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { threshold: "18", accepted: true }, { threshold: "19", accepted: false },
+  ])("checks local DEX minimum $threshold without sending it as an output target", async ({ threshold, accepted }) => {
+    const actual = await vi.importActual<typeof import("../src/lib/quote")>("../src/lib/quote");
+    vi.mocked(fetchQuote).mockImplementation(actual.fetchQuote);
+    const network = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({
+      amountIn: "010", amountOut: "20", netAmountOut: "20", minimumAmountOut: "18", feeAmount: "0", quoteMode: "exactIn",
+    }));
+    vi.stubGlobal("fetch", network);
+    const spot = await client();
+
+    const result = spot.getQuote({ ...quoteFields, inAmount: "10", dexMinAmountOut: threshold });
+    if (accepted) {
+      await expect(result).resolves.toMatchObject({ minimumAmountOut: "18", request: { inAmount: "10", dexMinAmountOut: threshold } });
+    } else {
+      await expect(result).rejects.toMatchObject({ kind: "no-quote" });
+    }
+
+    expect(network).toHaveBeenCalledOnce();
+    const body = JSON.parse(String(network.mock.calls[0]?.[1]?.body));
+    expect(body.inAmount).toBe("10");
+    expect(body).not.toHaveProperty("outAmount");
+    expect(body).not.toHaveProperty("dexMinAmountOut");
+  });
+
+  it("reports server-resolved spending with the original output mode and target", async () => {
+    const actual = await vi.importActual<typeof import("../src/lib/quote")>("../src/lib/quote");
+    const network = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json(outputQuotePayload()));
+    vi.stubGlobal("fetch", network);
+    const reporter = createAnalytics({}, { disableAnalytics: true });
+    const requested = vi.spyOn(reporter, "onQuoteRequest");
+    const succeeded = vi.spyOn(reporter, "onQuoteSuccess");
+
+    await actual.fetchQuote({ ...quoteFields, outAmount: "20", chainId: 137, partner: Partners.Quick, apiUrl }, reporter);
+
+    expect(requested).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      quoteMode: "exactOut", requestedOutputAmountRaw: "20", inputAmountRaw: undefined,
+    }));
+    expect(succeeded).toHaveBeenCalledExactlyOnceWith({ context: expect.objectContaining({
+      quoteMode: "exactOut", requestedOutputAmountRaw: "20", inputAmountRaw: "13",
+    }) });
+    expect(network).toHaveBeenCalledOnce();
   });
 
   it.each(["order", "swap"] as const)("prepares, signs inline, and submits a %s without wallet interactions", async kind => {
@@ -149,26 +321,85 @@ describe("client manual signing", () => {
     expect(fetchQuote).not.toHaveBeenCalled();
   });
 
+  it.each([0.5, 1, 2.345, 0])("keeps signed oracle protection at 500 basis points with %s percent DEX slippage", async slippage => {
+    const spot = await client();
+    const original = quote();
+    const reviewed = { ...original, request: { ...original.request, slippage } };
+
+    const prepared = await spot.prepareSwap({ quote: reviewed, account });
+
+    expect(prepared.order.witness.slippage).toBe(500);
+    expect(prepared.signingRequest.typedData.message.witness.slippage).toBe(500);
+    expect(prepared.quote.request.slippage).toBe(slippage);
+    expect(prepared.quote.minimumAmountOut).toBe(reviewed.minimumAmountOut);
+    expect(prepared.values.minimumOutputAmountRaw).toBe(reviewed.minimumAmountOut);
+    expect(prepared.order.witness.output.limit).toBe(reviewed.minimumAmountOut);
+    expect(prepared.signingRequest.typedData.message.witness.output.limit).toBe(reviewed.minimumAmountOut);
+    expect(fetchQuote).not.toHaveBeenCalled();
+  });
+
   it("refreshes a stale reviewed swap before returning the exact payload to sign", async () => {
     const spot = await client();
-    const reviewed = quote();
-    reviewed.receivedAt -= 20_001;
-    const fresh = { ...quote(), amountOut: "24", netAmountOut: "24", minimumAmountOut: "22" };
+    const original = quote();
+    const reviewed = {
+      ...original, request: { ...original.request, slippage: 2.345 }, receivedAt: original.receivedAt - 20_001,
+    };
+    const fresh = {
+      ...quote(), request: { ...reviewed.request }, amountOut: "24", netAmountOut: "24", minimumAmountOut: "22",
+    };
     vi.mocked(fetchQuote).mockResolvedValue(fresh);
 
     const prepared = await spot.prepareSwap({ quote: reviewed, account });
 
     expect(fetchQuote).toHaveBeenCalledOnce();
+    expect(fetchQuote).toHaveBeenCalledWith(expect.objectContaining({ slippage: 2.345 }), expect.any(Object));
     expect(prepared.quote.minimumAmountOut).toBe("22");
     expect(prepared.order.witness.output.limit).toBe("22");
+    expect(prepared.order.witness.slippage).toBe(500);
+    expect(prepared.signingRequest.typedData.message.witness.slippage).toBe(500);
+    expect(prepared.quote.request.slippage).toBe(2.345);
     expect(prepared.signingRequest.typedData.message).toEqual(prepared.order);
+    expect(submitOrder).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { freshMinimum: "21", rejected: false }, { freshMinimum: "19", rejected: true },
+  ])("refreshes an output quote at its resolved fixed input (fresh minimum $freshMinimum)", async ({ freshMinimum, rejected }) => {
+    const actual = await vi.importActual<typeof import("../src/lib/quote")>("../src/lib/quote");
+    vi.mocked(fetchQuote).mockImplementation(actual.fetchQuote);
+    const network = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json(outputQuotePayload()))
+      .mockResolvedValueOnce(Response.json({
+        ...outputQuotePayload(), amountIn: "13", quoteMode: "exactIn", requestedAmountOut: undefined,
+        minimumAmountOut: freshMinimum,
+      }));
+    vi.stubGlobal("fetch", network);
+    const spot = await client();
+    const reviewed = await spot.getQuote({ ...quoteFields, outAmount: "20" });
+    vi.setSystemTime(initialTime + 20_001);
+
+    const preparing = spot.prepareSwap({ quote: reviewed, account });
+    if (rejected) {
+      await expect(preparing).rejects.toMatchObject({ code: "QUOTE_MINIMUM_DECREASED" });
+    } else {
+      const prepared = await preparing;
+      expect(prepared.quote).toMatchObject({ requestedOutAmount: "20", request: { inAmount: "13" }, minimumAmountOut: "21" });
+      expect(prepared.order.witness.input.amount).toBe("13");
+      expect(prepared.order.witness.output.limit).toBe("21");
+      expect(prepared.order.witness.slippage).toBe(500);
+    }
+
+    expect(network).toHaveBeenCalledTimes(2);
+    const refresh = JSON.parse(String(network.mock.calls[1]?.[1]?.body));
+    expect(refresh.inAmount).toBe("13");
+    expect(refresh).not.toHaveProperty("outAmount");
     expect(submitOrder).not.toHaveBeenCalled();
   });
 
   it("rejects a decreased minimum during direct swap preparation", async () => {
     const spot = await client();
-    const reviewed = quote();
-    reviewed.receivedAt -= 20_001;
+    const original = quote();
+    const reviewed = { ...original, receivedAt: original.receivedAt - 20_001 };
     vi.mocked(fetchQuote).mockResolvedValue({ ...quote(), minimumAmountOut: "17" });
 
     await expect(spot.prepareSwap({ quote: reviewed, account })).rejects.toMatchObject({ code: "QUOTE_MINIMUM_DECREASED" });
@@ -236,7 +467,7 @@ describe("client manual signing", () => {
     const spot = await client();
     const reviewed = quote();
     const prepared = await spot.prepareSwap({ quote: reviewed, account });
-    reviewed.request.inAmount = "999";
+    Reflect.set(reviewed.request, "inAmount", "999");
     reviewed.minimumAmountOut = "1";
     expect(prepared.quote.request.inAmount).toBe("10");
     expect(prepared.quote.minimumAmountOut).toBe("18");
@@ -248,5 +479,114 @@ describe("client manual signing", () => {
     expect(next.signingRequest.typedData.domain).toEqual(configuration().domain);
     expect(next.signingRequest.typedData.types).toEqual(configuration().types);
     expect(next.order.witness.output.limit).toBe("18");
+  });
+});
+
+describe("swap slippage pricing waits", () => {
+  const params = {
+    tokenAddress: inputTokenAddress, chainId: 137, typedInputAmount: "50", slippage: 0.5, isCustom: false,
+  };
+  const deferred = <T,>() => {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>(accept => { resolve = accept; });
+    return { promise, resolve };
+  };
+  const priceResponse = () => Response.json({ token: inputTokenAddress, priceUsd: "2000000000000000000" });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(initialTime);
+  });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it.each([
+    { slippage: 0, isCustom: false }, { slippage: 0, isCustom: true },
+    { slippage: 0.004, isCustom: false }, { slippage: 0.004, isCustom: true },
+  ])("rejects policy slippage rounding to zero before pricing ($slippage, custom $isCustom)", async values => {
+    const network = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", network);
+
+    await expect(getSwapSlippage({ ...params, ...values, apiUrl: `${apiUrl}/zero-policy` }))
+      .rejects.toMatchObject({ code: "INVALID_ARGUMENT" });
+
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it("accepts the smallest positive rounded custom policy without pricing", async () => {
+    const network = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", network);
+
+    await expect(getSwapSlippage({ ...params, slippage: 0.005, isCustom: true }))
+      .resolves.toMatchObject({ slippagePercent: 0.01, slippageBps: 1 });
+
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it("returns the baseline after 1500ms while a late shared response fills the price cache", async () => {
+    const response = deferred<Response>();
+    const network = vi.fn<typeof globalThis.fetch>().mockReturnValue(response.promise);
+    vi.stubGlobal("fetch", network);
+    const request = { ...params, apiUrl: `${apiUrl}/late-policy-cache` };
+    let settled = false;
+    const policy = getSwapSlippage(request).then(value => { settled = true; return value; });
+
+    await vi.advanceTimersByTimeAsync(1499);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(policy).resolves.toEqual({ slippagePercent: 0.5, slippageBps: 50, inputAmountUsd: undefined });
+    expect(network).toHaveBeenCalledOnce();
+    expect(network.mock.calls[0]?.[1]?.signal).toBeUndefined();
+
+    response.resolve(priceResponse());
+    await expect(getSwapSlippage(request)).resolves.toEqual({
+      slippagePercent: 1, slippageBps: 100, inputAmountUsd: "100",
+    });
+    expect(network).toHaveBeenCalledOnce();
+  });
+
+  it("also bounds an externally supplied pending price promise", async () => {
+    const network = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", network);
+    const policy = getSwapSlippage({
+      ...params, inputTokenUsd: new Promise<string>(() => {}), apiUrl: `${apiUrl}/pending-override`,
+    });
+
+    await vi.advanceTimersByTimeAsync(1500);
+
+    await expect(policy).resolves.toMatchObject({ slippagePercent: 0.5, slippageBps: 50, inputAmountUsd: undefined });
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it("propagates cancellation without cancelling shared pricing for another caller", async () => {
+    const response = deferred<Response>();
+    const network = vi.fn<typeof globalThis.fetch>().mockReturnValue(response.promise);
+    vi.stubGlobal("fetch", network);
+    const request = { ...params, apiUrl: `${apiUrl}/cancelled-policy` };
+    const controller = new AbortController();
+    const reason = new Error("Stop this slippage request");
+    const cancelled = getSwapSlippage({ ...request, signal: controller.signal });
+    const rejected = expect(cancelled).rejects.toBe(reason);
+    const shared = getSwapSlippage(request);
+
+    controller.abort(reason);
+    await rejected;
+    response.resolve(priceResponse());
+
+    await expect(shared).resolves.toMatchObject({ slippagePercent: 1, slippageBps: 100, inputAmountUsd: "100" });
+    expect(network).toHaveBeenCalledOnce();
+    expect(network.mock.calls[0]?.[1]?.signal).toBeUndefined();
+  });
+
+  it("rejects an already-aborted policy request without starting pricing", async () => {
+    const network = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", network);
+    const controller = new AbortController();
+    const reason = new Error("Already cancelled");
+    controller.abort(reason);
+
+    await expect(getSwapSlippage({ ...params, apiUrl: `${apiUrl}/preaborted-policy`, signal: controller.signal }))
+      .rejects.toBe(reason);
+
+    expect(network).not.toHaveBeenCalled();
   });
 });

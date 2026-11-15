@@ -32,6 +32,8 @@ import { MIN_FILL_DELAY_MILLIS, SWAP_ORDER_DURATION_MILLIS, SWAP_ORDER_SLIPPAGE_
 import type { PreparedSwap } from "./swap";
 import { getClientCreationAnalytics, registerClientInternals } from "./internal/client";
 import { captureValidatedSwap, type ReviewedSwapInput } from "./swap-validation";
+import { getTokenUsd, type GetTokenUsdParams } from "./token-usd";
+import { getSwapSlippage, type GetSwapSlippageParams, type SwapSlippage } from "./swap-slippage";
 import type {
   Address,
   DeepReadonly,
@@ -154,7 +156,14 @@ export interface SubmitOrderOptions {
 export type SubmitSwapOptions = SubmitOrderOptions;
 
 /** Quote inputs; the selected chain and partner are supplied by the client. */
-export type ClientGetQuoteParams = Omit<SwapQuoteParams, "chainId" | "partner" | "apiUrl">;
+type ClientQuoteParams<Params> = Params extends unknown ? Omit<Params, "chainId" | "partner" | "apiUrl"> : never;
+export type ClientGetQuoteParams = ClientQuoteParams<SwapQuoteParams>;
+
+/** Token-price inputs; chain and service endpoint come from the client. */
+export type ClientGetTokenUsdParams = Omit<GetTokenUsdParams, "chainId" | "apiUrl">;
+
+/** Swap-slippage inputs; chain and service endpoint come from the client. */
+export type ClientGetSwapSlippageParams = Omit<GetSwapSlippageParams, "chainId" | "apiUrl">;
 
 /** Reviewed swap inputs for preparation without a wallet adapter. */
 export interface PrepareSwapParams {
@@ -182,13 +191,13 @@ export interface SpotClient {
   readonly exchangeAddress: Address;
 
   /**
-   * Gets the estimated output and protected minimum for an exact-input swap.
+   * Gets one server quote from exactly one input amount or output target.
    * Uses this client's chain and partner; no wallet interaction is required.
    * Equivalent to standalone `getQuote` with those fields already supplied.
    * Amounts are integer token base units; slippage is a percentage (`0.5` means 0.5%).
    *
-   * @param params - Token pair, raw input amount, quote user or preview address, slippage, and optional abort signal.
-   * @returns Quote amounts, frozen request identity, and local receipt time.
+   * @param params - Pair, exactly one raw inAmount or outAmount, quote user, slippage, and optional abort signal.
+   * @returns Quote amounts, frozen executable input identity, local receipt time, and requestedOutAmount for output quotes.
    * @throws `QuoteError` on quote failures; request abort errors propagate unchanged.
    *
    * @example
@@ -197,6 +206,36 @@ export interface SpotClient {
    * });
    */
   getQuote(params: ClientGetQuoteParams): Promise<SwapQuote>;
+
+  /**
+   * Reads USD per whole token using this client's chain and captured service endpoint.
+   * Returns a full-precision decimal string. Shares pending lookups and a 10-minute
+   * price cache with standalone calls and other clients for the same endpoint, chain, and token.
+   *
+   * @param params - ERC-20 token address and optional abort signal.
+   * @returns USD per whole token, for example `"670.51070305"`.
+   * @throws `SpotError` for invalid arguments, failed lookups, or malformed responses; aborts propagate.
+   * @example
+   * const usdPerToken = await client.getTokenUsd({ tokenAddress, signal });
+   */
+  getTokenUsd(params: ClientGetTokenUsdParams): Promise<string>;
+
+  /**
+   * Waits up to 1.5 seconds for token USD pricing before returning the percentage for UI and quoting.
+   * Uses this client's chain and endpoint, or reuses inputTokenUsd when supplied.
+   * Missing, invalid, failed, or slow pricing retains the supplied DEX baseline with undefined inputAmountUsd.
+   * Shared price lookups continue in the background to populate the cache.
+   * Empty or zero input returns the baseline immediately, without fetching or awaiting a supplied price promise.
+   * Slippage must round to at least 1 basis point and be at most 50 percent. Custom slippage returns directly without pricing.
+   * Otherwise the supplied positive slippage is the automatic baseline.
+   * Invalid request inputs reject, and caller cancellation propagates.
+   * @returns Effective slippage as slippagePercent and integer slippageBps, plus inputAmountUsd when known.
+   * @example
+   * const policy = await client.getSwapSlippage({
+   *   tokenAddress, typedInputAmount: "50.25", slippage: 0.5, isCustom: false, signal,
+   * });
+   */
+  getSwapSlippage(params: ClientGetSwapSlippageParams): Promise<SwapSlippage>;
 
   /**
    * Prepares a reviewed TWAP, limit, stop-loss, or take-profit order for inline signing.
@@ -556,7 +595,10 @@ export const createClient = async (
         );
       }
 
-      return buildPreparedSwap(finalized, reporter);
+      const preparedInput = reviewedQuote.requestedOutAmount === undefined ? finalized : captureValidatedSwap({
+        ...finalized.quote, requestedOutAmount: reviewedQuote.requestedOutAmount,
+      }, account, chainId, partner);
+      return buildPreparedSwap(preparedInput, reporter);
     } catch (error) {
       observe(() => reporter.onQuoteValidationError(error, comparison));
       throw error;
@@ -671,6 +713,10 @@ export const createClient = async (
     spenderAddress,
     exchangeAddress,
     getQuote,
+    getTokenUsd: (params: ClientGetTokenUsdParams): Promise<string> =>
+      getTokenUsd({ ...params, chainId, apiUrl }),
+    getSwapSlippage: (params: ClientGetSwapSlippageParams): Promise<SwapSlippage> =>
+      getSwapSlippage({ ...params, chainId, apiUrl }),
     prepareOrder,
     prepareSwap,
     submitOrder: postSignedOrder,

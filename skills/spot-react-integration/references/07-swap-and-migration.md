@@ -21,10 +21,12 @@ const quote = await client.getQuote({
 ```
 
 Amounts are integer base-unit strings. Slippage is a percentage (`0.5` means
-0.5%), converted to integer basis points for the API. `dexMinAmountOut` is
-optional; undefined becomes `"-1"`. Preserve `quote.minimumAmountOut` unchanged
-for review and comparison. The returned net/minimum already account for the
-requested quote slippage; do not apply it again.
+0.5%), converted to integer basis points for the API. `dexMinAmountOut` is an
+optional local threshold for input quotes, not a server field. A positive value
+requires the returned minimum to meet it; omitted, `"-1"`, or `"0"` adds no
+threshold. Positive thresholds are rejected with output targets. Preserve
+`quote.minimumAmountOut` unchanged for review and comparison. The returned
+net/minimum already account for the requested quote slippage; do not apply it again.
 
 Use the configured wrapped ERC-20 protocol input address for a native selection.
 Before connection, `user` can be a preview address such as
@@ -35,9 +37,27 @@ cancel obsolete requests, and expose retryable quote errors through host UI.
 Optional USD totals and price impact are display metadata; use host token
 decimals/formatting and retain raw integer amounts for execution.
 
-Gate unsupported exact-output or alternate-recipient routes with
-`isSwapSupported` before wallet work. Compare protected minima only for matching
-routes while preserving the DEX's gas/fee policy.
+Supply exactly one positive base-unit `inAmount` or `outAmount` for the actual
+token pair. Each call makes one server request; output targets are calculated by
+the server without reversing the pair or searching client-side. The SDK maps
+server `amountIn` to `quote.request.inAmount` and retains the output target in
+`quote.requestedOutAmount`. The server minimum must cover that target.
+The old `outAmount: "-1"` request sentinel is not sent.
+
+Opening review reuses the current quote without an additional quote request.
+Display its actual
+amounts, percentage, and unchanged protected minimum, and prepare that reviewed
+quote. The host owns cancellation, errors, refreshes, and cache identity for the
+amount, direction, and pair. Withhold stale results, freeze the resolved
+`quote.request.inAmount` before wallet work, and show both amounts from the same
+quote when refreshing review. For output entry, the web demo classifies automatic
+slippage once from the target token's approximate USD value.
+
+`isSwapSupported` describes the fixed-input router integration and still returns
+false for a router's `tradeType: "exact-output"`. Independently, a
+`getQuote({ outAmount, ... })` call resolves a target to a fixed input before
+review and execution. Alternate recipients remain unsupported. Compare protected
+minima only for matching routes while preserving the DEX's gas/fee policy.
 
 ## Host-owned wrap, approve, sign, and submit
 
@@ -90,7 +110,9 @@ transaction or cancel an accepted order. Reporting policy is configured only on
 
 At `prepareSwap()`, after prerequisites finish, the SDK reuses the reviewed quote
 when its local receipt age is between zero and 20 seconds, inclusive. Older quotes,
-invalid receipt times, and future receipt times refresh the exact original request.
+invalid receipt times, and future receipt times refresh the resolved reviewed
+input, including for output-target quotes. Spending stays fixed; preparation
+never repeats the target calculation or increases the input amount.
 A refreshed protected minimum below the reviewed floor rejects with
 `QUOTE_MINIMUM_DECREASED` and requires fresh review. Otherwise the selected quote
 and minimum become the prepared order.
@@ -98,9 +120,11 @@ and minimum become the prepared order.
 Display quotes may continue through wrapping and approval. Publish and freeze
 `prepared.quote` before the wallet signature prompt and keep it fixed through
 submission. Input amount, tokens, account, chain, and slippage remain captured
-from review. Every swap signs one limit trade, no trigger, a three-minute lifetime
-from preparation, and fixed 500 bps oracle protection. Local quote age is not a
-fill guarantee. Prepare immediately before signing so confirmations do not age
+from review. Every swap signs one limit trade, no trigger, and a three-minute
+lifetime from preparation with independent 500 bps signed oracle price protection.
+The DEX quote tolerance is enforced by the unchanged minimum in signed
+`witness.output.limit`; it does not set `witness.slippage`. Local quote age is not a fill
+guarantee. Prepare immediately before signing so confirmations do not age
 the unsigned order; submit its unchanged payload and original signature.
 
 ## Acceptance, completion, and status checks

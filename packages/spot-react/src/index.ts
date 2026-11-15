@@ -65,6 +65,7 @@ export {
   type QuoteErrorKind,
   type SwapQuote,
   type SwapQuoteParams,
+  type SwapQuoteRequest,
   type PreparedSwap,
   type SwapTradeType,
   type PreparedOrder,
@@ -80,6 +81,11 @@ export {
   type ClientGetOrdersParams,
   type ClientGetOrderParams,
   type ClientGetQuoteParams,
+  type ClientGetTokenUsdParams,
+  type ClientGetSwapSlippageParams,
+  type GetTokenUsdParams,
+  type GetSwapSlippageParams,
+  type SwapSlippage,
   type SpotErrorCode,
   type SpotErrorOptions,
   type Signature,
@@ -115,6 +121,8 @@ export {
 
   // Functions
   getQuote,
+  getTokenUsd,
+  getSwapSlippage,
   isQuoteFresh,
   isSwapSupported,
   getOrders,

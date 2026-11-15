@@ -28,20 +28,24 @@ import { SwapReviewDialog } from "./swap-review-dialog";
 
 export const SwapForm = () => {
   const { inputCurrency, outputCurrency, inputAmount, parsedInputAmount, trade, outputAmount,
-    isLoadingTrade, quoteError, refetchTrade, wrappedNativeAction } = useDerivedSwap();
+    isLoadingTrade, quoteError, refetchTrade, wrappedNativeAction,
+    amountError, inputAmountUsd, outputAmountUsd, amountField, typedAmount, parsedTypedAmount,
+    parsedOutputAmount } = useDerivedSwap();
   const { data: client, chainId, partner, error: clientError, isLoading: isClientLoading, refetch: refetchClient } = useSpotClient();
   const { address: account } = useConnection();
   const { openConnectModal } = useConnectModal();
-  const { handleCurrencyChange, setInputAmount } = useActionHandlers();
+  const { handleCurrencyChange, setInputAmount, setOutputAmount } = useActionHandlers();
   const { wei: inputBalanceRaw, isLoading: isBalanceLoading } = useBalance(inputCurrency);
   const { mutateAsync: refreshBalances } = useRefetchSelectedCurrenciesBalances();
   const { data: partners } = useSpotPartners();
-  const { slippage } = useSettings();
+  const { slippage, isCustomSlippage } = useSettings();
   const walletInteractions = useWalletInteractions();
   const quote = trade?.originalQuote;
+  const isOutputAmount = amountField === Field.OUTPUT;
   const supported = !partners || partners.some(item => item.name === partner && item.chainId === chainId);
-  const contextKey = JSON.stringify([chainId, partner, account?.toLowerCase(), inputCurrency?.address.toLowerCase(),
-    outputCurrency?.address.toLowerCase(), parsedInputAmount, inputAmount, slippage]);
+  const contextKey = JSON.stringify([chainId, partner, client?.apiUrl, account?.toLowerCase(), inputCurrency?.address.toLowerCase(),
+    outputCurrency?.address.toLowerCase(), inputCurrency?.decimals, outputCurrency?.decimals,
+    amountField, typedAmount, parsedTypedAmount, slippage, isCustomSlippage]);
   const execution = useDirectSwapExecution({ contextKey, walletInteractions, refreshBalances });
   const wrappedInputCurrency = getWrappedNativeCurrency(chainId);
   const wrappedBalance = useBalance(wrappedInputCurrency);
@@ -70,25 +74,34 @@ export const SwapForm = () => {
   const quoteMatches = Boolean(quote && quote.request.chainId === chainId && quote.request.partner === partner &&
     quote.request.inToken.toLowerCase() === inputAddress?.toLowerCase() &&
     quote.request.outToken.toLowerCase() === outputCurrency?.address.toLowerCase() &&
-    quote.request.inAmount === parsedInputAmount && quote.request.slippage === slippage);
-  const hasAmount = BN(parsedInputAmount || "0").gt(0);
+    quote.request.inAmount === parsedInputAmount &&
+    (isOutputAmount
+      ? quote.requestedOutAmount === parsedOutputAmount && BN(quote.minimumAmountOut).gte(parsedOutputAmount)
+      : quote.requestedOutAmount === undefined));
+  const hasAmount = BN(parsedTypedAmount || "0").gt(0);
   const availableBalanceRaw = useWrappedBalance ? wrappedBalance.wei : inputBalanceRaw;
   const balanceLoading = useWrappedBalance ? wrappedBalance.isLoading : isBalanceLoading;
   const insufficientBalance = availableBalanceRaw !== undefined && BN(availableBalanceRaw).lt(parsedInputAmount || "0");
+  const requiresMoreWrapping = useWrappedBalance && execution.confirmedWrapAmountRaw !== undefined &&
+    BN(parsedInputAmount || "0").gt(execution.confirmedWrapAmountRaw);
   const canReview = Boolean(supported && client && account && inputCurrency && outputCurrency && hasAmount &&
-    quoteMatches && !isLoadingTrade && !balanceLoading &&
-    availableBalanceRaw !== undefined && !insufficientBalance);
+    quoteMatches && !amountError && !isLoadingTrade && !balanceLoading &&
+    availableBalanceRaw !== undefined && !insufficientBalance && !requiresMoreWrapping);
   const hasCurrentReviewQuote = quoteMatches && (execution.phase !== "price-changed" ||
     (quote && execution.priceChangedAt !== undefined && quote.receivedAt > execution.priceChangedAt));
   const reviewScope = execution.review ?? reviewContext;
+  const frozenQuote = execution.review && (execution.isActive || execution.phase === "unconfirmed" || execution.phase === "success")
+    ? execution.review.quote : undefined;
+  const currentReviewQuote = frozenQuote ?? (reviewScope?.contextKey === contextKey && hasCurrentReviewQuote ? quote : undefined);
   const review = reviewScope ? {
     ...reviewScope,
-    quote: reviewScope.contextKey === contextKey && hasCurrentReviewQuote ? quote : undefined,
+    quote: currentReviewQuote,
   } : undefined;
   const priceChangedNotice = reviewScope?.contextKey !== contextKey
     ? "The wallet or swap changed. Close this dialog and review the current swap."
     : quoteError ? "A current quote is unavailable. Update the quote to review the new price."
     : !review?.quote ? "The price changed. Waiting for an updated quote…"
+    : requiresMoreWrapping ? `The required input increased after wrapping. Select ${wrappedInputCurrency?.symbol || "the wrapped token"} and review its balance before trying again.`
     : balanceLoading ? "Checking your balance…"
     : insufficientBalance ? `Insufficient ${useWrappedBalance ? wrappedInputCurrency?.symbol : inputCurrency?.symbol} balance. Check your balance before accepting.`
     : "The price changed. Review the updated amounts before accepting.";
@@ -103,6 +116,7 @@ export const SwapForm = () => {
     setReviewContext({
       client, account, contextKey,
       inputToken: { ...inputCurrency }, outputToken: { ...outputCurrency }, inputAmountUi: inputAmount,
+      amountField, typedAmountUi: typedAmount,
     });
     setIsOpen(true);
   };
@@ -122,6 +136,7 @@ export const SwapForm = () => {
   const text = execution.phase === "unconfirmed" ? "Check order status"
     : execution.isActive ? "Executing swap…"
     : execution.phase === "success" ? "View completed swap"
+    : amountError ? "Check amount"
     : !hasAmount ? "Enter an amount"
     : isClientLoading ? "Loading configuration…"
     : isLoadingTrade ? "Fetching quote…"
@@ -134,12 +149,23 @@ export const SwapForm = () => {
       {!supported && <p role="status" className="text-sm text-muted-foreground">Choose a supported network for {partner}.</p>}
       <div className="flex flex-col gap-1">
         <CurrencyCard currency={inputCurrency} onCurrencyChange={currency => handleCurrencyChange(currency, Field.INPUT)}
-          onAmountChange={setInputAmount} amount={inputAmount} title="From" usd={<USD value={quote?.inputAmountUsd} isLoading={isLoadingTrade} />} />
+          onAmountChange={setInputAmount} amount={inputAmount} title="From"
+          isLoading={isOutputAmount && isLoadingTrade && !trade}
+          usd={<USD value={inputAmountUsd} isLoading={isLoadingTrade && !trade} />} />
         <ToggleCurrencies />
         <CurrencyCard currency={outputCurrency} onCurrencyChange={currency => handleCurrencyChange(currency, Field.OUTPUT)}
-          amount={formatDecimals(outputAmount, 6)} title="To" disabled isLoading={isLoadingTrade}
-          usd={<USD value={quote?.netAmountOutUsd} isLoading={isLoadingTrade} />} />
+          amount={isOutputAmount ? outputAmount : formatDecimals(outputAmount, 6)} onAmountChange={setOutputAmount}
+          title="To" hidePercentageButtons isLoading={!isOutputAmount && isLoadingTrade && !trade}
+          usd={<USD value={outputAmountUsd} isLoading={isLoadingTrade && !trade} />} />
       </div>
+      {isOutputAmount && !wrappedNativeAction && <p className="text-sm text-muted-foreground">
+        The output amount is your minimum received.
+      </p>}
+      {amountError && <p role="alert" className="text-sm text-destructive">{amountError}</p>}
+      {quote && !wrappedNativeAction && <dl aria-live="polite" className="flex items-center justify-between text-sm text-muted-foreground">
+        <dt>Slippage</dt>
+        <dd>{quote.request.slippage}%</dd>
+      </dl>}
       {wrappedNativeAction && !isLocked ? <WrappedNativeButton action={wrappedNativeAction} /> : (
         <>
           {clientError && !isLocked && <div role="alert" className="flex flex-col gap-2 text-sm">

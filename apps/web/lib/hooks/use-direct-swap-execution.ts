@@ -12,6 +12,7 @@ import { createHostSwapExecution, OrderSettlementError, type OrderWalletInteract
 import { getConnection } from "wagmi/actions";
 import { wagmiConfig } from "../wagmi-config";
 import { useSwapStore } from "./store";
+import { Field } from "../types";
 import { createSwapWalletAdapter } from "../create-swap-wallet-adapter";
 import { idleSwapExecution, useDirectSwapStore, type DirectSwapPhase, type DirectSwapState, type SwapReview } from "../swap-execution-store";
 
@@ -89,8 +90,12 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
       // Accepted orders track independently of later wallet/form changes.
       if (execution.hostExecution?.order) return;
       const connection = getConnection(wagmiConfig);
+      const form = useSwapStore.getState();
+      const amountUnchanged = review.amountField === Field.OUTPUT
+        ? form.independentField === Field.OUTPUT && form.outputAmount === review.typedAmountUi
+        : form.independentField !== Field.OUTPUT && form.inputAmount === review.inputAmountUi;
       if (scope.current !== review.contextKey ||
-        useSwapStore.getState().inputAmount !== review.inputAmountUi ||
+        !amountUnchanged ||
         connection.chainId !== review.client.chainId ||
         connection.address?.toLowerCase() !== review.account.toLowerCase()) {
         abort.abort(new Error("The wallet or reviewed swap changed. Review the swap again."));
@@ -107,7 +112,7 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
       const isPriceRetry = saved.execution.phase === "price-changed" &&
         saved.execution.review?.contextKey === review.contextKey;
       const reuseConfirmedWrap = hasConfirmedWrap && isPriceRetry &&
-        previousWrap.contextKey === review.contextKey && previousWrap.amountRaw === review.quote.request.inAmount &&
+        previousWrap.contextKey === review.contextKey && BigInt(previousWrap.amountRaw) >= BigInt(review.quote.request.inAmount) &&
         saved.execution.wrapTxHash === previousWrap.hash;
       if (hasConfirmedWrap) update({ wrapTxHash: previousWrap.hash });
       if (isPriceRetry) update({ approvalTxHash: saved.execution.approvalTxHash });
@@ -232,5 +237,6 @@ export const useDirectSwapExecution = ({ contextKey, walletInteractions, refresh
 
   return { ...state, isActive: activePhases.has(state.phase),
     hasConfirmedWrap: Boolean(confirmedWrap && confirmedWrap.hash === state.wrapTxHash),
+    confirmedWrapAmountRaw: confirmedWrap && confirmedWrap.hash === state.wrapTxHash ? confirmedWrap.amountRaw : undefined,
     execute, checkOrderStatus, reset };
 };

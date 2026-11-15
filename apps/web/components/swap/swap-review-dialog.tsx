@@ -50,7 +50,10 @@ export const SwapReviewDialog = ({ open, onOpenChange, review, execution, canCon
   const output = execution.phase === "success" && execution.order
     ? formatUnits(BigInt(execution.order.dstAmountFilled), shown.outputToken.decimals)
     : quote ? formatUnits(BigInt(quote.netAmountOut), shown.outputToken.decimals) : undefined;
-  const inputDisplay = formatDecimals(shown.inputAmountUi, 2, shown.inputToken.decimals);
+  const actualInput = quote
+    ? formatUnits(BigInt(quote.request.inAmount), shown.inputToken.decimals)
+    : shown.inputAmountUi;
+  const inputDisplay = formatDecimals(actualInput, 2, shown.inputToken.decimals);
   const outputDisplay = output === undefined ? "—" : formatDecimals(output, 2, shown.outputToken.decimals);
   // Preparation also runs between wallet steps; only the initial check stays on review.
   const isInitialPreparation = execution.phase === "preparing" && execution.steps.length === 0;
@@ -73,6 +76,9 @@ export const SwapReviewDialog = ({ open, onOpenChange, review, execution, canCon
           label={t("minReceived")}
           tooltip={t("minDstAmountTooltip")}
         />
+        <OrderDetails.DetailRow title="Slippage">
+          {quote ? `${quote.request.slippage}%` : "—"}
+        </OrderDetails.DetailRow>
         <OrderDetails.DetailRow title={t("recipient")}>
           <a href={getExplorerAddressUrl(shown.client.chainId, shown.account)} target="_blank" rel="noopener noreferrer">{makeEllipsisAddress(shown.account)}</a>
         </OrderDetails.DetailRow>

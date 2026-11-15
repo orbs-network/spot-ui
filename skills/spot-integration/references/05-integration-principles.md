@@ -71,7 +71,8 @@ Classify state before wiring it:
 - [ ] The host provides the chain's wrapped-native token and explorer metadata.
 - [ ] For new chains, the [chain integration checks](06-chain-integration.md) pass through the app's actual read client, token loader, and price adapter, including native-token balance and USD values; unavailable external checks are reported explicitly.
 - [ ] A current raw output quote is passed for the complete current input amount; stale quotes are omitted.
-- [ ] Swaps use `getQuote`, exact net output/minimum, fixed 3-minute expiration from preparation, and 500 bps signed protection. They do not reuse Liquidity Hub payloads.
+- [ ] Swaps use `getQuote`, unchanged net output/minimum, a three-minute expiration from preparation, and independent 500 bps signed oracle protection. The DEX quote tolerance is enforced by the unchanged minimum in `witness.output.limit`. They do not reuse Liquidity Hub payloads.
+- [ ] Swap quotes supply exactly one `inAmount` or `outAmount` for the actual pair in one server request. Output targets retain `requestedOutAmount` while resolved `request.inAmount` controls review, balance, wrapping, allowance, and signing. Preparation refreshes only that fixed input and rejects a decreased minimum instead of increasing spend.
 - [ ] Swap estimates may update through wrap/approval; output and minimum freeze from `preparedOrder.quote` before signing, with obsolete display requests cancelled then. Duplicate submissions stay blocked through single-order settlement polling.
 - [ ] Swap success is shown only after a fill; terminal failures, uncertain confirmation, and lifecycle cleanup are handled as described in [Swap and Migration](07-swap-and-migration.md).
 - [ ] `inputTokenUsdPrice` and `outputTokenUsdPrice` are one-token USD prices, and `inputBalanceRaw` is raw.

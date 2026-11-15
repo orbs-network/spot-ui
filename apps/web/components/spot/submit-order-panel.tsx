@@ -181,14 +181,16 @@ const Main = () => {
                 tooltip={t("triggerPriceTooltip")}
                 usd={order.triggerPrice.display.usd}
               />
-              <OrderDetails.Price
-                inputToken={inputToken}
-                price={order.limitPrice.display.ui}
-                outputToken={outputToken}
-                label={t("limitPrice")}
-                usd={order.limitPrice.display.usd}
-                tooltip={t("limitPriceTooltip")}
-              />
+              {!order.values.isMarketOrder && (
+                <OrderDetails.Price
+                  inputToken={inputToken}
+                  price={order.limitPrice.display.ui}
+                  outputToken={outputToken}
+                  label={t("limitPrice")}
+                  usd={order.limitPrice.display.usd}
+                  tooltip={t("limitPriceTooltip")}
+                />
+              )}
               <OrderDetails.MinOutputAmount
                 outputToken={outputToken}
                 minOutputAmount={order.trades.minOutputAmountPerTrade.ui}

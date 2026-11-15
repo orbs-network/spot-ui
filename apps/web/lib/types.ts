@@ -38,6 +38,7 @@ export enum TABS {
     minAmountOut: string;
     inToken: string;
     outToken: string;
+    /** Actual input resolved by the quote service for either typed side. */
     inAmount: string;
     gas: string;
     originalQuote?: SwapQuote;

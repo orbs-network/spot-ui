@@ -63,7 +63,16 @@ export {
   type ClientGetOrdersParams,
   type ClientGetOrderParams,
   type ClientGetQuoteParams,
+  type ClientGetTokenUsdParams,
+  type ClientGetSwapSlippageParams,
 } from "./lib/client";
+
+export { getTokenUsd, type GetTokenUsdParams } from "./lib/token-usd";
+export {
+  getSwapSlippage,
+  type GetSwapSlippageParams,
+  type SwapSlippage,
+} from "./lib/swap-slippage";
 
 export { SpotError, type SpotErrorCode, type SpotErrorOptions } from "./lib/errors";
 
@@ -84,6 +93,6 @@ export {
   getTriggerPriceRate,
 } from "./lib/utils";
 
-export { getQuote, isQuoteFresh, QuoteError, type QuoteErrorKind, type SwapQuote, type SwapQuoteParams } from "./lib/quote";
+export { getQuote, isQuoteFresh, QuoteError, type QuoteErrorKind, type SwapQuote, type SwapQuoteParams, type SwapQuoteRequest } from "./lib/quote";
 
 export { isSwapSupported, type PreparedSwap, type SwapTradeType } from "./lib/swap";

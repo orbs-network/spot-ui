@@ -161,7 +161,8 @@ use [Quickstart](01-quickstart.md) for compatible-version fallbacks.
 - [ ] Substantial integration files are split where complexity warrants it, without creating empty or unneeded architecture for a narrow task
 - [ ] Advanced form quotes match the current full input and pass only `quotedOutputAmountRaw`, `isLoading`, and `noLiquidity`; unit USD prices use separate provider props. SDK quote adapters map `netAmountOut` outside the provider. Swaps pass the original reviewed `SwapQuote` directly to the client. Balances use raw units and unit USD prices describe one token
 - [ ] For swaps, estimates may update through wrap/approval; output/minimum freeze from `preparedOrder.quote` before signing and obsolete display requests pause/cancel then. Success appears only after a fill; account history is not required for settlement
-- [ ] Requested swap review hides limit price and expiration; UI Slippage remains separate from fixed 500 bps signed protection
+- [ ] Requested swap review hides limit price and expiration; DEX slippage is enforced by the unchanged quoted minimum in `witness.output.limit`, separate from fixed 500 bps signed oracle protection
+- [ ] Swap quotes supply exactly one `inAmount` or `outAmount` for the actual pair in one server request. Opening review reuses that quote; balances, wrapping, allowance, and signing use the resolved `request.inAmount`. Output targets stay in `requestedOutAmount`; stale preparation keeps spending fixed and rejects a decreased minimum
 - [ ] Provider/native-input integrations use the DEX's chain configuration for `wrappedNativeToken`
 - [ ] Quote freshness handled so stale output is not shown after input amount changes
 - [ ] `chainId` comes from connected account/wallet state everywhere Spot uses it

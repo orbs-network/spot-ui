@@ -109,8 +109,7 @@ export const useCancelOrder = (order?: Order) => {
 
       if (!txHash) throw new Error("failed to cancel order");
       confirmedTxHash = txHash;
-      checkScope();
-      // The wallet adapter returns after confirmation; indexer lag cannot undo that success.
+      // The wallet adapter returns after confirmation. A view or wallet change cannot undo it.
       setCancelOrder(activeHistoryKey, {
         status: ExecutionStatus.SUCCESS,
         txHash,

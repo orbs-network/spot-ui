@@ -15,30 +15,38 @@ export const useActionHandlers = () => {
   } = useSwapParams();
   const store = useSwapStore();
 
+  const handleToggleCurrencies = useCallback(() => {
+    const current = useSwapStore.getState();
+    if (current.independentField === Field.OUTPUT) current.setInputAmount(current.outputAmount);
+    toggleCurrencies();
+  }, [toggleCurrencies]);
+
   const handleInputCurrencyChange = useCallback(
     (currency: string) => {
       if (eqCompare(currency, outputCurrency ?? "")) {
-        toggleCurrencies();
+        handleToggleCurrencies();
       } else {
         setInputCurrency(currency);
       }
     },
-    [outputCurrency, setInputCurrency, toggleCurrencies]
+    [outputCurrency, setInputCurrency, handleToggleCurrencies]
   );
 
   const handleOutputCurrencyChange = useCallback(
     (currency: string) => {
       if (eqCompare(currency, inputCurrency ?? "")) {
-        toggleCurrencies();
+        handleToggleCurrencies();
       } else {
         setOutputCurrency(currency);
       }
     },
-    [inputCurrency, setOutputCurrency, toggleCurrencies]
+    [inputCurrency, setOutputCurrency, handleToggleCurrencies]
   );
 
   const handleSwapTypeChange = useCallback(
     (swapType: TABS) => {
+      const current = useSwapStore.getState();
+      if (current.independentField === Field.OUTPUT) current.setInputAmount("");
       setSwapType(swapType);
     },
     [setSwapType]
@@ -57,8 +65,9 @@ export const useActionHandlers = () => {
 
   return {
     handleCurrencyChange,
-    handleToggleCurrencies: toggleCurrencies,
+    handleToggleCurrencies,
     handleSwapTypeChange,
     setInputAmount: store.setInputAmount,
+    setOutputAmount: store.setOutputAmount,
   };
 };

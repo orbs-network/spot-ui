@@ -5,6 +5,7 @@ import {
   getQuote,
   type CalculateOrderFormParams,
   type CalculatedOrderForm,
+  type ClientGetQuoteParams,
   type CancelOrderRequest,
   type Order,
   type Address,
@@ -14,7 +15,6 @@ import {
   type Partners,
   type SpotClient,
   type SwapQuote,
-  type SwapQuoteParams,
   type Token,
 } from "@orbs-network/spot-ui";
 
@@ -74,7 +74,7 @@ export class SpotIntegration {
   public get attempt(): SpotOrderAttempt | undefined { return this.currentAttempt; }
 
   public getQuote(
-    params: Omit<SwapQuoteParams, "chainId" | "partner">,
+    params: ClientGetQuoteParams & { apiUrl?: string },
   ): Promise<SwapQuote> {
     if (this.isExecuting) return Promise.reject(new Error("Quotes are paused during execution"));
     // Standalone quoting keeps disconnected previews independent of /config.

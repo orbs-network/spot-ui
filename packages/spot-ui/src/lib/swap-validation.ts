@@ -50,6 +50,12 @@ const validateSwapQuote = (
   if (BigInt(quote.minimumAmountOut) > BigInt(quote.netAmountOut)) {
     throw new SpotError("INVALID_QUOTE", "Swap minimum exceeds the net quote");
   }
+  if (quote.requestedOutAmount !== undefined &&
+    (typeof quote.requestedOutAmount !== "string" || !/^\d+$/.test(quote.requestedOutAmount) ||
+      BigInt(quote.requestedOutAmount) <= BigInt(0) ||
+      BigInt(quote.minimumAmountOut) < BigInt(quote.requestedOutAmount))) {
+    throw new SpotError("INVALID_QUOTE", "Swap minimum does not cover the requested output amount");
+  }
   getSlippageBps(quote.request.slippage);
 };
 

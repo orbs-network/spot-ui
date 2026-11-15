@@ -206,6 +206,50 @@ describe("provider-free host swap execution", () => {
     expect(hook.phase).toBe("success");
   });
 
+  it("executes the server-resolved input while the user keeps an output draft", async () => {
+    const sdk = client();
+    const snapshot = { ...review(sdk), amountField: "OUTPUT", typedAmountUi: "18" };
+    snapshot.quote.requestedOutAmount = "18";
+    mocks.form = { inputAmount: "", outputAmount: "18", independentField: "OUTPUT" };
+    mocks.wallet.shouldApprove.mockResolvedValue(true);
+    sdk.runHostSwap.mockImplementation(executeWalletFlow);
+    await mount();
+    await execute(snapshot);
+
+    expect(hook.phase).toBe("success");
+    expect(sdk.hostFactory).toHaveBeenCalledOnce();
+    expect(sdk.hostFactory.mock.calls[0][0].quote).toMatchObject({
+      request: { inAmount: "10" }, requestedOutAmount: "18", minimumAmountOut: "18",
+    });
+    expect(mocks.wallet.approveToken).toHaveBeenCalledExactlyOnceWith({
+      tokenAddress: inputAddress, spenderAddress: spender, amount: "10", approvalAmount: maxUint256.toString(),
+    });
+    expect(mocks.wallet.signOrder).toHaveBeenCalledOnce();
+  });
+
+  it.each(["output target", "typed side"])("stops before wallet writes when the %s changes during a wallet decision", async changed => {
+    const sdk = client();
+    const snapshot = { ...review(sdk), amountField: "OUTPUT", typedAmountUi: "18" };
+    snapshot.quote.requestedOutAmount = "18";
+    mocks.form = { inputAmount: "", outputAmount: "18", independentField: "OUTPUT" };
+    const decision = deferred();
+    mocks.wallet.shouldWrap.mockReturnValueOnce(decision.promise);
+    sdk.runHostSwap.mockImplementation(executeWalletFlow);
+    await mount();
+    let pending;
+    await act(async () => { pending = hook.execute(snapshot); });
+    expect(hook.phase).toBe("preparing");
+
+    if (changed === "output target") mocks.form.outputAmount = "19";
+    else mocks.form = { inputAmount: "10", outputAmount: "", independentField: "INPUT" };
+    await act(async () => { decision.resolve(true); await pending; });
+
+    expect(hook).toMatchObject({ phase: "failed", error: expect.any(Error) });
+    expect(mocks.wallet.wrapNativeToken).not.toHaveBeenCalled();
+    expect(mocks.wallet.approveToken).not.toHaveBeenCalled();
+    expect(mocks.wallet.signOrder).not.toHaveBeenCalled();
+  });
+
   it("releases the submission lock when the SDK expires the order before sending its POST", async () => {
     const sdk = client();
     sdk.runHostSwap.mockImplementationOnce(async ({ onProgress }) => {

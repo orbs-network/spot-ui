@@ -15,6 +15,7 @@ export type SpotErrorCode =
   | "INVALID_RESPONSE"
   | "CANCELLATION_UNAVAILABLE"
   | "HISTORY_FAILED"
+  | "PRICE_LOOKUP_FAILED"
   | "ORDER_LOOKUP_FAILED";
 
 /** Optional transport details retained on a {@link SpotError}. */

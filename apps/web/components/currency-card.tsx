@@ -95,6 +95,7 @@ export function CurrencyCard({
   onCurrencyChange,
   onAmountChange,
   disabled,
+  hidePercentageButtons = false,
   amount,
   title,
   isLoading = false,
@@ -103,7 +104,7 @@ export function CurrencyCard({
   
   return (
     <div className="flex flex-col gap-2 bg-card p-4 rounded-lg group relative">
-      {!disabled && (
+      {!disabled && !hidePercentageButtons && (
         <PercentageButtons
           onAmountChange={onAmountChange ?? (() => {})}
           currency={currency}
@@ -113,6 +114,8 @@ export function CurrencyCard({
       <div className="flex items-center gap-2">
         <NumericInput
           ariaLabel={`${title ?? "Token"} amount`}
+          className="min-w-0 rounded-sm focus-visible:ring-2 focus-visible:ring-ring motion-reduce:animate-none"
+          decimalScale={currency?.decimals ?? 18}
           disabled={disabled}
           value={amount}
           onChange={onAmountChange ?? (() => {})}
@@ -129,7 +132,7 @@ export function CurrencyCard({
         {usd}
         <Balance
           currency={currency}
-          onAmountChange={onAmountChange ?? (() => {})}
+          onAmountChange={disabled || hidePercentageButtons ? undefined : onAmountChange}
         />
       </div>
     </div>

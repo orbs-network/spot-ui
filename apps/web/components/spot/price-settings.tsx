@@ -36,7 +36,7 @@ const LimitPricePanel = () => {
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         {orderType !== OrderType.LIMIT ? (
-          <Switch checked={isEnabled} onCheckedChange={toggle} />
+          <Switch aria-label={t("limitPrice")} checked={isEnabled} onCheckedChange={toggle} />
         ) : null}
         <div className="flex justify-between w-full items-center">
           <SpotFormLabel

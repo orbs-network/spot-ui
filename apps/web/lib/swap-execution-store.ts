@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Order, RePermitOrder, SpotClient, SwapQuote } from "@orbs-network/spot-react";
 import type { SwapExecution } from "@orbs-network/spot-react/internal";
-import type { Currency } from "./types";
+import type { Currency, Field } from "./types";
 
 export type DirectSwapPhase = "idle" | "price-changed" | "preparing" | "wrapping" | "approving" | "signing" | "settling" | "success" | "failed" | "unconfirmed";
 export type DirectSwapStep = "wrap" | "approve" | "create";
@@ -14,6 +14,8 @@ export interface SwapReviewContext {
   inputToken: Currency;
   outputToken: Currency;
   inputAmountUi: string;
+  amountField?: Field;
+  typedAmountUi?: string;
 }
 
 /** Confirmed quote retained as the minimum-output floor during execution. */
