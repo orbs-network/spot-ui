@@ -1,6 +1,6 @@
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { formatUnits } from "viem";
 import { useEffect, useState } from "react";
+import { getSwapSlippage, type SpotClient } from "@orbs-network/spot-react";
 import { useSpotClient } from "./use-spot-client";
 import { useSettings } from "./use-settings";
 import type { BestTradeQuote, Currency } from "../types";
@@ -17,6 +17,28 @@ import { useSwapStore } from "./store";
 export const SWAP_QUOTE_QUERY_KEY = ["spot-swap-quote"] as const;
 const QUOTE_REFRESH_MILLIS = 10_000;
 const OUTPUT_AMOUNT_DEBOUNCE_MILLIS = 250;
+const PRICE_WAIT_MILLIS = 1_500;
+
+const getQuoteTokenUsd = async (
+  client: SpotClient,
+  tokenAddress: string,
+  signal: AbortSignal,
+): Promise<string | undefined> => {
+  signal.throwIfAborted();
+  const controller = new AbortController();
+  const onAbort = () => controller.abort(signal.reason);
+  signal.addEventListener("abort", onAbort, { once: true });
+  const timeout = setTimeout(() => controller.abort(), PRICE_WAIT_MILLIS);
+  try {
+    return await client.getTokenUsd({ tokenAddress, signal: controller.signal });
+  } catch {
+    signal.throwIfAborted();
+    return undefined;
+  } finally {
+    clearTimeout(timeout);
+    signal.removeEventListener("abort", onAbort);
+  }
+};
 
 export const useTrade = (
   inputCurrency?: Currency,
@@ -69,21 +91,23 @@ export const useTrade = (
     queryKey: [...quoteScopeKey, amountField, parsedAmount],
     queryFn: client
       ? async ({ signal }) => {
-          const policy = await client.getSwapSlippage({
-            // Output-side USD classifies the target once, before the service resolves its input.
-            tokenAddress: slippageTokenAddress,
-            typedInputAmount: formatUnits(BigInt(parsedAmount), typedDecimals!),
+          const tokenUsd = isCustomSlippage ? undefined
+            : await getQuoteTokenUsd(client, slippageTokenAddress, signal);
+          signal.throwIfAborted();
+          // Value the typed side once; output quotes have not resolved their input yet.
+          const amountUsd = tokenUsd === undefined ? undefined
+            : BN(parsedAmount).shiftedBy(-typedDecimals!).times(tokenUsd).toFixed();
+          const slippagePercent = isCustomSlippage ? slippage : getSwapSlippage({
+            amountUsd,
             slippage,
-            isCustom: isCustomSlippage,
-            signal,
-          });
+          }).slippagePercent;
           signal.throwIfAborted();
           const quote = await client.getQuote({
             inToken: quoteInToken,
             outToken,
             ...(isOutputAmount ? { outAmount: parsedAmount } : { inAmount: parsedAmount }),
             user,
-            slippage: policy.slippagePercent,
+            slippage: slippagePercent,
             signal,
           });
           signal.throwIfAborted();

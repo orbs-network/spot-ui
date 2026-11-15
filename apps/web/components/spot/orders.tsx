@@ -21,6 +21,7 @@ import { DialogHeader } from "../ui/dialog";
 import { SpotSelectMenu } from "./components";
 import { getOrderTitle } from "@/lib/utils";
 import { useCurrenciesQuery } from "@/lib/hooks/use-currencies-query";
+import { useSwapParams } from "@/lib/hooks/use-swap-params";
 
 const EMPTY_ORDERS: NonNullable<
   ReturnType<typeof useOrders>["data"]
@@ -72,10 +73,11 @@ const ORDER_FILTERS = Object.values(OrderFilter).map((filter) => ({
   value: filter,
 }));
 
-const getSinkUrl = (orderId: string) =>
-  `https://order-sink-v2.orbs.network/?order=${orderId}`;
+const getSinkUrl = (orderId: string, apiUrl = "https://order-sink-v2.orbs.network") =>
+  `${apiUrl}/?order=${orderId}`;
 
 export const SpotsOrders = () => {
+  const { apiUrl } = useSwapParams();
   const { data, isLoading, error, isFetching, refetch } = useOrders();
   const { data: currencies } = useCurrenciesQuery();
   const orders = data ?? EMPTY_ORDERS;
@@ -211,7 +213,7 @@ export const SpotsOrders = () => {
                 Sink Url
               </p>
               <a
-                href={getSinkUrl(selectedOrder.id ?? "")}
+                href={getSinkUrl(selectedOrder.id ?? "", apiUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
               >

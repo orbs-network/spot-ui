@@ -1,0 +1,27 @@
+{
+  "name": "spot-advanced-orders-react-integration",
+  "description": "React advanced-order integration with AdvancedOrdersProvider, focused form/execution/history hooks, host wallet adapters, review/progress UI, and missing host trading services.",
+  "entrypoint": "SKILL.md",
+  "references": [
+    "references/01-quickstart.md",
+    "references/02-provider.md",
+    "references/03-panels.md",
+    "references/04-principles.md",
+    "references/05-ui-reference.md",
+    "references/06-tooltips.md",
+    "references/08-starting-without-dex.md"
+  ],
+  "assets": [
+    "assets/spot-form-skeleton.tsx",
+    "assets/images/twap-form-reference.png",
+    "assets/images/take-profit-form-reference.png",
+    "assets/images/take-profit-review-modal-reference.png",
+    "assets/images/order-create-progress-reference.png",
+    "assets/images/orders-modal-reference.png",
+    "assets/images/orders-filter-menu-reference.png",
+    "assets/images/order-details-open-reference.png",
+    "assets/images/order-details-completed-reference.png"
+  ],
+  "package": "@orbs-network/spot-react",
+  "referenceImplementation": "apps/web/components/spot/spot-form.tsx"
+}

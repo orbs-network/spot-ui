@@ -3,7 +3,7 @@ import { SpotError } from "./errors";
 const ORDER_API_URL = "https://order-sink.orbs.network";
 const ORDER_API_V2_URL = "https://order-sink-v2.orbs.network";
 
-/** Page URL parameters must never choose the order service or signing configuration. */
+/** Validate and normalize a host-configured order service; never accept arbitrary page URL overrides. */
 export const getApiEndpoint = (apiUrl = ORDER_API_V2_URL): string => {
   let url: URL;
   try {

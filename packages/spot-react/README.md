@@ -19,21 +19,24 @@ The underlying `spot-ui` package is framework-neutral and renders no components.
 This includes `getTokenUsd({ tokenAddress, chainId, signal? })` and
 `client.getTokenUsd({ tokenAddress, signal? })`, which return a full-precision
 decimal string of USD per whole token. Price reads share the SDK's in-memory
-10-minute cache; the host owns fallback policy.
+30-second cache; the host owns fallback policy.
 There is no swap provider. `AdvancedOrdersProviderProps` uses the exported
 `OrderType` enum: `TWAP`, `LIMIT`, `STOP_LOSS`, and `TAKE_PROFIT`.
 Swaps use the quote-only client flow and have no high-level order type.
 
 For AI-assisted integration, describe the requested features to your coding agent
 and have it read
-`node_modules/@orbs-network/spot-react/dist/integration-skill/SKILL.md`.
+`node_modules/@orbs-network/spot-react/dist/integration-skills/spot-advanced-orders-react-integration/SKILL.md`.
 The bundled guide's `manifest.json` records the matching `sdkVersion`. The agent
 discovers the host's wallet, components, state, and networks, selects a focused
 path, and asks only unresolved product questions.
 If there is no DEX yet, its starting path covers the missing wallet, token list,
 balances, quote/USD data, and React trading form before provider setup.
 
-For the complete integration workflow, see the [Spot React integration skill](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-react-integration) and the [reference implementation](https://github.com/orbs-network/spot-ui/blob/master/apps/web/components/spot/spot-form.tsx).
+For the complete advanced-order workflow, see the [React advanced-orders skill](https://github.com/orbs-network/spot-ui/tree/master/skills/spot-advanced-orders-react-integration) and the [reference implementation](https://github.com/orbs-network/spot-ui/blob/master/apps/web/components/spot/spot-form.tsx).
+For swaps, use the framework-neutral [TypeScript swap skill](../../skills/spot-swap-integration/SKILL.md),
+bundled with the `spot-ui` dependency at
+`node_modules/@orbs-network/spot-ui/dist/integration-skills/spot-swap-integration/SKILL.md`.
 
 Client and history resources are configured once per provider and share its cache.
 Failed legacy-history requests remain eligible for retry, and cached
@@ -157,8 +160,10 @@ and `useSwapExecution` interfaces with focused hooks such as `useOrderForm`,
 `input`/`output` terminology (`inputToken`, `outputToken`, `inputBalanceRaw`,
 and `minTradeSizeUsd`), and the host supplies wallet operations through
 `walletInteractions`. The `isDev` option and `?devurl=true` backend selection are
-no longer supported. Direct SDK clients can select a trusted endpoint with
-`createClient(partner, chainId, { apiUrl })`; the provider uses production.
+no longer supported. Select a trusted endpoint with
+`createClient(partner, chainId, { apiUrl })` or the provider's `apiUrl` prop;
+omitting it uses production. The web demo's `?devApi=true` flag selects the fixed
+development endpoint.
 
 For current order naming, replace the former `Module` with `OrderType` and the
 provider's `module` prop with `orderType`. Use the four-value `OrderType` enum
@@ -985,53 +990,66 @@ Use the public client APIs re-exported from `@orbs-network/spot-react`. The DEX
 keeps its quote/form state, wallet services, review modal, progress, and retry
 policy. `AdvancedOrdersProvider` remains for advanced-order forms only.
 
-Await the client's `getSwapSlippage` before displaying the effective percentage or
-requesting a quote. The standalone function is also re-exported from
-`@orbs-network/spot-react` and additionally requires `chainId`:
+Use the synchronous standalone `getSwapSlippage` re-exported from
+`@orbs-network/spot-react`. The DEX resolves any needed unit price, then computes
+the total USD amount with decimal arithmetic. For a positive automatic input:
 
 ```ts
-const policy = await client.getSwapSlippage({
-  tokenAddress: inToken, typedInputAmount,
-  slippage: dexSlippage,
-  isCustom: isUserCustomSlippage,
-  signal,
+import BN from "bignumber.js";
+import { getSwapSlippage } from "@orbs-network/spot-react";
+
+// Apply the host's timeout, cancellation, and fallback policy to the price read.
+const unitPriceUsd = isUserCustomSlippage
+  ? undefined
+  : await client.getTokenUsd({ tokenAddress: inToken, signal }).catch(() => undefined);
+signal?.throwIfAborted();
+const amountUsd = unitPriceUsd === undefined
+  ? undefined
+  : new BN(inputAmountRaw).shiftedBy(-inputTokenDecimals).times(unitPriceUsd).toFixed();
+const slippagePercent = isUserCustomSlippage
+  ? dexSlippage
+  : getSwapSlippage({ amountUsd, slippage: dexSlippage }).slippagePercent;
+const quote = await client.getQuote({
+  inToken, outToken, inAmount: inputAmountRaw, user: account,
+  slippage: slippagePercent, signal,
 });
 ```
 
-`typedInputAmount` is the user's whole-token decimal string, for example `"50.25"`;
-pass it without conversion through JavaScript `Number`. Token decimals are not
-needed by the helper. Quote `inAmount` still uses integer token base units.
-Display `policy.slippagePercent` and pass that same percentage as `slippage` to
-`client.getQuote`. The result contains `slippagePercent`, integer `slippageBps`,
-and optional `inputAmountUsd`: the exact decimal-string input USD total when
-automatic pricing knows the amount, or undefined for custom slippage or
-unavailable input/pricing. Both `slippage` and `isCustom` are required inputs.
-Slippage must round to at least one basis point and must not exceed 50%; zero
-is rejected.
-With `isCustom: false`, the supplied percentage is the DEX baseline: known
-positive trades up to $100 have a 1% floor, without lowering a higher baseline;
-larger trades retain the baseline. With `isCustom: true`, that percentage wins
-and no pricing is needed or awaited. Hosts that treat an empty or zero setting
-as automatic should pass their positive DEX default as the baseline; the web
-demo follows this convention.
-Positive automatic input waits at most 1,500 ms for a supplied `inputTokenUsd`
-string/promise or a price lookup when omitted. Standalone calls, client calls,
-and these implicit reads share pending lookups and a 128-entry in-memory LRU cache within the same
-loaded SDK instance. The key is normalized endpoint, chain, and lowercase token;
-successful prices stay fresh for 10 minutes from the response. Failures and
-invalid responses are not cached; no persistence or timer polling is added.
-An abort signal stops only that caller's wait; the shared lookup continues for
-other callers and cache warming. Supplied `inputTokenUsd` values/promises remain
-explicit overrides: they are not cached by the SDK, and their freshness belongs
-to the caller. Missing, failed, invalid, zero, or timed-out pricing returns the
-supplied DEX baseline with `inputAmountUsd: undefined`, allowing the quote request
-to proceed. Shared lookups can finish in the background and warm the cache.
-Direct `getTokenUsd` calls still throw for failed lookups or invalid responses.
-Missing, empty, `"."`, or zero input returns the baseline immediately, without
-fetching or waiting for a supplied price promise; rejected supplied promises are
-still observed. Invalid token, chain, amount, and slippage inputs still reject;
-caller cancellation propagates. Partial decimals such as `".5"` and `"1."` are
-accepted. Once a quote exists, display `quote.request.slippage`; freeze
+`amountUsd` is the total trade value as a decimal string or `undefined`, never a
+unit price or promise. Use raw token units, token decimals, and decimal arithmetic;
+do not convert spending amounts through JavaScript `Number`. For output-target
+entry, compute the typed output amount's USD total using the output token's
+decimals and unit price. Quote `inAmount` and `outAmount` still use integer token
+base units.
+
+The pure helper takes only `{ amountUsd, slippage }` and performs no
+requests, timers, caching, or asynchronous work. Slippage must round to at least
+one basis point and must not exceed 50%; zero is rejected. Automatic mode applies
+a 1% floor to positive totals worth at most $100 without lowering a higher
+baseline; larger totals retain the baseline. The helper always applies automatic
+policy. The DEX selects custom percentages directly and skips this helper.
+Normalize an empty or zero automatic setting to the positive DEX default before
+calling the helper.
+Missing, invalid, or nonpositive USD totals retain the baseline with undefined
+`amountUsd`. Invalid slippage throws `INVALID_ARGUMENT`.
+The frozen result contains `slippagePercent`, integer `slippageBps`, and optional
+`amountUsd` for the positive total used by automatic policy. Quote
+`inputAmountUsd` and provider `inputTokenUsdPrice` fields keep their existing
+meanings. Display the effective percentage and pass it unchanged to the quote.
+
+Standalone and client `getTokenUsd` calls share pending lookups and a 128-entry
+in-memory LRU cache keyed by normalized endpoint, chain, and lowercase token.
+Successful prices stay fresh for 30 seconds from the response; failures and
+invalid responses are not cached. A caller's abort signal stops only its wait;
+shared pricing can continue for other callers and cache warming.
+The web demo bounds an automatic quote's price wait to 1,500 ms and passes
+`undefined` after a failure or timeout, while caller cancellation propagates.
+It may prefetch the selected token's price with an empty draft in automatic mode;
+the quote path only fetches or waits for a positive amount. The DEX custom branch
+skips both price reads and the helper. Other hosts own loading, cancellation, and
+fallback policy;
+direct `getTokenUsd` still throws on failed or malformed responses.
+Once a quote exists, display `quote.request.slippage`; freeze
 `prepared.quote.request.slippage` with the prepared review before signing.
 
 Quote the actual token pair with exactly one positive base-unit `inAmount` or
@@ -1104,4 +1122,4 @@ See [inline signing](../spot-ui/README.md#inline-signing-with-the-host-wallet),
 [the SDK execution migration](../spot-ui/README.md#execution-api-migration),
 [wallet type and error migration](../spot-ui/README.md#wallet-type-and-error-migration),
 [typed router example](../spot-ui/examples/router-swap.ts), and
-[swap integration guide](../../skills/spot-react-integration/references/07-swap-and-migration.md).
+[swap integration guide](../../skills/spot-swap-integration/references/02-swap-flow.md).

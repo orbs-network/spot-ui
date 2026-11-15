@@ -98,7 +98,7 @@ const setup = (run: (params: OrderRunParams) => Promise<Order>, callbacks: Callb
   executionRunners.set(client, run);
   vi.mocked(createHostOrderExecution).mockReset().mockImplementation((owner, params) => orderExecution(params, input => executionRunners.get(owner)!(input), owner.spenderAddress));
   clientReporters.set(client, analytics);
-  store.getState().configureOrders(JSON.stringify([account, adapter, Partners.Quick, 137, true]), undefined, callbacks);
+  store.getState().configureOrders(JSON.stringify([account, adapter, Partners.Quick, 137, true, apiUrl]), undefined, callbacks);
   const execute = (
     orderType = OrderType.TWAP,
     overrides: Partial<Pick<ExecuteOrderParams, "inputToken" | "wrappedNativeToken" | "walletInteractions" | "signal" | "form">> = {},
@@ -106,7 +106,7 @@ const setup = (run: (params: OrderRunParams) => Promise<Order>, callbacks: Callb
     account, chainId: 137, inputToken, outputToken, form: form(orderType), client,
     walletInteractions: testWallet(), callbacks,
     addNewOrder: store.getState().addOrder, refetchActiveOrders: vi.fn(),
-    onOrderUpdate: (current) => updateTrackedOrderInCache(store, current, callbacks, client.partner),
+    onOrderUpdate: (current) => updateTrackedOrderInCache(store, current, callbacks, client.partner, client.apiUrl),
     subscribeExecution: (listener) => store.subscribe(listener),
     getCurrentExecution: () => store.getState().state.currentExecution,
     getExecution: store.getState().getExecution,
@@ -551,6 +551,24 @@ describe("React internal settlement lifecycle", () => {
     expect(callbacks.onOrdersProgressUpdate).toHaveBeenCalledExactlyOnceWith([updated]);
     expect(callbacks.onOrderCreated).toHaveBeenCalledExactlyOnceWith(accepted);
     expect(store.getState().state.currentExecution.phase).toBe(ExecutionPhase.IDLE);
+  });
+
+  it("keeps late settlement updates out of another endpoint's history with matching wallet and contracts", () => {
+    const callbacks = { onOrdersProgressUpdate: vi.fn() };
+    const { store, client } = setup(vi.fn(), callbacks);
+    const productionApi = "https://order-sink-v2.orbs.network";
+    store.getState().configureOrders(JSON.stringify([account, adapter, Partners.Quick, 137, true, productionApi]), undefined, callbacks);
+    const current = { ...order(), progress: 10 };
+    store.getState().addOrder(current);
+    const late = { ...current, progress: 50 };
+
+    updateTrackedOrderInCache(store, late, callbacks, client.partner, client.apiUrl);
+    expect(store.getState().orders.data).toEqual([current]);
+    expect(callbacks.onOrdersProgressUpdate).not.toHaveBeenCalled();
+
+    updateTrackedOrderInCache(store, late, callbacks, client.partner, productionApi);
+    expect(store.getState().orders.data).toEqual([late]);
+    expect(callbacks.onOrdersProgressUpdate).toHaveBeenCalledExactlyOnceWith([late]);
   });
 
   it("reconciles detached unknown acceptance while a new order is still signing", async () => {

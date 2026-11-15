@@ -131,7 +131,7 @@ async function reconcileOrderStatus({ store, saved, callbacks, signal }: {
       throw new Error("The returned order does not match the original intent");
     }
     if (!transition(ExecutionPhase.SETTLING, { order, orderId: order.id })) return;
-    observe(() => updateTrackedOrderInCache(store, order, callbacks, saved.partner));
+    observe(() => updateTrackedOrderInCache(store, order, callbacks, saved.partner, saved.apiUrl ?? client.apiUrl));
     if (!saved.order) observe(() => callbacks?.onOrderCreated?.(order));
     if (saved.form || order.type !== OrderVariant.SWAP || order.status === OrderStatus.Completed) {
       transition(ExecutionPhase.SUCCESS, { order, error: undefined, parsedError: undefined });

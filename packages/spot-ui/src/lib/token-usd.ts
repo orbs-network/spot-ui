@@ -3,7 +3,7 @@ import { getApiEndpoint } from "./api-config";
 import { awaitWithSignal } from "./await-with-signal";
 import { SpotError } from "./errors";
 
-const TOKEN_USD_CACHE_TTL_MILLIS = 10 * 60_000;
+const TOKEN_USD_CACHE_TTL_MILLIS = 30_000;
 const TOKEN_USD_PENDING_TTL_MILLIS = 30_000;
 const MAX_CACHED_TOKEN_PRICES = 128;
 
@@ -29,7 +29,7 @@ export interface GetTokenUsdParams {
 /**
  * Reads USD per whole token from the order service, without loading a client.
  * Returns a decimal string, preserving the service's full price precision.
- * Shares pending lookups and caches successful prices for 10 minutes across calls
+ * Shares pending lookups and caches successful prices for 30 seconds across calls
  * and clients, keyed by endpoint, chain, and token. Failures are not cached.
  *
  * @param params - Token, chain, and optional abort signal and service base URL.

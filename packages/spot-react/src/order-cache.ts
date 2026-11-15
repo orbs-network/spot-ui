@@ -3,24 +3,26 @@ import type { StoreApi } from "zustand/vanilla";
 import type { SpotStore } from "./context/create-spot-store";
 import type { Callbacks } from "./types";
 
-const matchesOrderScope = (key: string | undefined, order: Order, partner: string | undefined): boolean => {
+const matchesOrderScope = (key: string | undefined, order: Order, partner: string | undefined, apiUrl: string | undefined): boolean => {
   if (!key || typeof order.maker !== "string" || !partner || !order.rawOrder || !("order" in order.rawOrder)) return false;
   const adapter = order.rawOrder.order.witness.exchange.adapter;
   let scope: unknown;
   try { scope = JSON.parse(key); }
   catch { return false; }
-  // History keys contain account, adapter, partner, chain, and legacy support.
+  // History keys contain account, adapter, partner, chain, legacy support, and endpoint.
   return Array.isArray(scope) && typeof scope[0] === "string" && typeof scope[1] === "string" &&
     scope[0].toLowerCase() === order.maker.toLowerCase() &&
-    scope[1].toLowerCase() === adapter.toLowerCase() && scope[2] === partner && scope[3] === order.chainId;
+    scope[1].toLowerCase() === adapter.toLowerCase() && scope[2] === partner && scope[3] === order.chainId &&
+    scope[5] === apiUrl;
 };
 
-/** Apply host settlement snapshots only to the original account/adapter/partner/chain cache. */
+/** Apply host settlement snapshots only to the original wallet, deployment, and endpoint cache. */
 export const updateTrackedOrderInCache = (
-  store: StoreApi<SpotStore>, order: Order, callbacks?: Callbacks, partner?: string,
+  store: StoreApi<SpotStore>, order: Order, callbacks?: Callbacks, partner?: string, apiUrl?: string,
 ): void => {
   const state = store.getState();
-  if (matchesOrderScope(state.orders.key, order, partner ?? state.state.currentExecution.partner)) {
+  if (matchesOrderScope(state.orders.key, order, partner ?? state.state.currentExecution.partner,
+    apiUrl ?? state.state.currentExecution.apiUrl)) {
     state.updateOrder(order, callbacks);
   }
 };

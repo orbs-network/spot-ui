@@ -5,6 +5,8 @@ import { useCallback, useMemo } from "react";
 import { getDefaultTokensForChain } from "../utils";
 import { parsePartner } from "../spot-partners";
 
+const DEV_API_URL = "https://order-sink-dev.orbs.network";
+
 const parsePositiveNumber = (
   value: string | null | undefined,
 ): number | undefined => {
@@ -20,6 +22,7 @@ export const useSwapParams = () => {
   });
   const [swapType, setSwapType] = useQueryParam("swapType", StringParam);
   const [partner, setPartner] = useQueryParam("partner", StringParam);
+  const [devApi] = useQueryParam("devApi", StringParam);
   // URL overrides: minimum trade size in USD, order duration in minutes.
   const [minTradeSize] = useQueryParam("minTradeSize", StringParam);
   const [duration] = useQueryParam("duration", StringParam);
@@ -55,6 +58,7 @@ export const useSwapParams = () => {
   const selectedPartner = parsePartner(partner);
 
   return {
+    apiUrl: devApi === null || devApi === "" || devApi === "true" || devApi === "1" ? DEV_API_URL : undefined,
     minTradeSizeUsd: parsePositiveNumber(minTradeSize),
     durationMinutes: parsePositiveNumber(duration),
     inputCurrency: effectiveInput,

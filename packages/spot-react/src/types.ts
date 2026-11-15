@@ -152,6 +152,8 @@ export interface AdvancedOrdersProviderProps {
   chainId?: number;
   account?: Address;
   partner: Partners;
+  /** Trusted order-service base URL. Omit to use the SDK production endpoint. */
+  apiUrl?: string;
   /** Disable analytics for clients created by this provider. Defaults to false. */
   disableAnalytics?: boolean;
   inputToken?: Token;

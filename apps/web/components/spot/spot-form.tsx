@@ -155,7 +155,7 @@ export function SpotForm({ orderType }: { orderType: OrderType }) {
     !partners ||
     partners.some((item) => item.name === partner && item.chainId === chainId);
   const callbacks = useCallbacks();
-  const { minTradeSizeUsd, durationMinutes } = useSwapParams();
+  const { minTradeSizeUsd, durationMinutes, apiUrl } = useSwapParams();
   const overrides = useMemo<Overrides | undefined>(
     () =>
       durationMinutes === undefined
@@ -177,6 +177,7 @@ export function SpotForm({ orderType }: { orderType: OrderType }) {
           walletInteractions={walletInteractions}
           account={address}
           partner={partner}
+          apiUrl={apiUrl}
           inputBalanceRaw={inputBalanceRaw}
           inputToken={inputToken}
           outputToken={outputToken}

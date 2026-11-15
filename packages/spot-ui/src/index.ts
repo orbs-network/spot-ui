@@ -64,7 +64,6 @@ export {
   type ClientGetOrderParams,
   type ClientGetQuoteParams,
   type ClientGetTokenUsdParams,
-  type ClientGetSwapSlippageParams,
 } from "./lib/client";
 
 export { getTokenUsd, type GetTokenUsdParams } from "./lib/token-usd";

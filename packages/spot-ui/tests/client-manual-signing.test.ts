@@ -8,7 +8,8 @@ import { calculateOrder } from "../src/lib/order-form/calculate-order-form";
 import { buildV2Order, getOrder } from "../src/lib/orders/v2-orders";
 import { fetchQuote, type SwapQuote, type SwapQuoteParams } from "../src/lib/quote";
 import { submitOrder } from "../src/lib/submit-order";
-import { getSwapSlippage } from "../src/lib/swap-slippage";
+import { getSwapSlippage, type SwapSlippage } from "../src/lib/swap-slippage";
+import { getTokenUsd } from "../src/lib/token-usd";
 import { OrderStatus, OrderType, Partners, type Address, type Hex, type RePermitData, type RePermitOrder } from "../src/lib/types";
 
 vi.mock("../src/lib/fetch-repermit-data", () => ({ fetchRePermitData: vi.fn() }));
@@ -99,7 +100,9 @@ describe("client manual signing", () => {
     const spot = await client();
     expect(spot).not.toHaveProperty("createOrderExecution");
     expect(spot).not.toHaveProperty("createSwapExecution");
+    expect(spot).not.toHaveProperty("getSwapSlippage");
     expectTypeOf<Extract<keyof SpotClient, "createOrderExecution" | "createSwapExecution">>().toEqualTypeOf<never>();
+    expectTypeOf<Extract<keyof SpotClient, "getSwapSlippage">>().toEqualTypeOf<never>();
     expect(spot.prepareOrder).toBeTypeOf("function");
     expect(spot.prepareSwap).toBeTypeOf("function");
     expect(spot.submitOrder).toBeTypeOf("function");
@@ -482,16 +485,70 @@ describe("client manual signing", () => {
   });
 });
 
-describe("swap slippage pricing waits", () => {
-  const params = {
-    tokenAddress: inputTokenAddress, chainId: 137, typedInputAmount: "50", slippage: 0.5, isCustom: false,
-  };
+describe("synchronous swap slippage policy", () => {
+  const params = { amountUsd: "100", slippage: 0.5 };
+  let network: ReturnType<typeof vi.fn<typeof globalThis.fetch>>;
+
+  beforeEach(() => {
+    network = vi.fn<typeof globalThis.fetch>();
+    vi.stubGlobal("fetch", network);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns a synchronous result without network access or mutating its inputs", () => {
+    const input = Object.freeze({ ...params });
+
+    const policy = getSwapSlippage(input);
+
+    expectTypeOf<typeof policy>().toEqualTypeOf<SwapSlippage>();
+    expect(policy).not.toBeInstanceOf(Promise);
+    expect(policy).toEqual({ slippagePercent: 1, slippageBps: 100, amountUsd: "100" });
+    expect(input).toEqual(params);
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it.each([0, 0.004])("throws synchronously when slippage rounds to zero (%s)", slippage => {
+    expect(() => getSwapSlippage({ ...params, slippage }))
+      .toThrowError(expect.objectContaining({ code: "INVALID_ARGUMENT" }));
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it("rounds the baseline before applying the automatic USD policy", () => {
+    expect(getSwapSlippage({ ...params, slippage: 0.005, amountUsd: undefined }))
+      .toEqual({ slippagePercent: 0.01, slippageBps: 1, amountUsd: undefined });
+    expect(getSwapSlippage({ ...params, slippage: 0.005 }))
+      .toEqual({ slippagePercent: 1, slippageBps: 100, amountUsd: "100" });
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "", ".", "0", "0.0", "-1", "invalid", "Infinity"])("retains the baseline for unusable USD totals (%s)", amountUsd => {
+    expect(getSwapSlippage({ ...params, amountUsd }))
+      .toEqual({ slippagePercent: 0.5, slippageBps: 50, amountUsd: undefined });
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it("preserves the exact $100 boundary and never lowers a larger baseline", () => {
+    expect(getSwapSlippage({ ...params, amountUsd: "100" }))
+      .toEqual({ slippagePercent: 1, slippageBps: 100, amountUsd: "100" });
+    expect(getSwapSlippage({ ...params, amountUsd: "100.000000000000000001" }))
+      .toEqual({ slippagePercent: 0.5, slippageBps: 50, amountUsd: "100.000000000000000001" });
+    expect(getSwapSlippage({ ...params, amountUsd: "0.0000000000000000001" }))
+      .toEqual({ slippagePercent: 1, slippageBps: 100, amountUsd: "0.0000000000000000001" });
+    expect(getSwapSlippage({ ...params, slippage: 2 }))
+      .toEqual({ slippagePercent: 2, slippageBps: 200, amountUsd: "100" });
+    expect(network).not.toHaveBeenCalled();
+  });
+
+});
+
+describe("shared token USD cache", () => {
+  const params = { tokenAddress: inputTokenAddress, chainId: 137 };
   const deferred = <T,>() => {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>(accept => { resolve = accept; });
     return { promise, resolve };
   };
-  const priceResponse = () => Response.json({ token: inputTokenAddress, priceUsd: "2000000000000000000" });
+  const priceResponse = (priceUsd = "2000000000000000000") => Response.json({ token: inputTokenAddress, priceUsd });
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -499,94 +556,56 @@ describe("swap slippage pricing waits", () => {
   });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-  it.each([
-    { slippage: 0, isCustom: false }, { slippage: 0, isCustom: true },
-    { slippage: 0.004, isCustom: false }, { slippage: 0.004, isCustom: true },
-  ])("rejects policy slippage rounding to zero before pricing ($slippage, custom $isCustom)", async values => {
-    const network = vi.fn<typeof globalThis.fetch>();
-    vi.stubGlobal("fetch", network);
-
-    await expect(getSwapSlippage({ ...params, ...values, apiUrl: `${apiUrl}/zero-policy` }))
-      .rejects.toMatchObject({ code: "INVALID_ARGUMENT" });
-
-    expect(network).not.toHaveBeenCalled();
-  });
-
-  it("accepts the smallest positive rounded custom policy without pricing", async () => {
-    const network = vi.fn<typeof globalThis.fetch>();
-    vi.stubGlobal("fetch", network);
-
-    await expect(getSwapSlippage({ ...params, slippage: 0.005, isCustom: true }))
-      .resolves.toMatchObject({ slippagePercent: 0.01, slippageBps: 1 });
-
-    expect(network).not.toHaveBeenCalled();
-  });
-
-  it("returns the baseline after 1500ms while a late shared response fills the price cache", async () => {
+  it("expires a successful price exactly 30 seconds after its response", async () => {
     const response = deferred<Response>();
-    const network = vi.fn<typeof globalThis.fetch>().mockReturnValue(response.promise);
+    const network = vi.fn<typeof globalThis.fetch>()
+      .mockReturnValueOnce(response.promise)
+      .mockResolvedValueOnce(priceResponse("3000000000000000000"));
     vi.stubGlobal("fetch", network);
-    const request = { ...params, apiUrl: `${apiUrl}/late-policy-cache` };
-    let settled = false;
-    const policy = getSwapSlippage(request).then(value => { settled = true; return value; });
+    const request = { ...params, apiUrl: `${apiUrl}/thirty-second-price-cache` };
+    const first = getTokenUsd(request);
 
-    await vi.advanceTimersByTimeAsync(1499);
-    expect(settled).toBe(false);
-    await vi.advanceTimersByTimeAsync(1);
-    await expect(policy).resolves.toEqual({ slippagePercent: 0.5, slippageBps: 50, inputAmountUsd: undefined });
-    expect(network).toHaveBeenCalledOnce();
-    expect(network.mock.calls[0]?.[1]?.signal).toBeUndefined();
-
+    await vi.advanceTimersByTimeAsync(20_000);
     response.resolve(priceResponse());
-    await expect(getSwapSlippage(request)).resolves.toEqual({
-      slippagePercent: 1, slippageBps: 100, inputAmountUsd: "100",
-    });
+    await expect(first).resolves.toBe("2");
+    await vi.advanceTimersByTimeAsync(29_999);
+    await expect(getTokenUsd(request)).resolves.toBe("2");
     expect(network).toHaveBeenCalledOnce();
-  });
 
-  it("also bounds an externally supplied pending price promise", async () => {
-    const network = vi.fn<typeof globalThis.fetch>();
-    vi.stubGlobal("fetch", network);
-    const policy = getSwapSlippage({
-      ...params, inputTokenUsd: new Promise<string>(() => {}), apiUrl: `${apiUrl}/pending-override`,
-    });
-
-    await vi.advanceTimersByTimeAsync(1500);
-
-    await expect(policy).resolves.toMatchObject({ slippagePercent: 0.5, slippageBps: 50, inputAmountUsd: undefined });
-    expect(network).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(getTokenUsd(request)).resolves.toBe("3");
+    expect(network).toHaveBeenCalledTimes(2);
   });
 
   it("propagates cancellation without cancelling shared pricing for another caller", async () => {
     const response = deferred<Response>();
     const network = vi.fn<typeof globalThis.fetch>().mockReturnValue(response.promise);
     vi.stubGlobal("fetch", network);
-    const request = { ...params, apiUrl: `${apiUrl}/cancelled-policy` };
+    const request = { ...params, apiUrl: `${apiUrl}/shared-price-cancellation` };
     const controller = new AbortController();
-    const reason = new Error("Stop this slippage request");
-    const cancelled = getSwapSlippage({ ...request, signal: controller.signal });
+    const reason = new Error("Stop this price wait");
+    const cancelled = getTokenUsd({ ...request, signal: controller.signal });
     const rejected = expect(cancelled).rejects.toBe(reason);
-    const shared = getSwapSlippage(request);
+    const shared = getTokenUsd(request);
 
     controller.abort(reason);
     await rejected;
     response.resolve(priceResponse());
 
-    await expect(shared).resolves.toMatchObject({ slippagePercent: 1, slippageBps: 100, inputAmountUsd: "100" });
+    await expect(shared).resolves.toBe("2");
     expect(network).toHaveBeenCalledOnce();
     expect(network.mock.calls[0]?.[1]?.signal).toBeUndefined();
   });
 
-  it("rejects an already-aborted policy request without starting pricing", async () => {
-    const network = vi.fn<typeof globalThis.fetch>();
+  it("retries pricing immediately after a failed lookup", async () => {
+    const network = vi.fn<typeof globalThis.fetch>()
+      .mockRejectedValueOnce(new Error("Price backend unavailable"))
+      .mockResolvedValueOnce(priceResponse());
     vi.stubGlobal("fetch", network);
-    const controller = new AbortController();
-    const reason = new Error("Already cancelled");
-    controller.abort(reason);
+    const request = { ...params, apiUrl: `${apiUrl}/failed-price-retry` };
 
-    await expect(getSwapSlippage({ ...params, apiUrl: `${apiUrl}/preaborted-policy`, signal: controller.signal }))
-      .rejects.toBe(reason);
-
-    expect(network).not.toHaveBeenCalled();
+    await expect(getTokenUsd(request)).rejects.toMatchObject({ code: "PRICE_LOOKUP_FAILED" });
+    await expect(getTokenUsd(request)).resolves.toBe("2");
+    expect(network).toHaveBeenCalledTimes(2);
   });
 });

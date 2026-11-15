@@ -8,8 +8,8 @@
     "noEmit": true
   },
   "include": [
-    "skills/liquidity-hub-integration/assets/**/*.ts",
-    "skills/spot-integration/assets/**/*.ts",
-    "skills/spot-react-integration/assets/**/*.tsx"
+    "skills/spot-swap-integration/assets/**/*.ts",
+    "skills/spot-advanced-orders-integration/assets/**/*.ts",
+    "skills/spot-advanced-orders-react-integration/assets/**/*.tsx"
   ]
 }

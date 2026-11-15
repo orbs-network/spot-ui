@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { WalletControls } from "./wallet-controls";
 
 const NAV_ITEMS = [
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
 
 export function Navigation() {
   const pathname = usePathname();
+  const devApi = useSearchParams().get("devApi");
 
   return (
     <nav className="sticky top-0 z-50 flex flex-wrap items-center gap-2 border-b border-border bg-background px-4 py-3">
@@ -41,7 +42,7 @@ export function Navigation() {
               {label}
             </a>
           ) : (
-            <Link key={path} href={path} className={className}>
+            <Link key={path} href={devApi === null ? path : { pathname: path, query: { devApi } }} className={className}>
               {label}
             </Link>
           );

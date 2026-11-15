@@ -25,10 +25,10 @@ export const SpotStoreProvider = ({
   initialState: SpotFormDefaults;
 }) => {
   const [store] = useState(() => createSpotStore(initialState));
-  const { account, chainId, partner } = useSpotTrading();
-  const walletScope = JSON.stringify([account?.toLowerCase(), chainId, partner]);
+  const { account, chainId, partner, apiUrl } = useSpotTrading();
+  const walletScope = JSON.stringify([account?.toLowerCase(), chainId, partner, apiUrl]);
 
-  // Stop pending wallet steps when their account or network changes. Submitted
+  // Stop pending wallet steps when their wallet or order service changes. Submitted
   // orders can keep tracking without the original wallet.
   useEffect(() => {
     return () => store.getState().abortExecutionTask(true, new ExecutionScopeChangedError());

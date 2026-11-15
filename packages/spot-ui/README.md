@@ -10,9 +10,13 @@ npm install @orbs-network/spot-ui
 ```
 
 Use a modern browser or Node.js 18+ with `fetch`, `AbortController`, and `BigInt`.
-Import from the public package root. The version-matched integration guide ships
-at `dist/integration-skill/SKILL.md`, with `manifest.json.sdkVersion` identifying
-its package version. The host owns token metadata, wallet operations, balances, USD price display, editable
+Import from the public package root. Version-matched integration skills ship at:
+
+- `dist/integration-skills/spot-swap-integration/SKILL.md` for swaps in any framework.
+- `dist/integration-skills/spot-advanced-orders-integration/SKILL.md` for custom advanced-order integrations.
+
+Each skill's adjacent `manifest.json` records its package version as `sdkVersion`.
+The host owns token metadata, wallet operations, balances, USD price display, editable
 state, progress, and UI. The SDK owns protocol configuration, order preparation,
 submission, and status/history reads.
 
@@ -29,7 +33,7 @@ existing wallet/read services and handle those services' errors directly.
 | `createClient(partner, chainId, options?)` | Load a reusable client with validated protocol configuration |
 | `client.getQuote(params)` / `getQuote(params)` | Fetch one server quote for a fixed input or requested output amount |
 | `client.getTokenUsd(params)` / `getTokenUsd(params)` | Read the full-precision USD price per whole token |
-| `client.getSwapSlippage(params)` / `getSwapSlippage(params)` | Resolve one effective slippage percentage for the UI and quote |
+| `getSwapSlippage(params)` | Synchronously derive the UI/quote slippage from a total USD amount |
 | `calculateOrder(params)` | Derive a calculated advanced-order form |
 | `client.spenderAddress` | Read the ERC-20 approval spender for this client |
 | `client.prepareSwap(params)` / `client.prepareOrder(params)` | Prepare the exact EIP-712 payload for inline wallet signing |
@@ -140,9 +144,9 @@ Use the wrapped token address for native input.
 
 The standalone call accepts an optional `apiUrl`; the client method always uses
 its captured chain and endpoint. Within the same loaded SDK instance, standalone
-calls, client calls, and implicit `getSwapSlippage` price reads share pending
-lookups and a 128-entry in-memory LRU cache. Keys include the normalized endpoint,
-chain, and lowercase token address. Successful prices stay fresh for 10 minutes
+calls and client calls share pending lookups and a 128-entry in-memory LRU cache.
+Keys include the normalized endpoint, chain, and lowercase token address.
+Successful prices stay fresh for 30 seconds
 from the response; failures and invalid responses are not cached. Nothing is
 persisted, and the cache starts no timer-based polling.
 
@@ -153,71 +157,68 @@ Network and HTTP failures throw
 `INVALID_RESPONSE`. Missing or failed pricing never becomes a zero-dollar price.
 Price lookups do not modify quote slippage.
 
-Await `client.getSwapSlippage` to resolve the shared small-trade policy before
-displaying the effective percentage or requesting a quote:
+`getSwapSlippage` is a synchronous standalone function. The DEX resolves any
+needed unit price with `client.getTokenUsd`, computes the total USD value with
+decimal arithmetic, and passes that total to the policy. For a positive automatic
+input amount:
 
 ```ts
-const policy = await client.getSwapSlippage({
-  tokenAddress: inToken,
-  typedInputAmount, // Whole-token decimal string, for example "50.25".
-  slippage: dexSlippage,
-  isCustom: isUserCustomSlippage,
-  signal,
-});
-// Display policy.slippagePercent (%) and policy.inputAmountUsd when available.
+import BN from "bignumber.js";
+import { getSwapSlippage } from "@orbs-network/spot-ui";
+
+// Apply the host's timeout, cancellation, and fallback policy to the price read.
+const unitPriceUsd = isUserCustomSlippage
+  ? undefined
+  : await client.getTokenUsd({ tokenAddress: inToken, signal }).catch(() => undefined);
+signal?.throwIfAborted();
+const amountUsd = unitPriceUsd === undefined
+  ? undefined
+  : new BN(inputAmountRaw).shiftedBy(-inputTokenDecimals).times(unitPriceUsd).toFixed();
+const slippagePercent = isUserCustomSlippage
+  ? dexSlippage
+  : getSwapSlippage({ amountUsd, slippage: dexSlippage }).slippagePercent;
 const quote = await client.getQuote({
   inToken, outToken, inAmount: inputAmountRaw, user: account,
-  slippage: policy.slippagePercent, signal,
+  slippage: slippagePercent, signal,
 });
 ```
 
-Pass the user's decimal string directly as `typedInputAmount`; do not convert it
-through JavaScript `Number`. Quote `inAmount` remains an integer base-unit string,
-as shown by `inputAmountRaw` above. The slippage helper needs no token decimals.
+`amountUsd` is the total trade value as a decimal string or `undefined`, never a
+unit price or promise. Compute it from raw token units and token decimals as
+shown, without converting spending amounts through JavaScript `Number`.
+For an output target, use the typed output-token raw amount, its decimals, and
+its unit price in the same calculation. Quote `inAmount` and `outAmount` remain
+integer token base-unit strings.
 
-Both `slippage` and `isCustom` are required. Slippage must not exceed 50% and
-must round to at least one basis point; zero is rejected. With `isCustom: false`,
-`slippage` is the DEX baseline: known positive trades up to and including $100
-use at least 1%, while larger trades retain that baseline. A higher baseline
-stays higher. With `isCustom: true`, the helper returns that percentage without
-fetching or waiting for pricing. Hosts that treat
-an empty or zero setting as automatic should pass their positive DEX default as
-the baseline; the web demo follows this convention.
-For positive automatic input, the helper fetches `getTokenUsd` if no price is
-supplied and waits at most 1,500 ms for pricing, including a supplied price promise.
-Missing, failed, invalid, zero, or timed-out pricing returns the supplied DEX
-baseline with `inputAmountUsd: undefined`, so quoting can continue. Shared price
-work can finish in the background and warm the cache for later calls.
-Direct `getTokenUsd` calls retain the throwing contract described above.
-Missing, empty, `"."`, or zero input returns the baseline
-immediately without starting a lookup or waiting for a supplied price promise;
-rejected supplied promises are still observed. Ordinary partial inputs such as
-`".5"` and `"1."` are accepted. Invalid token, chain, amount, and slippage inputs
-still reject, and caller cancellation propagates.
-The frozen result contains `slippagePercent`, integer `slippageBps`, and optional
-`inputAmountUsd`. The USD value is the exact decimal-string input total when
-automatic pricing knows the amount; it is undefined for custom slippage or
-unavailable input or pricing. Percentage inputs round to basis points;
-malformed inputs throw `INVALID_ARGUMENT`.
-The standalone `getSwapSlippage` additionally requires `chainId` and accepts an
-optional `apiUrl`; the client method supplies its captured chain and endpoint.
-Both accept an abort `signal`. When `inputTokenUsd` is omitted, automatic slippage
-benefits from the shared price cache described above.
+The pure helper takes only `{ amountUsd, slippage }`. It needs no client,
+chain, token address, endpoint, signal, or token metadata, and starts no requests,
+timers, caching, or asynchronous work. Slippage must not exceed 50% and must round
+to at least one basis point; zero is rejected. The helper always applies automatic
+policy: the supplied percentage is the DEX baseline, positive values worth at most
+$100 use at least 1%, and larger values retain the baseline. A higher baseline
+stays higher. The DEX selects a custom percentage directly without calling the
+helper, as shown above. Hosts that treat an empty or zero setting as automatic
+should pass their positive DEX
+default as the baseline.
 
-You can still pass a price or pending lookup through `inputTokenUsd`, which
-accepts a decimal string or promise. SDK lookups already coalesce; supplied
-overrides are not imported into the SDK cache, and the caller owns their freshness:
+Missing, invalid, or nonpositive `amountUsd` retains the baseline with
+`amountUsd: undefined`. Invalid slippage throws `INVALID_ARGUMENT`.
+The frozen result contains `slippagePercent`, integer
+`slippageBps`, and optional `amountUsd` for the positive total used by automatic
+policy. Percentages round to basis points (`0.5` becomes `50`). This helper field
+is separate from a quote's `inputAmountUsd` response metadata.
 
-```ts
-const pendingPrice = client.getTokenUsd({ tokenAddress: inToken, signal });
-const policy = await client.getSwapSlippage({
-  tokenAddress: inToken, typedInputAmount,
-  slippage: dexDefaultSlippage, isCustom: false,
-  inputTokenUsd: pendingPrice, signal,
-});
-```
+The web demo owns a 1,500 ms wait for a price needed by an active automatic quote.
+Failed or timed-out pricing becomes `undefined` before calling the pure helper,
+so quoting can continue with the baseline; caller cancellation still propagates.
+Its per-caller abort controller stops the wait while shared SDK pricing can finish
+and warm the cache. Automatic mode may prefetch the selected token's price even
+with an empty draft; only positive quote amounts fetch or wait in the quote path.
+The DEX custom branch skips both price reads and the helper. Direct `getTokenUsd`
+retains the throwing contract above; other hosts choose their own timeout and
+fallback policy.
 
-Use `policy.slippagePercent` for both the initial display and quote request. Once
+Use the selected `slippagePercent` for both the display and quote request. Once
 quoted, display `quote.request.slippage`; after preparation, freeze
 `prepared.quote.request.slippage` alongside its output and minimum. Do not show
 the raw DEX default beside a quote calculated with a different percentage.
@@ -466,10 +467,11 @@ TWAP subgraphs.
 
 ## Client configuration and analytics
 
-Page URL parameters do not select the backend. Pass
+The SDK does not read page URL parameters. Pass
 `{ apiUrl: "https://order-sink-dev.orbs.network" }` to `createClient` to select a
 trusted alternative explicitly. Configuration, quotes, submission, and lookups
 use that client's captured endpoint; custom services exclude production history.
+The web demo maps `?devApi=true` to this fixed development URL.
 
 `createClient` loads validated `/config` data using the shared bounded cache. It rejects chain
 mismatches and malformed or zero RePermit and exchange-adapter addresses. The

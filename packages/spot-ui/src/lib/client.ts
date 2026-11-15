@@ -33,7 +33,6 @@ import type { PreparedSwap } from "./swap";
 import { getClientCreationAnalytics, registerClientInternals } from "./internal/client";
 import { captureValidatedSwap, type ReviewedSwapInput } from "./swap-validation";
 import { getTokenUsd, type GetTokenUsdParams } from "./token-usd";
-import { getSwapSlippage, type GetSwapSlippageParams, type SwapSlippage } from "./swap-slippage";
 import type {
   Address,
   DeepReadonly,
@@ -162,9 +161,6 @@ export type ClientGetQuoteParams = ClientQuoteParams<SwapQuoteParams>;
 /** Token-price inputs; chain and service endpoint come from the client. */
 export type ClientGetTokenUsdParams = Omit<GetTokenUsdParams, "chainId" | "apiUrl">;
 
-/** Swap-slippage inputs; chain and service endpoint come from the client. */
-export type ClientGetSwapSlippageParams = Omit<GetSwapSlippageParams, "chainId" | "apiUrl">;
-
 /** Reviewed swap inputs for preparation without a wallet adapter. */
 export interface PrepareSwapParams {
   /** Reviewed quote, reused while fresh; stale quotes refresh the unchanged request. */
@@ -209,7 +205,7 @@ export interface SpotClient {
 
   /**
    * Reads USD per whole token using this client's chain and captured service endpoint.
-   * Returns a full-precision decimal string. Shares pending lookups and a 10-minute
+   * Returns a full-precision decimal string. Shares pending lookups and a 30-second
    * price cache with standalone calls and other clients for the same endpoint, chain, and token.
    *
    * @param params - ERC-20 token address and optional abort signal.
@@ -219,23 +215,6 @@ export interface SpotClient {
    * const usdPerToken = await client.getTokenUsd({ tokenAddress, signal });
    */
   getTokenUsd(params: ClientGetTokenUsdParams): Promise<string>;
-
-  /**
-   * Waits up to 1.5 seconds for token USD pricing before returning the percentage for UI and quoting.
-   * Uses this client's chain and endpoint, or reuses inputTokenUsd when supplied.
-   * Missing, invalid, failed, or slow pricing retains the supplied DEX baseline with undefined inputAmountUsd.
-   * Shared price lookups continue in the background to populate the cache.
-   * Empty or zero input returns the baseline immediately, without fetching or awaiting a supplied price promise.
-   * Slippage must round to at least 1 basis point and be at most 50 percent. Custom slippage returns directly without pricing.
-   * Otherwise the supplied positive slippage is the automatic baseline.
-   * Invalid request inputs reject, and caller cancellation propagates.
-   * @returns Effective slippage as slippagePercent and integer slippageBps, plus inputAmountUsd when known.
-   * @example
-   * const policy = await client.getSwapSlippage({
-   *   tokenAddress, typedInputAmount: "50.25", slippage: 0.5, isCustom: false, signal,
-   * });
-   */
-  getSwapSlippage(params: ClientGetSwapSlippageParams): Promise<SwapSlippage>;
 
   /**
    * Prepares a reviewed TWAP, limit, stop-loss, or take-profit order for inline signing.
@@ -715,8 +694,6 @@ export const createClient = async (
     getQuote,
     getTokenUsd: (params: ClientGetTokenUsdParams): Promise<string> =>
       getTokenUsd({ ...params, chainId, apiUrl }),
-    getSwapSlippage: (params: ClientGetSwapSlippageParams): Promise<SwapSlippage> =>
-      getSwapSlippage({ ...params, chainId, apiUrl }),
     prepareOrder,
     prepareSwap,
     submitOrder: postSignedOrder,

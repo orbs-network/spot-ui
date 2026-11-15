@@ -6,8 +6,8 @@ import { useSpotTrading } from "./spot-trading-context";
 import { useSpotStore, useSpotStoreApi } from "./spot-store-context";
 import { observe } from "../execution-state";
 
-const getClientKey = (partner: string, chainId: number | undefined, disableAnalytics: boolean): string =>
-  `${partner}:${chainId}:${disableAnalytics ? "telemetry-off" : "telemetry-on"}`;
+const getClientKey = (partner: string, chainId: number | undefined, disableAnalytics: boolean, apiUrl?: string): string =>
+  JSON.stringify([partner, chainId, disableAnalytics, apiUrl]);
 
 export interface ClientResult {
   data?: SpotClient;
@@ -21,7 +21,7 @@ const EMPTY_CLIENT_RESULT: ClientResourceState = { isFetching: false };
 
 /** Mounted once by SpotResources. Public consumers only read this resource. */
 export const useConfigureClient = (): void => {
-  const { partner, chainId, hasChainId, disableAnalytics } = useSpotTrading();
+  const { partner, chainId, hasChainId, disableAnalytics, apiUrl } = useSpotTrading();
   const store = useSpotStoreApi();
   const analyticsPolicyRef = useRef<SpotAnalytics | undefined>(undefined);
   if (!analyticsPolicyRef.current) {
@@ -29,7 +29,7 @@ export const useConfigureClient = (): void => {
   }
   const analyticsPolicy = analyticsPolicyRef.current;
   const enabled = Boolean(chainId && hasChainId);
-  const key = enabled ? getClientKey(partner, chainId, disableAnalytics) : undefined;
+  const key = enabled ? getClientKey(partner, chainId, disableAnalytics, apiUrl) : undefined;
   const loader = useCallback(() => {
     if (!chainId) {
       return Promise.reject(
@@ -38,8 +38,8 @@ export const useConfigureClient = (): void => {
     }
     // All client scopes share one opt-out policy, including pending configuration
     // and cancellations that finish after the provider changes account or chain.
-    return createClientWithAnalytics(partner, chainId, { disableAnalytics }, analyticsPolicy);
-  }, [chainId, partner, disableAnalytics, analyticsPolicy]);
+    return createClientWithAnalytics(partner, chainId, { disableAnalytics, apiUrl }, analyticsPolicy);
+  }, [chainId, partner, disableAnalytics, apiUrl, analyticsPolicy]);
 
   useEffect(() => {
     // Apply suppression before reconfiguration starts another client request.
@@ -60,11 +60,11 @@ export const useConfigureClient = (): void => {
 };
 
 export const useClient = (): ClientResult => {
-  const { partner, chainId, hasChainId, disableAnalytics } = useSpotTrading();
+  const { partner, chainId, hasChainId, disableAnalytics, apiUrl } = useSpotTrading();
   const store = useSpotStoreApi();
   const clientState = useSpotStore((state) => state.client);
   const enabled = Boolean(chainId && hasChainId);
-  const key = enabled ? getClientKey(partner, chainId, disableAnalytics) : undefined;
+  const key = enabled ? getClientKey(partner, chainId, disableAnalytics, apiUrl) : undefined;
   const currentState =
     clientState.key === key ? clientState : EMPTY_CLIENT_RESULT;
 

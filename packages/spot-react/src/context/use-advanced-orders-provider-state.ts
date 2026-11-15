@@ -48,6 +48,7 @@ export const useAdvancedOrdersProviderState = (props: AdvancedOrdersProviderProp
   // Changing saved defaults must not reset the current form or execution.
   const formScopeKey = JSON.stringify([
     props.partner,
+    props.apiUrl,
     props.chainId,
     props.orderType,
     props.inputToken?.address,
@@ -70,6 +71,7 @@ export const useAdvancedOrdersProviderState = (props: AdvancedOrdersProviderProp
       chainId: props.chainId,
       hasChainId,
       partner: props.partner,
+      apiUrl: props.apiUrl,
       disableAnalytics: props.disableAnalytics ?? false,
       orderType: props.orderType,
       displayFeePercent: props.displayFeePercent ?? 0,
@@ -98,6 +100,7 @@ export const useAdvancedOrdersProviderState = (props: AdvancedOrdersProviderProp
       props.wrappedNativeToken,
       props.overrides,
       props.partner,
+      props.apiUrl,
       props.disableAnalytics,
       props.priceProtectionPercent,
       props.supportLegacyOrders,

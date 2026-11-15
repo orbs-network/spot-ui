@@ -19,8 +19,6 @@ React applications can import the same public client APIs from
 provider. `AdvancedOrdersProvider` supports advanced orders only; optional
 `swap-ui` components can render the host-owned swap review/progress state.
 
-The archived [Liquidity Hub references](../../skills/liquidity-hub-integration/SKILL.md) are available for maintaining an existing deployment during migration.
-
 ## npm registry deprecation
 
 Repository metadata and TypeScript annotations do not update already published npm releases. A package maintainer can mark all existing releases deprecated without publishing a new version:

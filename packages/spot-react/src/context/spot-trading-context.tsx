@@ -20,6 +20,7 @@ export interface SpotTradingState {
   noLiquidity?: boolean;
   inputAmountUi: string;
   partner: Partners;
+  apiUrl?: string;
   disableAnalytics: boolean;
   minTradeSizeUsd: number;
   inputToken?: Token;

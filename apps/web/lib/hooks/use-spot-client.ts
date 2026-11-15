@@ -20,13 +20,13 @@ export const useSpotClient = (): Pick<
   partner: Partners;
 } => {
   const chainId = useActiveChainId();
-  const { parsedPartner } = useSwapParams();
+  const { parsedPartner, apiUrl } = useSwapParams();
   const partner = parsedPartner ?? DEFAULT_PARTNER;
   const isSwap = useSelectedFormTab()?.value === TABS.SWAP;
 
   const query = useQuery({
-    queryKey: ["spot-client", partner, chainId, isSwap],
-    queryFn: () => createClient(partner, chainId, { disableAnalytics: !isSwap }),
+    queryKey: ["spot-client", partner, chainId, isSwap, apiUrl],
+    queryFn: () => createClient(partner, chainId, { disableAnalytics: !isSwap, apiUrl }),
     staleTime: Infinity,
     gcTime: Infinity,
     retry: false,

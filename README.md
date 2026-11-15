@@ -11,13 +11,16 @@ Describe the feature you want, for example:
 > skill, reuse the app's styling, and verify the result. Ask me only about product
 > decisions you cannot infer from the project.
 
-The agent should choose the [framework-neutral guide](skills/spot-integration/SKILL.md)
-for an existing swap router or custom TypeScript integration, or the
-[React guide](skills/spot-react-integration/SKILL.md) for provider-driven order forms.
-Both guides include a starting path for a new or non-DEX app: create missing
-wallet, token-list, balance, quote/price, and UI services before wiring Spot.
-Each SDK build also bundles its matching guide at `dist/integration-skill/SKILL.md`,
-with the package version recorded in `dist/integration-skill/manifest.json`.
+The agent should choose the [TypeScript swap skill](skills/spot-swap-integration/SKILL.md)
+for swaps in any framework, the
+[TypeScript advanced-orders skill](skills/spot-advanced-orders-integration/SKILL.md)
+for custom order integrations, or the
+[React advanced-orders skill](skills/spot-advanced-orders-react-integration/SKILL.md)
+for provider-driven order forms. Each skill covers the missing host services
+needed when starting with a new or non-DEX app.
+The `spot-ui` build bundles both TypeScript skills; `spot-react` bundles the React
+skill. Each guide is available at `dist/integration-skills/<skill-name>/SKILL.md`,
+with the package version recorded in its adjacent `manifest.json` as `sdkVersion`.
 
 ## Packages
 
@@ -199,9 +202,9 @@ publisher remains available for maintenance releases.
 
 | Skill | Description |
 |-------|-------------|
-| [`spot-integration`](skills/spot-integration/SKILL.md) | Integrating framework-neutral `@orbs-network/spot-ui` into an existing TypeScript app. Reuses the app's components and optimized state layer for form calculation, execution, history, and cancellation. |
-| [`spot-react-integration`](skills/spot-react-integration/SKILL.md) | Integrating `@orbs-network/spot-react` into a DEX frontend. Covers AdvancedOrdersProvider setup, hook-driven panels, order submission, and DEX-native styling. |
-| [`liquidity-hub-integration`](skills/liquidity-hub-integration/SKILL.md) | Migration from the deprecated Liquidity Hub SDK to Spot, with archived legacy maintenance references. |
+| [`spot-swap-integration`](skills/spot-swap-integration/SKILL.md) | TypeScript swap quotes, router integration, host signing/submission, and fill tracking in any framework. |
+| [`spot-advanced-orders-integration`](skills/spot-advanced-orders-integration/SKILL.md) | TypeScript advanced-order calculation, validation, preparation, submission, history, and cancellation. |
+| [`spot-advanced-orders-react-integration`](skills/spot-advanced-orders-react-integration/SKILL.md) | React AdvancedOrdersProvider setup, focused form/execution/history hooks, wallet adapters, and host UI. |
 
 ## Project Structure
 
@@ -213,9 +216,9 @@ publisher remains available for maintenance releases.
 │   ├── spot-react/             # @orbs-network/spot-react (context, hooks, components)
 │   └── liquidity-hub-ui/      # Deprecated @orbs-network/liquidity-hub-sdk
 ├── skills/
-│   ├── liquidity-hub-integration/ # Liquidity Hub migration and legacy maintenance
-│   ├── spot-integration/           # Framework-neutral TypeScript integration skill
-│   └── spot-react-integration/     # React integration skill
+│   ├── spot-swap-integration/                  # TypeScript swaps
+│   ├── spot-advanced-orders-integration/       # TypeScript advanced orders
+│   └── spot-advanced-orders-react-integration/ # React advanced orders
 ├── package.json
 ├── pnpm-workspace.yaml
 └── tsconfig.json

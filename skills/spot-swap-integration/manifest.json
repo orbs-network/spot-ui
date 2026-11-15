@@ -1,0 +1,15 @@
+{
+  "name": "spot-swap-integration",
+  "description": "Framework-neutral Spot swap integration for TypeScript and React hosts: quotes, router sources, host-owned wallet execution, and fill tracking.",
+  "entrypoint": "SKILL.md",
+  "references": [
+    "references/01-quickstart.md",
+    "references/02-swap-flow.md",
+    "references/03-slippage-and-pricing.md",
+    "references/04-host-services.md"
+  ],
+  "assets": [
+    "assets/spot-router-swap-example.ts"
+  ],
+  "package": "@orbs-network/spot-ui"
+}

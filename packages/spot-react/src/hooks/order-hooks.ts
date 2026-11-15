@@ -28,7 +28,7 @@ const getOrdersResourceKey = (
   account && client
     ? JSON.stringify([
         account, client.exchangeAddress, client.partner, client.chainId,
-        supportLegacyOrders,
+        supportLegacyOrders, client.apiUrl,
       ])
     : undefined;
 

@@ -42,7 +42,7 @@ export const useSubmitOrder = (): (() => void) => {
       callbacks,
       addNewOrder,
       refetchActiveOrders,
-      onOrderUpdate: (order) => updateTrackedOrderInCache(store, order, callbacks, client?.partner ?? partner),
+      onOrderUpdate: (order) => updateTrackedOrderInCache(store, order, callbacks, client?.partner ?? partner, client?.apiUrl),
       subscribeExecution: (listener) => store.subscribe(listener),
       getCurrentExecution: () => store.getState().state.currentExecution,
       getExecution: store.getState().getExecution,

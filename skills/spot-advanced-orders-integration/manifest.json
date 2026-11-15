@@ -1,0 +1,18 @@
+{
+  "name": "spot-advanced-orders-integration",
+  "description": "Integrate framework-neutral Spot advanced orders with calculated forms, host-owned wallet execution, history, and cancellation.",
+  "entrypoint": "SKILL.md",
+  "references": [
+    "references/01-quickstart.md",
+    "references/02-form-calculation.md",
+    "references/03-client-and-execution.md",
+    "references/04-history-and-cancellation.md",
+    "references/05-integration-principles.md",
+    "references/06-chain-integration.md",
+    "references/08-starting-without-dex.md"
+  ],
+  "assets": [
+    "assets/spot-advanced-orders-example.ts"
+  ],
+  "package": "@orbs-network/spot-ui"
+}
