@@ -19,7 +19,6 @@ export const SWAP_QUOTE_QUERY_KEY = ["spot-swap-quote"] as const;
 const QUOTE_REFRESH_MILLIS = 10_000;
 const OUTPUT_AMOUNT_DEBOUNCE_MILLIS = 250;
 const PRICE_WAIT_MILLIS = 1_500;
-const TOKEN_USD_CACHE_SECONDS = 30;
 
 const getQuoteTokenUsd = async ({
   signal,
@@ -67,14 +66,6 @@ export const useTrade = (
   const slippageTokenAddress = isNativeAddress(slippageToken)
     ? getWrappedNativeCurrency(chainId)?.address ?? "" : slippageToken;
   const typedDecimals = isOutputAmount ? outputCurrency?.decimals : inputCurrency?.decimals;
-  useEffect(() => {
-    if (!slippageTokenAddress || isCustomSlippage || disabled || !Number.isSafeInteger(chainId) || chainId <= 0) return;
-    const controller = new AbortController();
-    void getTokenUsd({
-      tokenAddress: slippageTokenAddress, chainId, cacheSeconds: TOKEN_USD_CACHE_SECONDS, signal: controller.signal,
-    }).catch(() => {});
-    return () => controller.abort();
-  }, [chainId, slippageTokenAddress, isCustomSlippage, disabled]);
   const quoteScopeKey = [...SWAP_QUOTE_QUERY_KEY, {
     chainId, partner, apiUrl,
     inToken: quoteInToken.toLowerCase(), outToken: outToken.toLowerCase(),
@@ -96,7 +87,7 @@ export const useTrade = (
     queryFn: client
       ? async ({ signal }) => {
           const tokenUsd = isCustomSlippage ? undefined
-            : await getQuoteTokenUsd({ tokenAddress: slippageTokenAddress, chainId, cacheSeconds: TOKEN_USD_CACHE_SECONDS, signal });
+            : await getQuoteTokenUsd({ tokenAddress: slippageTokenAddress, chainId, signal });
           signal.throwIfAborted();
           // Value the typed side once; output quotes have not resolved their input yet.
           const amountUsd = tokenUsd === undefined ? undefined

@@ -132,7 +132,7 @@ configuration. Supply the chain explicitly:
 ```ts
 import { getTokenUsd } from "@orbs-network/spot-ui";
 
-const usdPerToken = await getTokenUsd({ tokenAddress, chainId: 56, cacheSeconds: 30, signal });
+const usdPerToken = await getTokenUsd({ tokenAddress, chainId: 56, signal });
 ```
 
 The function returns a decimal string such as `"670.51070305"`, representing USD
@@ -145,21 +145,9 @@ Use the wrapped token address for native input.
 Prices always use the default production service. `getTokenUsd` accepts no
 `apiUrl`; client endpoint options and the web demo's `devApi` flag do not affect
 price lookup. It reads no browser or environment configuration and requires no
-global setter. Within the same loaded SDK instance, calls share pending lookups
-and a 128-entry in-memory LRU cache keyed by chain and lowercase token address.
-Nothing is persisted, and the cache starts no timer-based polling.
+global setter. Each call sends its own fresh price request. Pass `signal` to
+cancel that request.
 
-`cacheSeconds` is an optional nonnegative safe integer in seconds, defaulting
-to `30`. Policies share the same chain/token cache and pending work. Each
-call checks freshness against the successful response time; a shorter policy
-cannot reuse an older price retained for a longer policy.
-A longer policy may extend retention from that original response time, without
-restarting the clock on reads. `cacheSeconds: 0` refreshes completed prices but
-still shares an in-flight lookup for the same chain/token. Invalid values throw
-`INVALID_ARGUMENT`; failures are not cached.
-
-Pass `signal` to stop this caller's wait. The shared lookup continues for other
-callers and can warm the cache; aborting one caller does not cancel their work.
 Network and HTTP failures throw
 `SpotError` with `PRICE_LOOKUP_FAILED`; invalid successful responses throw
 `INVALID_RESPONSE`. Missing or failed pricing never becomes a zero-dollar price.
@@ -177,7 +165,7 @@ import { getTokenUsd, getSwapSlippage } from "@orbs-network/spot-ui";
 // Apply the host's timeout, cancellation, and fallback policy to the price read.
 const unitPriceUsd = isUserCustomSlippage
   ? undefined
-  : await getTokenUsd({ tokenAddress: inToken, chainId, cacheSeconds: 30, signal }).catch(() => undefined);
+  : await getTokenUsd({ tokenAddress: inToken, chainId, signal }).catch(() => undefined);
 signal?.throwIfAborted();
 const amountUsd = unitPriceUsd === undefined
   ? undefined
@@ -219,11 +207,10 @@ is separate from a quote's `inputAmountUsd` response metadata.
 The web demo owns a 1,500 ms wait for a price needed by an active automatic quote.
 Failed or timed-out pricing becomes `undefined` before calling the pure helper,
 so quoting can continue with the baseline; caller cancellation still propagates.
-Its per-caller abort controller stops the wait while shared SDK pricing can finish
-and warm the cache. Automatic mode may prefetch the selected token's price even
-with an empty draft; only positive quote amounts fetch or wait in the quote path.
-The DEX custom branch skips both price reads and the helper. Direct `getTokenUsd`
-retains the throwing contract above; other hosts choose their own timeout and
+Its per-request abort controller cancels the price request on timeout. Only
+positive automatic quote amounts request pricing; the DEX custom branch skips
+both price reads and the helper. Direct `getTokenUsd` retains the throwing
+contract above; other hosts choose their own timeout and
 fallback policy.
 
 Use the selected `slippagePercent` for both the display and quote request. Once

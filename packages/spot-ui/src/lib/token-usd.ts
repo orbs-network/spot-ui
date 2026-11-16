@@ -3,41 +3,22 @@ import { getApiEndpoint } from "./api-config";
 import { awaitWithSignal } from "./await-with-signal";
 import { SpotError } from "./errors";
 
-const DEFAULT_TOKEN_USD_CACHE_SECONDS = 30;
-const TOKEN_USD_PENDING_TTL_MILLIS = 30_000;
-const MAX_CACHED_TOKEN_PRICES = 128;
-
-interface TokenUsdCacheEntry {
-  promise: Promise<string>;
-  expiresAt: number;
-  receivedAt?: number;
-  cacheMillis: number;
-}
-
-const tokenUsdCache = new Map<string, TokenUsdCacheEntry>();
-
 /** Inputs for reading the USD unit price of an ERC-20 token. */
 export interface GetTokenUsdParams {
   /** Token address on the requested chain; use the wrapped token for native input. */
   tokenAddress: string;
   /** Positive EVM chain ID, such as 56 for BNB Smart Chain. */
   chainId: number;
-  /** Maximum cached-price age in seconds. Defaults to 30; 0 requests fresh data while sharing pending work. */
-  cacheSeconds?: number;
-  /** Cancels this caller's wait; shared lookups continue for other callers. */
+  /** Cancels this price request. */
   signal?: AbortSignal;
 }
 
 /**
  * Reads USD per whole token from the default production service, without loading a client.
  * Returns a decimal string, preserving the service's full price precision.
- * Shares pending lookups and cached prices across calls, keyed by chain and token.
- * Each caller chooses its maximum price age with cacheSeconds, measured from response
- * completion. The default is 30 seconds; 0 bypasses completed prices but still joins
- * pending work. Shared retention honors the longest requested duration. Cache hits
- * do not reset the response timestamp. Failures are not cached.
+ * Makes a new request on every call, without caching prices or sharing pending work.
  *
- * @param params - Token, chain, optional maximum cache age, and abort signal.
+ * @param params - Token, chain, and optional abort signal.
  * @returns USD price per whole token, for example `"670.51070305"`.
  * @throws `SpotError` for invalid arguments, failed lookups, or invalid responses.
  * Request cancellation propagates unchanged.
@@ -47,7 +28,6 @@ export interface GetTokenUsdParams {
 export async function getTokenUsd({
   tokenAddress,
   chainId,
-  cacheSeconds = DEFAULT_TOKEN_USD_CACHE_SECONDS,
   signal,
 }: GetTokenUsdParams): Promise<string> {
   signal?.throwIfAborted();
@@ -57,64 +37,21 @@ export async function getTokenUsd({
   if (typeof tokenAddress !== "string" || !/^0x[0-9a-f]{40}$/i.test(tokenAddress)) {
     throw new SpotError("INVALID_ARGUMENT", "tokenAddress must be an EVM address");
   }
-  if (!Number.isSafeInteger(cacheSeconds) || cacheSeconds < 0) {
-    throw new SpotError("INVALID_ARGUMENT", "cacheSeconds must be a non-negative safe integer");
-  }
-  const cacheMillis = cacheSeconds * 1_000;
-  const endpoint = getApiEndpoint();
-  const normalizedToken = tokenAddress.toLowerCase();
-  const key = JSON.stringify([chainId, normalizedToken]);
-  const now = Date.now();
-  for (const [cachedKey, cached] of tokenUsdCache) {
-    if (cached.expiresAt <= now) tokenUsdCache.delete(cachedKey);
-  }
-  let entry = tokenUsdCache.get(key);
-  const retentionMillis = Math.max(cacheMillis, entry?.cacheMillis ?? 0);
-  if (entry?.receivedAt !== undefined) {
-    const age = now - entry.receivedAt;
-    if (age < 0 || age >= cacheMillis) entry = undefined;
-  }
-  if (entry) {
-    entry.cacheMillis = retentionMillis;
-    if (entry.receivedAt !== undefined) entry.expiresAt = entry.receivedAt + retentionMillis;
-    tokenUsdCache.delete(key);
-    tokenUsdCache.set(key, entry);
-  } else {
-    const pending: TokenUsdCacheEntry = {
-      promise: loadTokenUsd(normalizedToken, chainId, endpoint),
-      // Expire pending entries too, so a hung request cannot pin future lookups.
-      expiresAt: now + TOKEN_USD_PENDING_TTL_MILLIS,
-      cacheMillis: retentionMillis,
-    };
-    pending.promise = pending.promise.then(price => {
-      pending.receivedAt = Date.now();
-      pending.expiresAt = pending.receivedAt + pending.cacheMillis;
-      return price;
-    }, error => {
-      if (tokenUsdCache.get(key) === pending) tokenUsdCache.delete(key);
-      throw error;
-    });
-    tokenUsdCache.delete(key);
-    tokenUsdCache.set(key, pending);
-    while (tokenUsdCache.size > MAX_CACHED_TOKEN_PRICES) {
-      const oldestKey = tokenUsdCache.keys().next().value;
-      if (oldestKey !== undefined) tokenUsdCache.delete(oldestKey);
-    }
-    entry = pending;
-  }
-  return awaitWithSignal(entry.promise, signal);
+  return awaitWithSignal(loadTokenUsd(tokenAddress.toLowerCase(), chainId, signal), signal);
 }
 
-/** Fetches independently of any one caller's abort signal so shared work stays reusable. */
-async function loadTokenUsd(tokenAddress: string, chainId: number, endpoint: string): Promise<string> {
+async function loadTokenUsd(tokenAddress: string, chainId: number, signal?: AbortSignal): Promise<string> {
   const query = new URLSearchParams({ chainId: String(chainId) });
   let response: Response;
   try {
-    response = await fetch(`${endpoint}/price/${tokenAddress}?${query}`, {
+    response = await fetch(`${getApiEndpoint()}/price/${tokenAddress}?${query}`, {
       method: "GET",
       headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal,
     });
   } catch (cause) {
+    signal?.throwIfAborted();
     if (cause instanceof Error && cause.name === "AbortError") throw cause;
     throw new SpotError("PRICE_LOOKUP_FAILED", "Unable to fetch token USD price", { cause });
   }
@@ -127,6 +64,7 @@ async function loadTokenUsd(tokenAddress: string, chainId: number, endpoint: str
   try {
     data = await response.json();
   } catch (cause) {
+    signal?.throwIfAborted();
     if (cause instanceof Error && cause.name === "AbortError") throw cause;
     throw new SpotError("INVALID_RESPONSE", "Invalid token price response: expected JSON", {
       status: response.status, cause,
