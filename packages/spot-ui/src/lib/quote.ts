@@ -23,7 +23,7 @@ interface SwapQuoteBaseParams {
    * submitting the swap; this quote field does not determine the signer.
    */
   user: string;
-  /** DEX percentage from 0 through 50, inclusive: 0.5 means 0.5%. Rounded to integer basis points for the quote API and enforced by minimumAmountOut; independent of signed oracle protection. */
+  /** DEX percentage from 0 through 50, inclusive: 0.5 means 0.5%. Rounded to integer basis points for the quote API and signed swap slippage; minimumAmountOut is preserved unchanged. */
   slippage: number;
   /** Optional local minimum for exact-input quotes: nonnegative uint256 output-token base units, or "-1". Never sent to the API. Output quotes accept only omitted or "-1". */
   dexMinAmountOut?: string;

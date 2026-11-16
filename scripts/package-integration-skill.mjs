@@ -5,7 +5,11 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const skills = {
-  'spot-ui': ['spot-swap-integration', 'spot-advanced-orders-integration'],
+  'spot-ui': [
+    'spot-swap-integration',
+    'spot-advanced-orders-integration',
+    'liquidity-hub-to-spot-swap-migration',
+  ],
   'spot-react': ['spot-advanced-orders-react-integration'],
 };
 const packageDirectory = process.argv[2];

@@ -2,7 +2,7 @@ import { SpotError } from "./errors";
 import { MAX_ORDER_SLIPPAGE_BPS } from "./order-form/constants";
 
 /**
- * Converts a DEX slippage percentage to the integer basis points sent to the quote service.
+ * Converts a DEX slippage percentage to the integer basis points used for quotes and signed swaps.
  *
  * @param slippage - Percentage from 0 through 50, inclusive; `0.5` means 0.5%.
  * @returns Basis points rounded to the nearest integer; `0.5` becomes `50`.

@@ -121,10 +121,10 @@ Display quotes may continue through wrapping and approval. Publish and freeze
 `prepared.quote` before the wallet signature prompt and keep it fixed through
 submission. Input amount, tokens, account, chain, and slippage remain captured
 from review. Every swap signs one limit trade, no trigger, and a three-minute
-lifetime from preparation with independent 500 bps signed oracle price protection.
-The DEX quote tolerance is enforced by the unchanged minimum in signed
-`witness.output.limit`; it does not set `witness.slippage`. Local quote age is not a fill
-guarantee. Prepare immediately before signing so confirmations do not age
+lifetime from preparation. The reviewed DEX percentage is converted to integer
+basis points in `witness.slippage` (`0.5` percent becomes `50` bps). The quoted
+minimum remains unchanged in signed `witness.output.limit`. Local quote age is not
+a fill guarantee. Prepare immediately before signing so confirmations do not age
 the unsigned order; submit its unchanged payload and original signature.
 
 ## Acceptance, completion, and status checks

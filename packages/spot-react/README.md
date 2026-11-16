@@ -37,6 +37,10 @@ For the complete advanced-order workflow, see the [React advanced-orders skill](
 For swaps, use the framework-neutral [TypeScript swap skill](../../skills/spot-swap-integration/SKILL.md),
 bundled with the `spot-ui` dependency at
 `node_modules/@orbs-network/spot-ui/dist/integration-skills/spot-swap-integration/SKILL.md`.
+For an existing Liquidity Hub swap integration, use the
+[migration skill](../../skills/liquidity-hub-to-spot-swap-migration/SKILL.md),
+also bundled with that dependency at
+`node_modules/@orbs-network/spot-ui/dist/integration-skills/liquidity-hub-to-spot-swap-migration/SKILL.md`.
 
 Client and history resources are configured once per provider and share its cache.
 Failed legacy-history requests remain eligible for retry, and cached
@@ -1098,9 +1102,9 @@ quotes: preparation never increases spending or repeats the target calculation.
 A refreshed minimum must meet the reviewed floor; `QUOTE_MINIMUM_DECREASED`
 requires fresh review. Publish and freeze
 `prepared.quote` before opening the signature prompt. Swaps sign a three-minute
-lifetime with independent 500 bps signed oracle price protection. The DEX quote
-tolerance is enforced by the unchanged minimum in signed `witness.output.limit`;
-it does not set `witness.slippage`.
+lifetime, with the reviewed DEX percentage converted to integer basis points in
+`witness.slippage` (`0.5` percent becomes `50` bps). The quoted minimum remains
+unchanged in signed `witness.output.limit`.
 
 `PrepareSwapParams` and `PrepareOrderParams` take no `walletInteractions`.
 For an advanced order outside the provider, use

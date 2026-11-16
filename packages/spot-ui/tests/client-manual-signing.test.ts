@@ -112,7 +112,7 @@ describe("client manual signing", () => {
 
   it.each([
     { slippage: 0.5, expectedBps: 50 }, { slippage: 0, expectedBps: 0 },
-  ])("makes one exact-input quote request with $slippage percent DEX slippage", async ({ slippage, expectedBps }) => {
+  ])("preserves $slippage percent DEX slippage through quoting, signing, and submission", async ({ slippage, expectedBps }) => {
     const actual = await vi.importActual<typeof import("../src/lib/quote")>("../src/lib/quote");
     vi.mocked(fetchQuote).mockImplementation(actual.fetchQuote);
     const network = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({
@@ -133,6 +133,15 @@ describe("client manual signing", () => {
     expect(quoted.request.inAmount).toBe("10");
     expect(quoted.request.slippage).toBe(slippage);
     expect(quoted.minimumAmountOut).toBe("18");
+
+    const prepared = await spot.prepareSwap({ quote: quoted, account });
+    expect(prepared.order.witness.slippage).toBe(expectedBps);
+    expect(prepared.signingRequest.typedData.message.witness.slippage).toBe(expectedBps);
+    await spot.submitSwap(prepared.order, signature);
+    expect(submitOrder).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ witness: expect.objectContaining({ slippage: expectedBps }) }),
+      signature, expect.any(Object), undefined, apiUrl,
+    );
   });
 
   it("requests an output target once and signs only the server-resolved input and minimum", async () => {
@@ -156,7 +165,7 @@ describe("client manual signing", () => {
     expect(prepared.approvalRequest.amount).toBe("13");
     expect(prepared.order.witness.input.amount).toBe("13");
     expect(prepared.order.witness.output.limit).toBe("20");
-    expect(prepared.order.witness.slippage).toBe(500);
+    expect(prepared.order.witness.slippage).toBe(50);
     expect(prepared.signingRequest.typedData.message).toEqual(prepared.order);
     expect(prepared.quote.requestedOutAmount).toBe("20");
   });
@@ -325,15 +334,19 @@ describe("client manual signing", () => {
     expect(fetchQuote).not.toHaveBeenCalled();
   });
 
-  it.each([0.5, 1, 2.345, 0])("keeps signed oracle protection at 500 basis points with %s percent DEX slippage", async slippage => {
+  it.each([
+    { slippage: 0.5, expectedBps: 50 }, { slippage: 1, expectedBps: 100 },
+    { slippage: 2.345, expectedBps: 235 }, { slippage: 0, expectedBps: 0 },
+    { slippage: 0.005, expectedBps: 1 }, { slippage: 50, expectedBps: 5_000 },
+  ])("signs $slippage percent DEX slippage as $expectedBps basis points", async ({ slippage, expectedBps }) => {
     const spot = await client();
     const original = quote();
     const reviewed = { ...original, request: { ...original.request, slippage } };
 
     const prepared = await spot.prepareSwap({ quote: reviewed, account });
 
-    expect(prepared.order.witness.slippage).toBe(500);
-    expect(prepared.signingRequest.typedData.message.witness.slippage).toBe(500);
+    expect(prepared.order.witness.slippage).toBe(expectedBps);
+    expect(prepared.signingRequest.typedData.message.witness.slippage).toBe(expectedBps);
     expect(prepared.quote.request.slippage).toBe(slippage);
     expect(prepared.quote.minimumAmountOut).toBe(reviewed.minimumAmountOut);
     expect(prepared.values.minimumOutputAmountRaw).toBe(reviewed.minimumAmountOut);
@@ -359,8 +372,8 @@ describe("client manual signing", () => {
     expect(fetchQuote).toHaveBeenCalledWith(expect.objectContaining({ slippage: 2.345 }), expect.any(Object));
     expect(prepared.quote.minimumAmountOut).toBe("22");
     expect(prepared.order.witness.output.limit).toBe("22");
-    expect(prepared.order.witness.slippage).toBe(500);
-    expect(prepared.signingRequest.typedData.message.witness.slippage).toBe(500);
+    expect(prepared.order.witness.slippage).toBe(235);
+    expect(prepared.signingRequest.typedData.message.witness.slippage).toBe(235);
     expect(prepared.quote.request.slippage).toBe(2.345);
     expect(prepared.signingRequest.typedData.message).toEqual(prepared.order);
     expect(submitOrder).not.toHaveBeenCalled();
@@ -390,7 +403,7 @@ describe("client manual signing", () => {
       expect(prepared.quote).toMatchObject({ requestedOutAmount: "20", request: { inAmount: "13" }, minimumAmountOut: "21" });
       expect(prepared.order.witness.input.amount).toBe("13");
       expect(prepared.order.witness.output.limit).toBe("21");
-      expect(prepared.order.witness.slippage).toBe(500);
+      expect(prepared.order.witness.slippage).toBe(50);
     }
 
     expect(network).toHaveBeenCalledTimes(2);

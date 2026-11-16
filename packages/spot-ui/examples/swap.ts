@@ -26,7 +26,7 @@ export async function createSwapPreview(params: {
   outputToken: Token;
   /** Integer base units, converted with the host's wallet/token library. */
   inputAmountRaw: string;
-  /** DEX percentage: 0.5 means 0.5%; signed swap oracle protection stays at 500 bps. */
+  /** DEX percentage: 0.5 means 0.5%, signed as 50 basis points. */
   slippage?: number;
   signal?: AbortSignal;
 }): Promise<SwapPreview> {

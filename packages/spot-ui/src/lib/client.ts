@@ -28,8 +28,9 @@ import { SpotError } from "./errors";
 import { getApiEndpoint } from "./api-config";
 import { fetchQuote, getQuoteAnalyticsContext, isQuoteFresh, type SwapQuote, type SwapQuoteParams } from "./quote";
 import { observe } from "./observe";
-import { MIN_FILL_DELAY_MILLIS, SWAP_ORDER_DURATION_MILLIS, SWAP_ORDER_SLIPPAGE_BPS } from "./order-form/constants";
+import { MIN_FILL_DELAY_MILLIS, SWAP_ORDER_DURATION_MILLIS } from "./order-form/constants";
 import type { PreparedSwap } from "./swap";
+import { getSlippageBps } from "./swap-amounts";
 import { getClientCreationAnalytics, registerClientInternals } from "./internal/client";
 import { captureValidatedSwap, type ReviewedSwapInput } from "./swap-validation";
 import type {
@@ -482,7 +483,7 @@ export const createClient = async (
       deadlineMillis: orderDeadlineMillis,
       fillDelayMillis: MIN_FILL_DELAY_MILLIS,
       totalTrades: 1,
-      slippageBps: SWAP_ORDER_SLIPPAGE_BPS,
+      slippageBps: getSlippageBps(preparedQuote.request.slippage),
       swapperAddress: userAddress,
       permitData: structuredClone(rePermitData),
       kind: "SWAP",

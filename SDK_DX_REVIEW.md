@@ -13,7 +13,7 @@ The findings below record the SDK before this follow-up. The required fixes and 
 - React wallet interactions reuse the SDK wallet type. Existing public aliases remain available.
 - Swap examples use percentage slippage consistently, and integration assets/guides match the APIs.
 
-Validation corrected two recommendations: swaps enforce `minTradeSizeUsd`, and signed 500-bps oracle protection is separate from UI slippage. Public naming, shared form inputs, and intent metadata remain compatible; their behavior is documented.
+Validation confirmed that swaps enforce `minTradeSizeUsd`. Signed swap slippage now uses the reviewed DEX percentage converted to basis points. Public naming, shared form inputs, and intent metadata remain compatible; their behavior is documented.
 
 The 26 October review recorded passing tests, package builds, typed examples,
 consumer/skill typechecks, runtime exports, editor hovers, and lint. These are

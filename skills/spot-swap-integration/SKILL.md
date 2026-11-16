@@ -22,6 +22,8 @@ Load the references needed for the request:
 
 React applications use this same client flow without `AdvancedOrdersProvider`. If the host already imports `@orbs-network/spot-react`, its public core re-exports are available without a second core install. For TWAP, Limit, Stop-Loss, or Take-Profit forms, select `spot-advanced-orders-integration` or `spot-advanced-orders-react-integration` instead.
 
+For an existing `@orbs-network/liquidity-hub-sdk` swap integration, begin with [Liquidity Hub to Spot swap migration](../liquidity-hub-to-spot-swap-migration/SKILL.md) for the legacy API mapping and cutover workflow.
+
 ## Swap invariants
 
 - Import only public package-root APIs from the installed release. Inspect compatibility before changing dependencies; do not install `@latest` blindly or import private source/`dist/*` code. Reading bundled documentation under `dist` is allowed.
@@ -32,7 +34,7 @@ React applications use this same client flow without `AdvancedOrdersProvider`. I
 - Opening review reuses the current quote. Capture that quote, resolved input, account, chain, tokens, and slippage under the host's duplicate guard. Keep attempt state outside transient controls and check live wallet scope before each prompt and submission.
 - Read allowance for `client.spenderAddress` before wrapping. Confirm each required transaction and verify sufficient exact-input allowance after approval. `ApprovalRequest.amount` is the required input; `approvalAmount` is a suggested cap, and the host may approve exactly or apply its own sufficient-cap policy.
 - After confirmed prerequisites, call `client.prepareSwap({ quote, account, signal })`. Preparation reuses quotes aged zero to 20 seconds inclusive or refreshes the resolved fixed input. It never increases spending; a minimum below the reviewed floor rejects with `QUOTE_MINIMUM_DECREASED`. Publish and freeze `prepared.quote` before signing.
-- Sign `prepared.signingRequest.typedData` unchanged for its `signerAddress`, then call `client.submitSwap(prepared.order, originalSignature, options?)`. Preserve the protocol payload and original hex signature; do not split, normalize, or rewrite its bytes. Swaps sign one limit trade, a three-minute lifetime, and independent 500 bps oracle protection; quote tolerance is enforced by `witness.output.limit`.
+- Sign `prepared.signingRequest.typedData` unchanged for its `signerAddress`, then call `client.submitSwap(prepared.order, originalSignature, options?)`. Preserve the protocol payload and original hex signature; do not split, normalize, or rewrite its bytes. Swaps sign one limit trade and a three-minute lifetime. The reviewed DEX percentage is converted to basis points in `witness.slippage`; the quoted minimum is preserved unchanged in `witness.output.limit`.
 - Submission means acceptance. Retain the prepared payload, original signature, confirmed hashes, and accepted/latest order. Own one cancellable `client.getOrder` polling lifecycle and show success only at `OrderStatus.Completed`. Reconcile uncertain acceptance against the exact original signed identity in configured history before replacement, resubmission, or another route.
 
 ## Verify and hand off

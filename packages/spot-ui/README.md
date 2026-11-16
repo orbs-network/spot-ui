@@ -13,6 +13,7 @@ Use a modern browser or Node.js 18+ with `fetch`, `AbortController`, and `BigInt
 Import from the public package root. Version-matched integration skills ship at:
 
 - `dist/integration-skills/spot-swap-integration/SKILL.md` for swaps in any framework.
+- `dist/integration-skills/liquidity-hub-to-spot-swap-migration/SKILL.md` for existing Liquidity Hub swap integrations.
 - `dist/integration-skills/spot-advanced-orders-integration/SKILL.md` for custom advanced-order integrations.
 
 Each skill's adjacent `manifest.json` records its package version as `sdkVersion`.
@@ -303,10 +304,10 @@ display quotes live through wrapping and approval; freeze the displayed output
 and minimum from `prepared.quote` returned by preparation, before the
 wallet signature request. Keep the captured account, chain, pair, input amount,
 and slippage unchanged. Every swap signs one limit trade, no trigger, and a
-three-minute lifetime from preparation and independent 500 bps signed oracle
-price protection. The DEX quote tolerance is enforced by the unchanged
-`minimumAmountOut` in signed `witness.output.limit`; it does not set
-`witness.slippage`. Local quote age does not guarantee a fill.
+three-minute lifetime from preparation. Signed `witness.slippage` uses the reviewed
+DEX percentage converted to integer basis points (`0.5` percent becomes `50` bps).
+The quoted `minimumAmountOut` remains unchanged in signed `witness.output.limit`.
+Local quote age does not guarantee a fill.
 
 `QuoteError` preserves `kind`, HTTP `status`, server `code`, and `retryable`.
 Handle an empty offer separately from network or venue errors. `SpotError.code`
@@ -607,6 +608,10 @@ and token metadata directly. Removed swap-only calculator minimum/output USD
 fields belong to the quote preview instead.
 
 ## Migrating from Liquidity Hub
+
+For AI-assisted migration, use the
+[Liquidity Hub to Spot swap migration skill](../../skills/liquidity-hub-to-spot-swap-migration/SKILL.md),
+bundled at `dist/integration-skills/liquidity-hub-to-spot-swap-migration/SKILL.md`.
 
 `@orbs-network/liquidity-hub-sdk` is deprecated. Its Permit2 spender, payload,
 signature, and transaction-hash result cannot be reused for Spot. Install this

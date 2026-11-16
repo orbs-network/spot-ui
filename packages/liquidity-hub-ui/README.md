@@ -14,6 +14,10 @@ npm install @orbs-network/spot-ui
 
 Follow the [migration guide](../spot-ui/README.md#migrating-from-liquidity-hub) and the complete [typed swap example](../spot-ui/examples/swap.ts). Spot swaps use a quote plus a single limit order; this requires changes to approval, signing, submission, and settlement tracking rather than just changing the package import.
 
+For AI-assisted migration, use the
+[Liquidity Hub to Spot swap migration skill](../../skills/liquidity-hub-to-spot-swap-migration/SKILL.md),
+bundled with Spot at `node_modules/@orbs-network/spot-ui/dist/integration-skills/liquidity-hub-to-spot-swap-migration/SKILL.md`.
+
 React applications can import the same public client APIs from
 [`@orbs-network/spot-react`](../spot-react/README.md) and run swaps without a
 provider. `AdvancedOrdersProvider` supports advanced orders only; optional

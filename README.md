@@ -18,8 +18,11 @@ for custom order integrations, or the
 [React advanced-orders skill](skills/spot-advanced-orders-react-integration/SKILL.md)
 for provider-driven order forms. Each skill covers the missing host services
 needed when starting with a new or non-DEX app.
-The `spot-ui` build bundles both TypeScript skills; `spot-react` bundles the React
-skill. Each guide is available at `dist/integration-skills/<skill-name>/SKILL.md`,
+For an existing Liquidity Hub integration, use the
+[Liquidity Hub to Spot swap migration skill](skills/liquidity-hub-to-spot-swap-migration/SKILL.md).
+The `spot-ui` build bundles both TypeScript integration skills and the migration
+skill; `spot-react` bundles the React skill. Each guide is available at
+`dist/integration-skills/<skill-name>/SKILL.md`,
 with the package version recorded in its adjacent `manifest.json` as `sdkVersion`.
 
 ## Packages
@@ -105,7 +108,8 @@ minimum unchanged. Protocol native input uses the configured wrapped ERC-20
 address; the host decides wrapping and confirms transaction receipts.
 At `prepareSwap()`, the SDK reuses a quote up to twenty seconds old or refreshes the
 original request and verifies its minimum before preparing fresh signing data.
-Swaps sign a three-minute lifetime and fixed 500 bps oracle protection.
+Swaps sign a three-minute lifetime and the reviewed DEX slippage converted to
+basis points (`0.5` percent becomes `50` bps).
 
 Keep host loading and duplicate guards active through completion or
 reconciliation, and pause obsolete quote requests. Preserve the prepared order,
@@ -203,6 +207,7 @@ publisher remains available for maintenance releases.
 | Skill | Description |
 |-------|-------------|
 | [`spot-swap-integration`](skills/spot-swap-integration/SKILL.md) | TypeScript swap quotes, router integration, host signing/submission, and fill tracking in any framework. |
+| [`liquidity-hub-to-spot-swap-migration`](skills/liquidity-hub-to-spot-swap-migration/SKILL.md) | Migrate an existing Liquidity Hub swap integration to Spot, including quotes, approvals, signing, submission, and settlement tracking. |
 | [`spot-advanced-orders-integration`](skills/spot-advanced-orders-integration/SKILL.md) | TypeScript advanced-order calculation, validation, preparation, submission, history, and cancellation. |
 | [`spot-advanced-orders-react-integration`](skills/spot-advanced-orders-react-integration/SKILL.md) | React AdvancedOrdersProvider setup, focused form/execution/history hooks, wallet adapters, and host UI. |
 
@@ -217,6 +222,7 @@ publisher remains available for maintenance releases.
 │   └── liquidity-hub-ui/      # Deprecated @orbs-network/liquidity-hub-sdk
 ├── skills/
 │   ├── spot-swap-integration/                  # TypeScript swaps
+│   ├── liquidity-hub-to-spot-swap-migration/  # Liquidity Hub swap migration
 │   ├── spot-advanced-orders-integration/       # TypeScript advanced orders
 │   └── spot-advanced-orders-react-integration/ # React advanced orders
 ├── package.json
