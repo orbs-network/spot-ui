@@ -12,7 +12,7 @@ Use this map to inspect an existing Liquidity Hub adapter. Confirm the host's in
 | `blockAnalytics` | `disableAnalytics` on client creation; use `client.getQuote` so quote reporting follows that policy. |
 | Hub `apiUrl`, chain-specific defaults, `lhOverrideApiUrl` | Spot's default order service, or an explicitly trusted Spot `apiUrl`. Spot does not read legacy storage or page parameters. A custom base URL must be absolute HTTP(S), without credentials, query, or fragment; a legacy relative proxy is incompatible as-is. |
 | Global `permit2Address` | `client.spenderAddress`, loaded from validated Spot configuration. Reread allowance for this spender; a Permit2 approval cannot be reused. |
-| Exported native sentinels / `isNativeAddress` | Host native-token detection and verified chain-specific wrapped token metadata. Do not import private Spot utilities or guess wrapped addresses. |
+| Exported native sentinels / `isNativeAddress` | Host native-token detection and verified wrapped metadata. Wrap native input for the ERC-20 protocol leg; preserve native output using the installed API's supported sentinel. Do not wrap both legs automatically, import private utilities, or guess addresses. |
 | `maxUint256`, debounce, refresh constants | Use the host's existing wallet/numeric/timing policies. `approvalRequest.approvalAmount` is a suggested sufficient cap, not a mandatory approval amount. |
 
 The core client has no wallet adapter or execution-session API. Keep wrapping, allowance reads, approval, successful receipt confirmation, scope checks, duplicate prevention, and progress in the existing host services. Do not add `AdvancedOrdersProvider` to replace a legacy swap hook.
@@ -23,15 +23,17 @@ The core client has no wallet adapter or execution-session API. Keep wrapping, a
 | --- | --- |
 | `getQuote({ fromToken, toToken, account, ... })` | `client.getQuote({ inToken, outToken, user, ... })`. `user` is required for quotes; pass the actual signing/recipient account separately to preparation. |
 | `inAmount` | A positive integer base-unit string. Alternatively pass one positive `outAmount`, never both. The server resolves output targets into fixed `quote.request.inAmount`; retain the target through `requestedOutAmount`. |
-| `slippage` | Remains percentage units: `0.5` means 0.5%. Do not convert it to a fraction or basis points before quoting. |
+| `slippage` | SDK percentage units: `0.5` means 0.5%. Convert a host basis-point setting once (`50 / 100`); reuse the host's resolved auto/custom policy without an additional SDK floor or price lookup. Display the captured `quote.request.slippage`. |
 | `dexMinAmountOut` | Optional input-quote comparison threshold in output base units, checked locally and never sent as a wire field. Omitted, `"-1"`, or `"0"` adds no positive threshold. Output-target requests accept only omitted or `"-1"`, including rejection of `"0"`. |
 | `timeout`, `disabled`, `inAmountUsd` request options | No corresponding quote inputs. Gate requests and implement cancellation/timeouts in the host; keep valuation separate from executable raw amounts. |
 | Top-level quote `inToken`, `outToken`, `inAmount`, `user`, `slippage`, `partner` | Corresponding `quote.request.*` fields. Include chain, partner, pair, amount/direction, quote user, slippage, and competing minimum in cache identity. |
 | `quote.outAmount` and gas-adjusted output fields | Inspect each consumer's purpose. Spot exposes raw `amountOut`, net `netAmountOut`, and protected `minimumAmountOut`, plus `feeAmount`. Do not mechanically rename `userMinOutAmountWithGas`, `outAmountWsMinusGas`, or `outAmountWS`; preserve the DEX's gas/fee policy explicitly. |
 | `quote.minAmountOut` | `quote.minimumAmountOut`; use unchanged for review, route comparison, and signed minimum. Slippage is already reflected. |
+| Expected Receive amount / edited output target | `quote.netAmountOut` for expected output; retain `quote.requestedOutAmount` for an output target and use `quote.request.inAmount` for its fixed spend. The separate Minimum received row uses `minimumAmountOut`. |
+| Input/output USD and price-impact display | Optional decimal-string `inputAmountUsd`, `netAmountOutUsd`, `minimumAmountOutUsd`, and `priceImpactPercentage`. Keep missing data unavailable. Any minimum-spend policy uses the actual input's valuation, not a substituted output value. |
 | `quote.timestamp` | `quote.receivedAt`, a local receipt time in milliseconds. |
 | `isFreshQuote(quote, maxAgeSeconds)` | Public `isQuoteFresh(quote, maxAgeMillis)` for host display policy. The units change from seconds to milliseconds and the Spot boundary is inclusive. Preparation independently applies its twenty-second reuse rule. |
-| `isLiquidityHubBetter(quote, dexMinAmountOut)` | Host comparison of protected minima using exact integer arithmetic for equivalent routes. Preserve strict comparison/tie behavior and gas/fee policy deliberately. |
+| `isLiquidityHubBetter(quote, dexMinAmountOut)` | Host comparison for equivalent requests: exact input compares protected output; an output target compares resolved fixed input while verifying target coverage. Preserve gas/fee and tie policies explicitly; see [Router cutover](router-cutover.md#compare-routes-on-the-same-basis). |
 | `quote.eip712`, `permitData`, `serializedOrder`, `sessionId`, `qs` | No reusable Spot signing/submission fields. Fetch a Spot quote and prepare a fresh Spot order after wallet prerequisites. |
 
 `getQuote({ outAmount })` resolves a requested output into a fixed spend before execution. It does not mean the DEX router supports arbitrary exact-output execution: the public `isSwapSupported` helper still rejects `tradeType: "exact-output"` and alternate recipients. Preserve the host's supported-route gating.
@@ -43,12 +45,15 @@ Do not add a new quote request just because review opens. Capture the reviewed q
 | Liquidity Hub | Spot migration |
 | --- | --- |
 | Sign `quote.eip712` | After confirmed wrapping and sufficient approval, call `client.prepareSwap({ quote, account, signal })`; sign its `signingRequest.typedData` unchanged for `signerAddress`. |
+| Signature-domain guard against Permit2 | Update existing checks to the prepared domain's configured `client.spenderAddress` and captured chain, plus the connected `signerAddress`; do not retain the old Permit2 constant. |
 | Permit2 signature and serialized quote | Fresh RePermit order and the wallet's original hex signature. Never reuse, split, normalize, or reconstruct the old payload/signature. |
 | `sdk.swap(quote, signature, dexRouterData)` | `client.submitSwap(prepared.order, originalSignature, { signal })`. Submit the exact prepared order; the SDK accepts no wallet callbacks or DEX fallback data. |
 | Internal legacy duplicate guard | Host guard spanning wallet steps, submission, settlement, and any uncertain acceptance. Keep attempt state outside the button/modal lifetime. |
+| Separate Wrap / Approve / Swap actions | Preserve the selected action: a prerequisite-only action confirms its receipt and returns to review; only Swap prepares, signs, and submits. Reuse confirmed wraps only after checking the current wrapped balance. |
 | Returned transaction hash, followed by receipt waiting | Accepted `Order`, followed by host-owned `client.getOrder({ orderId: accepted.id, signal })` polling. Submission does not imply a fill. |
 | Session-based swap-status polling | Order-ID lookups; tolerate an initially missing result while indexing catches up. The accepted ID is not an EVM transaction hash. |
 | Swap success notification / explorer link | Success at `OrderStatus.Completed`. Use actual available `fills[].txHash` or order transaction metadata for explorer links; keep open, expired, and cancelled states distinct. |
+| Wallet transaction record for the swap | Track the order independently on its captured chain/account. Fill hashes belong to solver transactions; do not register them as wallet-sent transactions for nonce replacement detection. Deduplicate terminal effects and refresh balances from settlement. |
 | Legacy retry or backend DEX fallback | Keep host route selection, but reconcile unknown acceptance before another POST, signature, or fallback route. Aborting local work does not cancel an order or undo a transaction. |
 | Recovery from a legacy `sessionId` or hash | Preserve it under the legacy flow when needed for an in-flight attempt. New Spot attempts retain their prepared order/signature and accepted/latest order. Never convert one protocol's identity into the other's. |
 

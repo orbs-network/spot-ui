@@ -3,7 +3,8 @@
   "description": "Migrate existing Liquidity Hub swaps to the Spot client with new quotes, configured approvals, inline signing, order submission, and host-owned settlement tracking.",
   "entrypoint": "SKILL.md",
   "references": [
-    "references/legacy-api-map.md"
+    "references/legacy-api-map.md",
+    "references/router-cutover.md"
   ],
   "assets": [],
   "package": "@orbs-network/spot-ui"
