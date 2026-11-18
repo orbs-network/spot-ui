@@ -34,6 +34,7 @@ existing wallet/read services and handle those services' errors directly.
 | `createClient(partner, chainId, options?)` | Load a reusable client with validated protocol configuration |
 | `client.getQuote(params)` / `getQuote(params)` | Fetch one server quote for a fixed input or requested output amount |
 | `getTokenUsd(params)` | Read the full-precision USD price per whole token without a client |
+| `getTokensUsd(params)` | Read multiple token USD unit prices in one request without a client |
 | `getSwapSlippage(params)` | Synchronously derive the UI/quote slippage from a total USD amount |
 | `calculateOrder(params)` | Derive a calculated advanced-order form |
 | `client.spenderAddress` | Read the ERC-20 approval spender for this client |
@@ -136,18 +137,37 @@ import { getTokenUsd } from "@orbs-network/spot-ui";
 const usdPerToken = await getTokenUsd({ tokenAddress, chainId: 56, signal });
 ```
 
-The function returns a decimal string such as `"670.51070305"`, representing USD
+Fetch several tokens in a single `POST /prices` request:
+
+```ts
+import { getTokensUsd } from "@orbs-network/spot-ui";
+
+const prices = await getTokensUsd({
+  tokenAddresses: [inputTokenAddress, outputTokenAddress],
+  chainId: 56,
+  signal,
+});
+const inputTokenUsdPrice = prices[inputTokenAddress.toLowerCase()];
+const outputTokenUsdPrice = prices[outputTokenAddress.toLowerCase()];
+```
+
+`getTokensUsd` returns a `Record<string, string>` keyed by lowercase addresses.
+It deduplicates addresses before requesting them. An empty list returns `{}`
+without a request. Every requested token must have a valid price; missing or
+malformed prices throw `INVALID_RESPONSE`. Unrelated response entries are ignored.
+
+Both functions return decimal prices such as `"670.51070305"`, representing USD
 per whole token. The service's raw `priceUsd` has 18 decimal places regardless of token
 decimals; the SDK normalizes that value and ignores the rounded
 `priceUsdFormatted` field. To calculate input USD value, multiply the raw input
 divided by `10 ** inputTokenDecimals` by this price using decimal arithmetic.
 Use the wrapped token address for native input.
 
-Prices always use the default production service. `getTokenUsd` accepts no
+Prices always use the default production service. Neither function accepts an
 `apiUrl`; client endpoint options and the web demo's `devApi` flag do not affect
-price lookup. It reads no browser or environment configuration and requires no
-global setter. Each call sends its own fresh price request. Pass `signal` to
-cancel that request.
+price lookup. They read no browser or environment configuration and require no
+global setter. Prices are never cached between calls. Pass `signal` to cancel
+the request.
 
 Network and HTTP failures throw
 `SpotError` with `PRICE_LOOKUP_FAILED`; invalid successful responses throw

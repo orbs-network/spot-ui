@@ -15,6 +15,15 @@ Each call sends its own fresh price request, and `signal` cancels that request.
 `getTokenUsd` throws for failed or malformed responses; the host owns fallback
 policy for those calls.
 
+For multiple tokens, use standalone
+`getTokensUsd({ tokenAddresses, chainId, signal })`. It sends one `POST /prices`
+request with deduplicated lowercase addresses and returns full-precision decimal
+USD prices keyed by lowercase address. Read a price with
+`prices[tokenAddress.toLowerCase()]`. An empty list returns `{}` without fetching.
+Missing or malformed requested prices throw `INVALID_RESPONSE`; unrelated response
+entries are ignored. The same production endpoint, fresh-request, and cancellation
+rules apply.
+
 Resolve any required unit price in the DEX and compute the total USD value with
 decimal arithmetic. Pass that total to the synchronous standalone policy before
 displaying slippage or requesting a quote. For a positive automatic input:

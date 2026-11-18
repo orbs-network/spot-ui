@@ -22,6 +22,15 @@ Each call sends its own fresh price request, and `signal` cancels that request.
 `getTokenUsd` throws for failed or malformed responses; the host owns fallback
 policy for those calls.
 
+For multiple tokens, use standalone
+`getTokensUsd({ tokenAddresses, chainId, signal })`. It sends one `POST /prices`
+request with deduplicated lowercase addresses and returns full-precision decimal
+USD prices keyed by lowercase address. Read a price with
+`prices[tokenAddress.toLowerCase()]`. An empty list returns `{}` without fetching.
+Missing or malformed requested prices throw `INVALID_RESPONSE`; unrelated response
+entries are ignored. The same production endpoint, fresh-request, and cancellation
+rules apply.
+
 Core preparation exposes `Eip712TypedData`, `OrderSigningRequest`, and
 `ApprovalRequest` so direct DEX integrations can use their existing wallet code.
 The React adapter's `WalletInteractions`, `AllowanceRequest`, and
