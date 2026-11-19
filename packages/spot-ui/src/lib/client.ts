@@ -141,7 +141,7 @@ export interface ClientGetOrderParams {
 export interface CreateClientOptions {
   /** Disable all analytics events for this client. Defaults to false. */
   disableAnalytics?: boolean;
-  /** Trusted order-service base URL, fixed for this client's lifetime. Defaults to production v2. */
+  /** Base URL for order submission, status, and history. Configuration and quotes always use production v2. */
   apiUrl?: string;
 }
 
@@ -186,6 +186,7 @@ export interface SpotClient {
   /**
    * Gets one server quote from exactly one input amount or output target.
    * Uses this client's chain and partner; no wallet interaction is required.
+   * Always uses production v2, independently of this client's order-service URL.
    * Equivalent to standalone `getQuote` with those fields already supplied.
    * Amounts are integer token base units; slippage is a percentage (`0.5` means 0.5%).
    *
@@ -386,7 +387,7 @@ export const createClient = async (
 
     // Configuration requests/templates are shared; callers receive isolated copies.
     apiUrl = getApiEndpoint(options.apiUrl);
-    rePermitData = await fetchRePermitData(partner, chainId, apiUrl);
+    rePermitData = await fetchRePermitData(partner, chainId);
   } catch (error) {
     observe(() => configurationAnalytics.onConfigurationError(error));
     throw error;
@@ -398,7 +399,7 @@ export const createClient = async (
   /** Get swap output estimates and the protected minimum using this client's chain and partner. */
   const getQuote = (params: ClientGetQuoteParams): Promise<SwapQuote> =>
     fetchQuote(
-      { ...params, chainId, partner, apiUrl },
+      { ...params, chainId, partner },
       createAnalyticsOperation(analytics, getQuoteAnalyticsContext({ ...params, chainId, partner })),
     );
 
@@ -530,7 +531,7 @@ export const createClient = async (
         }));
         return buildPreparedSwap(input, reporter);
       }
-      const freshQuote = await fetchQuote({ ...reviewedQuote.request, signal, apiUrl }, reporter);
+      const freshQuote = await fetchQuote({ ...reviewedQuote.request, signal }, reporter);
       signal?.throwIfAborted();
       const finalized = captureValidatedSwap(freshQuote, account, chainId, partner);
       const reviewedRequest = reviewedQuote.request;

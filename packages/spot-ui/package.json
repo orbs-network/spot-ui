@@ -1,6 +1,6 @@
 {
   "name": "@orbs-network/spot-ui",
-  "version": "2.2.7",
+  "version": "2.2.9",
   "description": "Framework-neutral SDK for Spot swap quotes, order calculation, signing payloads, submission, and order status.",
   "type": "module",
   "main": "./dist/spot-ui.umd.cjs",
